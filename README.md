@@ -35,9 +35,9 @@ laiive is a catalyzer of a world wide business that is actually unatended. laiiv
 a ZERO CLIC UI is the public view of laiive, easy to publish an event, easy to find an event.
 
 ### Retriever Agent
-The backbone of laiive, an agent-based retrieval system with high accuracy on retrievals from the Neo4j knowledge graph database. The retriever uses an orchestrator pattern with specialized agents:
+The backbone of laiive, an agent-based retrieval system with high accuracy on retrievals from the Neo4j knowledge graph database. The retriever uses an orchestrator pattern with specialized tools:
 - **Orchestrator**: Routes queries and manages conversation flow
-- **DBQueryAgent**: Generates and executes Neo4j Cypher queries using LLM
+- **QueryBuilder**: Generates and executes Neo4j Cypher queries using LLM
 - **SafetyGuard**: Validates queries and enforces safety constraints
 - **Neo4jClient**: Handles graph database connections and query execution
 
