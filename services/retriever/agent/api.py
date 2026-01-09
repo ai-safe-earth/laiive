@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from .clients.neo4j_client import neo4j_client
 from .orchestrator import Orchestrator
 
-app = FastAPI(title="Neo4j Query Builder")
+app = FastAPI(title="laiive retriever API")
 
 schema = neo4j_client.get_schema()
 manager = Orchestrator(schema)
@@ -52,8 +52,19 @@ def health():
     return {"status": "ok"}
 
 @app.get("/schema")
-def get_schema():
-    return {"schema": schema}
+def schema():
+    try:
+        schema_text = neo4j_client.get_schema(force_refresh=True)
+        return {
+            "schema": schema_text,
+            "status": "ok"
+        }
+    except Exception as e:
+        return {
+            "schema": f"# Error retrieving schema: {str(e)}\n",
+            "status": "error",
+            "error": str(e)
+        }
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
@@ -97,13 +108,16 @@ def chat(request: ChatRequest):
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest):
+    # Strip whitespace from question
+    question = request.question.strip()
+
     try:
-        cypher, results = manager.execute_query(request.question)
+        cypher, results = manager.execute_query(question)
     except Exception as e:
         raise HTTPException(400, f"Query failed: {str(e)}")
 
     return QueryResponse(
-        question=request.question,
+        question=question,
         cypher=cypher,
         results=results,
     )
