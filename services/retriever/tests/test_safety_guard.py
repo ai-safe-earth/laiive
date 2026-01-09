@@ -1,3 +1,4 @@
+
 """
 Tests for SafetyGuardTool - Cypher query validation and content moderation.
 """
