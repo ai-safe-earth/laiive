@@ -9,9 +9,12 @@ class Settings(BaseSettings):
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
 
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    openrouter_api_key: str = Field(..., alias="OPENROUTER_API_KEY")
     query_builder_model: str = Field("gpt-4o", alias="OPENAI_MODEL")
     router_model: str = Field("gpt-4o", alias="OPENAI_MODEL")
     conversation_model: str = Field("gpt-4o", alias="OPENAI_MODEL")
+    embeddings_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
+    guardrail_model: str = Field("meta-llama/llama-guard-3-8b", alias="GUARDRAIL_MODEL")
 
     # ares_api_key: Optional[str] = Field(None, alias="ARES_API_KEY")
 
