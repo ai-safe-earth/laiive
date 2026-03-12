@@ -51,7 +51,7 @@ class EppenMusicSpider(scrapy.Spider):
 
         event_links = response.css("h5.card-title a::attr(href)").getall()
 
-        for link in event_links[:5]:  # TODO apply to all links, delete index [:5]
+        for link in event_links[:5]:
             if link.startswith("http"):
                 absolute_url = link
             else:
@@ -76,7 +76,7 @@ class EppenMusicSpider(scrapy.Spider):
             except json.JSONDecodeError:
                 pass
 
-        event_data = {  # TODO fill the fields with correct data
+        event_data = {
             # CORE EVENT FIELDS (raw data only)
             "name": (response.css(".col-12.col-lg-10 h1::text").get() or "").strip(),
             "description": None,

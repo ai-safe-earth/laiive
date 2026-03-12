@@ -1,29 +1,61 @@
 from datetime import date
-from typing import Optional, List, Dict, Any, ClassVar
-from openai import OpenAI
+from typing import Optional, List, Dict, Any
+import httpx
+from agent.utils.llm_utils import get_openai_client
 import numpy as np
 import json
 from config import settings
 from ..clients.neo4j_client import neo4j_client
-from .base import Tool
 from .safety_guard import SafetyGuardTool
+from ..utils.llm_utils import chat_completion_with_retry, embedding_with_retry
+QUERY_BUILDER_PROMPT = """You are a Neo4j Cypher query generator specialized in live music events.
+
+CORE RULES:
+1. READ-ONLY: Use only MATCH, OPTIONAL MATCH, WITH, RETURN, WHERE
+2. Always wrap datetime conversions: datetime(e.start_at) >= datetime("...")
+3. Return 10-20 results max, sorted by relevance
+4. Exclude 'embedding' properties from RETURN statements
+5. Use exact relationship types from schema
+
+DATE HANDLING:
+- Event.start_at format: "2026-01-15T20:00:00Z" (ISO-8601 with Z suffix)
+- Always check: WHERE e.start_at IS NOT NULL before datetime conversions
+- For date ranges: Use >= start AND <= end patterns
+- Correct example:
+  WHERE e.start_at IS NOT NULL
+    AND datetime(e.start_at) >= datetime("2026-01-15T00:00:00Z")
+    AND datetime(e.start_at) <= datetime("2026-01-15T23:59:59Z")
+
+EMBEDDINGS (for semantic ranking):
+- Always include these OPTIONAL MATCH patterns:
+  OPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)
+  OPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)
+- Return embeddings separately: event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding
+- Do NOT include embedding properties in main entity returns (e.g., "e" should not expose e.embedding)
+
+Current date: {date_context}
+
+Schema:
+{schema}"""
 
 
-class QueryBuilderTool(Tool):
-    """Tool to generate and execute Neo4j Cypher queries from natural language questions."""
+class QueryBuilderTool:
+    """Generates and executes Cypher queries for live music event search."""
 
-    name: str = "query_database"
-    description: str = "Generate and execute a Neo4j Cypher query to search for live music events. Use this when the user wants to find events based on date, location, genre, artist, or venue."
-    arg: str = "The user's natural language question about live music events with date of reference on the message actual moment (e.g., 'find jazz concerts in Berlin this evening), optionally with date range info (e.g., 'find jazz concerts in Berlin from 2026-01-01 to 2026-01-31)"
+    def __init__(
+        self,
+        schema: str = "",
+        embeddings_model: str = "text-embedding-3-small",
+    ):
+        self.client = get_openai_client(
+            http_client=httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)),
+        )
+        self.db_schema = schema
+        self.embeddings_model = embeddings_model
+        self.safety_guard = SafetyGuardTool()
 
-    # Class-level attributes for Pydantic
-    model_config = {"arbitrary_types_allowed": True}
-    client: Any = None
-    db_schema: str = ""
-    embeddings_model: str = "text-embedding-3-small"
-    safety_guard: Any = None
-
-    SYSTEM_PROMPT: ClassVar[str] = """You are a Neo4j Cypher query generator. Generate ONLY the Cypher query—no explanations, no markdown.
+    # Old SYSTEM_PROMPT kept as reference/fallback
+    SYSTEM_PROMPT = """You are a Neo4j Cypher query generator. Generate ONLY the Cypher query—no explanations, no markdown.
 
 RULES:
 - READ-ONLY queries only (MATCH, OPTIONAL MATCH, WITH, RETURN). Never CREATE/DELETE/MERGE/SET.
@@ -50,13 +82,6 @@ Schema:
 {schema}
 """
 
-    def __init__(self, schema: str = "", embeddings_model: str = "text-embedding-3-small", **data):
-        super().__init__(**data)
-        self.client = OpenAI(api_key=settings.openai_api_key)
-        self.db_schema = schema
-        self.embeddings_model = embeddings_model
-        self.safety_guard = SafetyGuardTool()
-
     def run(self, prompt: str, date_info: Optional[Dict[str, str]] = None) -> str:
         question = prompt
         try:
@@ -65,13 +90,15 @@ Schema:
             safety_data = json.loads(safety_result)
 
             if not safety_data.get("is_safe", False):
-                return json.dumps({
-                    "status": "error",
-                    "error": f"Query failed safety validation: {safety_data.get('message', 'Unknown violation')}",
-                    "cypher": cypher,
-                    "violations": safety_data.get("violations", []),
-                    "results": []
-                })
+                return json.dumps(
+                    {
+                        "status": "error",
+                        "error": f"Query failed safety validation: {safety_data.get('message', 'Unknown violation')}",
+                        "cypher": cypher,
+                        "violations": safety_data.get("violations", []),
+                        "results": [],
+                    }
+                )
 
             results = neo4j_client.execute_read(cypher)
 
@@ -81,54 +108,57 @@ Schema:
 
             filtered_results = self._filter_embeddings(results)
 
-            return json.dumps({
-                "status": "success",
-                "cypher": cypher,
-                "result_count": len(filtered_results),
-                "results": filtered_results[:10],
-                "message": f"Found {len(filtered_results)} event(s)"
-            }, default=str)
+            return json.dumps(
+                {
+                    "status": "success",
+                    "cypher": cypher,
+                    "result_count": len(filtered_results),
+                    "results": filtered_results[: settings.max_results_limit],
+                    "message": f"Found {len(filtered_results)} event(s)",
+                },
+                default=str,
+            )
 
         except Exception as e:
-            return json.dumps({
-                "status": "error",
-                "error": str(e),
-                "results": []
-            })
+            return json.dumps({"status": "error", "error": str(e), "results": []})
 
     def _generate_cypher(
-        self,
-        question: str,
-        date_info: Optional[Dict[str, str]] = None
+        self, question: str, date_info: Optional[Dict[str, str]] = None
     ) -> str:
         """Generate Cypher query from natural language question."""
-        date_context = f"{date.today().isoformat()} ({date.today().strftime('%A, %B %d, %Y')})"
+        date_context = (
+            f"{date.today().isoformat()} ({date.today().strftime('%A, %B %d, %Y')})"
+        )
 
         # Build date info section if provided
         date_section = ""
         if date_info:
-            start = date_info.get('start_date')
-            end = date_info.get('end_date')
+            start = date_info.get("start_date")
+            end = date_info.get("end_date")
             date_section = f"""
 
 DATE FILTER TO USE:
 datetime(e.start_at) >= datetime("{start}T00:00:00Z") AND datetime(e.start_at) <= datetime("{end}T23:59:59Z")
 """
 
-
         embeddings_section = """
 EMBEDDINGS: Include related entities with their embeddings:
-- OPTIONAL MATCH (event)-[:HAS_ARTIST|PERFORMED_BY]->(artist:Artist)
-- OPTIONAL MATCH (event)-[:AT_VENUE|HOSTED_AT]->(venue:Venue)
+- OPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(event)
+- OPTIONAL MATCH (event)-[:HOSTED_AT]->(venue:Venue)
+- OPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)
 - RETURN event.embedding, artist.embedding, venue.embedding
 """
 
-        system_prompt = self.SYSTEM_PROMPT.format(
-            schema=self.db_schema,
-            date_context=date_context
-        ) + date_section + embeddings_section
+        system_prompt = (
+            QUERY_BUILDER_PROMPT.format(
+                schema=self.db_schema, date_context=date_context
+            )
+            + date_section
+            + embeddings_section
+        )
 
-        response = self.client.chat.completions.create(
+        response = chat_completion_with_retry(
+            self.client,
             model=settings.query_builder_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -139,18 +169,15 @@ EMBEDDINGS: Include related entities with their embeddings:
 
         cypher = response.choices[0].message.content.strip()
 
-        # Strip markdown code fences if present
         if cypher.startswith("```"):
             lines = cypher.split("\n")
             cypher = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
 
         return cypher.strip()
 
-
     def get_embedding(self, text: str) -> List[float]:
-        response = self.client.embeddings.create(
-            model=self.embeddings_model,
-            input=text
+        response = embedding_with_retry(
+            self.client, model=self.embeddings_model, input=text
         )
         return response.data[0].embedding
 
@@ -172,7 +199,7 @@ EMBEDDINGS: Include related entities with their embeddings:
         event_embedding: Optional[List[float]] = None,
         artist_embeddings: Optional[List[List[float]]] = None,
         venue_embedding: Optional[List[float]] = None,
-        weights: Dict[str, float] = None
+        weights: Dict[str, float] = None,
     ) -> float:
         if weights is None:
             weights = {"event": 0.3, "artist": 0.5, "venue": 0.2}
@@ -208,9 +235,7 @@ EMBEDDINGS: Include related entities with their embeddings:
         return weighted_sum / total_weight
 
     def _order_by_similarity(
-        self,
-        results: List[dict],
-        query_embedding: List[float]
+        self, results: List[dict], query_embedding: List[float]
     ) -> List[dict]:
         scored_results = []
 
@@ -220,7 +245,11 @@ EMBEDDINGS: Include related entities with their embeddings:
             artist_embeddings = []
             artist_emb = result.get("artist_embedding")
             if artist_emb:
-                if isinstance(artist_emb, list) and len(artist_emb) > 0 and isinstance(artist_emb[0], list):
+                if (
+                    isinstance(artist_emb, list)
+                    and len(artist_emb) > 0
+                    and isinstance(artist_emb[0], list)
+                ):
                     artist_embeddings = [emb for emb in artist_emb if emb is not None]
                 elif isinstance(artist_emb, list) and len(artist_emb) > 0:
                     artist_embeddings = [artist_emb] if artist_emb else []
@@ -232,7 +261,7 @@ EMBEDDINGS: Include related entities with their embeddings:
                     query_embedding=query_embedding,
                     event_embedding=event_embedding,
                     artist_embeddings=artist_embeddings if artist_embeddings else None,
-                    venue_embedding=venue_embedding
+                    venue_embedding=venue_embedding,
                 )
             else:
                 similarity = 0.0
@@ -249,11 +278,25 @@ EMBEDDINGS: Include related entities with their embeddings:
         for result in results:
             cleaned = {}
             for key, value in result.items():
-                if key in ["embedding", "event_embedding", "artist_embedding", "venue_embedding"]:
+                if key in [
+                    "embedding",
+                    "event_embedding",
+                    "artist_embedding",
+                    "venue_embedding",
+                ]:
                     continue
                 if isinstance(value, dict):
-                    cleaned[key] = {k: v for k, v in value.items()
-                                if k not in ["embedding", "event_embedding", "artist_embedding", "venue_embedding"]}
+                    cleaned[key] = {
+                        k: v
+                        for k, v in value.items()
+                        if k
+                        not in [
+                            "embedding",
+                            "event_embedding",
+                            "artist_embedding",
+                            "venue_embedding",
+                        ]
+                    }
                 else:
                     cleaned[key] = value
             filtered.append(cleaned)

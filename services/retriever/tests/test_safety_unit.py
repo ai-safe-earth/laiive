@@ -2,6 +2,7 @@
 Unit test for SafetyGuardTool - without requiring settings/config.
 Tests the validation logic directly.
 """
+
 import json
 import re
 
@@ -10,10 +11,10 @@ import re
 def remove_comments_and_strings(cypher: str) -> str:
     """Remove comments and string literals to avoid false positives."""
     # Remove single-line comments
-    cypher = re.sub(r'//.*?$', '', cypher, flags=re.MULTILINE)
+    cypher = re.sub(r"//.*?$", "", cypher, flags=re.MULTILINE)
 
     # Remove multi-line comments
-    cypher = re.sub(r'/\*.*?\*/', '', cypher, flags=re.DOTALL)
+    cypher = re.sub(r"/\*.*?\*/", "", cypher, flags=re.DOTALL)
 
     # Remove string literals (both single and double quotes)
     cypher = re.sub(r"'[^']*'", "''", cypher)
@@ -35,13 +36,13 @@ def validate_read_only(cypher: str) -> tuple[bool, list[str]]:
 
     # Check for forbidden write operations with word boundaries
     forbidden_patterns = [
-        (r'\bCREATE\b', "CREATE"),
-        (r'\bDELETE\b', "DELETE"),
-        (r'\bMERGE\b', "MERGE"),
-        (r'\bSET\b', "SET"),
-        (r'\bREMOVE\b', "REMOVE"),
-        (r'\bDROP\b', "DROP"),
-        (r'\bDETACH\s+DELETE\b', "DETACH DELETE"),
+        (r"\bCREATE\b", "CREATE"),
+        (r"\bDELETE\b", "DELETE"),
+        (r"\bMERGE\b", "MERGE"),
+        (r"\bSET\b", "SET"),
+        (r"\bREMOVE\b", "REMOVE"),
+        (r"\bDROP\b", "DROP"),
+        (r"\bDETACH\s+DELETE\b", "DETACH DELETE"),
     ]
 
     for pattern, keyword in forbidden_patterns:
@@ -50,12 +51,12 @@ def validate_read_only(cypher: str) -> tuple[bool, list[str]]:
 
     # Check for dangerous APOC procedures
     dangerous_apoc = [
-        r'apoc\.export',
-        r'apoc\.import',
-        r'apoc\.trigger',
-        r'apoc\.periodic\.commit',
-        r'apoc\.cypher\.runFile',
-        r'apoc\.load\.driver',
+        r"apoc\.export",
+        r"apoc\.import",
+        r"apoc\.trigger",
+        r"apoc\.periodic\.commit",
+        r"apoc\.cypher\.runFile",
+        r"apoc\.load\.driver",
     ]
 
     for pattern in dangerous_apoc:
@@ -73,7 +74,11 @@ def test_cypher_validation():
     # Test cases: (query, expected_safe, description)
     test_cases = [
         ("MATCH (n:Event) RETURN n LIMIT 10", True, "Safe read query"),
-        ("MATCH (e:Event)-[:AT_VENUE]->(v:Venue) WHERE v.city = 'Berlin' RETURN e, v", True, "Safe query with relationships"),
+        (
+            "MATCH (e:Event)-[:AT_VENUE]->(v:Venue) WHERE v.city = 'Berlin' RETURN e, v",
+            True,
+            "Safe query with relationships",
+        ),
         ("CREATE (n:Event {name: 'Test'}) RETURN n", False, "CREATE operation"),
         ("MATCH (n) DELETE n", False, "DELETE operation"),
         ("MATCH (n) SET n.name = 'Test' RETURN n", False, "SET operation"),
@@ -83,7 +88,11 @@ def test_cypher_validation():
         ("MATCH (n) DETACH DELETE n", False, "DETACH DELETE"),
         ("// CREATE comment\nMATCH (n) RETURN n", True, "Keyword in comment"),
         ("MATCH (n) WHERE n.name = 'CREATE EVENT' RETURN n", True, "Keyword in string"),
-        ("MATCH (n:Event) WHERE n.created_at > datetime() RETURN n", True, "Partial keyword match (created_at)"),
+        (
+            "MATCH (n:Event) WHERE n.created_at > datetime() RETURN n",
+            True,
+            "Partial keyword match (created_at)",
+        ),
         ("CALL apoc.export.csv.all('file.csv', {})", False, "Dangerous APOC export"),
         ("CALL apoc.import.json('data.json')", False, "Dangerous APOC import"),
         ("RETURN apoc.text.join(['a', 'b'], ',')", True, "Safe APOC procedure"),
@@ -111,7 +120,9 @@ def test_cypher_validation():
             print(f"  Query: {query[:60]}...")
         else:
             print(f"  Query: {query}")
-        print(f"  Expected: {'safe' if expected_safe else 'unsafe'}, Got: {'safe' if is_safe else 'unsafe'}")
+        print(
+            f"  Expected: {'safe' if expected_safe else 'unsafe'}, Got: {'safe' if is_safe else 'unsafe'}"
+        )
         if not is_safe:
             print(f"  Violations: {violations}")
         print()
@@ -129,8 +140,16 @@ def test_comment_string_removal():
 
     test_cases = [
         ("// CREATE\nMATCH (n) RETURN n", "MATCH (n) RETURN n", "Single-line comment"),
-        ("/* CREATE */ MATCH (n) RETURN n", " MATCH (n) RETURN n", "Multi-line comment"),
-        ("MATCH (n) WHERE n.name = 'CREATE' RETURN n", "MATCH (n) WHERE n.name = '' RETURN n", "String literal"),
+        (
+            "/* CREATE */ MATCH (n) RETURN n",
+            " MATCH (n) RETURN n",
+            "Multi-line comment",
+        ),
+        (
+            "MATCH (n) WHERE n.name = 'CREATE' RETURN n",
+            "MATCH (n) WHERE n.name = '' RETURN n",
+            "String literal",
+        ),
     ]
 
     passed = 0
@@ -138,8 +157,8 @@ def test_comment_string_removal():
 
     for input_query, expected_pattern, description in test_cases:
         cleaned = remove_comments_and_strings(input_query)
-        cleaned = ' '.join(cleaned.split())  # Normalize whitespace
-        expected = ' '.join(expected_pattern.split())
+        cleaned = " ".join(cleaned.split())  # Normalize whitespace
+        expected = " ".join(expected_pattern.split())
 
         status = "[PASS]" if expected in cleaned or cleaned == expected else "[FAIL]"
         if expected in cleaned or cleaned == expected:
@@ -181,9 +200,9 @@ def test_multiple_violations():
 
 def main():
     """Run all unit tests."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SafetyGuardTool - Unit Test Suite")
-    print("="*60)
+    print("=" * 60)
 
     try:
         results = []
@@ -191,22 +210,24 @@ def main():
         results.append(test_comment_string_removal())
         results.append(test_multiple_violations())
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         if all(results):
             print("[SUCCESS] ALL TESTS PASSED")
         else:
             print("[FAILURE] SOME TESTS FAILED")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         return 0 if all(results) else 1
 
     except Exception as e:
         print(f"\n[ERROR]: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(main())

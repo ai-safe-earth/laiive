@@ -7,9 +7,13 @@
   "workspaceFolder": "/workspace",
   "service": "global-workspace",
   "overrideCommand": false,
-  "forwardPorts": [8000, 8001],
+  "forwardPorts": [
+    8000,
+    8001
+  ],
   "features": {
-    "ghcr.io/devcontainers/features/git:1": {}
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
   "postStartCommand": "git config --global --add safe.directory /workspace && pre-commit install",
   "customizations": {
@@ -28,5 +32,8 @@
         "python.testing.unittestEnabled": false
       }
     }
-  }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ]
 }

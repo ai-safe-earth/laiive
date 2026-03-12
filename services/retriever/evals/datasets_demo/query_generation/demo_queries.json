@@ -1,0 +1,171 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-22T16:54:58.317440",
+  "description": "Test cases generated from production user logs",
+  "source": "production_logs",
+  "test_cases": [
+    {
+      "id": "qg_user_001",
+      "category": "date_query",
+      "user_query": "Find jazz concerts in Berlin this weekend",
+      "expected_patterns": [
+        "datetime\\(e\\.start_at\\)"
+      ],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "has_ground_truth": true,
+        "actual_action": "QUERY_DB"
+      },
+      "actual_cypher_generated": "MATCH (e:Event)-[:LOCATED_IN]->(c:City {name: 'Berlin'}) WHERE e.genre = 'jazz' RETURN e"
+    },
+    {
+      "id": "qg_user_002",
+      "category": "venue_query",
+      "user_query": "What about tomorrow?",
+      "expected_patterns": [
+        "Venue",
+        "HOSTED_AT"
+      ],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "actual_action": "QUERY_DB"
+      }
+    },
+    {
+      "id": "qg_user_003",
+      "category": "general",
+      "user_query": "Show me concerts",
+      "expected_patterns": [],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "actual_action": "NEEDS_INFO"
+      }
+    },
+    {
+      "id": "qg_user_004",
+      "category": "general",
+      "user_query": "Are there any Radiohead concerts?",
+      "expected_patterns": [],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "has_ground_truth": true,
+        "actual_action": "QUERY_DB"
+      },
+      "actual_cypher_generated": "MATCH (a:Artist {name: 'Radiohead'})-[:PERFORMS_AT]->(e:Event) RETURN e"
+    },
+    {
+      "id": "qg_user_005",
+      "category": "general",
+      "user_query": "What's the weather like?",
+      "expected_patterns": [],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "actual_action": "OUT_OF_SCOPE"
+      }
+    },
+    {
+      "id": "qg_user_006",
+      "category": "general",
+      "user_query": "Thanks, goodbye!",
+      "expected_patterns": [],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "actual_action": "BYE_MESSAGE"
+      }
+    },
+    {
+      "id": "qg_user_007",
+      "category": "location_query",
+      "user_query": "techno events in Berlin under 20 euros this Friday night",
+      "expected_patterns": [
+        "City",
+        "LOCATED_IN"
+      ],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "has_ground_truth": true,
+        "actual_action": "QUERY_DB"
+      },
+      "actual_cypher_generated": "MATCH (e:Event)-[:LOCATED_IN]->(c:City {name: 'Berlin'}) WHERE e.genre = 'techno' AND e.price_amount < 20 RETURN e"
+    },
+    {
+      "id": "qg_user_008",
+      "category": "venue_query",
+      "user_query": "What events are happening at Berghain next month?",
+      "expected_patterns": [
+        "Venue",
+        "HOSTED_AT"
+      ],
+      "should_not_contain": [
+        "DELETE",
+        "CREATE",
+        "MERGE",
+        "SET"
+      ],
+      "metadata": {
+        "difficulty": "unknown",
+        "source": "production_logs",
+        "auto_categorized": true,
+        "has_ground_truth": true,
+        "actual_action": "QUERY_DB"
+      },
+      "actual_cypher_generated": "MATCH (v:Venue {name: 'Berghain'})<-[:HOSTED_AT]-(e:Event) RETURN e"
+    }
+  ]
+}

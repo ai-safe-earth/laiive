@@ -2,6 +2,7 @@
 Manual test script for SafetyGuardTool improvements.
 Run with: python test_safety_manual.py
 """
+
 import json
 import sys
 from agent.tools.safety_guard import SafetyGuardTool
@@ -44,7 +45,9 @@ def test_cypher_validation():
 
         print(f"{status}: {description}")
         print(f"  Query: {query[:60]}...")
-        print(f"  Expected: {'safe' if expected_safe else 'unsafe'}, Got: {'safe' if is_safe else 'unsafe'}")
+        print(
+            f"  Expected: {'safe' if expected_safe else 'unsafe'}, Got: {'safe' if is_safe else 'unsafe'}"
+        )
         if not is_safe:
             print(f"  Violations: {result['violations']}")
         print()
@@ -108,7 +111,7 @@ def test_error_messages():
     print(f"  Violations: {result['violations']}")
     print(f"  Should list all violations: CREATE, SET, DELETE")
 
-    has_all = all(v in result['violations'] for v in ['CREATE', 'SET', 'DELETE'])
+    has_all = all(v in result["violations"] for v in ["CREATE", "SET", "DELETE"])
     print(f"  ✓ PASS" if has_all else "  ✗ FAIL")
 
     print()
@@ -117,9 +120,9 @@ def test_error_messages():
 
 def main():
     """Run all manual tests."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SafetyGuardTool - Manual Test Suite")
-    print("="*60)
+    print("=" * 60)
 
     try:
         results = []
@@ -127,18 +130,19 @@ def main():
         results.append(test_enhanced_features())
         results.append(test_error_messages())
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         if all(results):
             print("✓ ALL TESTS PASSED")
         else:
             print("✗ SOME TESTS FAILED")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         return 0 if all(results) else 1
 
     except Exception as e:
         print(f"\n✗ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

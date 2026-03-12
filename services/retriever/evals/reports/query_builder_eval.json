@@ -1,0 +1,664 @@
+{
+  "eval_name": "query_builder_comprehensive",
+  "component": "query_builder",
+  "timestamp": "2026-01-23T16:54:56.171793",
+  "summary": {
+    "total_tests": 30,
+    "passed": 17,
+    "failed": 13,
+    "accuracy": 0.5666666666666667,
+    "avg_score": 0.7095238095238094,
+    "avg_latency_ms": 4001.8979000000004,
+    "by_model": {
+      "gpt-4o": {
+        "total": 15,
+        "passed": 9,
+        "avg_score": 0.7428571428571427,
+        "accuracy": 0.6
+      },
+      "gpt-4o-mini": {
+        "total": 15,
+        "passed": 8,
+        "avg_score": 0.6761904761904761,
+        "accuracy": 0.5333333333333333
+      }
+    },
+    "by_prompt_version": {
+      "v1.0": {
+        "total": 10,
+        "passed": 5,
+        "avg_score": 0.6428571428571428,
+        "accuracy": 0.5
+      },
+      "v1.1": {
+        "total": 10,
+        "passed": 6,
+        "avg_score": 0.7428571428571428,
+        "accuracy": 0.6
+      },
+      "v2.0": {
+        "total": 10,
+        "passed": 6,
+        "avg_score": 0.7428571428571428,
+        "accuracy": 0.6
+      }
+    }
+  },
+  "results": [
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 17873.094999999998,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nORDER BY e.start_at\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 3504.0110000000004,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3645.52,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\n  AND EXISTS((e)-[:HOSTED_AT]->(:Venue {name: \"Berghain\"}))\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 5485.8640000000005,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\n  AND e.genre = \"Techno\"\n  AND e.price < 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3022.3360000000002,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND e.genre = \"Indie Rock\"\n  AND datetime(e.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN e AS event\nLIMIT 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e, artist, venue, event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    },
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 2237.079,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nOPTIONAL MATCH (artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o",
+      "prompt_version": "v1.1",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 4781.263,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3603.2540000000004,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\n  AND EXISTS((e)-[:HOSTED_AT]->(:Venue {name: \"Berghain\"}))\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nORDER BY datetime(e.start_at) ASC\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o",
+      "prompt_version": "v1.1",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 5733.197999999999,
+      "output": "MATCH (e:Event)\nWHERE e.genre = \"Techno\"\n  AND e.price < 20\n  AND e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3715.493,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND e.genre = \"Indie Rock\"\n  AND datetime(e.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN e AS event\nLIMIT 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN event, artist, venue, event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    },
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 2529.689,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nORDER BY e.start_at\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 4206.048,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3462.476,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\nOPTIONAL MATCH (e)<-[:HOSTED_AT]-(venue:Venue {name: \"Berghain\"})\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nORDER BY datetime(e.start_at) ASC\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 3266.797,
+      "output": "MATCH (e:Event)\nWHERE e.genre = \"Techno\" \n  AND e.price < 20 \n  AND e.start_at IS NOT NULL \n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\") \n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3700.657,
+      "output": "MATCH (event:Event)\nWHERE event.genre = \"Indie Rock\" \n  AND event.start_at IS NOT NULL\n  AND datetime(event.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN event AS event_details, event.name AS event_name, event.start_at AS event_start_at\nLIMIT 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(event)\nOPTIONAL MATCH (event)-[:HOSTED_AT]->(venue:Venue)\nRETURN event_details, artist, venue, event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    },
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1516.5349999999999,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nORDER BY e.start_at\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 4323.861,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 4071.941,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\n  AND EXISTS((e)-[:HOSTED_AT]->(:Venue {name: \"Berghain\"}))\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 3148.748,
+      "output": "MATCH (e:Event)\nWHERE e.genre = \"Techno\" \n  AND e.price < 20 \n  AND e.start_at IS NOT NULL \n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\") \n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, \n       e.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": false,
+      "score": 0.0,
+      "latency_ms": 1693.575,
+      "output": "MATCH (event:Event)\nWHERE event.start_at IS NOT NULL\n  AND event.genre = \"Indie Rock\"\n  AND datetime(event.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN event AS event_details\nLIMIT 20",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [
+        "Missing expected pattern: OPTIONAL MATCH.*artist",
+        "Missing expected pattern: embedding"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    },
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1585.5600000000002,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.1",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 4358.286,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 4572.344,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\n  AND EXISTS((e)-[:HOSTED_AT]->(:Venue {name: \"Berghain\"}))\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nORDER BY datetime(e.start_at) ASC\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.1",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 4621.524,
+      "output": "MATCH (e:Event)\nWHERE e.genre = \"Techno\" \n  AND e.price < 20 \n  AND e.start_at IS NOT NULL \n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\") \n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, \n       e.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 2458.129,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND e.genre = \"Indie Rock\"\n  AND datetime(e.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN e AS event\nLIMIT 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e, artist, venue, event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    },
+    {
+      "test_id": "qg_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1817.28,
+      "output": "MATCH (artist:Artist {name: \"Radiohead\"})-[:PERFORMS_AT]->(e:Event)\nWHERE e.start_at IS NOT NULL\nRETURN e AS event, artist AS artist\nORDER BY e.start_at\nLIMIT 20",
+      "expected": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "test_id": "qg_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": false,
+      "score": 0.5714285714285714,
+      "latency_ms": 4836.309,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-01-23T23:59:59Z\")\n  AND e.genre = \"Jazz\"\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "errors": [
+        "Missing expected pattern: Berlin"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "test_id": "qg_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3774.631,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND datetime(e.start_at) >= datetime(\"2026-02-01T00:00:00Z\")\n  AND datetime(e.start_at) <= datetime(\"2026-02-28T23:59:59Z\")\n  AND EXISTS((e)-[:HOSTED_AT]->(:Venue {name: \"Berghain\"}))\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e, artist, venue, e.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding\nORDER BY datetime(e.start_at) ASC\nLIMIT 20",
+      "expected": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "test_id": "qg_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": false,
+      "score": 0.14285714285714285,
+      "latency_ms": 2876.7140000000004,
+      "output": "MATCH (e:Event)\nWHERE e.genre = \"Techno\" \n  AND e.price < 20 \n  AND e.start_at IS NOT NULL \n  AND datetime(e.start_at) >= datetime(\"2026-01-22T00:00:00Z\") \n  AND datetime(e.start_at) <= datetime(\"2026-01-22T23:59:59Z\")\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nOPTIONAL MATCH (venue)-[:LOCATED_IN]->(city:City)\nRETURN e AS event, artist AS artist, venue AS venue, \n       event.embedding AS event_embedding, \n       artist.embedding AS artist_embedding, \n       venue.embedding AS venue_embedding\nLIMIT 20",
+      "expected": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "errors": [
+        "Missing expected pattern: price_amount.*<.*20",
+        "Missing expected pattern: Berlin",
+        "Missing price filter"
+      ],
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "test_id": "qg_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 3634.7200000000003,
+      "output": "MATCH (e:Event)\nWHERE e.start_at IS NOT NULL\n  AND e.genre = \"Indie Rock\"\n  AND datetime(e.start_at) >= datetime(\"2026-01-23T00:00:00Z\")\nRETURN e AS event\nLIMIT 20\nOPTIONAL MATCH (artist:Artist)-[:PERFORMS_AT]->(e)\nOPTIONAL MATCH (e)-[:HOSTED_AT]->(venue:Venue)\nRETURN e, artist, venue, event.embedding AS event_embedding, artist.embedding AS artist_embedding, venue.embedding AS venue_embedding",
+      "expected": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "errors": [],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    }
+  ]
+}
