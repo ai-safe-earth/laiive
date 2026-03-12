@@ -5,7 +5,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseSettings
 
 class DbParserSettings(BaseSettings):
-    # TODO
 
 
 settings = DbParserSettings()
@@ -29,7 +28,6 @@ class db_parser_settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # FIXME the URL format for psycopg2
         if self.POSTGRES_URL.startswith("postgresql+asyncpg://"):
             self.POSTGRES_URL = self.POSTGRES_URL.replace(
                 "postgresql+asyncpg://", "postgresql://"

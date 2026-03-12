@@ -4,11 +4,6 @@ Thanks for helping improve **laiive**!
 
 ---
 
-## Code of Conduct
-Please read our [Code of Conduct](./CODE_OF_CONDUCT.md) before contributing.
-
----
-
 ## How to Contribute
 
 We follow a simple workflow to keep contributions organized:

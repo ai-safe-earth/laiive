@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-22",
+  "description": "End-to-end conversation evaluation scenarios",
+  "conversations": [
+    {
+      "id": "e2e_001",
+      "name": "successful_event_search",
+      "turns": [
+        {
+          "user": "I'm looking for concerts in Berlin this weekend",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "generates_query": true,
+            "includes_location": "Berlin",
+            "has_date_filter": true,
+            "returns_results": true
+          }
+        },
+        {
+          "user": "What about jazz specifically?",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "uses_conversation_context": true,
+            "adds_genre_filter": "jazz",
+            "maintains_location": "Berlin"
+          }
+        }
+      ],
+      "overall_success_criteria": {
+        "completes_without_errors": true,
+        "provides_relevant_results": true,
+        "maintains_context": true
+      }
+    },
+    {
+      "id": "e2e_002",
+      "name": "refinement_flow",
+      "turns": [
+        {
+          "user": "Show me concerts",
+          "expected_action": "NEEDS_INFO",
+          "success_criteria": {
+            "asks_for_clarification": true,
+            "suggests_what_info_needed": true
+          }
+        },
+        {
+          "user": "In Amsterdam next Friday",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "generates_query": true,
+            "includes_location": "Amsterdam",
+            "has_date_filter": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "e2e_003",
+      "name": "out_of_scope_handling",
+      "turns": [
+        {
+          "user": "What's the weather in Berlin?",
+          "expected_action": "OUT_OF_SCOPE",
+          "success_criteria": {
+            "rejects_politely": true,
+            "explains_capabilities": true
+          }
+        },
+        {
+          "user": "Ok, show me concerts in Berlin then",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "recovers_gracefully": true,
+            "processes_valid_query": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "e2e_004",
+      "name": "artist_specific_search",
+      "turns": [
+        {
+          "user": "Are there any Radiohead concerts?",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "queries_by_artist": true,
+            "returns_results": true
+          }
+        },
+        {
+          "user": "What about similar artists?",
+          "expected_action": "QUERY_DB",
+          "success_criteria": {
+            "uses_semantic_search": true,
+            "leverages_embeddings": true
+          }
+        }
+      ]
+    }
+  ]
+}

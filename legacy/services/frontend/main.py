@@ -175,7 +175,7 @@ def get_laiive_response(
             current_date = date_range[0]
             end_date = date_range[1]
             days_diff = (end_date - current_date).days
-            MAX_DATE_RANGE_DAYS = 180  # TODO add as settings value.
+            MAX_DATE_RANGE_DAYS = 180
             if days_diff > MAX_DATE_RANGE_DAYS:
                 return f"Error: Date range too large. Maximum allowed is {MAX_DATE_RANGE_DAYS} days."
             dates_list = []

@@ -1,0 +1,1063 @@
+{
+  "eval_name": "intent_classification_eval",
+  "component": "orchestrator",
+  "timestamp": "2026-01-23T16:56:04.207468",
+  "summary": {
+    "total_tests": 72,
+    "passed": 72,
+    "failed": 0,
+    "accuracy": 1.0,
+    "avg_score": 1.0,
+    "avg_latency_ms": 944.5664722222223,
+    "by_model": {
+      "gpt-4o": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      },
+      "gpt-4o-mini": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      },
+      "gpt-3.5-turbo": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      }
+    },
+    "by_prompt_version": {
+      "v1.0": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      },
+      "v2.0": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      },
+      "v2.1": {
+        "total": 24,
+        "passed": 24,
+        "avg_score": 1.0,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "results": [
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 965.033,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 924.148,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 746.994,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 762.452,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1437.2,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 721.4580000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 725.536,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 785.323,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1240.569,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 698.1650000000001,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 757.051,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1105.759,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 2462.685,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 861.97,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 926.685,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 811.042,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 887.824,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 676.811,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 765.0,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 823.237,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 755.6030000000001,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 864.444,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 699.978,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1032.342,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 941.413,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 908.054,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 731.536,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 759.377,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 725.414,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 860.587,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1663.7649999999999,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 811.3580000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1007.7719999999999,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 759.079,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 794.953,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 831.72,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 820.078,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 855.804,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 891.953,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1820.227,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 902.225,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1093.176,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 741.79,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 972.835,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 778.037,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 864.619,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 914.8810000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-4o-mini",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 919.4870000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 937.764,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 964.584,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 874.931,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1017.3129999999999,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 890.7629999999999,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 933.31,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 709.2570000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v1.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 928.331,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 823.5160000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 988.143,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 821.9100000000001,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 828.505,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 930.494,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1992.195,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 991.332,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.0",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1114.4750000000001,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    },
+    {
+      "test_id": "ic_001",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 913.975,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Has specific constraints (genre + location)"
+      }
+    },
+    {
+      "test_id": "ic_002",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 798.497,
+      "output": "NEEDS_INFO",
+      "expected": "NEEDS_INFO",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Too vague, missing location/date/artist"
+      }
+    },
+    {
+      "test_id": "ic_003",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 815.029,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Not about live music events"
+      }
+    },
+    {
+      "test_id": "ic_004",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1131.9060000000002,
+      "output": "BYE_MESSAGE",
+      "expected": "BYE_MESSAGE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "User ending conversation"
+      }
+    },
+    {
+      "test_id": "ic_005",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 862.7099999999999,
+      "output": "OUT_OF_SCOPE",
+      "expected": "OUT_OF_SCOPE",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Booking is out of scope"
+      }
+    },
+    {
+      "test_id": "ic_006",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 801.6419999999999,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Context from history provides missing info"
+      }
+    },
+    {
+      "test_id": "ic_007",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 1188.424,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Artist-specific query, valid even without date/location"
+      }
+    },
+    {
+      "test_id": "ic_008",
+      "model": "gpt-3.5-turbo",
+      "prompt_version": "v2.1",
+      "passed": true,
+      "score": 1.0,
+      "latency_ms": 942.331,
+      "output": "QUERY_DB",
+      "expected": "QUERY_DB",
+      "errors": [],
+      "metadata": {
+        "reasoning": "Venue-specific query"
+      }
+    }
+  ]
+}

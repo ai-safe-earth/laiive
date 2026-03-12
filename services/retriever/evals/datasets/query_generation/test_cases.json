@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-22",
+  "description": "Test cases for query generation evaluation",
+  "test_cases": [
+    {
+      "id": "qg_001",
+      "category": "simple_artist_query",
+      "user_query": "Find concerts by Radiohead",
+      "expected_patterns": [
+        "MATCH.*Artist.*name.*Radiohead",
+        "PERFORMS_AT",
+        "Event"
+      ],
+      "should_not_contain": ["DELETE", "CREATE", "MERGE", "SET"],
+      "metadata": {
+        "difficulty": "easy",
+        "requires_date": false
+      }
+    },
+    {
+      "id": "qg_002",
+      "category": "date_range_query",
+      "user_query": "Jazz concerts in Berlin this weekend",
+      "date_context": "2026-01-22",
+      "expected_patterns": [
+        "datetime\\(e\\.start_at\\)",
+        "Berlin",
+        "jazz"
+      ],
+      "should_not_contain": ["date(e.start_at)"],
+      "expected_cypher_structure": {
+        "has_datetime_conversion": true,
+        "has_date_filter": true,
+        "has_city_filter": true
+      },
+      "metadata": {
+        "difficulty": "medium",
+        "requires_date": true,
+        "tests_feature": "date_handling"
+      }
+    },
+    {
+      "id": "qg_003",
+      "category": "venue_specific",
+      "user_query": "What events are happening at Berghain next month?",
+      "date_context": "2026-01-22",
+      "expected_patterns": [
+        "Venue.*name.*Berghain",
+        "HOSTED_AT",
+        "datetime\\(e\\.start_at\\).*>=.*datetime"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "venue_query"
+      }
+    },
+    {
+      "id": "qg_004",
+      "category": "complex_multi_constraint",
+      "user_query": "Find techno events under 20 euros in Berlin on Friday night",
+      "date_context": "2026-01-22",
+      "expected_patterns": [
+        "price_amount.*<.*20",
+        "Berlin",
+        "techno"
+      ],
+      "expected_cypher_structure": {
+        "has_price_filter": true,
+        "has_genre_filter": true,
+        "has_location_filter": true,
+        "has_datetime_filter": true
+      },
+      "metadata": {
+        "difficulty": "hard",
+        "requires_date": true,
+        "tests_feature": "multi_constraint"
+      }
+    },
+    {
+      "id": "qg_005",
+      "category": "embeddings_required",
+      "user_query": "Find events similar to indie rock concerts",
+      "expected_patterns": [
+        "OPTIONAL MATCH.*artist",
+        "embedding"
+      ],
+      "metadata": {
+        "difficulty": "medium",
+        "tests_feature": "semantic_search"
+      }
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-22T16:54:58.323761",
+  "description": "Intent classification test cases from production logs",
+  "test_cases": [
+    {
+      "id": "ic_user_001",
+      "user_message": "Find jazz concerts in Berlin this weekend",
+      "expected_action": "QUERY_DB",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_002",
+      "user_message": "What about tomorrow?",
+      "expected_action": "QUERY_DB",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_003",
+      "user_message": "Show me concerts",
+      "expected_action": "NEEDS_INFO",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_004",
+      "user_message": "Are there any Radiohead concerts?",
+      "expected_action": "QUERY_DB",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_005",
+      "user_message": "What's the weather like?",
+      "expected_action": "OUT_OF_SCOPE",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_006",
+      "user_message": "Thanks, goodbye!",
+      "expected_action": "BYE_MESSAGE",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_007",
+      "user_message": "techno events in Berlin under 20 euros this Friday night",
+      "expected_action": "QUERY_DB",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    },
+    {
+      "id": "ic_user_008",
+      "user_message": "What events are happening at Berghain next month?",
+      "expected_action": "QUERY_DB",
+      "conversation_history": [],
+      "reasoning": "Extracted from production logs",
+      "metadata": {
+        "source": "production_logs",
+        "needs_manual_review": false,
+        "has_ground_truth": true
+      }
+    }
+  ]
+}
