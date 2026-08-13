@@ -2,16 +2,8 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
-  prefix: "",
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
-    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -48,54 +40,33 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         orange: "hsl(var(--orange))",
-        cyan: {
-          DEFAULT: "hsl(var(--accent))",
-          400: "hsl(188 100% 52%)", // Lighter cyan
-          500: "hsl(var(--accent))", // Sky Cyan brand color #00CFEA
-          600: "hsl(188 100% 38%)", // Darker cyan
+        pro: {
+          bg: "hsl(var(--pro-bg))",
+          elevated: "hsl(var(--pro-bg-elevated))",
+          card: "hsl(var(--pro-bg-card))",
+          border: "hsl(var(--pro-border))",
+          accent: "hsl(var(--pro-accent))",
         },
       },
       backgroundImage: {
-        'gradient-vibrant': 'var(--gradient-vibrant)',
-        'gradient-subtle': 'var(--gradient-subtle)',
-        'gradient-glow': 'var(--gradient-glow)',
+        "gradient-vibrant": "var(--gradient-vibrant)",
+        "gradient-subtle": "var(--gradient-subtle)",
+        "gradient-glow": "var(--gradient-glow)",
       },
       boxShadow: {
-        'glow-primary': 'var(--glow-primary)',
-        'glow-accent': 'var(--glow-accent)',
+        "glow-primary": "var(--glow-primary)",
+        "glow-accent": "var(--glow-accent)",
       },
       fontFamily: {
-        'montserrat': ['Montserrat', 'sans-serif'],
-        'ibm-plex': ['IBM Plex Sans', 'sans-serif'],
+        montserrat: ["Montserrat", "sans-serif"],
+        "ibm-plex": ["IBM Plex Sans", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
-      keyframes: {
-        "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
-        },
-        "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [],
 } satisfies Config;

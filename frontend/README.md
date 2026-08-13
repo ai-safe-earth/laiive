@@ -1,73 +1,47 @@
-# Welcome to your Lovable project
+# laiive frontend
 
-## Project info
+Vite + React 18 + TypeScript (strict) SPA. Talks to **one** backend: the gateway
+on :8000 (`/api/chat/*`, `/api/push/*`) — the FastAPI services are not reachable
+from the browser.
 
-**URL**: https://lovable.dev/projects/1086961e-0c9e-47f6-a5e1-8ce0b0b7eb2b
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/1086961e-0c9e-47f6-a5e1-8ce0b0b7eb2b) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Run
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install
+npm run dev      # http://localhost:8081  (8080 is taken by EnterpriseDB here)
 ```
 
-**Edit a file directly in GitHub**
+Needs the stack up: gateway :8000, retriever :8002, pusher :8003
+(`make start-gateway`, and `uv run uvicorn agent.api:app --port 800{2,3}` from
+inside each service directory).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+npm run typecheck   # both tsconfig projects — plain `tsc --noEmit` is a no-op here
+npm run build       # typecheck + vite build
+npm run lint
+```
 
-**Use GitHub Codespaces**
+## Environment
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Copy `.env.example` to `.env`. `src/env.ts` validates the three keys at startup
+and throws with a readable message rather than rendering a blank page.
 
-## What technologies are used for this project?
+## Contracts
 
-This project is built with:
+Protocol types come from `../services/shared/ts/protocol.ts` through the
+`@shared` alias — the same file `services/shared/tests/test_ts_contract.py`
+diffs against the pydantic models, so the wire format cannot drift. Never
+redeclare `EventCard` or the frame payloads locally.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+`src/api/sse.ts` parses the **named-event** v2 protocol (`event: message.delta`
+…), not the legacy OpenAI-shaped frames.
 
-## How can I deploy this project?
+## Layout
 
-Simply open [Lovable](https://lovable.dev/projects/1086961e-0c9e-47f6-a5e1-8ce0b0b7eb2b) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```
+src/api/        gateway client (auth header, ApiError) + SSE parser + chat turn
+src/auth/       supabase client, AuthProvider, role from the user_role claim
+src/components/ EventCardView (+ Leaflet map), Markdown, UserMenu, ui primitives
+src/i18n/       translations (en/es/it/ca), language context, language detection
+src/pages/      Chat, Auth, NotFound
+```

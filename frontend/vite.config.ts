@@ -1,18 +1,25 @@
-import { defineConfig } from "vite";
+import path from "node:path";
 import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { defineConfig } from "vite";
 
-// https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+// The protocol types come straight from services/shared/ts/protocol.ts (D10) —
+// the same file tests/test_ts_contract.py diffs against the pydantic models, so
+// the frontend cannot drift from the wire format. It lives outside this root,
+// hence the explicit fs.allow entry.
+const sharedTs = path.resolve(__dirname, "../services/shared/ts");
+
+export default defineConfig({
   server: {
-    host: "::",
-    port: 8080,
+    // 8080 is taken by EnterpriseDB on the dev machine
+    port: 8081,
+    strictPort: true,
+    fs: { allow: [path.resolve(__dirname), sharedTs] },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@shared": sharedTs,
     },
   },
-}));
+});
