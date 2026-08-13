@@ -162,10 +162,31 @@ report endpoint → approved batch write with `source: 'admin_search'`; CLI entr
 reuse pusher's writer module (extracted into a small shared package or duplicated with
 contract test — decision Q6).
 
+Endpoints, all behind the gateway's existing admin route (flip `SEARCH_ENABLED=true`):
+`POST /sweep` (dry-run, persists a report, writes nothing), `GET /reports/{id}`,
+`POST /reports/{id}/approve` (batch write through the shared writer),
+`POST /backfill` (missing embeddings / venue `location`, bounded and idempotent).
+Reports persist in a Supabase `search_reports` table (service-role only, shaped like
+`conversation_logs`) so they outlive a restart and the frontend can show them later.
+
+**Scheduling (D17)** — `services/search/flows/`: `city_sweep.py` (one Prefect task per
+city, so retries and history are per city; publishes a markdown artifact as the review
+surface), `backfill.py`, and `auth.py` (Supabase password grant for the admin service
+account → short-lived JWT per run; credentials in Prefect Secret blocks, never in the
+repo). Schedules live on the Prefect deployment — weekly sweep, nightly backfill — so
+cadence changes without a redeploy. Needs one Supabase admin service account
+(`user_roles.role='admin'`, created via SQL with the service role); the existing
+`custom_access_token_hook` stamps its JWT with no new machinery.
+
 Risks: writes from a third service — same writer code path only, never bespoke Cypher.
-Verify: dry-run on a known city produces a sane report with zero writes; approved
-3-event batch lands tagged and deduped (re-run produces 0 new nodes); retriever
-surfaces them labeled as internet/admin-sourced.
+A city sweep is a minutes-long HTTP call; the gateway sets `requestTimeout: 0` so
+synchronous per-city calls are fine to start, and if one exceeds ~5 min, `/sweep` returns
+`report_id` immediately and the flow polls `GET /reports/{id}` — no redesign needed.
+Verify: dry-run on a known city produces a sane report with zero writes (node counts
+before/after via `read-cypher`); approved 3-event batch lands tagged and deduped (re-run
+produces 0 new nodes); retriever surfaces them labeled as internet/admin-sourced; one
+manual run from Prefect Cloud proves the managed pool reaches the gateway and the admin
+JWT verifies.
 
 ---
 
@@ -176,7 +197,8 @@ surfaces them labeled as internet/admin-sourced.
 Work: GitHub Actions matrix — ruff+mypy+pytest per Python service, tsc+eslint+build for
 gateway/frontend, docker build all images; compose file that runs the full stack
 (gateway + 3 services) with healthchecks, non-root images; deploy per 05 decisions
-(services on Railway/Fly, SPA on Cloudflare Pages, Aura + Supabase managed); structured
+(services on Railway/Fly, SPA on **Cloudflare Pages** per D18, Aura + Supabase managed);
+Prefect deployments applied from CI so schedules are versioned with the code; structured
 JSON logs with request-ids end-to-end; keep Langfuse tracing on all LLM calls; persist
 eval-ready request/response records (the `requests.jsonl` idea, done properly:
 gateway-side, PII-lean, rotated).

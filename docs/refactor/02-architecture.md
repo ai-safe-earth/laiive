@@ -145,6 +145,12 @@ list applies only to UI chrome, chosen at signup and in profile settings.
   similarity) → **dry-run report** → admin approves → batch write, every node tagged
   `source: 'admin_search'` (never `pro_submission`).
 - Runs in batches; writes are idempotent (MERGE on identity keys).
+- **Scheduling (D17)**: Prefect Cloud runs the sweep weekly per city and a backfill
+  nightly. The flows execute on Prefect's managed pool, which has no private networking,
+  so they call `/api/admin/search/*` on the public gateway as an admin service account —
+  the same authenticated route a human admin uses. Scheduling therefore adds no new
+  write path and no new credential surface on the services: a scheduled sweep produces
+  the same dry-run report, and the batch write still waits for an approve.
 
 ## 6. Auth & ownership (Supabase — **fresh project**, decided)
 

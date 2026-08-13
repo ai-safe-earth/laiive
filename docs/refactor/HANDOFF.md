@@ -192,6 +192,20 @@ and the publishable key `sb_publishable_YMEqW94-1qlPPBmV6YYSvQ_v9fH4Htt`
 Then Phase 5 SEARCH service (set `SEARCH_ENABLED=true` on the gateway),
 Phase 6 CI/CD + deploy ($30–50/mo budget).
 
+New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
+`04-plan.md`):
+
+- **Phase 5 gains Prefect Cloud scheduling.** Flows run on a *managed* work pool,
+  which has no private networking — so they are thin HTTP clients of
+  `/api/admin/search/*` on the public gateway, signing in as a Supabase admin
+  service account (password in a Prefect Secret block, JWT minted per run).
+  First cut: weekly per-city sweep (one Prefect task per city, markdown artifact
+  for review) + nightly embedding/geocode backfill. Sweeps stay **dry-run** —
+  the batch write still waits for a human approve. Scheduling adds no new write
+  path; the shared `neo4j_writer` remains the only one.
+- **Phase 6 frontend host = Cloudflare Pages** (D18). Fly.io was considered and
+  declined for a static SPA; services still go to Railway/Fly per R2.
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by

@@ -26,12 +26,34 @@
 | D15 | Supabase | **Fresh project**; new migrations from scratch; old project is reference only |
 | D16 | Canonical remote | `origin` = github.com/ai-safe-earth/laiive (the remote *named* `laiive` is the personal fork — don't push there) |
 
+## Decided 2026-08-13 (post Phase 3)
+
+| # | Decision | Choice |
+|---|---|---|
+| D17 | SEARCH scheduling | **Prefect Cloud, managed work pool**; flows are thin HTTP clients of `/api/admin/search/*`; first cut = weekly city sweep + nightly embedding/geocode backfill; sweeps stay **dry-run**, a human approves the batch |
+| D18 | Frontend hosting | **Cloudflare Pages** (Fly.io considered, declined — a static bundle gets nothing from a container runtime); services stay on Railway/Fly per R2 |
+
+**D17 trade-off**: managed execution has no private networking, so flows cannot reach
+Neo4j, Brave or `search:8004` directly — every scheduled run authenticates as an admin
+service account and goes through the public gateway, the same path a human admin uses.
+Bought: zero worker infrastructure to operate or pay for, and the scheduled path is
+covered by the auth tests that already exist. Exit if it binds: run a self-hosted worker
+next to the services (~$2–5/mo) and point flows at the private address instead — the
+flows themselves don't change, only the base URL and the credential.
+
+**D17 boundary**: scheduling adds no new write path. Discovery still writes only through
+`services/shared`'s `neo4j_writer`, tagged `source='admin_search'`, after approval.
+
+**D18 note**: Netlify is no longer an alternative under consideration; Pages is the
+single answer for the SPA.
+
 Budget constraint (owner): **$30–50/month all-in** (LLM + hosting). Consequences:
 Aura stays **Free tier** for now (verified in console: instance 2099d44c is AuraDB
 Free — `NODE KEY` unavailable, the UNIQUE+NOT NULL fallback in 03 is the default;
 auto-pauses when idle — acceptable pre-launch), Supabase free tier, Cloudflare Pages
-free, services on one cheap runtime (~$5–15), leaving ~$20–35 for LLM spend —
-mini-first model policy matters (R3).
+free (D18), Prefect Cloud free tier (D17 — re-check its managed-execution quota when
+Phase 5 lands; the free allowance changes), services on one cheap runtime (~$5–15),
+leaving ~$20–35 for LLM spend — mini-first model policy matters (R3).
 
 ## Recommendations awaiting sign-off
 
@@ -49,7 +71,7 @@ explodes, migration to K8s later is real but mechanical (images already exist).
   env, logs; ~$5–20/mo at this scale) or **Fly.io** (second — more control, closer to
   metal, slightly more ops). A single Hetzner VPS + compose is the cheapest option but
   makes you the ops team; not worth it solo.
-- **Frontend SPA: Cloudflare Pages** (free, fast, SPA rewrites) or Netlify.
+- **Frontend SPA: Cloudflare Pages** — settled as D18.
 - **Data: managed as-is** — Neo4j Aura + Supabase.
 **Trade-off**: PaaS costs more per compute unit than a VPS; buys back the only truly
 scarce resource here (your time).
