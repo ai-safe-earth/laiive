@@ -62,7 +62,7 @@ repos:
   # 5. SQL linting for Postgres migrations & seed scripts
   #######################################################################
   - repo: https://github.com/sqlfluff/sqlfluff
-    rev: 2.3.5
+    rev: 3.4.2
     hooks:
       - id: sqlfluff-lint
         args: ["--dialect", "postgres"]
