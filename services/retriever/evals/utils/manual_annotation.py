@@ -3,10 +3,11 @@ Interactive tool for manually annotating test cases.
 
 Use this to review and correct auto-generated test cases or annotate new ones.
 """
+
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -43,14 +44,15 @@ class ManualAnnotator:
         test_cases = self.dataset.get("test_cases", [])
 
         print(f"\n{'='*60}")
-        print(f"Annotating Query Generation Dataset")
+        print("Annotating Query Generation Dataset")
         print(f"File: {self.dataset_file}")
         print(f"Total cases: {len(test_cases)}")
         print(f"{'='*60}\n")
 
         # Focus on cases needing review
         needs_review = [
-            tc for tc in test_cases
+            tc
+            for tc in test_cases
             if tc.get("metadata", {}).get("needs_manual_review")
             or not tc.get("expected_patterns")
         ]
@@ -67,9 +69,13 @@ class ManualAnnotator:
             print(f"Category: {test_case.get('category', 'unknown')}")
 
             if test_case.get("actual_cypher_generated"):
-                print(f"\nActual Cypher generated:\n{test_case['actual_cypher_generated']}")
+                print(
+                    f"\nActual Cypher generated:\n{test_case['actual_cypher_generated']}"
+                )
 
-            print(f"\nCurrent expected patterns: {test_case.get('expected_patterns', [])}")
+            print(
+                f"\nCurrent expected patterns: {test_case.get('expected_patterns', [])}"
+            )
 
             # Prompt for updates
             print("\nOptions:")
@@ -119,8 +125,14 @@ class ManualAnnotator:
 
             elif choice == "3":
                 categories = [
-                    "artist_query", "venue_query", "date_query", "location_query",
-                    "genre_query", "price_query", "complex_multi_constraint", "general"
+                    "artist_query",
+                    "venue_query",
+                    "date_query",
+                    "location_query",
+                    "genre_query",
+                    "price_query",
+                    "complex_multi_constraint",
+                    "general",
                 ]
                 print("\nAvailable categories:")
                 for idx, cat in enumerate(categories, 1):
@@ -153,7 +165,9 @@ class ManualAnnotator:
 
         # Final save
         if self.changes_made > 0:
-            save_choice = input(f"\nSave {self.changes_made} changes? (yes/no): ").strip().lower()
+            save_choice = (
+                input(f"\nSave {self.changes_made} changes? (yes/no): ").strip().lower()
+            )
             if save_choice == "yes":
                 self._save_dataset()
                 print(f"✓ Saved {self.changes_made} changes")
@@ -165,7 +179,7 @@ class ManualAnnotator:
         test_cases = self.dataset.get("test_cases", [])
 
         print(f"\n{'='*60}")
-        print(f"Annotating Intent Classification Dataset")
+        print("Annotating Intent Classification Dataset")
         print(f"File: {self.dataset_file}")
         print(f"Total cases: {len(test_cases)}")
         print(f"{'='*60}\n")
@@ -174,7 +188,8 @@ class ManualAnnotator:
 
         # Focus on cases needing review
         needs_review = [
-            tc for tc in test_cases
+            tc
+            for tc in test_cases
             if tc.get("metadata", {}).get("needs_manual_review")
             or tc.get("expected_action") == "UNKNOWN"
         ]
@@ -190,9 +205,9 @@ class ManualAnnotator:
             print("\nActions:")
             for idx, action in enumerate(actions, 1):
                 print(f"  {idx}. {action}")
-            print(f"  5. Keep current")
-            print(f"  6. Skip")
-            print(f"  s. Save and exit")
+            print("  5. Keep current")
+            print("  6. Skip")
+            print("  s. Save and exit")
 
             choice = input("\nChoice: ").strip()
 
@@ -223,7 +238,9 @@ class ManualAnnotator:
 
         # Final save
         if self.changes_made > 0:
-            save_choice = input(f"\nSave {self.changes_made} changes? (yes/no): ").strip().lower()
+            save_choice = (
+                input(f"\nSave {self.changes_made} changes? (yes/no): ").strip().lower()
+            )
             if save_choice == "yes":
                 self._save_dataset()
 
@@ -260,7 +277,7 @@ class ManualAnnotator:
                 "metadata": {
                     "difficulty": difficulty,
                     "manually_created": True,
-                }
+                },
             }
 
             self.dataset.setdefault("test_cases", []).append(new_case)
@@ -292,7 +309,7 @@ class ManualAnnotator:
                 "reasoning": reasoning,
                 "metadata": {
                     "manually_created": True,
-                }
+                },
             }
 
             self.dataset.setdefault("test_cases", []).append(new_case)
@@ -310,12 +327,12 @@ def main():
         "--type",
         choices=["query_generation", "intent_classification"],
         default="query_generation",
-        help="Type of dataset to annotate"
+        help="Type of dataset to annotate",
     )
     parser.add_argument(
         "--add",
         action="store_true",
-        help="Add new test case instead of annotating existing"
+        help="Add new test case instead of annotating existing",
     )
 
     args = parser.parse_args()

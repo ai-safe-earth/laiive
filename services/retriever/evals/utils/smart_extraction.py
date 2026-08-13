@@ -5,7 +5,6 @@ This module combines log extraction with quality evaluation to automatically
 filter for good examples.
 """
 
-import json
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional
@@ -92,7 +91,7 @@ class SmartLogExtractor:
         }
 
         if output_report:
-            print(f"\n[Step 3] Generating quality report...")
+            print("\n[Step 3] Generating quality report...")
             self.evaluator.generate_quality_report(
                 all_queries,
                 scores,
@@ -143,7 +142,7 @@ class SmartLogExtractor:
             )
 
         # Create datasets
-        print(f"\n[Step 5] Creating evaluation datasets...")
+        print("\n[Step 5] Creating evaluation datasets...")
         qg_path = self.converter.create_query_generation_dataset(
             filtered_queries,
             output_file="query_generation/filtered_queries.json",
@@ -205,7 +204,7 @@ def extract_with_quality_tiers(
             tiers["poor"].append(query)
 
     # Print summary
-    print(f"\nQuality Tiers:")
+    print("\nQuality Tiers:")
     print(f"  Excellent (0.8+): {len(tiers['excellent'])} queries")
     print(f"  Good (0.6-0.8): {len(tiers['good'])} queries")
     print(f"  Fair (0.4-0.6): {len(tiers['fair'])} queries")
@@ -244,7 +243,7 @@ def extract_with_llm_selection(
 
     # Step 2: If we have too many, sample diverse examples
     if len(candidates) > target_count * 3:
-        print(f"\n[Step 2] Sampling diverse subset for LLM evaluation...")
+        print("\n[Step 2] Sampling diverse subset for LLM evaluation...")
         converter = LogToDatasetConverter()
         candidates = converter.sample_queries(
             candidates, n=target_count * 3, strategy="diverse"

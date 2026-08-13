@@ -6,7 +6,6 @@ Run with: python test_formatting.py
 from agent.utils.formatters import (
     format_event_for_frontend,
     format_events_as_markdown,
-    format_events_as_json,
     create_sse_message,
     create_sse_done,
 )

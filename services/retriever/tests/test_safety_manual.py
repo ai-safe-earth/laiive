@@ -77,8 +77,8 @@ def test_enhanced_features():
     result_json = tool.run(query_with_comment)
     result = json.loads(result_json)
 
-    print(f"Comment/String Filtering Test:")
-    print(f"  Query has keywords in comments")
+    print("Comment/String Filtering Test:")
+    print("  Query has keywords in comments")
     print(f"  Is Safe: {result['is_safe']} (expected: True)")
     print(f"  Violations: {result['violations']}")
 
@@ -87,8 +87,8 @@ def test_enhanced_features():
     result_json = tool.run(query_with_partial)
     result = json.loads(result_json)
 
-    print(f"\nWord Boundary Test:")
-    print(f"  Query: 'created_at' contains 'CREATE'")
+    print("\nWord Boundary Test:")
+    print("  Query: 'created_at' contains 'CREATE'")
     print(f"  Is Safe: {result['is_safe']} (expected: True)")
     print(f"  Violations: {result['violations']}")
 
@@ -106,13 +106,13 @@ def test_error_messages():
     result_json = tool.run(unsafe_query)
     result = json.loads(result_json)
 
-    print(f"Multiple Violations Test:")
+    print("Multiple Violations Test:")
     print(f"  Message: {result['message']}")
     print(f"  Violations: {result['violations']}")
-    print(f"  Should list all violations: CREATE, SET, DELETE")
+    print("  Should list all violations: CREATE, SET, DELETE")
 
     has_all = all(v in result["violations"] for v in ["CREATE", "SET", "DELETE"])
-    print(f"  ✓ PASS" if has_all else "  ✗ FAIL")
+    print("  ✓ PASS" if has_all else "  ✗ FAIL")
 
     print()
     return has_all

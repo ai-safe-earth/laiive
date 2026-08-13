@@ -14,8 +14,6 @@ from agent.utils.llm_utils import get_openai_client
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from config import settings
-
 
 @dataclass
 class QualityScore:
@@ -324,11 +322,11 @@ Respond in JSON format:
                 if results > 0:
                     formatted.append(f"  System Result: Found {results} events")
                 else:
-                    formatted.append(f"  System Result: No events found")
+                    formatted.append("  System Result: No events found")
             elif action == "NEEDS_INFO":
-                formatted.append(f"  System Result: Asked for more information")
+                formatted.append("  System Result: Asked for more information")
             elif action == "OUT_OF_SCOPE":
-                formatted.append(f"  System Result: Query out of scope")
+                formatted.append("  System Result: Query out of scope")
 
             if turn.get("error"):
                 formatted.append(f"  Error: {turn['error']}")
@@ -562,7 +560,7 @@ Respond in JSON format:
         print("QUALITY ASSESSMENT SUMMARY")
         print(f"{'='*70}")
 
-        print(f"\nOverall Stats:")
+        print("\nOverall Stats:")
         print(f"  Total queries: {report['total_queries']}")
         print(
             f"  Good examples: {report['good_examples']} ({report['good_examples']/report['total_queries']:.1%})"
@@ -570,19 +568,19 @@ Respond in JSON format:
         print(f"  Average score: {report['average_score']:.2f}")
         print(f"  Average confidence: {report['average_confidence']:.2f}")
 
-        print(f"\nScore Distribution:")
+        print("\nScore Distribution:")
         for range_name, count in report["score_distribution"].items():
             percentage = count / report["total_queries"] * 100
             print(f"  {range_name}: {count} ({percentage:.1f}%)")
 
         if report["common_issues"]:
-            print(f"\nCommon Issues:")
+            print("\nCommon Issues:")
             for issue, count in sorted(
                 report["common_issues"].items(), key=lambda x: x[1], reverse=True
             ):
                 print(f"  {issue}: {count}")
 
-        print(f"\nTop 3 Examples:")
+        print("\nTop 3 Examples:")
         for i, ex in enumerate(report["top_examples"][:3], 1):
             print(f"  {i}. {ex['query'][:60]}... (score: {ex['score']:.2f})")
 

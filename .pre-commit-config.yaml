@@ -41,6 +41,7 @@ repos:
         additional_dependencies: ["types-requests"]   # add stubs your app needs
         args: ["--ignore-missing-imports", "--no-strict-optional"]
         files: "^services/(retriever|pusher)/.*\\.py$"
+        exclude: "^services/retriever/evals/"   # quarantined eval tooling
 
   #######################################################################
   # 4. Security & supply-chain

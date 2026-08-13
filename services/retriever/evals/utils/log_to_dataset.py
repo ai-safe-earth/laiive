@@ -3,6 +3,7 @@ Utility to convert user logs/queries into evaluation datasets.
 
 This helps you build comprehensive eval datasets from real production usage.
 """
+
 import json
 import sys
 from pathlib import Path
@@ -61,10 +62,12 @@ class LogToDatasetConverter:
                 for line in f:
                     query = line.strip()
                     if query:
-                        queries.append({
-                            "user_query": query,
-                            "timestamp": datetime.now().isoformat(),
-                        })
+                        queries.append(
+                            {
+                                "user_query": query,
+                                "timestamp": datetime.now().isoformat(),
+                            }
+                        )
 
         print(f"Extracted {len(queries)} queries from {log_file}")
         return queries
@@ -226,14 +229,18 @@ class LogToDatasetConverter:
         # Show action distribution
         actions = [tc["expected_action"] for tc in test_cases]
         action_counts = Counter(actions)
-        print(f"\nAction distribution:")
+        print("\nAction distribution:")
         for action, count in action_counts.most_common():
             print(f"  {action}: {count}")
 
         # Warn about cases needing review
-        needs_review = sum(1 for tc in test_cases if tc["metadata"].get("needs_manual_review"))
+        needs_review = sum(
+            1 for tc in test_cases if tc["metadata"].get("needs_manual_review")
+        )
         if needs_review > 0:
-            print(f"\n⚠️  {needs_review} cases need manual review (action was inferred, not from logs)")
+            print(
+                f"\n⚠️  {needs_review} cases need manual review (action was inferred, not from logs)"
+            )
 
         return output_path
 
@@ -314,23 +321,53 @@ class LogToDatasetConverter:
             return "artist_query", ["MATCH.*Artist", "PERFORMS_AT"]
 
         # Venue-specific
-        if any(word in query_lower for word in ["at ", "venue", "club", "arena", "hall"]):
+        if any(
+            word in query_lower for word in ["at ", "venue", "club", "arena", "hall"]
+        ):
             return "venue_query", ["Venue", "HOSTED_AT"]
 
         # Date/time queries
-        if any(word in query_lower for word in ["today", "tonight", "tomorrow", "weekend", "week", "month", "date"]):
+        if any(
+            word in query_lower
+            for word in [
+                "today",
+                "tonight",
+                "tomorrow",
+                "weekend",
+                "week",
+                "month",
+                "date",
+            ]
+        ):
             return "date_query", ["datetime\\(e\\.start_at\\)"]
 
         # Location queries
-        if any(word in query_lower for word in ["in ", "near", "city", "berlin", "london", "paris", "york"]):
+        if any(
+            word in query_lower
+            for word in ["in ", "near", "city", "berlin", "london", "paris", "york"]
+        ):
             return "location_query", ["City", "LOCATED_IN"]
 
         # Genre queries
-        if any(word in query_lower for word in ["jazz", "rock", "pop", "electronic", "classical", "hip hop", "techno"]):
+        if any(
+            word in query_lower
+            for word in [
+                "jazz",
+                "rock",
+                "pop",
+                "electronic",
+                "classical",
+                "hip hop",
+                "techno",
+            ]
+        ):
             return "genre_query", ["genre"]
 
         # Price queries
-        if any(word in query_lower for word in ["cheap", "free", "under", "price", "$", "€", "£"]):
+        if any(
+            word in query_lower
+            for word in ["cheap", "free", "under", "price", "$", "€", "£"]
+        ):
             return "price_query", ["price_amount"]
 
         return "general", []
@@ -340,11 +377,16 @@ class LogToDatasetConverter:
         query_lower = query.lower()
 
         # Goodbye messages
-        if any(word in query_lower for word in ["bye", "goodbye", "thanks", "thank you"]):
+        if any(
+            word in query_lower for word in ["bye", "goodbye", "thanks", "thank you"]
+        ):
             return "BYE_MESSAGE"
 
         # Out of scope
-        if any(word in query_lower for word in ["weather", "directions", "book", "buy ticket", "restaurant"]):
+        if any(
+            word in query_lower
+            for word in ["weather", "directions", "book", "buy ticket", "restaurant"]
+        ):
             return "OUT_OF_SCOPE"
 
         # Very vague
@@ -359,11 +401,13 @@ class LogToDatasetConverter:
         categories = [tc["category"] for tc in test_cases]
         category_counts = Counter(categories)
 
-        print(f"\nCategory breakdown:")
+        print("\nCategory breakdown:")
         for category, count in category_counts.most_common():
             print(f"  {category}: {count}")
 
-    def sample_queries(self, queries: List[Dict], n: int = 50, strategy: str = "random"):
+    def sample_queries(
+        self, queries: List[Dict], n: int = 50, strategy: str = "random"
+    ):
         """
         Sample a subset of queries for manual annotation.
 
@@ -383,9 +427,7 @@ class LogToDatasetConverter:
         elif strategy == "recent":
             # Sort by timestamp and take most recent
             sorted_queries = sorted(
-                queries,
-                key=lambda q: q.get("timestamp", ""),
-                reverse=True
+                queries, key=lambda q: q.get("timestamp", ""), reverse=True
             )
             return sorted_queries[:n]
 
@@ -403,10 +445,11 @@ class LogToDatasetConverter:
             per_category = max(1, n // len(categorized))
 
             for category_queries in categorized.values():
-                samples.extend(random.sample(
-                    category_queries,
-                    min(per_category, len(category_queries))
-                ))
+                samples.extend(
+                    random.sample(
+                        category_queries, min(per_category, len(category_queries))
+                    )
+                )
 
             return samples[:n]
 
@@ -418,9 +461,9 @@ def example_usage():
     converter = LogToDatasetConverter()
 
     # Example 1: Extract from JSON logs
-    print("="*60)
+    print("=" * 60)
     print("Example 1: Extract from JSON logs")
-    print("="*60)
+    print("=" * 60)
 
     # This would be your actual log file
     example_logs = [

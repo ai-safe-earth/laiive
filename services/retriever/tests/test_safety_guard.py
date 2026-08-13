@@ -1,15 +1,15 @@
-
 """
 Tests for SafetyGuardTool - Cypher query validation and content moderation.
 """
+
 import json
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 import sys
 import os
 
 # Add parent directory to path to import modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from agent.tools.safety_guard import SafetyGuardTool
 
@@ -167,7 +167,7 @@ class TestLlamaGuardIntegration:
         """Setup test fixtures."""
         self.tool = SafetyGuardTool()
 
-    @patch.object(SafetyGuardTool, 'llamaguard_classify')
+    @patch.object(SafetyGuardTool, "llamaguard_classify")
     def test_input_validation_safe(self, mock_classify):
         """Test safe user input validation."""
         mock_classify.return_value = '{"verdict": "safe"}'
@@ -178,10 +178,12 @@ class TestLlamaGuardIntegration:
         assert result["categories"] == []
         mock_classify.assert_called_once()
 
-    @patch.object(SafetyGuardTool, 'llamaguard_classify')
+    @patch.object(SafetyGuardTool, "llamaguard_classify")
     def test_input_validation_unsafe(self, mock_classify):
         """Test unsafe user input validation."""
-        mock_classify.return_value = '{"verdict": "unsafe", "categories": ["violence", "hate"]}'
+        mock_classify.return_value = (
+            '{"verdict": "unsafe", "categories": ["violence", "hate"]}'
+        )
 
         result = self.tool.validate_input_safety("Harmful content here")
 
@@ -189,7 +191,7 @@ class TestLlamaGuardIntegration:
         assert "violence" in result["categories"]
         assert "hate" in result["categories"]
 
-    @patch.object(SafetyGuardTool, 'llamaguard_classify')
+    @patch.object(SafetyGuardTool, "llamaguard_classify")
     def test_output_validation_safe(self, mock_classify):
         """Test safe output validation."""
         mock_classify.return_value = '{"verdict": "safe"}'
@@ -199,17 +201,19 @@ class TestLlamaGuardIntegration:
         assert result["verdict"] == "safe"
         mock_classify.assert_called_once()
 
-    @patch.object(SafetyGuardTool, 'llamaguard_classify')
+    @patch.object(SafetyGuardTool, "llamaguard_classify")
     def test_output_validation_unsafe(self, mock_classify):
         """Test unsafe output validation."""
-        mock_classify.return_value = '{"verdict": "unsafe", "categories": ["harmful_content"]}'
+        mock_classify.return_value = (
+            '{"verdict": "unsafe", "categories": ["harmful_content"]}'
+        )
 
         result = self.tool.validate_output_safety("Problematic response")
 
         assert result["verdict"] == "unsafe"
         assert "harmful_content" in result["categories"]
 
-    @patch.object(SafetyGuardTool, 'llamaguard_classify')
+    @patch.object(SafetyGuardTool, "llamaguard_classify")
     def test_llamaguard_error_handling(self, mock_classify):
         """Test that LlamaGuard errors default to safe."""
         mock_classify.side_effect = Exception("API Error")

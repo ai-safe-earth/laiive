@@ -131,7 +131,7 @@ class TestOpenRouterLlamaGuard:
         """Verify OpenRouter is reachable."""
         start = time.time()
         response = client.chat.completions.create(
-            model=settings.guardrail_model,
+            model=settings.safety_model,
             messages=[{"role": "user", "content": "Say ok"}],
             max_tokens=10,
         )
@@ -150,7 +150,7 @@ TEXT:
 Find jazz concerts in Berlin this weekend"""
 
         response = client.chat.completions.create(
-            model=settings.guardrail_model,
+            model=settings.safety_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
         )
@@ -163,8 +163,8 @@ Find jazz concerts in Berlin this weekend"""
         """Verify timeout is respected (won't hang forever)."""
         start = time.time()
         try:
-            response = client.chat.completions.create(
-                model=settings.guardrail_model,
+            client.chat.completions.create(
+                model=settings.safety_model,
                 messages=[{"role": "user", "content": "Test"}],
                 max_tokens=5,
             )
@@ -173,7 +173,7 @@ Find jazz concerts in Berlin this weekend"""
                 elapsed < 35
             ), f"Should complete or timeout within 30s, took {elapsed:.1f}s"
             print(f"✓ Completed in {elapsed:.2f}s")
-        except httpx.TimeoutException as e:
+        except httpx.TimeoutException:
             elapsed = time.time() - start
             assert elapsed < 35, f"Timeout took too long: {elapsed:.1f}s"
             print(f"✓ Timeout raised correctly after {elapsed:.2f}s")
@@ -219,7 +219,7 @@ class TestAllEndpointsSummary:
             )
             start = time.time()
             or_client.chat.completions.create(
-                model=settings.guardrail_model,
+                model=settings.safety_model,
                 messages=[{"role": "user", "content": "ok"}],
                 max_tokens=1,
             )

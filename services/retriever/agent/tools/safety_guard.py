@@ -4,6 +4,7 @@ from typing import Dict, Any
 from openai import OpenAI
 from agent.utils.llm_utils import get_openai_client
 from config import settings
+
 SAFETY_GUARD_PROMPT = """You are a safety classifier for a live music events search assistant.
 
 Task: Classify the following {mode} as SAFE or UNSAFE.
@@ -130,7 +131,6 @@ class SafetyGuardTool:
             parsed = self._parse_llamaguard_response(result)
             return parsed
         except Exception as e:
-
             return {"verdict": "safe", "categories": [], "error": str(e)}
 
     def validate_output_safety(self, output_text: str) -> Dict[str, Any]:
@@ -143,7 +143,6 @@ class SafetyGuardTool:
             parsed = self._parse_llamaguard_response(result)
             return parsed
         except Exception as e:
-
             return {"verdict": "safe", "categories": [], "error": str(e)}
 
     def llamaguard_classify(self, text: str, mode: str = "input") -> str:
@@ -177,7 +176,6 @@ class SafetyGuardTool:
                 "categories": data.get("categories", []),
             }
         except json.JSONDecodeError:
-
             response_lower = response.lower()
             if "unsafe" in response_lower:
                 return {"verdict": "unsafe", "categories": ["unknown"]}

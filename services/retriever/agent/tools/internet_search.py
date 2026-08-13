@@ -5,7 +5,7 @@ in the same frontend-compatible format with a "source" label.
 """
 
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from loguru import logger
 import httpx
 
@@ -60,12 +60,14 @@ class InternetSearchTool:
         try:
             raw_results = self._web_search(query)
             if not raw_results:
-                return json.dumps({
-                    "status": "success",
-                    "results": [],
-                    "result_count": 0,
-                    "message": "No internet results found",
-                })
+                return json.dumps(
+                    {
+                        "status": "success",
+                        "results": [],
+                        "result_count": 0,
+                        "message": "No internet results found",
+                    }
+                )
 
             events = self._extract_events(query, raw_results)
 
@@ -73,20 +75,25 @@ class InternetSearchTool:
             for event in events:
                 event["source"] = "internet"
 
-            return json.dumps({
-                "status": "success",
-                "results": events[:settings.max_results_limit],
-                "result_count": len(events),
-                "message": f"Found {len(events)} event(s) from internet search",
-            }, default=str)
+            return json.dumps(
+                {
+                    "status": "success",
+                    "results": events[: settings.max_results_limit],
+                    "result_count": len(events),
+                    "message": f"Found {len(events)} event(s) from internet search",
+                },
+                default=str,
+            )
 
         except Exception as e:
             logger.error(f"Internet search failed: {e}")
-            return json.dumps({
-                "status": "error",
-                "error": str(e),
-                "results": [],
-            })
+            return json.dumps(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "results": [],
+                }
+            )
 
     def _web_search(self, query: str) -> str:
         """Execute a web search and return raw text results."""
@@ -178,14 +185,16 @@ class InternetSearchTool:
             if not isinstance(event, dict):
                 continue
             if all(event.get(f) for f in ("artist", "venue", "time")):
-                valid_events.append({
-                    "artist": event["artist"],
-                    "tagline": event.get("tagline", f"{event['artist']} Live"),
-                    "venue": event["venue"],
-                    "time": event["time"],
-                    "price": event.get("price", "Price TBA"),
-                    "description": event.get("description", ""),
-                    "ticketUrl": event.get("ticketUrl", ""),
-                })
+                valid_events.append(
+                    {
+                        "artist": event["artist"],
+                        "tagline": event.get("tagline", f"{event['artist']} Live"),
+                        "venue": event["venue"],
+                        "time": event["time"],
+                        "price": event.get("price", "Price TBA"),
+                        "description": event.get("description", ""),
+                        "ticketUrl": event.get("ticketUrl", ""),
+                    }
+                )
 
         return valid_events

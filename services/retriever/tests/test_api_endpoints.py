@@ -5,8 +5,7 @@ Run with: pytest tests/test_api_endpoints.py -v
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, MagicMock
-import json
+from unittest.mock import patch
 
 
 # Mock dependencies before importing app
