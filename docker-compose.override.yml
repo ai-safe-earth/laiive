@@ -23,9 +23,12 @@ services:
 
   pusher:
     container_name: laiive-pusher
-    build: ./services/pusher
+    build:
+      context: ./services
+      dockerfile: pusher/Dockerfile
     volumes:
       - ./services/pusher:/app:cached
+      - ./services/shared:/shared:cached
       - pusher-venv:/app/.venv
     tty: true
     stdin_open: true
@@ -42,9 +45,12 @@ services:
 
   retriever:
     container_name: laiive-retriever
-    build: ./services/retriever
+    build:
+      context: ./services
+      dockerfile: retriever/Dockerfile
     volumes:
       - ./services/retriever:/app:cached
+      - ./services/shared:/shared:cached
       - retriever-venv:/app/.venv
     tty: true
     stdin_open: true

@@ -205,6 +205,26 @@ wheels = [
 ]
 
 [[package]]
+name = "laiive-shared"
+version = "0.1.0"
+source = { editable = "../shared" }
+dependencies = [
+    { name = "httpx" },
+    { name = "neo4j" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "neo4j", specifier = ">=6.0.3" },
+    { name = "pydantic", specifier = ">=2.7" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.0" }]
+
+[[package]]
 name = "limits"
 version = "5.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -287,6 +307,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "laiive-shared" },
     { name = "loguru" },
     { name = "neo4j" },
     { name = "openai" },
@@ -306,6 +327,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.127.1" },
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "laiive-shared", editable = "../shared" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "neo4j", specifier = ">=6.0.3" },
     { name = "openai", specifier = ">=2.14.0" },

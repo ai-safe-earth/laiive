@@ -66,6 +66,9 @@ test-unit:
 test-pusher:
 	cd services/pusher && uv sync && uv run pytest -v tests/
 
+test-shared:
+	cd services/shared && uv sync && uv run pytest -v tests/
+
 # tests with coverage
 test-coverage:
 	cd services/retriever && uv sync && uv run pytest tests/ -v --cov=agent --cov-report=html --cov-report=term
@@ -73,3 +76,4 @@ test-coverage:
 test-all:
 	make test-unit
 	make test-pusher
+	make test-shared

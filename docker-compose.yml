@@ -3,7 +3,9 @@ services:
 
   pusher:
     container_name: laiive-pusher
-    build: ./services/pusher
+    build:
+      context: ./services
+      dockerfile: pusher/Dockerfile
     ports:
       - "8003:8003"
     env_file:
@@ -11,7 +13,9 @@ services:
 
   retriever:
     container_name: laiive-retriever
-    build: ./services/retriever
+    build:
+      context: ./services
+      dockerfile: retriever/Dockerfile
     ports:
       - "8002:8002"
     env_file:

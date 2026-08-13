@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.127.1",
     "httpx>=0.27.0",
+    "laiive-shared",
     "loguru>=0.7.3",
     "neo4j>=6.0.3",
     "openai>=2.14.0",
@@ -24,3 +25,6 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.uv.sources]
+laiive-shared = { path = "../shared", editable = true }

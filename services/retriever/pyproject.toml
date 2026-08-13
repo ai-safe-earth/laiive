@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.127.1",
     "httpx>=0.28.1",
+    "laiive-shared",
     "langfuse>=3.12.0",
     "loguru>=0.7.3",
     "neo4j>=6.0.3",
@@ -29,3 +30,6 @@ dev = [
 markers = [
   "integration: marks tests as integration",
 ]
+
+[tool.uv.sources]
+laiive-shared = { path = "../shared", editable = true }
