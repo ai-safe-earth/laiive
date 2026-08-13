@@ -64,6 +64,26 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
   against seeded Aura), pusher (create with provenance + embedding +
   geocode, MERGE into seed nodes, duplicate refused; smoke event deleted).
 
+## Phase 2 judgment calls — taken where the plan left room, owner may revisit
+
+1. **Pusher state is client-carried, no TTL store** (02-arch allowed either):
+   extraction reruns over the full conversation each turn; clarification
+   rounds = assistant messages in history. Revisit only if conversations get
+   too long to re-extract.
+2. **Protocol switch is a request-body field** `protocol: "legacy"|"v2"`
+   (legacy default) on both `/chat/stream`s, not an env flag. In legacy mode
+   the pusher one-round rule is OFF (old frontend can't render partial
+   forms). Delete all legacy paths (OpenAI frames, sentinel,
+   `cards_to_markdown`) when Phase 4 lands.
+3. **`tools/internet_search.py` deleted** — retriever is graph-only;
+   internet discovery is Phase 5's SEARCH service (Brave key still unset).
+4. **Writer resilience over strictness**: geocode failure still writes the
+   event (city-centroid fallback, then no location) with a warning, instead
+   of rejecting the submission.
+5. **`form.extracted` payload key is `draft`**, not `event` as sketched in
+   02-arch §2 (avoids clashing with the frame's event name); the TS mirror
+   and contract test pin it.
+
 ## Next: Phase 3 — Node gateway + auth + ownership (04-plan.md)
 
 New `services/gateway/` (Fastify + TS): Supabase JWT via JWKS, roles
