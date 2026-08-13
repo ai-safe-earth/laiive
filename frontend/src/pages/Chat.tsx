@@ -5,8 +5,10 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
+import { transcribe as transcribeRecording } from "@/api/ingest";
 import { EventCardView } from "@/components/EventCardView";
 import { Markdown } from "@/components/Markdown";
+import { MicButton } from "@/components/MicButton";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -225,6 +227,13 @@ export default function Chat() {
 
       <div className="flex-shrink-0 border-t border-border bg-card p-3 pb-[env(safe-area-inset-bottom,12px)] sm:p-4">
         <div className="mx-auto flex max-w-4xl items-center gap-2 sm:gap-3">
+          {/* Voice is public (D7): the transcript lands in the composer for
+              review rather than sending itself. */}
+          <MicButton
+            transcribe={transcribeRecording}
+            onTranscript={(text) => setInput((current) => (current ? `${current} ${text}` : text))}
+            disabled={isStreaming}
+          />
           <Input
             value={input}
             onChange={(event) => setInput(event.target.value)}
