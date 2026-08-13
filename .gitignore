@@ -116,3 +116,4 @@ Neo4j-*
 
 # personal Claude Code instructions
 CLAUDE.local.md
+.geocode_cache.json

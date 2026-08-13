@@ -1,271 +1,147 @@
-"""
-Tests for conversation session management and field extraction.
-Run with: cd services/pusher && python -m pytest tests/test_conversation.py -v
-"""
+"""Conversation + converters unit tests (all OpenAI calls mocked)."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+import json
+
+from agent.conversation import (
+    clarification_rounds,
+    default_currency,
+    process_turn,
+)
+from agent.converters import (
+    audio_to_text,
+    document_to_text,
+    extract_draft_from_text,
+    image_to_text,
+)
 
 
-class TestSession:
-    def test_session_creation(self, mock_openai):
-        from agent.conversation import Session
+def set_extraction(mock_openai, payload: dict | str):
+    content = payload if isinstance(payload, str) else json.dumps(payload)
+    mock_openai.chat.completions.create.return_value.choices[
+        0
+    ].message.content = content
 
-        session = Session("test-1")
-        assert session.session_id == "test-1"
-        assert not session.confirmed
-        assert all(v is None for v in session.fields.values())
 
-    def test_missing_required_fields(self, mock_openai):
-        from agent.conversation import Session, REQUIRED_FIELDS
+COMPLETE = {
+    "artists": ["Test Artist"],
+    "start_at": "2026-04-01T21:00:00",
+    "venue": "Test Venue",
+    "city": "Berlin",
+    "price_min": 15,
+}
 
-        session = Session("test-2")
-        missing = session._missing_required()
-        assert set(missing) == set(REQUIRED_FIELDS)
 
-    def test_all_required_collected(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-3")
-        session.fields["artist"] = "Test Artist"
-        session.fields["date_time"] = "2026-04-01 21:00"
-        session.fields["venue"] = "Test Venue"
-        session.fields["city"] = "Berlin"
-        session.fields["price"] = "15"
-        assert session.all_required_collected()
-
-    def test_not_all_required(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-4")
-        session.fields["artist"] = "Test Artist"
-        assert not session.all_required_collected()
-
-    def test_extract_fields_from_text(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-5")
-        extracted = session.extract_fields_from_text(
-            "DJ Shadow at Berghain in Berlin on March 20 at 23:00 for 15 euros"
+class TestExtraction:
+    def test_extracts_complete_draft(self, mock_openai):
+        draft = extract_draft_from_text(
+            "Test Artist, April 1st, Test Venue, Berlin, 15€"
         )
-        assert isinstance(extracted, dict)
-        # The mock returns fixed fields
-        assert session.fields["artist"] == "Test Artist"
-        assert session.fields["city"] == "Berlin"
+        assert draft.artists == ["Test Artist"]
+        assert draft.venue == "Test Venue"
+        assert draft.price_min == 15.0
 
-    def test_extract_fields_invalid_json(self, mock_openai):
-        from agent.conversation import Session
+    def test_invalid_json_gives_empty_draft(self, mock_openai):
+        set_extraction(mock_openai, "not json")
+        draft = extract_draft_from_text("gibberish")
+        assert draft.model_dump(exclude_none=True, exclude_defaults=True) == {}
 
-        mock_openai.chat.completions.create.return_value.choices[
-            0
-        ].message.content = "not json"
-        session = Session("test-6")
-        extracted = session.extract_fields_from_text("random text")
-        assert extracted == {}
+    def test_markdown_fences_stripped(self, mock_openai):
+        set_extraction(mock_openai, "```json\n" + json.dumps(COMPLETE) + "\n```")
+        draft = extract_draft_from_text("whatever")
+        assert draft.venue == "Test Venue"
 
-    def test_extract_fields_strips_markdown_fences(self, mock_openai):
-        from agent.conversation import Session
+    def test_string_artist_becomes_list(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "artists": "Solo Act"})
+        assert extract_draft_from_text("x").artists == ["Solo Act"]
 
-        mock_openai.chat.completions.create.return_value.choices[
-            0
-        ].message.content = '```json\n{"artist": "Fenced Artist"}\n```'
-        session = Session("test-7")
-        extracted = session.extract_fields_from_text("test")
-        assert extracted.get("artist") == "Fenced Artist"
-        assert session.fields["artist"] == "Fenced Artist"
+    def test_free_price_is_zero_not_missing(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "price_min": "free"})
+        draft = extract_draft_from_text("free show")
+        assert draft.price_min == 0.0
 
-    def test_chat_confirmation(self, mock_openai):
-        from agent.conversation import Session
+    def test_unknown_fields_ignored(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "hacker_field": "boom"})
+        draft = extract_draft_from_text("x")
+        assert draft.venue == "Test Venue"
 
-        session = Session("test-8")
-        # Fill all required fields
-        session.fields["artist"] = "Test Artist"
-        session.fields["date_time"] = "2026-04-01 21:00"
-        session.fields["venue"] = "Test Venue"
-        session.fields["city"] = "Berlin"
-        session.fields["price"] = "15"
 
-        reply = session.chat("yes")
-        assert session.confirmed
-        assert "CONFIRMED" in reply
+class TestProcessTurn:
+    def test_complete_first_message_goes_straight_to_form(self, mock_openai):
+        turn = process_turn([{"role": "user", "content": "full event info"}])
+        assert turn.show_form is True
+        assert turn.missing == []
+        assert turn.draft.price_currency == "EUR"  # defaulted from Berlin
 
-    def test_chat_no_confirmation_without_fields(self, mock_openai):
-        from agent.conversation import Session
+    def test_incomplete_first_message_asks_once(self, mock_openai):
+        set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
+        turn = process_turn([{"role": "user", "content": "gig by X in Berlin"}])
+        assert turn.show_form is False
+        assert set(turn.missing) == {"start_at", "venue", "price_min"}
 
-        # Make extraction return empty (no fields found)
-        mock_openai.chat.completions.create.return_value.choices[
-            0
-        ].message.content = "{}"
-        session = Session("test-9")
-        session.chat("yes")
-        assert not session.confirmed
-
-    def test_to_event_data(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-10")
-        session.fields["artist"] = "Test Artist"
-        session.fields["date_time"] = "2026-04-01 21:00"
-        session.fields["venue"] = "Test Venue"
-        session.fields["city"] = "Berlin"
-        session.fields["price"] = "15"
-        session.fields["description"] = "Great show"
-        session.fields["genre"] = "electronic"
-
-        data = session.to_event_data()
-        assert data["artist"] == "Test Artist"
-        assert data["venue"] == "Test Venue"
-        assert data["city"] == "Berlin"
-        assert data["price_amount"] == 15.0
-        assert data["price_currency"] == "EUR"  # Berlin defaults to EUR
-        assert data["genre"] == "electronic"
-
-    def test_currency_detection(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-11")
-        session.fields["city"] = "New York"
-        assert session.get_currency() == "USD"
-
-        session.fields["city"] = "London"
-        assert session.get_currency() == "GBP"
-
-        session.fields["city"] = "Tokyo"
-        assert session.get_currency() == "JPY"
-
-        session.fields["city"] = "Unknown City"
-        assert session.get_currency() == "EUR"
-
-    def test_price_parsing_free(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-12")
-        session.fields.update(
-            {
-                "artist": "A",
-                "date_time": "2026-01-01",
-                "venue": "V",
-                "city": "Berlin",
-                "price": "free",
-            }
+    def test_second_round_always_shows_form_even_if_incomplete(self, mock_openai):
+        set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
+        turn = process_turn(
+            [
+                {"role": "user", "content": "gig by X in Berlin"},
+                {"role": "assistant", "content": "when and where exactly?"},
+                {"role": "user", "content": "not sure yet"},
+            ]
         )
-        data = session.to_event_data()
-        assert data["price_amount"] == 0.0
+        assert turn.show_form is True  # ONE clarification round, then the form
+        assert turn.missing  # still-missing fields travel with it
 
-    def test_price_parsing_comma_decimal(self, mock_openai):
-        from agent.conversation import Session
-
-        session = Session("test-13")
-        session.fields.update(
-            {
-                "artist": "A",
-                "date_time": "2026-01-01",
-                "venue": "V",
-                "city": "Berlin",
-                "price": "12,50",
-            }
+    def test_legacy_mode_keeps_asking(self, mock_openai):
+        set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
+        turn = process_turn(
+            [
+                {"role": "user", "content": "gig by X"},
+                {"role": "assistant", "content": "when?"},
+                {"role": "user", "content": "hmm"},
+            ],
+            one_round_rule=False,
         )
-        data = session.to_event_data()
-        assert data["price_amount"] == 12.5
+        assert turn.show_form is False
+
+    def test_clarification_rounds_counted_from_history(self):
+        assert clarification_rounds(None) == 0
+        assert clarification_rounds([{"role": "user", "content": "x"}]) == 0
+        assert (
+            clarification_rounds(
+                [
+                    {"role": "user", "content": "x"},
+                    {"role": "assistant", "content": "when?"},
+                ]
+            )
+            == 1
+        )
+
+    def test_no_confirmed_marker_anywhere(self, mock_openai):
+        """The 'type yes'/**CONFIRMED** write path is gone."""
+        import agent.api as api
+        import agent.conversation as conversation
+
+        for module in (conversation, api):
+            source = open(module.__file__, encoding="utf-8").read()
+            assert "CONFIRMED" not in source
 
 
-class TestSessionStore:
-    def test_get_or_create(self, mock_openai):
-        from agent.conversation import SessionStore
+class TestCurrency:
+    def test_known_cities(self):
+        assert default_currency("London") == "GBP"
+        assert default_currency("new york") == "USD"
 
-        store = SessionStore()
-        s1 = store.get_or_create("a")
-        s2 = store.get_or_create("a")
-        assert s1 is s2
-
-    def test_different_sessions(self, mock_openai):
-        from agent.conversation import SessionStore
-
-        store = SessionStore()
-        s1 = store.get_or_create("a")
-        s2 = store.get_or_create("b")
-        assert s1 is not s2
-
-    def test_remove(self, mock_openai):
-        from agent.conversation import SessionStore
-
-        store = SessionStore()
-        store.get_or_create("a")
-        store.remove("a")
-        # Getting again creates a new session
-        s = store.get_or_create("a")
-        assert not s.confirmed
-        assert all(v is None for v in s.fields.values())
-
-    def test_remove_nonexistent(self, mock_openai):
-        from agent.conversation import SessionStore
-
-        store = SessionStore()
-        store.remove("nonexistent")  # Should not raise
+    def test_default_eur(self):
+        assert default_currency("Berlin") == "EUR"
+        assert default_currency(None) == "EUR"
 
 
 class TestConverters:
     def test_audio_to_text(self, mock_openai):
-        from agent.converters import audio_to_text
-
-        text = audio_to_text(b"fake audio bytes", "test.webm")
-        assert isinstance(text, str)
-        assert len(text) > 0
+        assert "Test Artist" in audio_to_text(b"fake-audio")
 
     def test_image_to_text(self, mock_openai):
-        from agent.converters import image_to_text
-
-        # Mock returns the extraction prompt response
-        mock_openai.chat.completions.create.return_value.choices[
-            0
-        ].message.content = "DJ Shadow at Berghain"
-        text = image_to_text(b"fake image bytes", "image/png")
-        assert isinstance(text, str)
-        assert len(text) > 0
-
-    def test_extract_fields_from_text(self, mock_openai):
-        from agent.converters import extract_fields_from_text
-
-        fields = extract_fields_from_text("DJ Shadow at Berghain in Berlin")
-        assert isinstance(fields, dict)
-        assert "artist" in fields
-
-    def test_extract_from_url(self, mock_openai):
-        from agent.converters import extract_from_url
-
-        with patch("agent.converters.httpx.Client") as mock_client:
-            mock_response = MagicMock()
-            mock_response.text = "<html>DJ Shadow at Berghain Berlin March 20</html>"
-            mock_response.raise_for_status.return_value = None
-
-            instance = MagicMock()
-            instance.get.return_value = mock_response
-            instance.__enter__ = lambda self: self
-            instance.__exit__ = lambda self, *a: None
-            mock_client.return_value = instance
-
-            fields = extract_from_url("https://example.com/event")
-            assert isinstance(fields, dict)
-
-    def test_extract_from_url_failure(self, mock_openai):
-        from agent.converters import extract_from_url
-
-        with patch("agent.converters.httpx.Client") as mock_client:
-            instance = MagicMock()
-            instance.get.side_effect = Exception("Connection failed")
-            instance.__enter__ = lambda self: self
-            instance.__exit__ = lambda self, *a: None
-            mock_client.return_value = instance
-
-            with pytest.raises(ValueError, match="Could not fetch URL"):
-                extract_from_url("https://bad-url.com")
+        set_extraction(mock_openai, "Concert poster: Test Artist at Test Venue")
+        assert "Test Artist" in image_to_text(b"fake-image")
 
     def test_document_to_text_txt(self, mock_openai):
-        from agent.converters import document_to_text
-
-        text = document_to_text(b"Some event text", "event.txt")
-        assert text == "Some event text"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        assert document_to_text(b"plain text here", "notes.txt") == "plain text here"

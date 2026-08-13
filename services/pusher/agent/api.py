@@ -1,34 +1,41 @@
-"""Pusher API — multimodal event submission via chat, voice, image, URL, and text extraction."""
+"""Pusher API — multimodal event submission via chat, voice, image, URL, batch."""
 
-import uuid
-import base64
 import asyncio
+import base64
 import json
-from typing import Optional, List, Literal
+import re
+import uuid
+from typing import List, Literal, Optional
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from laiive_shared import (
+    Done,
+    Error,
+    EventDraft,
+    FormExtracted,
+    MessageDelta,
+    Status,
+    missing_required,
+    sse_frame,
+)
 from loguru import logger
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+from pydantic import BaseModel
 
-from .conversation import sessions
+from . import graph
+from .batch import drafts_with_missing, parse_batch
+from .conversation import default_currency, process_turn
 from .converters import (
     audio_to_text,
-    image_to_text,
+    extract_draft_from_text,
     extract_from_url,
-    extract_fields_from_text,
+    image_to_text,
 )
-from .neo4j_writer import write_event
 
-limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="laiive pusher API", version="0.2.0")
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app = FastAPI(title="laiive pusher API", version="0.3.0")
 
+# CORS stays wide open until the gateway terminates browser traffic (Phase 3).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,25 +54,10 @@ class Message(BaseModel):
 
 
 class ChatStreamRequest(BaseModel):
-    """SSE streaming chat request (matches frontend PromoterCreate)."""
-
     messages: List[Message]
-    language: str = "en"
-
-
-class ChatRequest(BaseModel):
-    """Legacy JSON chat request."""
-
-    session_id: Optional[str] = None
-    message: str
-
-
-class ChatResponse(BaseModel):
-    session_id: str
-    reply: str
-    fields: dict
-    confirmed: bool
-    event: Optional[dict] = None
+    # 'legacy' = OpenAI-shaped frames + __EVENT_EXTRACTED__ sentinel (current
+    # frontend); 'v2' = named-event shared protocol (Phase 4 frontend).
+    protocol: Literal["legacy", "v2"] = "legacy"
 
 
 class TranscribeRequest(BaseModel):
@@ -90,6 +82,8 @@ class ExtractFromImageRequest(BaseModel):
 
 
 class EventDetailsModel(BaseModel):
+    """Legacy form payload (current frontend). Dies with Phase 4."""
+
     name: str
     artist: Optional[str] = None
     description: Optional[str] = None
@@ -106,81 +100,64 @@ class ValidateEventRequest(BaseModel):
     user_id: Optional[str] = None
 
 
-# ============== SSE Helpers ==============
+class BatchValidateRequest(BaseModel):
+    draft: EventDraft
+    index: int
+    total: int
+
+
+# ============== Helpers ==============
 
 
 def _create_sse_message(content: str) -> str:
-    message = {"choices": [{"delta": {"content": content}}]}
-    return f"data: {json.dumps(message)}\n\n"
+    payload = json.dumps(
+        {"choices": [{"delta": {"content": content}}]}, ensure_ascii=False
+    )
+    return f"data: {payload}\n\n"
 
 
 def _create_sse_done() -> str:
     return "data: [DONE]\n\n"
 
 
-# ============== Helpers ==============
+def _legacy_details(draft: EventDraft) -> dict:
+    """EventDraft → the legacy EventDetails shape the current frontend renders."""
+    artist = draft.artists[0] if draft.artists else None
+    return {
+        "name": draft.name or (f"{artist} Live" if artist else ""),
+        "artist": artist,
+        "description": draft.description,
+        "event_date": draft.start_at or "",
+        "venue": draft.venue or "",
+        "city": draft.city or "",
+        "price": draft.price_min,
+        "ticket_url": draft.ticket_url,
+    }
 
 
-def _handle_message(session_id: str, text: str) -> ChatResponse:
-    """Shared logic: feed text into the conversation session."""
-    session = sessions.get_or_create(session_id)
-    reply = session.chat(text)
-
-    event_result = None
-    if session.confirmed:
-        event_data = session.to_event_data()
-        try:
-            event_result = write_event(event_data)
-            if event_result.get("status") == "success":
-                reply += (
-                    f"\n\nEvent saved! **{event_result['event_name']}** "
-                    f"by {event_result['artist']} at {event_result['venue']}, "
-                    f"{event_result['city']}."
-                )
-                sessions.remove(session_id)
-            else:
-                logger.error(
-                    f"Write failed for session {session_id}: {event_result.get('error')}"
-                )
-                reply += "\n\nFailed to save the event. Please try again."
-                session.confirmed = False
-        except Exception as e:
-            logger.error(f"Write failed for session {session_id}: {e}")
-            reply += "\n\nError saving event. Please try again."
-            session.confirmed = False
-
-    return ChatResponse(
-        session_id=session_id,
-        reply=reply,
-        fields={k: v for k, v in session.fields.items() if v},
-        confirmed=session.confirmed,
-        event=event_result,
+def _details_to_draft(event: EventDetailsModel) -> EventDraft:
+    return EventDraft(
+        name=event.name,
+        artists=[event.artist] if event.artist else [event.name],
+        start_at=event.event_date,
+        venue=event.venue,
+        city=event.city,
+        price_min=event.price if event.price is not None else 0.0,
+        price_currency=default_currency(event.city),
+        description=event.description,
+        ticket_url=event.ticket_url,
     )
 
 
-def _event_details_from_fields(fields: dict) -> dict:
-    """Convert extracted fields dict to EventDetails format for frontend."""
-    price = None
-    if fields.get("price"):
-        try:
-            price_str = str(fields["price"]).lower().strip()
-            if price_str not in ("free", "0", ""):
-                price = float(price_str.replace(",", "."))
-            else:
-                price = 0.0
-        except (ValueError, TypeError):
-            pass
-
-    return {
-        "name": fields.get("description") or fields.get("artist", ""),
-        "artist": fields.get("artist"),
-        "description": fields.get("description"),
-        "event_date": fields.get("date_time") or fields.get("event_date", ""),
-        "venue": fields.get("venue", ""),
-        "city": fields.get("city", ""),
-        "price": price,
-        "ticket_url": fields.get("ticket_url"),
-    }
+def _write_or_raise(draft: EventDraft, owner_id: str | None):
+    result = graph.write_event(draft, owner_id=owner_id)
+    if result.status == "invalid":
+        raise HTTPException(422, result.message)
+    if result.status == "duplicate":
+        raise HTTPException(409, result.message)
+    if result.status == "error":
+        raise HTTPException(500, result.message)
+    return result
 
 
 # ============== Health ==============
@@ -190,153 +167,90 @@ def _event_details_from_fields(fields: dict) -> dict:
 def root():
     return {
         "service": "laiive pusher API",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "endpoints": {
             "health": "/health",
             "chat_stream": "/chat/stream (POST) - SSE streaming",
-            "chat": "/chat (POST) - JSON response",
             "transcribe": "/transcribe-audio (POST)",
             "extract_text": "/extract-event-from-text (POST)",
             "extract_url": "/extract-event-from-url (POST)",
             "extract_image": "/extract-event-details (POST)",
             "validate": "/validate-event (POST)",
+            "batch_parse": "/batch/parse (POST, multipart)",
+            "batch_validate": "/batch/validate-event (POST)",
         },
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    checks = {"api": "ok", "neo4j": "unknown"}
+    try:
+        graph._driver.verify_connectivity()
+        checks["neo4j"] = "ok"
+    except Exception as e:
+        logger.warning(f"Neo4j health check failed: {e}")
+        checks["neo4j"] = "error"
+    all_ok = all(v == "ok" for v in checks.values())
+    return {"status": "ok" if all_ok else "degraded", "checks": checks}
 
 
-# ============== SSE Chat Stream ==============
+# ============== SSE Chat ==============
 
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatStreamRequest):
-    """SSE streaming chat for conversational event extraction.
-
-    When all fields are collected and confirmed, emits:
-      __EVENT_EXTRACTED__{json}__EVENT_EXTRACTED__
-    """
+    """Submission chat. One clarification round, then the form — always."""
     if not request.messages:
         raise HTTPException(400, "No messages provided")
-
-    user_message = request.messages[-1].content
-    conversation_history = request.messages[:-1] if len(request.messages) > 1 else []
-
-    # Stable session ID: hash from the first user message so it persists across turns
-    first_msg = (
-        conversation_history[0].content if conversation_history else user_message
-    )
-    session_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, first_msg[:100]))
-
+    request_id = str(uuid.uuid4())
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+    generate = _generate_v2 if request.protocol == "v2" else _generate_legacy
     return StreamingResponse(
-        _generate_sse_response(session_id, user_message, conversation_history),
+        generate(request_id, messages),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "X-Request-ID": request_id,
         },
     )
 
 
-async def _generate_sse_response(
-    session_id: str,
-    user_message: str,
-    conversation_history: list,
-):
-    """Generate SSE stream for the chat endpoint.
-
-    Strategy:
-    1. Try to extract all fields from the user message directly.
-    2. If all required fields are found, emit __EVENT_EXTRACTED__ immediately
-       so the frontend shows the confirmation form (no need for multi-turn chat).
-    3. Otherwise, fall back to the conversational flow.
-    """
+async def _generate_v2(request_id: str, messages: list[dict]):
+    """Named-event frames: form.extracted replaces the sentinel."""
     try:
-        from .converters import extract_fields_from_text
-        from .conversation import REQUIRED_FIELDS
-
-        # Attempt direct extraction from the latest message
-        fields = extract_fields_from_text(user_message)
-        has_all_required = all(fields.get(f) for f in REQUIRED_FIELDS)
-
-        # Always populate the session with any extracted fields so subsequent
-        # turns (e.g. confirmation) have access to previously collected data.
-        session = sessions.get_or_create(session_id)
-        for key, value in fields.items():
-            if key in session.fields and value:
-                session.fields[key] = str(value)
-
-        if has_all_required:
-            event_details = _event_details_from_fields(fields)
-            marker = (
-                f"__EVENT_EXTRACTED__{json.dumps(event_details)}__EVENT_EXTRACTED__"
-            )
-            yield _create_sse_message(marker)
-            yield _create_sse_done()
-            return
-
-        # Not enough info — use conversational session to ask for missing fields
-        result = _handle_message(session_id, user_message)
-
-        if (
-            result.confirmed
-            and result.event
-            and result.event.get("status") == "success"
-        ):
-            event_details = {
-                "name": result.event.get("event_name", ""),
-                "artist": result.event.get("artist"),
-                "description": result.fields.get("description"),
-                "event_date": result.fields.get("date_time", ""),
-                "venue": result.event.get("venue", ""),
-                "city": result.event.get("city", ""),
-                "price": result.fields.get("price"),
-                "ticket_url": result.fields.get("ticket_url"),
-            }
-            marker = (
-                f"__EVENT_EXTRACTED__{json.dumps(event_details)}__EVENT_EXTRACTED__"
-            )
-            yield _create_sse_message(marker)
-        else:
-            # Check if session now has all required fields — emit extraction
-            session = sessions.get_or_create(session_id)
-            if session.all_required_collected():
-                event_details = _event_details_from_fields(session.fields)
-                marker = (
-                    f"__EVENT_EXTRACTED__{json.dumps(event_details)}__EVENT_EXTRACTED__"
-                )
-                yield _create_sse_message(marker)
-            else:
-                # Stream the reply word by word
-                import re
-
-                tokens = re.findall(r"\S+|\s+", result.reply)
-                for token in tokens:
-                    yield _create_sse_message(token)
-                    if token.strip():
-                        await asyncio.sleep(0.01)
-
-        yield _create_sse_done()
-
+        yield sse_frame(Status(state="extracting"))
+        turn = await asyncio.to_thread(process_turn, messages)
+        if turn.show_form:
+            yield sse_frame(FormExtracted(draft=turn.draft, missing=turn.missing))
+        yield sse_frame(MessageDelta(text=turn.reply))
     except Exception as e:
-        logger.error(f"SSE stream error: {e}", exc_info=True)
+        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
+        yield sse_frame(Error(code="internal_error", message="Something went wrong."))
+    yield sse_frame(Done(request_id=request_id))
+
+
+async def _generate_legacy(request_id: str, messages: list[dict]):
+    """Legacy frames. The old frontend cannot render a partial form, so the
+    one-round rule is off: the sentinel only fires when nothing is missing."""
+    try:
+        turn = await asyncio.to_thread(process_turn, messages, one_round_rule=False)
+        if turn.show_form:
+            details = json.dumps(_legacy_details(turn.draft))
+            yield _create_sse_message(
+                f"__EVENT_EXTRACTED__{details}__EVENT_EXTRACTED__"
+            )
+        else:
+            for token in re.findall(r"\S+|\s+", turn.reply):
+                yield _create_sse_message(token)
+                if token.strip():
+                    await asyncio.sleep(0.01)
+    except Exception as e:
+        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
         yield _create_sse_message("An unexpected error occurred. Please try again.")
-        yield _create_sse_done()
-
-
-# ============== Legacy JSON Chat ==============
-
-
-@app.post("/chat", response_model=ChatResponse)
-@limiter.limit("30/minute")
-def chat(body: ChatRequest, request: Request):
-    """Text chat — conversational event submission (JSON response)."""
-    session_id = body.session_id or str(uuid.uuid4())
-    return _handle_message(session_id, body.message)
+    yield _create_sse_done()
 
 
 # ============== Transcription ==============
@@ -349,9 +263,10 @@ async def transcribe_audio(request: TranscribeRequest):
         audio_bytes = base64.b64decode(request.audio)
         if not audio_bytes:
             raise HTTPException(400, "Empty audio data")
-
         text = audio_to_text(audio_bytes, filename="audio.webm")
         return TranscribeResponse(text=text)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Transcription failed: {e}")
         raise HTTPException(500, f"Transcription failed: {str(e)}")
@@ -364,15 +279,18 @@ async def transcribe_audio(request: TranscribeRequest):
 async def extract_event_from_text(request: ExtractFromTextRequest):
     """Extract event details from plain text."""
     try:
-        fields = extract_fields_from_text(request.text)
-        if not fields:
+        draft = extract_draft_from_text(request.text)
+        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
             return {
                 "success": False,
                 "error": "Could not extract event details from text",
             }
-
-        event_details = _event_details_from_fields(fields)
-        return {"success": True, "eventDetails": event_details}
+        return {
+            "success": True,
+            "eventDetails": _legacy_details(draft),
+            "draft": draft.model_dump(exclude_none=True),
+            "missing": missing_required(draft),
+        }
     except Exception as e:
         logger.error(f"Text extraction failed: {e}")
         return {"success": False, "error": str(e)}
@@ -382,15 +300,18 @@ async def extract_event_from_text(request: ExtractFromTextRequest):
 async def extract_event_from_url(request: ExtractFromUrlRequest):
     """Extract event details from a URL."""
     try:
-        fields = extract_from_url(request.url, language=request.language)
-        if not fields:
+        draft = extract_from_url(request.url, language=request.language)
+        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
             return {
                 "success": False,
                 "error": "Could not extract event details from URL",
             }
-
-        event_details = _event_details_from_fields(fields)
-        return {"success": True, "eventData": event_details}
+        return {
+            "success": True,
+            "eventData": _legacy_details(draft),
+            "draft": draft.model_dump(exclude_none=True),
+            "missing": missing_required(draft),
+        }
     except Exception as e:
         logger.error(f"URL extraction failed: {e}")
         return {"success": False, "error": str(e)}
@@ -403,69 +324,82 @@ async def extract_event_details(request: ExtractFromImageRequest):
         image_bytes = base64.b64decode(request.imageBase64)
         if not image_bytes:
             raise HTTPException(400, "Empty image data")
-
         text = image_to_text(image_bytes, mime_type="image/png")
-        fields = extract_fields_from_text(text)
-        if not fields:
+        draft = extract_draft_from_text(text)
+        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
             return {
                 "success": False,
                 "error": "Could not extract event details from image",
             }
-
-        event_details = _event_details_from_fields(fields)
-        return {"success": True, "eventDetails": event_details}
+        return {
+            "success": True,
+            "eventDetails": _legacy_details(draft),
+            "draft": draft.model_dump(exclude_none=True),
+            "missing": missing_required(draft),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Image extraction failed: {e}")
         return {"success": False, "error": str(e)}
 
 
-# ============== Event Validation / Push to DB ==============
+# ============== Validation / Publication ==============
 
 
 @app.post("/validate-event")
-async def validate_event(request: ValidateEventRequest):
-    """Validate and write a confirmed event to the database."""
+async def validate_event(
+    request: ValidateEventRequest,
+    x_user_id: Optional[str] = Header(None),
+):
+    """Publish a form-approved event — the only write trigger."""
+    draft = _details_to_draft(request.event)
+    result = _write_or_raise(draft, owner_id=x_user_id or request.user_id)
+    return {
+        "success": True,
+        "event_id": result.uid,
+        "event_name": result.name,
+        "artist": draft.artists[0] if draft.artists else None,
+        "venue": result.venue,
+        "city": result.city,
+        "warnings": result.warnings,
+    }
+
+
+# ============== Batch ==============
+
+
+@app.post("/batch/parse")
+async def batch_parse(file: UploadFile = File(...)):
+    """CSV/XLSX upload → drafts with their missing fields ("event i of N")."""
     try:
-        event = request.event
-        price_amount = event.price if event.price is not None else 0.0
-
-        # Build the data dict that neo4j_writer.write_event expects
-        event_data = {
-            "artist": event.artist or event.name,
-            "event_name": event.name,
-            "date_time": event.event_date,
-            "venue": event.venue,
-            "city": event.city,
-            "price_amount": price_amount,
-            "price_currency": _detect_currency(event.city),
-            "description": event.description or "",
-            "genre": "",
-            "ticket_url": event.ticket_url or "",
-        }
-
-        result = write_event(event_data)
-
-        if result.get("status") == "success":
-            return {
-                "success": True,
-                "event_id": result["event_id"],
-                "event_name": result["event_name"],
-                "artist": result["artist"],
-                "venue": result["venue"],
-                "city": result["city"],
-            }
-        else:
-            raise HTTPException(500, result.get("error", "Failed to write event"))
-
-    except HTTPException:
-        raise
+        content = await file.read()
+        drafts = parse_batch(content, file.filename or "upload.csv")
+    except ValueError as e:
+        raise HTTPException(422, str(e))
     except Exception as e:
-        logger.error(f"Event validation/write failed: {e}")
-        raise HTTPException(500, f"Failed to save event: {str(e)}")
+        logger.error(f"Batch parse failed: {e}")
+        raise HTTPException(500, f"Could not parse file: {e}")
+    if not drafts:
+        raise HTTPException(422, "No event rows found in the file")
+    return {"total": len(drafts), "drafts": drafts_with_missing(drafts)}
 
 
-def _detect_currency(city: str) -> str:
-    """Simple city→currency detection. Reuses the session logic."""
-    from .conversation import CITY_CURRENCY
-
-    return CITY_CURRENCY.get((city or "").lower().strip(), "EUR")
+@app.post("/batch/validate-event")
+async def batch_validate_event(
+    request: BatchValidateRequest,
+    x_user_id: Optional[str] = Header(None),
+):
+    """Publish draft i of N after the promoter approved its form."""
+    draft = request.draft
+    if draft.city and not draft.price_currency:
+        draft.price_currency = default_currency(draft.city)
+    result = _write_or_raise(draft, owner_id=x_user_id)
+    return {
+        "success": True,
+        "index": request.index,
+        "total": request.total,
+        "event_id": result.uid,
+        "event_name": result.name,
+        "warnings": result.warnings,
+    }

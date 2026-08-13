@@ -1,5 +1,7 @@
+import sys
+
+from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -26,5 +28,18 @@ class Settings(BaseSettings):
     embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     whisper_model: str = Field("whisper-1", alias="WHISPER_MODEL")
 
+    # Nominatim geocode cache (D12) — path relative to the service CWD.
+    geocode_cache_path: str = Field(".geocode_cache.json", alias="GEOCODE_CACHE_PATH")
 
-settings = Settings()
+
+try:
+    settings = Settings()
+except ValidationError as e:
+    missing = sorted(
+        {str(err["loc"][0]) for err in e.errors() if err["type"] == "missing"}
+    )
+    sys.exit(
+        "pusher config: missing required environment keys: "
+        + ", ".join(missing)
+        + "\n(.env is loaded from ../../.env relative to CWD — run from services/pusher)"
+    )
