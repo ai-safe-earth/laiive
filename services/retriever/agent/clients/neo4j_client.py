@@ -16,12 +16,6 @@ from loguru import logger
 # Current: Mix of loguru and print statements
 # Recommendation: Standardize on structured logging throughout. Configure loguru with JSON formatting for production to enable proper log aggregation and monitoring.
 
-logger.add(
-    lambda msg: print(msg, end=""),
-    format="{time:HH:mm:ss} | {level} | {message}",
-    level="DEBUG",
-)
-
 RETRYABLE_NEO4J_ERRORS = (ServiceUnavailable, TransientError, SessionExpired)
 
 neo4j_retry = retry(
@@ -51,13 +45,13 @@ def convert_neo4j_types(value):
 
 class Neo4jClient:
     def __init__(self):
-        logger.info("🔌 Initializing Neo4j client...")
+        logger.info("Initializing Neo4j client...")
         logger.debug(f"Connecting to: {settings.neo4j_uri}")
         logger.debug(f"Database: {settings.neo4j_database}")
         logger.debug(f"User: {settings.neo4j_user}")
 
         try:
-            logger.info("⏳ Creating Neo4j driver (this may take a moment)...")
+            logger.info("Creating Neo4j driver...")
             self._driver = GraphDatabase.driver(
                 settings.neo4j_uri,
                 auth=(settings.neo4j_user, settings.neo4j_password),
@@ -65,11 +59,11 @@ class Neo4jClient:
                 max_connection_pool_size=100,
                 connection_acquisition_timeout=60,
             )
-            logger.success("✅ Neo4j driver created successfully")
+            logger.debug("Neo4j driver created")
             self._schema_cache: str | None = None
         except Exception as e:
-            logger.error(f"❌ Failed to create Neo4j driver: {e}")
-            logger.error("💡 Check if Neo4j is running and NEO4J_URI is correct")
+            logger.error(f"Failed to create Neo4j driver: {e}")
+            logger.error("Check if Neo4j is running and NEO4J_URI is correct")
             raise
 
     def verify_connectivity(self) -> bool:
@@ -239,10 +233,10 @@ class Neo4jClient:
         return self.get_schema(force_refresh=True)
 
 
-logger.info("📦 Creating global neo4j_client instance...")
+logger.debug("Creating global neo4j_client instance...")
 try:
     neo4j_client = Neo4jClient()
-    logger.success("✅ Global neo4j_client created successfully")
+    logger.debug("Global neo4j_client created")
 except Exception as e:
-    logger.error(f"❌ Failed to create global neo4j_client: {e}")
+    logger.error(f"Failed to create global neo4j_client: {e}")
     raise

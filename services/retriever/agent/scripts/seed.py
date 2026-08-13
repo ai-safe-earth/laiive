@@ -9,20 +9,15 @@ Run: cd services/retriever && uv run python -m agent.scripts.seed [--no-embeddin
 """
 
 import sys
-import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from laiive_shared.neo4j_writer import backfill_embeddings
+from laiive_shared.normalize import norm
 from neo4j import GraphDatabase
 
 from config import settings
-
-
-def norm(name: str) -> str:
-    """lowercase, trimmed, diacritics stripped — the MERGE key."""
-    s = unicodedata.normalize("NFD", name.lower().strip())
-    return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
 CITIES: list[dict[str, Any]] = [
@@ -369,86 +364,11 @@ def seed(with_embeddings: bool = True) -> None:
 
         if with_embeddings:
             print("Embeddings...")
-            for label, text_fn in [
-                ("Event", _event_text),
-                ("Artist", _artist_text),
-                ("Venue", _venue_text),
-            ]:
-                rows = (
-                    s.run(
-                        f"MATCH (n:{label}) WHERE n.embedding IS NULL RETURN n.uid AS uid"
-                    ).data()
-                    if label != "Event"
-                    else s.run(
-                        "MATCH (n:Event) WHERE n.embedding IS NULL RETURN n.uid AS uid"
-                    ).data()
-                )
-                uids = [r["uid"] for r in rows]
-                if not uids:
-                    continue
-                texts = [text_fn(s, uid) for uid in uids]
-                vectors = embed_texts(texts)
-                for uid, text, vec in zip(uids, texts, vectors):
-                    s.run(
-                        f"""
-                        MATCH (n:{label} {{uid: $uid}})
-                        SET n.embedding = $vec, n.embedding_text = $text,
-                            n.embedding_model = $model,
-                            n.embedding_updated_at = datetime()
-                        """,
-                        uid=uid,
-                        vec=vec,
-                        text=text,
-                        model=settings.embeddings_model,
-                    )
-                print(f"  {label}: {len(uids)} embedded")
+            count = backfill_embeddings(s, embed_texts, settings.embeddings_model)
+            print(f"  {count} nodes embedded")
 
     driver.close()
     print("\nSeed complete.")
-
-
-def _event_text(s, uid: str) -> str:
-    r = s.run(
-        """
-        MATCH (e:Event {uid: $uid})-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)
-        OPTIONAL MATCH (a:Artist)-[:PERFORMS_AT]->(e)
-        OPTIONAL MATCH (e)-[:HAS_GENRE]->(g:Genre)
-        RETURN e.name AS name, e.description AS description,
-               toString(e.start_at) AS start_at, v.name AS venue, c.name AS city,
-               collect(DISTINCT a.name) AS artists, collect(DISTINCT g.name) AS genres
-        """,
-        uid=uid,
-    ).single()
-    return (
-        f"{r['name']}. {', '.join(r['artists'])} at {r['venue']}, {r['city']}. "
-        f"Genres: {', '.join(r['genres'])}. {r['start_at'][:10]}. {r['description']}"
-    )
-
-
-def _artist_text(s, uid: str) -> str:
-    r = s.run(
-        """
-        MATCH (a:Artist {uid: $uid})
-        OPTIONAL MATCH (a)-[:BASED_IN]->(c:City)
-        OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)
-        RETURN a.name AS name, a.description AS description, c.name AS city,
-               collect(DISTINCT g.name) AS genres
-        """,
-        uid=uid,
-    ).single()
-    return f"{r['name']}. {', '.join(r['genres'])} artist from {r['city']}. {r['description']}"
-
-
-def _venue_text(s, uid: str) -> str:
-    r = s.run(
-        """
-        MATCH (v:Venue {uid: $uid})-[:LOCATED_IN]->(c:City)
-        RETURN v.name AS name, v.venue_type AS venue_type, v.address AS address,
-               c.name AS city, v.description AS description
-        """,
-        uid=uid,
-    ).single()
-    return f"{r['name']}. {r['venue_type']} in {r['city']}. {r['address']}. {r['description']}"
 
 
 if __name__ == "__main__":

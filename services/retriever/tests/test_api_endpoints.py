@@ -1,340 +1,246 @@
 """
-Tests for FastAPI endpoints - health checks, chat endpoints, and error handling.
-Run with: pytest tests/test_api_endpoints.py -v
+FastAPI endpoint tests — health checks, chat endpoints, both SSE protocols.
+The pipeline is faked; no Neo4j or OpenAI needed.
 """
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from laiive_shared import EventCard, EventsResult, MessageDelta, Status
+
+import agent.api as api_module
+from agent.classifier import Classification
+
+CARD = EventCard(
+    uid="e1",
+    name="Noche de Jazz",
+    artists=["Marta Sánchez Trio"],
+    venue="Café Central",
+    city="Madrid",
+    start_at="2026-08-20T21:00:00+00:00",
+    price_min=15.0,
+    source="seed",
+)
 
 
-# Mock dependencies before importing app
-@pytest.fixture(autouse=True)
-def mock_dependencies():
-    """Mock Neo4j and external dependencies."""
-    with patch("agent.api.neo4j_client") as mock_neo4j:
-        mock_neo4j.get_schema.return_value = "Mock Schema"
-        mock_neo4j._driver.verify_connectivity.return_value = True
+class FakePipeline:
+    """Replays a scripted turn and fills the TurnResult like the real one."""
 
-        from agent.api import app
+    def __init__(
+        self, cards=None, text="Jazz on the way.", cyphers=None, moment="first_query"
+    ):
+        self.cards = cards if cards is not None else [CARD]
+        self.text = text
+        self.cyphers = cyphers if cyphers is not None else ["MATCH (e:Event) RETURN e"]
+        self.moment = moment
 
-        yield app, mock_neo4j
+    def run_turn(self, user_message, history=None, location=None, result=None):
+        result.classification = Classification(
+            query_type="event_search", moment=self.moment
+        )
+        yield Status(state="classifying")
+        if self.cyphers:
+            yield Status(state="searching")
+            result.cyphers = list(self.cyphers)
+            result.cards = list(self.cards)
+            yield EventsResult(events=result.cards)
+        yield Status(state="composing")
+        for token in self.text.split(" "):
+            delta = token + " "
+            result.text += delta
+            yield MessageDelta(text=delta)
+
+    def run_turn_collected(self, user_message, history=None, location=None):
+        from agent.pipeline import TurnResult
+
+        result = TurnResult()
+        for _ in self.run_turn(user_message, history, location, result=result):
+            pass
+        return result
 
 
 @pytest.fixture
-def client(mock_dependencies):
-    """Create test client."""
-    app, _ = mock_dependencies
-    return TestClient(app)
+def client():
+    api_module._pipeline = FakePipeline()
+    with TestClient(api_module.app) as test_client:
+        yield test_client
+    api_module._pipeline = None
 
 
 class TestHealthEndpoints:
-    """Test health check and info endpoints."""
-
     def test_root_endpoint(self, client):
-        """Test root endpoint returns service info."""
-        response = client.get("/")
-        assert response.status_code == 200
+        data = client.get("/").json()
+        assert data["version"] == "0.3.0"
+        assert "chat/stream" in data["endpoints"]
 
-        data = response.json()
-        assert "service" in data
-        assert "version" in data
-        assert "endpoints" in data
-        assert data["version"] == "0.2.0"
-
-    def test_health_endpoint_all_ok(self, client, mock_dependencies):
-        """Test health endpoint when all services are healthy."""
-        _, mock_neo4j = mock_dependencies
-
-        with patch("openai.models.list") as mock_openai:
-            mock_openai.return_value = []
-
+    def test_health_all_ok(self, client):
+        with (
+            patch.object(api_module, "neo4j_client") as neo4j,
+            patch("agent.utils.llm_utils.get_openai_client") as get_client,
+        ):
+            neo4j._driver.verify_connectivity.return_value = True
+            get_client.return_value.models.list.return_value = []
             response = client.get("/health")
-            assert response.status_code == 200
+        assert response.status_code == 200
+        assert response.json()["checks"] == {
+            "api": "ok",
+            "neo4j": "ok",
+            "openai": "ok",
+        }
 
-            data = response.json()
-            assert data["status"] == "ok"
-            assert data["checks"]["api"] == "ok"
-            assert data["checks"]["neo4j"] == "ok"
-            assert data["checks"]["openai"] == "ok"
-
-    def test_health_endpoint_neo4j_down(self, client, mock_dependencies):
-        """Test health endpoint when Neo4j is down."""
-        _, mock_neo4j = mock_dependencies
-        mock_neo4j._driver.verify_connectivity.side_effect = Exception(
-            "Connection refused"
-        )
-
-        with patch("openai.models.list") as mock_openai:
-            mock_openai.return_value = []
-
+    def test_health_neo4j_down(self, client):
+        with (
+            patch.object(api_module, "neo4j_client") as neo4j,
+            patch("agent.utils.llm_utils.get_openai_client") as get_client,
+        ):
+            neo4j._driver.verify_connectivity.side_effect = Exception("refused")
+            get_client.return_value.models.list.return_value = []
             response = client.get("/health")
-            assert response.status_code == 503
+        assert response.status_code == 503
+        assert response.json()["checks"]["neo4j"] == "error"
 
-            data = response.json()
-            assert data["status"] == "degraded"
-            assert "error" in data["checks"]["neo4j"]
+    def test_health_openai_down(self, client):
+        with (
+            patch.object(api_module, "neo4j_client") as neo4j,
+            patch("agent.utils.llm_utils.get_openai_client") as get_client,
+        ):
+            neo4j._driver.verify_connectivity.return_value = True
+            get_client.return_value.models.list.side_effect = Exception("bad key")
+            response = client.get("/health")
+        assert response.status_code == 503
+        assert response.json()["checks"]["openai"] == "error"
 
-    def test_schema_endpoint_success(self, client, mock_dependencies):
-        """Test schema endpoint returns schema."""
-        _, mock_neo4j = mock_dependencies
-        mock_neo4j.get_schema.return_value = "Test Schema Content"
+    def test_schema_endpoint(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.get_schema.return_value = "Test Schema"
+            data = client.get("/schema").json()
+        assert data == {"schema": "Test Schema", "status": "ok"}
 
-        response = client.get("/schema")
-        assert response.status_code == 200
-
-        data = response.json()
-        assert data["status"] == "ok"
-        assert data["schema"] == "Test Schema Content"
-
-    def test_schema_endpoint_error(self, client, mock_dependencies):
-        """Test schema endpoint handles errors."""
-        _, mock_neo4j = mock_dependencies
-        mock_neo4j.get_schema.side_effect = Exception("Schema error")
-
-        response = client.get("/schema")
-        assert response.status_code == 200
-
-        data = response.json()
+    def test_schema_endpoint_error(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.get_schema.side_effect = Exception("boom")
+            data = client.get("/schema").json()
         assert data["status"] == "error"
         assert data["schema"] is None
-        assert "error" in data
 
 
 class TestChatEndpoint:
-    """Test /chat JSON endpoint."""
-
-    @patch("agent.api.manager")
-    def test_chat_basic_query(self, mock_manager, client):
-        """Test basic chat query."""
-        mock_manager.run_react.return_value = (
-            "I can help you find concerts!",
-            None,
-            None,
-            False,
-            False,
-        )
-
-        response = client.post("/chat", json={"message": "Hello"})
-
-        assert response.status_code == 200
-        data = response.json()
-
+    def test_chat_returns_cards_and_prose(self, client):
+        data = client.post("/chat", json={"message": "jazz in madrid"}).json()
         assert "request_id" in data
-        assert "response" in data
-        assert data["response"] == "I can help you find concerts!"
-        assert data["used_query"] is False
-        assert data["needs_more_info"] is False
-
-    @patch("agent.api.manager")
-    def test_chat_with_database_query(self, mock_manager, client):
-        """Test chat with database query execution."""
-        mock_manager.run_react.return_value = (
-            "I found some events:",
-            "MATCH (e:Event) RETURN e LIMIT 5",
-            [{"event": {"name": "Jazz Night"}}],
-            True,
-            False,
-        )
-
-        response = client.post("/chat", json={"message": "Find jazz concerts"})
-
-        assert response.status_code == 200
-        data = response.json()
-
         assert data["used_query"] is True
-        assert data["cypher"] is not None
-        assert data["results"] is not None
-        assert len(data["results"]) > 0
+        assert data["results"][0]["uid"] == "e1"
+        assert "Jazz on the way." in data["response"]
+        assert "Café Central" in data["response"]  # legacy markdown appended
+        assert data["cypher"] == "MATCH (e:Event) RETURN e"
 
-    @patch("agent.api.manager")
-    def test_chat_needs_more_info(self, mock_manager, client):
-        """Test chat when more info is needed."""
-        mock_manager.run_react.return_value = (
-            "Where would you like to find events?",
-            None,
-            None,
-            False,
-            True,
+    def test_chat_needs_more_info(self, client):
+        api_module._pipeline = FakePipeline(
+            cards=[],
+            cyphers=[],
+            text="Which city are we talking about?",
+            moment="ambiguous",
         )
-
-        response = client.post("/chat", json={"message": "Find concerts"})
-
-        assert response.status_code == 200
-        data = response.json()
-
+        data = client.post("/chat", json={"message": "find concerts"}).json()
         assert data["needs_more_info"] is True
         assert data["used_query"] is False
+        assert data["results"] is None
 
-    @patch("agent.api.manager")
-    def test_chat_with_conversation_history(self, mock_manager, client):
-        """Test chat with conversation history."""
-        mock_manager.run_react.return_value = (
-            "Based on our conversation...",
-            "MATCH ...",
-            [],
-            True,
-            False,
-        )
-
-        response = client.post(
-            "/chat",
-            json={
-                "message": "What about tomorrow?",
-                "conversation_history": [
-                    {"role": "user", "content": "Find jazz concerts"},
-                    {"role": "assistant", "content": "I found 5 concerts"},
-                ],
-            },
-        )
-
-        assert response.status_code == 200
-        mock_manager.run_react.assert_called_once()
-
-        # Verify conversation history was passed
-        call_args = mock_manager.run_react.call_args
-        assert call_args[0][1] is not None  # conversation_history arg
-
-    @patch("agent.api.manager")
-    def test_chat_query_execution_error(self, mock_manager, client):
-        """Test error handling when ReAct agent fails — returns graceful 200."""
-        mock_manager.run_react.side_effect = Exception("Agent failed")
-
-        response = client.post("/chat", json={"message": "Find concerts"})
-
-        # _process_chat catches exceptions and returns a graceful error response
-        assert response.status_code == 200
-        data = response.json()
-        assert "trouble" in data["response"].lower()
+    def test_chat_error_returns_500(self, client):
+        broken = MagicMock()
+        broken.run_turn_collected.side_effect = Exception("pipeline died")
+        api_module._pipeline = broken
+        response = client.post("/chat", json={"message": "x"})
+        assert response.status_code == 500
 
     def test_chat_invalid_request(self, client):
-        """Test chat with invalid request body."""
-        response = client.post("/chat", json={})
+        assert client.post("/chat", json={}).status_code == 422
 
-        assert response.status_code == 422  # Validation error
 
-    def test_chat_invalid_json(self, client):
-        """Test chat with invalid JSON."""
-        response = client.post("/chat", data="invalid json")
+class TestChatStreamLegacy:
+    def test_legacy_stream_shape(self, client):
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "jazz in madrid"}]},
+        )
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        body = response.text
+        request_id = response.headers["X-Request-ID"]
+        # metadata frame carries the real request id (not "None")
+        assert f'"request_id": "{request_id}"' in body
+        assert '"delta"' in body
+        assert "Café Central" in body  # markdown appended
+        assert body.rstrip().endswith("data: [DONE]")
 
+    def test_no_messages_is_400(self, client):
+        assert client.post("/chat/stream", json={"messages": []}).status_code == 400
+
+    def test_invalid_role_is_422(self, client):
+        response = client.post(
+            "/chat/stream", json={"messages": [{"role": "nope", "content": "x"}]}
+        )
         assert response.status_code == 422
 
 
-class TestChatStreamEndpoint:
-    """Test /chat/stream SSE endpoint."""
-
-    @patch("agent.api.manager")
-    def test_chat_stream_basic(self, mock_manager, client):
-        """Test basic SSE streaming."""
-        mock_manager.run_react.return_value = (
-            "Hello!",
-            None,
-            None,
-            False,
-            False,
-        )
-
-        response = client.post(
-            "/chat/stream", json={"messages": [{"role": "user", "content": "Hi"}]}
-        )
-
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
-        assert "X-Request-ID" in response.headers
-
-    def test_chat_stream_no_messages(self, client):
-        """Test SSE endpoint with no messages."""
-        response = client.post("/chat/stream", json={"messages": []})
-
-        assert response.status_code == 400
-
-    @patch("agent.api.manager")
-    def test_chat_stream_with_location(self, mock_manager, client):
-        """Test SSE with location data."""
-        mock_manager.run_react.return_value = (
-            "Found events near you",
-            "MATCH ...",
-            [],
-            True,
-            False,
-        )
-
+class TestChatStreamV2:
+    def test_v2_named_events(self, client):
         response = client.post(
             "/chat/stream",
             json={
-                "messages": [{"role": "user", "content": "Events near me"}],
-                "location": {"latitude": 52.52, "longitude": 13.40, "city": "Berlin"},
-                "language": "en",
+                "messages": [{"role": "user", "content": "jazz in madrid"}],
+                "protocol": "v2",
             },
         )
+        body = response.text
+        assert "event: status" in body
+        assert "event: events.result" in body
+        assert "event: message.delta" in body
+        assert "event: done" in body
+        # events.result must arrive before the first prose delta
+        assert body.index("event: events.result") < body.index("event: message.delta")
 
-        assert response.status_code == 200
-
-    def test_chat_stream_invalid_message_role(self, client):
-        """Test SSE with invalid message role."""
+    def test_v2_location_accepted(self, client):
         response = client.post(
             "/chat/stream",
-            json={"messages": [{"role": "invalid_role", "content": "Test"}]},
+            json={
+                "messages": [{"role": "user", "content": "near me"}],
+                "location": {"latitude": 52.52, "longitude": 13.4, "city": "Berlin"},
+                "protocol": "v2",
+            },
         )
-
-        assert response.status_code == 422
-
-
-class TestMetricsEndpoint:
-    """Test metrics endpoint."""
-
-    def test_metrics_endpoint(self, client):
-        """Test metrics endpoint returns basic status."""
-        response = client.get("/metrics")
         assert response.status_code == 200
 
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "operational"
+    def test_v2_pipeline_error_emits_error_frame(self, client):
+        class ExplodingPipeline(FakePipeline):
+            def run_turn(self, *args, **kwargs):
+                yield Status(state="classifying")
+                raise RuntimeError("boom")
+
+        api_module._pipeline = ExplodingPipeline()
+        body = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "x"}], "protocol": "v2"},
+        ).text
+        assert "event: error" in body
+        assert "event: done" in body  # stream still terminates cleanly
 
 
 class TestRequestValidation:
-    """Test Pydantic request validation."""
-
-    def test_message_validation_role(self, client):
-        """Test that invalid role is rejected."""
-        response = client.post(
-            "/chat",
-            json={
-                "message": "test",
-                "conversation_history": [{"role": "hacker", "content": "test"}],
-            },
-        )
-
-        assert response.status_code == 422
-
-    def test_location_validation(self, client):
-        """Test location validation."""
+    def test_location_type_validation(self, client):
         response = client.post(
             "/chat/stream",
             json={
-                "messages": [{"role": "user", "content": "test"}],
-                "location": {
-                    "latitude": "invalid",  # Should be float
-                    "longitude": 13.40,
-                },
+                "messages": [{"role": "user", "content": "x"}],
+                "location": {"latitude": "not-a-float", "longitude": 13.4},
             },
         )
-
         assert response.status_code == 422
 
-    def test_required_fields(self, client):
-        """Test required fields are enforced."""
+    def test_unknown_protocol_rejected(self, client):
         response = client.post(
-            "/chat",
-            json={
-                "conversation_history": []
-                # Missing 'message' field
-            },
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "x"}], "protocol": "v3"},
         )
-
         assert response.status_code == 422
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

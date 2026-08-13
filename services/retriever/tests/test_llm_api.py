@@ -32,7 +32,7 @@ class TestOpenAIChat:
         """Verify OpenAI chat API is reachable."""
         start = time.time()
         response = client.chat.completions.create(
-            model=settings.conversation_model,
+            model=settings.composer_model,
             messages=[{"role": "user", "content": "Say 'ok'"}],
             max_tokens=5,
         )
@@ -45,7 +45,7 @@ class TestOpenAIChat:
     def test_openai_chat_token_usage(self, client):
         """Verify token usage is returned (needed for metrics)."""
         response = client.chat.completions.create(
-            model=settings.conversation_model,
+            model=settings.composer_model,
             messages=[{"role": "user", "content": "Hello"}],
             max_tokens=10,
         )
@@ -116,67 +116,23 @@ class TestOpenAIEmbeddings:
         print(f"✓ Batch embeddings: {len(response.data)} vectors returned")
 
 
-class TestOpenRouterLlamaGuard:
-    """Test OpenRouter / LlamaGuard API."""
+class TestOpenAIModeration:
+    """Test the OpenAI moderation endpoint (free) used by the safety guard."""
 
     @pytest.fixture
     def client(self):
         return OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=settings.openrouter_api_key,
+            api_key=settings.openai_api_key,
             http_client=httpx.Client(timeout=httpx.Timeout(30.0, connect=5.0)),
         )
 
-    def test_openrouter_connectivity(self, client):
-        """Verify OpenRouter is reachable."""
-        start = time.time()
-        response = client.chat.completions.create(
-            model=settings.safety_model,
-            messages=[{"role": "user", "content": "Say ok"}],
-            max_tokens=10,
+    def test_moderation_safe_content(self, client):
+        result = client.moderations.create(
+            model="omni-moderation-latest",
+            input="Find jazz concerts in Berlin this weekend",
         )
-        elapsed = time.time() - start
-
-        assert response.choices[0].message.content is not None
-        assert elapsed < 30, f"OpenRouter took {elapsed:.1f}s"
-        print(f"✓ OpenRouter responded in {elapsed:.2f}s")
-
-    def test_llamaguard_safe_classification(self, client):
-        """Test LlamaGuard classifies safe content correctly."""
-        prompt = """You are a safety classifier. Classify the following input as SAFE or UNSAFE.
-Return JSON: {"verdict":"safe"} or {"verdict":"unsafe","categories":["..."]}
-
-TEXT:
-Find jazz concerts in Berlin this weekend"""
-
-        response = client.chat.completions.create(
-            model=settings.safety_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-        )
-
-        content = response.choices[0].message.content
-        assert "safe" in content.lower()
-        print(f"✓ LlamaGuard response: {content[:100]}")
-
-    def test_openrouter_timeout_behavior(self, client):
-        """Verify timeout is respected (won't hang forever)."""
-        start = time.time()
-        try:
-            client.chat.completions.create(
-                model=settings.safety_model,
-                messages=[{"role": "user", "content": "Test"}],
-                max_tokens=5,
-            )
-            elapsed = time.time() - start
-            assert (
-                elapsed < 35
-            ), f"Should complete or timeout within 30s, took {elapsed:.1f}s"
-            print(f"✓ Completed in {elapsed:.2f}s")
-        except httpx.TimeoutException:
-            elapsed = time.time() - start
-            assert elapsed < 35, f"Timeout took too long: {elapsed:.1f}s"
-            print(f"✓ Timeout raised correctly after {elapsed:.2f}s")
+        assert result.results[0].flagged is False
+        print("moderation: safe content not flagged")
 
 
 class TestAllEndpointsSummary:
@@ -209,23 +165,6 @@ class TestAllEndpointsSummary:
             results["openai_embeddings"] = f"✓ {time.time() - start:.2f}s"
         except Exception as e:
             results["openai_embeddings"] = f"✗ {type(e).__name__}"
-
-        # OpenRouter
-        try:
-            or_client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=settings.openrouter_api_key,
-                http_client=httpx.Client(timeout=httpx.Timeout(15.0)),
-            )
-            start = time.time()
-            or_client.chat.completions.create(
-                model=settings.safety_model,
-                messages=[{"role": "user", "content": "ok"}],
-                max_tokens=1,
-            )
-            results["openrouter_llamaguard"] = f"✓ {time.time() - start:.2f}s"
-        except Exception as e:
-            results["openrouter_llamaguard"] = f"✗ {type(e).__name__}"
 
         # Print summary
         print("\n" + "=" * 50)

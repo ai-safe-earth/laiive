@@ -1,26 +1,21 @@
-from typing import Optional, List, Literal
-from datetime import datetime
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uuid
-
-# TODO from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-# TODO add slowapi or similar rate limits
-from pydantic import BaseModel
-import asyncio
-from loguru import logger
-from config import settings
-from .clients.neo4j_client import neo4j_client
-from .orchestrator import Orchestrator
-from .utils.formatters import (
-    format_events_as_markdown,
-    create_sse_message,
-    create_sse_done,
-)
 import json
+import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import List, Literal, Optional
 
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from laiive_shared import Done, Error, MessageDelta, sse_frame
+from loguru import logger
+from pydantic import BaseModel
+
+from config import settings
+
+from .clients.neo4j_client import neo4j_client
+from .pipeline import Pipeline, TurnResult
+from .utils.formatters import cards_to_markdown, create_sse_done, create_sse_message
 
 LOG_FILE = Path("logs/requests.jsonl")
 
@@ -49,8 +44,9 @@ def log_request(
         logger.warning(f"Failed to log request: {e}")
 
 
-app = FastAPI(title="laiive retriever API", version="0.2.0")
+app = FastAPI(title="laiive retriever API", version="0.3.0")
 
+# CORS stays wide open until the gateway terminates browser traffic (Phase 3).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -59,8 +55,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-schema = neo4j_client.get_schema()
-manager = Orchestrator(schema)
+_pipeline: Pipeline | None = None
+
+
+def get_pipeline() -> Pipeline:
+    """Build the pipeline on first use — imports must not require Neo4j."""
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = Pipeline(neo4j_client)
+    return _pipeline
 
 
 # ============== Pydantic Models ==============
@@ -78,18 +81,21 @@ class Message(BaseModel):
 
 
 class ChatRequestSSE(BaseModel):
-    """SSE streaming request format (frontend)."""
+    """SSE streaming request format."""
 
     messages: List[Message]
     location: Optional[UserLocation] = None
-    language: str = "en"
+    # 'legacy' = OpenAI-shaped data-only frames (current frontend);
+    # 'v2' = the named-event shared protocol (new frontend, Phase 4).
+    protocol: Literal["legacy", "v2"] = "legacy"
 
 
 class ChatRequest(BaseModel):
-    """Legacy JSON request format."""
+    """JSON request format."""
 
     message: str
     conversation_history: Optional[List[Message]] = None
+    location: Optional[UserLocation] = None
 
 
 class ChatResponse(BaseModel):
@@ -101,33 +107,20 @@ class ChatResponse(BaseModel):
     needs_more_info: bool = False
 
 
-# ============== Logic ==============
+def _history_dicts(messages: Optional[List[Message]]) -> list[dict] | None:
+    if not messages:
+        return None
+    return [{"role": m.role, "content": m.content} for m in messages]
 
 
-def _process_chat(
-    user_message: str,
-    conversation_history: Optional[List[Message]] = None,
-    user_location: Optional[UserLocation] = None,
-) -> tuple:
-    try:
-        location_dict = None
-        if user_location:
-            location_dict = {
-                "latitude": user_location.latitude,
-                "longitude": user_location.longitude,
-                "city": user_location.city,
-            }
-
-        response_text, cypher, results, used_query, needs_more_info = manager.run_react(
-            user_message, conversation_history, user_location=location_dict
-        )
-        log_request(user_message, "react", cypher, results, None)
-        return (response_text, cypher, results, used_query, needs_more_info, False)
-    except Exception as e:
-        logger.error(f"ReAct agent failed: {e}", exc_info=True)
-        error = "I had trouble processing your request. Could you try rephrasing?"
-        log_request(user_message, "react", None, None, str(e))
-        return (error, None, None, False, False, True)
+def _location_dict(location: Optional[UserLocation]) -> dict | None:
+    if location is None:
+        return None
+    return {
+        "latitude": location.latitude,
+        "longitude": location.longitude,
+        "city": location.city,
+    }
 
 
 # ============== Health & Info Endpoints ==============
@@ -137,7 +130,7 @@ def _process_chat(
 def root():
     return {
         "service": "Live Music Events Search Assistant",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "endpoints": {
             "health": "/health",
             "schema": "/schema",
@@ -150,11 +143,7 @@ def root():
 
 @app.get("/health")
 def health():
-    checks = {
-        "api": "ok",
-        "neo4j": "unknown",
-        "openai": "unknown",
-    }
+    checks = {"api": "ok", "neo4j": "unknown", "openai": "unknown"}
 
     try:
         neo4j_client._driver.verify_connectivity()
@@ -164,20 +153,18 @@ def health():
         checks["neo4j"] = "error"
 
     try:
-        import openai
+        from .utils.llm_utils import get_openai_client
 
-        openai.models.list(limit=1)
+        get_openai_client().models.list()
         checks["openai"] = "ok"
     except Exception as e:
         logger.warning(f"OpenAI health check failed: {e}")
         checks["openai"] = "error"
 
     all_ok = all(v == "ok" for v in checks.values())
-    status_code = 200 if all_ok else 503
-
     return JSONResponse(
         content={"status": "ok" if all_ok else "degraded", "checks": checks},
-        status_code=status_code,
+        status_code=200 if all_ok else 503,
     )
 
 
@@ -188,7 +175,7 @@ def get_schema():
         return {"schema": schema_text, "status": "ok"}
     except Exception as e:
         logger.error(f"Schema fetch failed: {e}")
-        return {"schema": None, "status": "error"}
+        return {"schema": None, "status": "error", "error": str(e)}
 
 
 # ============== Chat Endpoints ==============
@@ -199,21 +186,28 @@ def chat(request: ChatRequest):
     """JSON response endpoint."""
     request_id = str(uuid.uuid4())
     try:
-        response_text, cypher, results, used_query, needs_more_info, is_error = (
-            _process_chat(request.message, request.conversation_history)
+        result = get_pipeline().run_turn_collected(
+            request.message,
+            _history_dicts(request.conversation_history),
+            _location_dict(request.location),
         )
-
-        if results and used_query and not is_error:
-            events_markdown = format_events_as_markdown(results)
-            response_text = f"{response_text}\n\n{events_markdown}"
-
+        log_request(
+            request.message,
+            "pipeline",
+            result.cyphers[0] if result.cyphers else None,
+            [c.model_dump() for c in result.cards],
+            "; ".join(result.errors) or None,
+        )
+        response_text = result.text
+        if result.cards:
+            response_text += "\n\n" + cards_to_markdown(result.cards)
         return ChatResponse(
             request_id=request_id,
             response=response_text,
-            cypher=cypher,
-            results=results,
-            used_query=used_query,
-            needs_more_info=needs_more_info,
+            cypher=result.cyphers[0] if result.cyphers else None,
+            results=[c.model_dump() for c in result.cards] or None,
+            used_query=result.used_query,
+            needs_more_info=result.needs_more_info,
         )
     except Exception as e:
         logger.error(f"[{request_id}] Chat error: {e}", exc_info=True)
@@ -222,18 +216,18 @@ def chat(request: ChatRequest):
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequestSSE):
-    """SSE streaming endpoint."""
+    """SSE streaming endpoint — real streaming from the composer."""
     request_id = str(uuid.uuid4())
     if not request.messages:
         raise HTTPException(400, "No messages provided")
 
     user_message = request.messages[-1].content
-    conversation_history = request.messages[:-1] if len(request.messages) > 1 else None
+    history = _history_dicts(request.messages[:-1])
+    location = _location_dict(request.location)
 
+    generate = _generate_v2 if request.protocol == "v2" else _generate_legacy
     return StreamingResponse(
-        _generate_sse_response(
-            user_message, conversation_history, user_location=request.location
-        ),
+        generate(request_id, user_message, history, location),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -244,43 +238,64 @@ async def chat_stream(request: ChatRequestSSE):
     )
 
 
-async def _generate_sse_response(
+async def _generate_v2(
+    request_id: str,
     user_message: str,
-    conversation_history: Optional[List[Message]] = None,
-    request_id: str = None,
-    user_location: Optional[UserLocation] = None,
+    history: list[dict] | None,
+    location: dict | None,
 ):
-    """Generate SSE stream."""
-    yield f'event: metadata\ndata: {{"request_id": "{request_id}"}}\n\n'
+    """Named-event frames from the shared protocol."""
+    result = TurnResult()
     try:
-        response_text, cypher, results, used_query, needs_more_info, is_error = (
-            _process_chat(
-                user_message, conversation_history, user_location=user_location
-            )
-        )
-
-        # Build full response
-        if results and used_query and not is_error:
-            events_markdown = format_events_as_markdown(results)
-            full_response = f"{response_text}\n\n{events_markdown}"
-        else:
-            full_response = response_text
-
-        # Stream word by word for natural pacing
-        import re
-
-        tokens = re.findall(r"\S+|\s+", full_response)
-        for token in tokens:
-            yield create_sse_message(token)
-            if token.strip():  # only pause after actual words
-                await asyncio.sleep(settings.sse_stream_delay)
-
-        yield create_sse_done()
-
+        for payload in get_pipeline().run_turn(
+            user_message, history, location, result=result
+        ):
+            yield sse_frame(payload)
     except Exception as e:
-        logger.error(f"SSE stream error: {e}", exc_info=True)
+        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
+        yield sse_frame(Error(code="internal_error", message="Something went wrong."))
+    finally:
+        log_request(
+            user_message,
+            "pipeline",
+            result.cyphers[0] if result.cyphers else None,
+            [c.model_dump() for c in result.cards],
+            "; ".join(result.errors) or None,
+        )
+    yield sse_frame(Done(request_id=request_id))
+
+
+async def _generate_legacy(
+    request_id: str,
+    user_message: str,
+    history: list[dict] | None,
+    location: dict | None,
+):
+    """OpenAI-shaped data-only frames for the current frontend (delete with Phase 4)."""
+    yield f'event: metadata\ndata: {{"request_id": "{request_id}"}}\n\n'
+    result = TurnResult()
+    try:
+        for payload in get_pipeline().run_turn(
+            user_message, history, location, result=result
+        ):
+            if isinstance(payload, MessageDelta):
+                yield create_sse_message(payload.text)
+            # EventsResult/Status frames have no legacy equivalent mid-stream;
+            # cards are appended as markdown below.
+        if result.cards:
+            yield create_sse_message("\n\n" + cards_to_markdown(result.cards))
+    except Exception as e:
+        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
         yield create_sse_message("An unexpected error occurred. Please try again.")
-        yield create_sse_done()
+    finally:
+        log_request(
+            user_message,
+            "pipeline",
+            result.cyphers[0] if result.cyphers else None,
+            [c.model_dump() for c in result.cards],
+            "; ".join(result.errors) or None,
+        )
+    yield create_sse_done()
 
 
 # ============== Metrics and Observability ==============
@@ -294,13 +309,3 @@ def get_metrics():
         "langfuse_enabled": settings.langfuse_enabled,
         "note": "Detailed metrics and traces available in Langfuse dashboard",
     }
-
-
-# TODO when using prometheus and graphana
-# EQUEST_COUNT = Counter('retriever_requests_total', 'Total requests', ['action', 'status'])
-# REQUEST_LATENCY = Histogram('retriever_request_latency_seconds', 'Request latency')
-# TOKEN_USAGE = Counter('retriever_tokens_total', 'Token usage', ['direction'])  # input/output
-
-# @app.get("/metrics")
-# def prometheus_metrics():
-#    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)

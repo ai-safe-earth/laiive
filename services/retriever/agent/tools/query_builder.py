@@ -1,87 +1,83 @@
-from datetime import date
-from typing import Optional, Dict
+"""LLM Cypher generation for the long tail the templates can't express.
+
+Generated queries are read-only-validated before execution and asked to
+return the executor's standard row shape so results still map to EventCards.
+"""
+
 import json
+from datetime import date
+
 from config import settings
-from ..clients.neo4j_client import neo4j_client
+
+from ..utils.llm_utils import chat_completion_with_retry, get_openai_client
 from .safety_guard import SafetyGuardTool
-from ..utils.llm_utils import get_openai_client, chat_completion_with_retry
+
+QUERY_BUILDER_PROMPT_VERSION = "v2"
 
 QUERY_BUILDER_PROMPT = """You are a Neo4j Cypher query generator specialized in live music events.
 
 CORE RULES:
-1. READ-ONLY: Use only MATCH, OPTIONAL MATCH, WITH, RETURN, WHERE
-2. Return 10-20 results max, sorted by relevance
-3. Use exact relationship types from schema
-4. Always collect related entities (artists, genres) using collect(DISTINCT ...)
+1. READ-ONLY: Use only MATCH, OPTIONAL MATCH, WITH, WHERE, RETURN, CALL db.index.*
+2. Return at most 20 rows, sorted by relevance
+3. Use exact relationship types from the schema below
 
-DATE HANDLING:
-- Event.start_at is a native Neo4j DATE_TIME property (not a string).
-- Always check: WHERE e.start_at IS NOT NULL before comparisons.
-- Compare directly against datetime() literals — do NOT wrap e.start_at in datetime():
-  WHERE e.start_at IS NOT NULL
-    AND e.start_at >= datetime("2026-01-15T00:00:00Z")
-    AND e.start_at <= datetime("2026-01-15T23:59:59Z")
-- When the user says a month without a specific day, use the FULL month range:
-  e.g. "March" → >= datetime("2026-03-01T00:00:00Z") AND <= datetime("2026-03-31T23:59:59Z")
-- When the user says "today", use today's date: {date_context}
+GRAPH MODEL (use exactly these):
+- (a:Artist)-[:PERFORMS_AT]->(e:Event)
+- (e:Event)-[:HOSTED_AT]->(v:Venue)
+- (v:Venue)-[:LOCATED_IN]->(c:City)
+- (a:Artist)-[:BASED_IN]->(c:City)
+- (e:Event)-[:HAS_GENRE]->(g:Genre)   and   (a:Artist)-[:HAS_GENRE]->(g:Genre)
+- Countries are NOT nodes: filter on c.country_code (ISO-3166-1, e.g. 'ES').
 
-FILTERING — MATCH vs OPTIONAL MATCH:
-- When the user specifies a city, venue, or artist as a SEARCH FILTER, use MATCH (not OPTIONAL MATCH)
-  so that only matching events are returned.
-  Example — events in Berlin:
-    MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)
-    WHERE toLower(c.name) = toLower("Berlin")
-  Example — events at a specific venue:
-    MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)
-    WHERE toLower(v.name) CONTAINS toLower("berghain")
-- Use OPTIONAL MATCH only for enriching results with extra data (genres, additional artists).
-- NEVER place a WHERE clause for a required filter on an OPTIONAL MATCH — it won't filter results.
+IDENTITY & MATCHING:
+- Event/Artist/Venue/City all carry name_norm (lowercase, no diacritics).
+  ALWAYS match names via name_norm: WHERE a.name_norm CONTAINS 'klangfeld'.
+- Genre nodes are keyed by slug (lowercase-hyphenated: 'indie-rock').
 
-STRING MATCHING:
-- ALWAYS use case-insensitive matching for names: toLower(x.name) = toLower("value")
-- For venue names, prefer CONTAINS over exact match since users often use partial/approximate names:
-  WHERE toLower(v.name) CONTAINS toLower("finestre")
+DATES:
+- Event.start_at is a native DATETIME. Compare directly against datetime()
+  literals; never wrap e.start_at in datetime().
+- Unless the question asks about the past, always add:
+  e.status = 'scheduled' AND e.start_at >= datetime()
+- Today is {date_context}.
 
-RELATIONSHIPS (use exactly these):
-- (artist:Artist)-[:PERFORMS_AT]->(event:Event)
-- (event:Event)-[:HOSTED_AT]->(venue:Venue)
-- (event:Event)-[:HAS_GENRE]->(genre:Genre)
-- (artist:Artist)-[:HAS_GENRE]->(genre:Genre)
-- (artist:Artist)-[:BASED_IN]->(city:City)
-- (venue:Venue)-[:LOCATED_IN]->(city:City)
-- (city:City)-[:PART_OF]->(country:Country)
+RETURN SHAPE — end every query with EXACTLY this (add extra aliases after it
+only when the question demands them, e.g. a count or a score):
+WITH DISTINCT e, v, c
+OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
+RETURN e.uid AS uid, e.name AS name, e.description AS description,
+       toString(e.start_at) AS start_at, e.price_min AS price_min,
+       e.price_max AS price_max, e.price_currency AS price_currency,
+       e.ticket_url AS ticket_url, e.source AS source,
+       v.name AS venue, v.venue_type AS venue_type, c.name AS city,
+       v.location.latitude AS lat, v.location.longitude AS lng,
+       collect(DISTINCT art.name) AS artists
 
-RETURN PATTERNS:
-- Use OPTIONAL MATCH + collect() for related entities that enrich results (genres, artists):
-  OPTIONAL MATCH (a:Artist)-[:PERFORMS_AT]->(e)
-  OPTIONAL MATCH (e)-[:HAS_GENRE]->(g:Genre)
-- Return useful fields: event name, start_at, end_at, venue name, city name, artists, genres, ticket_url, price info, status
-- When collecting multiple related entities (e.g. artists AND genres), use WITH to separate aggregations and avoid cartesian products.
+Output the Cypher only. No explanation, no markdown fences.
 
-Current date: {date_context}
-
-Schema:
+Live schema:
 {schema}"""
 
 
 class QueryBuilderTool:
-    """Generates and executes Cypher queries for live music event search."""
+    """Generates and executes read-only Cypher for long-tail questions."""
 
-    def __init__(
-        self,
-        schema: str = "",
-    ):
-        self.client = get_openai_client()
-        self.db_schema = schema
+    def __init__(self, neo4j_client=None, schema: str = "", client=None):
+        self.client = client or get_openai_client()
+        self.neo4j = neo4j_client
+        self._schema = schema
         self.safety_guard = SafetyGuardTool()
 
-    def run(self, prompt: str, date_info: Optional[Dict[str, str]] = None) -> str:
-        question = prompt
-        try:
-            cypher = self._generate_cypher(question, date_info=date_info)
-            safety_result = self.safety_guard.run(cypher)
-            safety_data = json.loads(safety_result)
+    @property
+    def db_schema(self) -> str:
+        if not self._schema and self.neo4j is not None:
+            self._schema = self.neo4j.get_schema()
+        return self._schema
 
+    def run(self, question: str) -> str:
+        try:
+            cypher = self._generate_cypher(question)
+            safety_data = json.loads(self.safety_guard.run(cypher))
             if not safety_data.get("is_safe", False):
                 return json.dumps(
                     {
@@ -93,8 +89,7 @@ class QueryBuilderTool:
                     }
                 )
 
-            results = neo4j_client.execute_read(cypher)
-
+            results = self.neo4j.execute_read(cypher)
             return json.dumps(
                 {
                     "status": "success",
@@ -105,36 +100,16 @@ class QueryBuilderTool:
                 },
                 default=str,
             )
-
         except Exception as e:
             return json.dumps({"status": "error", "error": str(e), "results": []})
 
-    def _generate_cypher(
-        self, question: str, date_info: Optional[Dict[str, str]] = None
-    ) -> str:
-        """Generate Cypher query from natural language question."""
+    def _generate_cypher(self, question: str) -> str:
         date_context = (
             f"{date.today().isoformat()} ({date.today().strftime('%A, %B %d, %Y')})"
         )
-
-        # Build date info section if provided
-        date_section = ""
-        if date_info:
-            start = date_info.get("start_date")
-            end = date_info.get("end_date")
-            date_section = f"""
-
-DATE FILTER TO USE:
-e.start_at >= datetime("{start}T00:00:00Z") AND e.start_at <= datetime("{end}T23:59:59Z")
-"""
-
-        system_prompt = (
-            QUERY_BUILDER_PROMPT.format(
-                schema=self.db_schema, date_context=date_context
-            )
-            + date_section
+        system_prompt = QUERY_BUILDER_PROMPT.format(
+            schema=self.db_schema, date_context=date_context
         )
-
         response = chat_completion_with_retry(
             self.client,
             model=settings.query_builder_model,
@@ -144,11 +119,8 @@ e.start_at >= datetime("{start}T00:00:00Z") AND e.start_at <= datetime("{end}T23
             ],
             temperature=0,
         )
-
         cypher = response.choices[0].message.content.strip()
-
         if cypher.startswith("```"):
             lines = cypher.split("\n")
             cypher = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-
         return cypher.strip()
