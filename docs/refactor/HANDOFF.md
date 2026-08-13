@@ -84,7 +84,7 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
    02-arch §2 (avoids clashing with the frame's event name); the TS mirror
    and contract test pin it.
 
-### Phase 3 — Node gateway + auth + ownership ✅ code-complete (live E2E blocked on Supabase)
+### Phase 3 — Node gateway + auth + ownership ✅ done (verified live 2026-08-13)
 
 - **`services/gateway/`** (Fastify 5 + TS strict, npm, vitest 16/16 green):
   - `src/auth.ts`: Supabase JWT via remote JWKS (jose, ES256/RS256). No token
@@ -120,13 +120,29 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
   internal), gateway targets them via service DNS. `make start-gateway` runs
   the dev server.
 
-**Owner actions to go live** (everything else is done and testable offline):
-1. Create the fresh Supabase project + follow `supabase/README.md` (push
-   migrations, register the access-token hook — roles don't work without it —
-   enable Google OAuth), put `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in
-   root `.env`.
-2. Then: live Playwright E2E through the gateway (the plan's Phase 3 verify
-   step) — anon quota headers, 401/403 paths, streaming end-to-end.
+**Live go-live done**: Supabase project `pjlcfdyheyubsemwlzzv` created, the 7
+migrations pushed, access-token hook registered, service-role key in root
+`.env`. Google OAuth is still **not** enabled (needs Google Cloud credentials —
+the only Phase 3 item left, and Phase 4's auth page will want it).
+
+- `services/gateway/scripts/e2e-live.mjs` (`npm run e2e:live`) is the live
+  verify step, **23/23 green**: real ES256 JWTs carry `user_role` for
+  user/pro/admin (proves the hook), anon chat 200 + `x-login-upsell`,
+  multi-chunk SSE through the proxy, garbage/malformed bearer → 401,
+  `/api/push` 401/403/200 by role, `/api/admin/search` 403/503, client-sent
+  `X-User-Role` cannot escalate, `conversation_logs` rows with the verified
+  user id, anon burst → 429 with upsell. It provisions three throwaway users
+  via the admin API and deletes them at the end; the anon rate-limit budget is
+  waited out at the start so consecutive runs pass.
+- Getting there fixed two real bugs (see below): retriever SSE was not actually
+  streaming, and the root `.env` had drifted back to its pre-Phase-2 shape.
+- Postgres note: `db.<ref>.supabase.co` is IPv6-only, so `supabase db push`
+  from this machine must use
+  `postgresql://postgres.<ref>:<pw>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`.
+  The push itself is blocked by the permission classifier — the owner runs it.
+- Migration `20260813000007` revokes public EXECUTE on `handle_new_user`
+  (linter 0028/0029). Remaining advisor output is one INFO: `conversation_logs`
+  has RLS on with no policies, which is the intended service-role-only shape.
 
 ### Phase 3 judgment calls — owner may revisit
 
@@ -151,6 +167,16 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
    to try when it is.
 7. `verify-retriever` skill's stale per-file test list replaced with
    `-m "not integration"`.
+8. **SSE was fake-streaming again** (found by the live E2E, fixed):
+   `agent/api.py`'s `_generate_v2`/`_generate_legacy` were `async` generators
+   iterating the *blocking* `pipeline.run_turn`, so the event loop never got to
+   flush and every frame landed in one burst at the end (3.1 s of silence, then
+   the whole answer). They are now sync generators — Starlette iterates those in
+   a threadpool. Frames now arrive progressively (status at 2.3 s, tokens from
+   4.5 s). `TestStreamingIsIncremental` in `tests/test_api_endpoints.py` guards
+   it. Anything new that yields SSE frames must not `async def` around blocking
+   work; the pusher's pattern (`await asyncio.to_thread(...)`) is the other
+   valid shape.
 
 ## Next: Phase 4 — new frontend (04-plan.md)
 
@@ -158,6 +184,11 @@ Fresh Vite+React app (D1): v2 protocol, cards from `events.result`, Leaflet
 maps (D9), auth against the new Supabase project, `VITE_API_URL` → gateway
 :8000. After it lands, delete the legacy SSE frames + sentinel +
 `cards_to_markdown`, and drop `SERVICE_CORS_ALLOW_ORIGINS` entirely.
+
+Supabase values it needs: `SUPABASE_URL=https://pjlcfdyheyubsemwlzzv.supabase.co`
+and the publishable key `sb_publishable_YMEqW94-1qlPPBmV6YYSvQ_v9fH4Htt`
+(both already in root `.env`; the old project `ccdlygjdizpesdblymaq` in
+`frontend/.env` is dead). Google sign-in needs the provider enabled first.
 Then Phase 5 SEARCH service (set `SEARCH_ENABLED=true` on the gateway),
 Phase 6 CI/CD + deploy ($30–50/mo budget).
 
@@ -175,6 +206,12 @@ Phase 6 CI/CD + deploy ($30–50/mo budget).
   `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`;
   new modules with module-level clients must be added there.
 - `cd` in one Bash call does not persist reliably — use absolute paths.
+- Long-lived dev servers from an earlier session go stale: a retriever started
+  before the `.env` repair reported `openai: error` on `/health` while the key
+  worked fine via curl. Check `Get-NetTCPConnection -LocalPort 8002` /
+  `StartTime` before debugging a service you did not start.
+- Writes to Supabase (`db push`, MCP `apply_migration`/`execute_sql` DDL) are
+  refused by the permission classifier — hand the owner the command to run.
 - MCP `aura-neo4j` points at `2099d44c` (write access; ask owner before
   writing data). Playwright + claude-in-chrome MCPs available.
 
