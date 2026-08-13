@@ -1,10 +1,16 @@
-# HANDOFF — refactor status (updated 2026-08-13, night)
+# HANDOFF — refactor status (updated 2026-08-14)
 
 Continuation point for the laiive refactor. Read this first, then
-`04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D16 + budget).
+`04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
 Branch: **`refactor/foundation`** (from `connect-to-ui`). Nothing pushed yet;
 canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
 *named* `laiive` is the personal fork, do not push there.
+
+**Where things stand**: phases 0–3 done and verified live; phase 4 is a new
+frontend, of which 4a (consumer chat) and 4b (multimodal submission) are done —
+batch UI is the piece left. Nothing is deployed yet. To run the stack locally:
+gateway :8000, retriever :8002, pusher :8003, frontend :8081 (see *Environment
+gotchas* — stale servers from earlier sessions are a recurring time sink).
 
 ## Done
 
@@ -315,10 +321,15 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
   `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`;
   new modules with module-level clients must be added there.
 - `cd` in one Bash call does not persist reliably — use absolute paths.
-- Long-lived dev servers from an earlier session go stale: a retriever started
-  before the `.env` repair reported `openai: error` on `/health` while the key
-  worked fine via curl. Check `Get-NetTCPConnection -LocalPort 8002` /
-  `StartTime` before debugging a service you did not start.
+- Long-lived dev servers from an earlier session go stale and cost real time:
+  a retriever started before the `.env` repair reported `openai: error` on
+  `/health` while the key worked fine via curl, and a Vite from a previous
+  session held :8081 serving the *deleted* app. Before debugging anything you
+  did not start this session:
+  `Get-NetTCPConnection -LocalPort 8000,8002,8003,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
+- Browser automation: `computer`'s `type` action does not reach this app's
+  inputs — use `form_input` with a ref from `read_page`, and click buttons by
+  `ref` rather than coordinates (small targets get missed).
 - Writes to Supabase (`db push`, MCP `apply_migration`/`execute_sql` DDL) are
   refused by the permission classifier — hand the owner the command to run.
 - MCP `aura-neo4j` points at `2099d44c` (write access; ask owner before
