@@ -202,18 +202,61 @@ errors.
   `git mv --force`; git kept the old casing and the Pages build (Linux) would
   have failed on the import. Check `git ls-files` casing after any rename.
 
-## Next: Phase 4b/4c and the gaps 4a left
+### Phase 4b — multimodal ingestion + pro submission ✅ (commits `bb44217`…`277ab02`)
 
-- **4b — pro flows**: PusherChat against `/api/push/chat/stream`, form from
-  `form.extracted` with missing-field highlights, one-clarification-round UX,
-  batch mode with `batch.progress`, CSV/XLSX upload.
+The owner's shape, now implemented: **every input modality becomes text, the
+text joins the conversation, and one extraction path over the whole
+conversation produces the draft.** A flyer that supplies the venue and a
+sentence that supplies the price merge into one draft with no merge rules in
+the browser.
+
+- **Public STT** (`laiive_shared/speech.py` + retriever `/transcribe`,
+  gateway `/api/transcribe`): anonymous users get voice (D7). The pusher's
+  transcription is pro-only and could never serve the consumer composer. Size
+  and format policy live in shared and are checked **before** the Whisper call —
+  with anonymous access that cap is a cost control, not a nicety.
+- **Pusher `/ingest`** (multipart: audio | image | document | url) returns
+  `{kind, source, text}` and deliberately **does not extract** — extraction
+  belongs to `/chat/stream`, which sees the whole conversation.
+- `document_to_text` was dead code with a broken branch (raw PDF bytes to the
+  vision *image* API). Now pypdf for the text layer, python-docx for .docx;
+  a scanned PDF is refused with a pointer to the image path rather than pulling
+  in a page renderer (pymupdf, ~40 MB) — revisit if promoters send scans often.
+- **`/validate-event` accepts a full draft**, so the form no longer flattens
+  genre, venue_type, address and price ranges away on the last hop into the
+  graph. The legacy flat payload still works until 4c deletes it.
+- Gateway caps upload size on the declared content-length: those routes stream
+  through unparsed, so Fastify's body limit never sees them.
+- Frontend: mic in consumer chat (transcript lands in the composer for review,
+  not auto-sent) and `/pro` — attach flyer/document/recording or type, form from
+  `form.extracted` with the five required fields marked, publish sends the draft.
+
+Verified in the browser against the live stack: flyer.txt upload → form
+pre-filled (name, artists, 2026-09-25T21:30, Sala Clamores, Madrid, 18 EUR,
+genre, ticket link) → follow-up sentence **merged** address + price_max while
+keeping everything else. Publishing was not clicked (writes to Aura need owner
+approval). Suites: shared 36, retriever 107, pusher 58, gateway 19.
+
+**A React trap worth remembering** (cost an hour): flipping a flag *inside* a
+`setMessages` updater breaks under StrictMode — React double-invokes updaters,
+so the second pass took the "replace last message" branch and silently dropped
+the user's flyer from the conversation sent back up. Decide append-vs-replace
+outside the updater; keep updaters pure. The gateway's `conversation_logs`
+payloads are what pinned it down — query them when the UI and the API disagree.
+
+## Next: Phase 4c and the gaps 4a/4b left
+
+- **Batch mode is still unbuilt**: `/batch/parse` and `/batch/validate-event`
+  work server-side (CSV/XLSX → drafts + `batch.progress`), but `/pro` has no UI
+  for them yet — that is the remaining piece of 4b.
 - **4c — account + cleanup**: profile (ui_language), promoter entities via
   react-query; then delete the legacy SSE frames, the `__EVENT_EXTRACTED__`
-  sentinel and `cards_to_markdown`, and drop `SERVICE_CORS_ALLOW_ORIGINS`.
-- **Voice input is not in 4a**: the only transcription endpoint is the pusher's
-  `/transcribe-audio`, which sits behind `/api/push/*` (pro+). Consumer voice
-  needs either a retriever-side transcribe route or a gateway exception —
-  owner decision, not a code detail. `audioRecorder.ts` is already ported.
+  sentinel, `cards_to_markdown`, the pusher's `/transcribe-audio` +
+  `/extract-event-*` endpoints (superseded by `/ingest`), the
+  `EventDetailsModel` branch of `/validate-event`, and
+  `SERVICE_CORS_ALLOW_ORIGINS`.
+- **`src/audio/audioRecorder.ts` is now unused** — `useRecorder.ts` replaced it.
+  Delete it in 4c unless something else wants a class-based recorder.
 - **Google sign-in**: the Auth page has a placeholder comment where the button
   goes; enable the provider in Supabase first (needs Google Cloud credentials).
 
@@ -225,6 +268,10 @@ Backend follow-ups the browser walkthrough surfaced (not frontend bugs):
 2. **Genre recall is loose**: that jazz query returned Flamenco Eléctrico and
    two Costa Norte events. Worth checking whether the genre constraint reaches
    the Cypher or only the vector kNN.
+3. **The pusher answers in Spanish too** — an English flyer got "Por favor,
+   revise los detalles y publique cuando esté listo." Same symptom as (1) in a
+   different service, so the fix probably belongs in a shared prompt rule about
+   following the *user's* language rather than the event's city.
 
 ## Phase 4 plan of record (04-plan.md)
 
