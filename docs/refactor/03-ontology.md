@@ -106,9 +106,12 @@ CREATE CONSTRAINT genre_slug   IF NOT EXISTS FOR (g:Genre)  REQUIRE g.slug IS UN
 CREATE CONSTRAINT event_name_nn  IF NOT EXISTS FOR (e:Event)  REQUIRE e.name IS NOT NULL;
 CREATE CONSTRAINT artist_name_nn IF NOT EXISTS FOR (a:Artist) REQUIRE a.name IS NOT NULL;
 CREATE CONSTRAINT venue_name_nn  IF NOT EXISTS FOR (v:Venue)  REQUIRE v.name IS NOT NULL;
-CREATE CONSTRAINT city_key     IF NOT EXISTS FOR (c:City)
-  REQUIRE (c.name_norm, c.country_code) IS NODE KEY;   // needs Aura Professional+;
-                                                       // fallback: UNIQUE + NOT NULLs
+// City composite key — instance 2099d44c is AuraDB FREE (verified in console), so
+// NODE KEY is unavailable. Default DDL is the fallback:
+CREATE CONSTRAINT city_name_nn    IF NOT EXISTS FOR (c:City) REQUIRE c.name_norm IS NOT NULL;
+CREATE CONSTRAINT city_country_nn IF NOT EXISTS FOR (c:City) REQUIRE c.country_code IS NOT NULL;
+// (uniqueness of (name_norm, country_code) enforced by the single shared writer's
+//  MERGE key; promote to NODE KEY if the instance is ever upgraded)
 
 // ---- Range / lookup indexes ----
 CREATE INDEX event_start_at   IF NOT EXISTS FOR (e:Event)  ON (e.start_at);

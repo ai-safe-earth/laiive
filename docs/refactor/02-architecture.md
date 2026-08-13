@@ -71,8 +71,9 @@ event: done               data: {"request_id": "..."}
  "distance_km": 1.2}
 ```
 The frontend renders cards from `events.result` — never by parsing prose. "Read more"
-expands `description`; "How to get there" links
-`https://www.google.com/maps/search/?api=1&query={lat},{lng}` (venue name fallback).
+expands `description`; the map button expands an **embedded map inside the card**
+(Leaflet + OpenStreetMap tiles — free, no API key), with a "open in Google Maps"
+deep-link (`https://www.google.com/maps/search/?api=1&query={lat},{lng}`) inside it.
 
 Real streaming: the composer's tokens are streamed as they are generated (not
 re-tokenized post-hoc); `events.result` is emitted the moment results exist, before the
@@ -113,9 +114,11 @@ Tone (defined once in the composer system prompt, kept consistent):
 > naturally inside the conversation — one question at a time, never as a form.
 
 Location & language first-class: both arrive on every request; the classifier and
-composer receive them; "concerts near me tonight?" resolves against the user position;
-answers are composed in the user's language (replaces the dead `language` field and the
-English-only `needs_more_info` heuristic).
+composer receive them; "concerts near me tonight?" resolves against the user position.
+Language policy (decided): the composer simply **answers in the language of the
+conversation** — no fixed language list, no detection regexes (replaces the dead
+`language` field and the English-only `needs_more_info` heuristic). The en/es/it/ca
+list applies only to UI chrome, chosen at signup and in profile settings.
 
 ## 4. PUSHER redesign
 
@@ -143,10 +146,15 @@ English-only `needs_more_info` heuristic).
   `source: 'admin_search'` (never `pro_submission`).
 - Runs in batches; writes are idempotent (MERGE on identity keys).
 
-## 6. Auth & ownership (Supabase)
+## 6. Auth & ownership (Supabase — **fresh project**, decided)
 
-- Supabase Auth for both user types; `pro` is a role (`user_roles`) plus
-  `promoter_profiles` (venue/group/event owned, contact, accountability data).
+- A new Supabase project is created; the old `ccdlygjdizpesdblymaq` is reference
+  material only (its migrations inform the new schema; no data migrates).
+- Supabase Auth for both user types, **Google OAuth on consumer and pro alike**; `pro`
+  is a role (`user_roles`) plus `promoter_profiles` (venues/artists/events they manage
+  or own, contact, accountability data — collected at pro signup).
+- Anonymous users allowed: gateway rate-limits by IP/device with a small quota and the
+  UI suggests login to raise it.
 - Ownership: `ownerships(entity_uid, entity_type, user_id, role owner|editor,
   granted_by, granted_at)` with RLS — supports **shared** ownership (multiple rows) and
   **transfer** (insert new owner, demote/remove old, both audited). Graph nodes store

@@ -66,9 +66,11 @@ Verify: `SHOW CONSTRAINTS` / `SHOW INDEXES` match 03; every example multi-hop qu
 pusher = one-clarification-round + form + batch; all §01 bugs fixed.
 
 Work (files):
-- New `agent/protocol.py` in both services (+ TS mirror later): typed SSE events
-  (`message.delta`, `events.result`, `form.extracted`, `batch.progress`, `status`,
-  `error`, `done`) and the `EventCard` shape. Contract test asserting both copies equal.
+- New **`services/shared`** package (decided): typed SSE protocol (`message.delta`,
+  `events.result`, `form.extracted`, `batch.progress`, `status`, `error`, `done`),
+  `EventCard` shape, Neo4j writer, embedding text builders. Installed editable in
+  retriever/pusher/search; TS mirror of the protocol for the frontend with a CI
+  contract test.
 - `services/retriever/agent/`: split `orchestrator.py` into `classifier.py` (query
   type + conversational moment + resolved constraint state), `router.py` (atomic
   sub-queries), `executor.py` (parameterized Cypher templates for the common shapes;
@@ -106,10 +108,13 @@ frames and graph writes (checked via read-cypher).
 Work: new `services/gateway/` (Fastify + TypeScript): JWKS verification of Supabase
 JWTs, role extraction, `/api/chat/*` → 8002, `/api/push/*` → 8003 (pro only),
 `/api/admin/search/*` → 8004 (admin only), SSE pass-through (flush-friendly proxy),
-rate limits (per-user + per-IP), CORS allow-list, request-id injection, conversation
-logging (replaces `validate-conversation` edge fn). Supabase migration: `ownerships`
-table (shared/transferable, audited) + RLS; retire the 9 `verify_jwt=false` edge
-functions; `promoter-signup` becomes a gateway route. FastAPI services: remove CORS
+rate limits (per-user + anonymous per-IP/device with login-upsell quota), CORS
+allow-list, request-id injection, conversation logging (replaces
+`validate-conversation` edge fn). Supabase: **fresh project** (decided) — new
+migrations from scratch (profiles, user_roles incl. Google OAuth for pros,
+promoter_profiles with managed/owned venue-artist-event data, `ownerships`
+shared/transferable + RLS, quotas); the old project's migrations are reference only;
+no edge functions in the new project. FastAPI services: remove CORS
 `*`, trust only gateway-forwarded identity headers, bind internal.
 
 Risks: SSE buffering through the proxy — test streaming end-to-end early;
@@ -129,8 +134,9 @@ Work: scaffold new app (Vite, React 18, TS strict + `tsc --noEmit` in CI, Tailwi
 shadcn — only components actually used, react-router, react-query, one toast system);
 port `index.css` tokens, `translations/`, `audioRecorder`; new `api/` layer typed
 against the protocol (SSE parser handling named events; AbortController wiring); pages:
-Chat (cards from `events.result` — "read more" expander, "how to get there" →
-Google-Maps deep link, verified/internet source badge), PusherChat (form from
+Chat (cards from `events.result` — "read more" expander, map button expanding an
+embedded Leaflet+OSM map in the card with a Google-Maps deep link,
+verified/internet source badge), PusherChat (form from
 `form.extracted`, missing-field highlights, batch mode with "event i of N"), Auth
 (consumer + pro parity incl. Google), Account/entities (react-query). Env typed +
 runtime-validated; `VITE_API_URL` → gateway. Auth gate + quota **enabled**. Replace

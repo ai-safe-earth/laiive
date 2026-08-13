@@ -1,56 +1,50 @@
-# 06 — Questions
+# 06 — Questions (answered 2026-08-13)
 
-Grouped and numbered — short answers are enough.
+All questions answered by the owner; decisions promoted to `05-decisions.md` (D5–D16).
 
 ## A. Product / UX
 
-1. **Public event pages**: chat-only for now, confirmed? (If crawlable event/venue
-   pages are near-term, the D1 frontend decision should be revisited toward Next.js —
-   see the trade-off discussion; otherwise React Router 7 keeps the door open.)
-2. **Languages**: keep all four (en/es/it/ca)? Should the assistant *reply* in all
-   four, or reply in en/es and only accept the others?
-3. **Anonymous users**: may anonymous visitors chat with a small quota (current code
-   intended 5/week but the gate is commented out), or is login required before the
-   first query?
-4. **Pro Google login**: promoter auth is email/password only today. Add Google parity?
-5. **"How to get there"**: is a Google Maps deep link enough, or do you want an
-   embedded map in the card? (Deep link recommended — zero API cost.)
+1. **Public event pages?** → Chat-only for now.
+2. **Languages** → In chat: no fixed list — the assistant adapts to the user's language
+   (standard multilingual-model behavior). App UI texts outside the chat: en/es/it/ca,
+   selectable in profile settings and at first signup.
+3. **Anonymous users** → Allowed, rate-limited at the API gateway; UI suggests login to
+   increase quota.
+4. **Pro Google login** → Yes; pro signup also collects data about the venues, artists
+   or events they manage/own.
+5. **Maps** → Embedded map inside the expanded card, shown when the map button is
+   clicked (not just a deep link).
 
 ## B. Architecture / code
 
-6. **Shared Python code** (SSE protocol, Neo4j writer used by pusher + search):
-   small `services/shared` editable package, or duplicate-with-contract-test?
-   (Recommendation: shared package unless uv workspace friction appears.)
-7. **bun vs npm**: CLAUDE.local.md says bun, but bun isn't installed on this machine
-   and `package-lock.json` is the live lockfile. Standardize on npm? (Recommended:
-   whatever is actually installed — npm — one lockfile.)
-8. **Geocoding provider** for venue coordinates on write: Nominatim/OpenStreetMap
-   (free, rate-limited, fine at this volume — recommended) vs Google Geocoding API
-   (better hit-rate, needs billing)?
-9. **SEARCH trigger surface**: is a CLI + one admin-authed gateway endpoint enough for
-   v1, or do you want a minimal admin UI page (list runs, review dry-run report,
-   approve batch)?
-10. **Search API**: keep Brave (key already provisioned for the retriever design), or
-    evaluate alternatives (SerpAPI, Tavily) before building SEARCH?
-11. **Evals**: quarantine the datasets and delete the broken runners (recommended), or
-    invest now in repairing the versioned-prompt registry they were built against?
-12. **Old Aura instance `5ce2d474`**: confirmed dead/deleted? (Root `.env` still points
-    at it; I'll repoint to `2099d44c` in Phase 0.)
+6. **Shared Python code** → Shared package (`services/shared`). Both consumers are
+   ours; keep it DRY; CI catches breaks.
+7. **Package manager** → npm. No bun.
+8. **Geocoding** → Nominatim (free); switch to Google only on rate limits or bad
+   accuracy.
+9. **SEARCH trigger** → CLI + admin endpoint only; UI only when a non-dev needs it.
+10. **Search API** → Keep Brave; no evaluation of alternatives unless it fails.
+11. **Evals** → Quarantine datasets, delete broken runners; rebuild coverage later.
+12. **Old Aura `5ce2d474`** → Verified in the Aura console (2026-08-13): the account
+    has one org (laiive.com), one project, one instance — `2099d44c` (RUNNING, AuraDB
+    **Free**, 0 nodes). `5ce2d474` does not exist. Dead, confirmed.
+    ⚠ Free tier ⇒ `NODE KEY` constraints unavailable → the UNIQUE + NOT NULL fallback
+    in `03-ontology.md` is the default DDL; Free instances pause after inactivity.
 
 ## C. Operations
 
-13. **Key rotation** (Phase 0, user action): rotate OpenAI + Aura + Langfuse now, or
-    schedule it? The leaked OpenAI key in git history should be revoked regardless of
-    whether it is still active.
-14. **Remotes**: which remote is canonical for this refactor's PRs — `origin`
-    (ai-safe-earth/laiive) or `laiive` (OscarArroyoVega/laiive)?
-15. **Supabase project**: keep the existing project `ccdlygjdizpesdblymaq` (has users,
-    tables, RLS) and migrate it forward, or start a fresh project alongside the fresh
-    Aura? (Recommended: keep — real users/tables live there.)
-16. **Budget ceiling** for monthly infra + LLM spend while pre-traffic? Shapes R2/R3
-    (e.g. whether gpt-4o composer is acceptable or mini-first everywhere).
+13. **Key rotation** → Done (OpenAI, Aura, Langfuse — all updated in root `.env`).
+    Connectivity to `2099d44c` with the rotated credentials verified from the
+    retriever's own config loader.
+14. **Canonical remote** → `https://github.com/ai-safe-earth/laiive` = git remote
+    **`origin`**. (Naming caution: the git remote *named* `laiive` points to the
+    OscarArroyoVega fork — PRs go to `origin`.)
+15. **Supabase** → Fresh project (new migrations from scratch; the old project
+    `ccdlygjdizpesdblymaq` is reference material only).
+16. **Budget** → $30–50/month total (LLM + hosting). Drives mini-first model policy
+    and free-tier-first infra (see 05/R2–R3).
 
-## D. Approval gates already agreed
+## D. Approval gates
 
-17. Phase 1 schema DDL on Aura `2099d44c` will not run until you say go.
-18. Nothing is pushed to any remote until you confirm the target remote (Q14).
+17. Phase 1 schema DDL on Aura `2099d44c` — still gated on an explicit go.
+18. Pushes go to `origin` (ai-safe-earth/laiive) only when explicitly requested.

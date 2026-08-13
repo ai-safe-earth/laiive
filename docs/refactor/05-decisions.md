@@ -9,6 +9,30 @@
 | D3 | User/pro/ownership data | **Supabase Postgres** with RLS; graph nodes carry `owner_id` references |
 | D4 | Leaked key in git history | **Rotate keys only** (OpenAI + Aura + Langfuse); no history rewrite while both remotes stay private |
 
+## Decided 2026-08-13 (from 06-questions answers)
+
+| # | Decision | Choice |
+|---|---|---|
+| D5 | Product scope | Chat-only; no public crawlable pages yet |
+| D6 | Chat language | Assistant adapts to the user's language (no fixed list); UI chrome in en/es/it/ca via profile setting + signup choice |
+| D7 | Anonymous users | Allowed with gateway rate limit; prompt to log in for more quota |
+| D8 | Pro auth | Google login added; signup collects managed/owned venues-artists-events data |
+| D9 | Maps UX | Embedded map in the expanded card on map-button click → **Leaflet + OpenStreetMap tiles** (free, no key; fits budget) |
+| D10 | Shared Python code | `services/shared` package (SSE protocol, Neo4j writer, embedding text builders); CI contract job |
+| D11 | Package manager | npm, single lockfile |
+| D12 | Geocoding | Nominatim (with local cache + 1 req/s politeness); Google only if it underperforms |
+| D13 | SEARCH trigger | CLI + admin-authed endpoint; no UI yet. Search API stays Brave |
+| D14 | Evals | Quarantine datasets, delete broken runners |
+| D15 | Supabase | **Fresh project**; new migrations from scratch; old project is reference only |
+| D16 | Canonical remote | `origin` = github.com/ai-safe-earth/laiive (the remote *named* `laiive` is the personal fork — don't push there) |
+
+Budget constraint (owner): **$30–50/month all-in** (LLM + hosting). Consequences:
+Aura stays **Free tier** for now (verified in console: instance 2099d44c is AuraDB
+Free — `NODE KEY` unavailable, the UNIQUE+NOT NULL fallback in 03 is the default;
+auto-pauses when idle — acceptable pre-launch), Supabase free tier, Cloudflare Pages
+free, services on one cheap runtime (~$5–15), leaving ~$20–35 for LLM spend —
+mini-first model policy matters (R3).
+
 ## Recommendations awaiting sign-off
 
 ### R1. Docker, not Kubernetes
