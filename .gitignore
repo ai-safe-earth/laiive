@@ -87,6 +87,10 @@ dmypy.json
 
 # Others
 *.log
+logs/
+*.jsonl
+desktop.ini
+.playwright-mcp/
 
 # Ignore .envs directories anywhere in the repo
 **/.envs/
@@ -109,3 +113,6 @@ data/
 
 # neo4j files
 Neo4j-*
+
+# personal Claude Code instructions
+CLAUDE.local.md

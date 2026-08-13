@@ -56,7 +56,7 @@ laiive deals with ephemeral data, data that still doesn't exist. laiive is a sys
 
 ## License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSES/LICENSE) file for details.
+Proprietary software - Copyright (c) 2026 Oscar Arroyo Vega. All rights reserved. See [LICENSE](LICENSE).
 
 ---
 

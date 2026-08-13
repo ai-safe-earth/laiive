@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
     conversation_model: str = Field("gpt-4o", alias="OPENAI_MODEL")
-    embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDING_MODEL")
+    embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     whisper_model: str = Field("whisper-1", alias="WHISPER_MODEL")
 
 
