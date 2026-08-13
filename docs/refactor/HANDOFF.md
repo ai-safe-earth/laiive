@@ -1,4 +1,4 @@
-# HANDOFF — refactor status (updated 2026-08-13, evening)
+# HANDOFF — refactor status (updated 2026-08-13, night)
 
 Continuation point for the laiive refactor. Read this first, then
 `04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D16 + budget).
@@ -84,20 +84,82 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
    02-arch §2 (avoids clashing with the frame's event name); the TS mirror
    and contract test pin it.
 
-## Next: Phase 3 — Node gateway + auth + ownership (04-plan.md)
+### Phase 3 — Node gateway + auth + ownership ✅ code-complete (live E2E blocked on Supabase)
 
-New `services/gateway/` (Fastify + TS): Supabase JWT via JWKS, roles
-user/pro/admin, `/api/chat/*`→8002, `/api/push/*`→8003 (pro),
-`/api/admin/search/*`→8004 (admin), SSE pass-through, rate limits (incl.
-anonymous per-IP quota, D7), CORS allow-list, request-id injection,
-conversation logging. **Fresh Supabase project** (D15) with new migrations
-(profiles, user_roles, promoter_profiles, ownerships + RLS, quotas).
-Then FastAPI services: remove CORS `*`, trust gateway headers, bind internal.
-Owner action needed: create the Supabase project (keys → root `.env`).
+- **`services/gateway/`** (Fastify 5 + TS strict, npm, vitest 16/16 green):
+  - `src/auth.ts`: Supabase JWT via remote JWKS (jose, ES256/RS256). No token
+    = anonymous (D7); present-but-invalid = 401 everywhere. Role read from the
+    `user_role` claim (custom access token hook), NOT Supabase's `role` claim.
+    Unknown claim value degrades to `user`.
+  - `src/proxy.ts`: `/api/chat/*`→retriever `/chat/*` (anon OK);
+    `/api/push/*`→pusher `/*` (pro+); `/api/admin/search/*` (admin, 503 until
+    Phase 5, flip with `SEARCH_ENABLED=true`). Client-sent
+    `X-User-Id`/`X-User-Role`/`X-Request-Id`/`Authorization` stripped, verified
+    ones injected. Chat routes parse JSON (`proxyPayloads:false`) so logging
+    sees payloads; upload routes (`/batch/parse`, `/transcribe-audio`) stream
+    unbuffered — keep that split if routes are added.
+  - Rate limits: in-memory `@fastify/rate-limit`, anon per-IP 10/min, authed
+    per-sub 60/min (env-tunable); 429 body carries the login upsell; anon
+    responses get `x-login-upsell` header. CORS allow-list via
+    `CORS_ALLOW_ORIGINS`.
+  - `src/logging.ts`: fire-and-forget insert to Supabase `conversation_logs`
+    (service role, plain fetch). Request-side only — responses stream through
+    unbuffered; response capture is Phase 6's eval-record work (Langfuse has
+    LLM outputs meanwhile).
+  - Tests fake Supabase with a local JWKS + REST stub (`test/helpers.ts`) —
+    no live project needed. SSE unbufferedness is asserted (multi-chunk).
+- **`supabase/migrations/`** (fresh project, D15): profiles (+signup trigger),
+  user_roles + `custom_access_token_hook`, promoter_profiles, ownerships
+  (+RLS), role_quotas/user_quotas (defined but gateway still enforces from
+  env), conversation_logs (service-role only). `supabase/README.md` = owner
+  setup steps.
+- **Services hardened**: CORS `*` gone — browser access now only via gateway
+  unless `SERVICE_CORS_ALLOW_ORIGINS` set; pusher `validate-event` takes
+  owner only from `X-User-Id` (body `user_id` removed); `make start-*` binds
+  127.0.0.1; compose publishes only gateway :8000 (retriever/pusher `expose`
+  internal), gateway targets them via service DNS. `make start-gateway` runs
+  the dev server.
 
-Then Phase 4 frontend (Vite+React, v2 protocol, Leaflet cards D9 — after it
-lands, delete the legacy SSE frames + sentinel + `cards_to_markdown`),
-Phase 5 SEARCH service, Phase 6 CI/CD + deploy ($30–50/mo budget).
+**Owner actions to go live** (everything else is done and testable offline):
+1. Create the fresh Supabase project + follow `supabase/README.md` (push
+   migrations, register the access-token hook — roles don't work without it —
+   enable Google OAuth), put `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in
+   root `.env`.
+2. Then: live Playwright E2E through the gateway (the plan's Phase 3 verify
+   step) — anon quota headers, 401/403 paths, streaming end-to-end.
+
+### Phase 3 judgment calls — owner may revisit
+
+1. **Role travels in the JWT** via custom access token hook (owner approved):
+   stateless gateway, but role changes only land on token refresh (~1h).
+2. **Conversation logging is request-side** into Supabase (owner approved
+   destination): payload captured on chat routes only; response-side capture
+   deferred to Phase 6 (would require buffering the SSE stream).
+3. **Quota tables exist but aren't read** — gateway enforces env-configured
+   per-minute limits in memory (resets on deploy, single-instance only);
+   per-day quotas + per-user overrides wire up when they matter.
+4. **Legacy frontend transition**: with service CORS now opt-in, the current
+   frontend's direct 8002/8003 calls fail CORS. Options until Phase 4: set
+   `SERVICE_CORS_ALLOW_ORIGINS=http://localhost:8081` on the services, or
+   point it at the gateway (`/api/chat/*` works anonymously; `/api/push/*`
+   would 401 — old Supabase project's tokens don't verify against the new
+   JWKS).
+5. **No eslint in the gateway yet** — typecheck + vitest only; Phase 6's CI
+   matrix adds it.
+6. Gateway Docker image builds are **unverified** — Docker Desktop wasn't
+   running on this machine; `docker compose build gateway` is the first thing
+   to try when it is.
+7. `verify-retriever` skill's stale per-file test list replaced with
+   `-m "not integration"`.
+
+## Next: Phase 4 — new frontend (04-plan.md)
+
+Fresh Vite+React app (D1): v2 protocol, cards from `events.result`, Leaflet
+maps (D9), auth against the new Supabase project, `VITE_API_URL` → gateway
+:8000. After it lands, delete the legacy SSE frames + sentinel +
+`cards_to_markdown`, and drop `SERVICE_CORS_ALLOW_ORIGINS` entirely.
+Then Phase 5 SEARCH service (set `SEARCH_ENABLED=true` on the gateway),
+Phase 6 CI/CD + deploy ($30–50/mo budget).
 
 ## Environment gotchas (this machine)
 
