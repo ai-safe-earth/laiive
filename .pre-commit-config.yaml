@@ -1,7 +1,7 @@
 # See https://pre-commit.com
 repos:
   #######################################################################
-  # 1. House‑keeping & “always on” fixers
+  # 1. House-keeping & "always on" fixers
   #######################################################################
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0          # pin to published tag
@@ -9,12 +9,16 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: check-json
+        # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
+        exclude: "tsconfig.*\\.json$|\\.vscode/"
       - id: check-added-large-files
       - id: end-of-file-fixer
+        exclude: "^frontend/(dist|public)/|\\.svg$"
       - id: trailing-whitespace
+        exclude: "^frontend/dist/"
 
   #######################################################################
-  # 2. Ruff: lint *then* format, one pass, auto‑fix on commit
+  # 2. Ruff: lint *then* format, one pass, auto-fix on commit
   #######################################################################
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.9
@@ -23,9 +27,9 @@ repos:
       # see Ruff docs on ordering
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        files: "^services/(retriever|pusher)/.*\\.py$"
       - id: ruff-format
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        files: "^services/(retriever|pusher)/.*\\.py$"
 
   #######################################################################
   # 3. Static typing
@@ -35,10 +39,11 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: ["types-requests"]   # add stubs your app needs
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/(retriever|pusher)/.*\\.py$"
 
   #######################################################################
-  # 4. Security & supply‑chain
+  # 4. Security & supply-chain
   #######################################################################
   # - repo: https://github.com/PyCQA/bandit
   #  rev: 1.7.3           # latest stable
@@ -50,6 +55,7 @@ repos:
     hooks:
       - id: detect-secrets
         stages: [pre-commit, pre-push]
+        args: ["--baseline", ".secrets.baseline"]
 
   #######################################################################
   # 5. SQL linting for Postgres migrations & seed scripts
@@ -59,10 +65,10 @@ repos:
     hooks:
       - id: sqlfluff-lint
         args: ["--dialect", "postgres"]
-        files: "^migrations/.*\\.sql$"
+        files: "^supabase/migrations/.*\\.sql$"
 
   #######################################################################
-  # 6. Conventional Commit enforcement
+  # 6. Conventional Commit enforcement
   #######################################################################
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v3.13.0

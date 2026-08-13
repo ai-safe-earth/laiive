@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* laiive color system - Dark theme by default */
+    --background: 0 0% 0%; /* Midnight Black */
+    --foreground: 0 0% 100%; /* Clean White */
+
+    --card: 0 0% 8%; /* Slightly lifted black */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Fuchsia Pink - Primary brand color */
+    --primary: 325 100% 57%; /* #FF2AA0 */
+    --primary-foreground: 0 0% 100%;
+
+    /* Electric Yellow */
+    --secondary: 48 100% 50%; /* #FFD500 */
+    --secondary-foreground: 0 0% 0%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    /* Sky Cyan accent */
+    --accent: 188 100% 46%; /* #00CFEA */
+    --accent-foreground: 0 0% 0%;
+
+    /* Lipstick Red for destructive */
+    --destructive: 0 78% 53%; /* #E72828 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 15%;
+    --ring: 325 100% 57%;
+
+    --radius: 0.75rem;
+
+    /* Sunset Orange */
+    --orange: 30 100% 50%; /* #FF8C00 */
+
+    /* Gradients */
+    --gradient-vibrant: linear-gradient(135deg, hsl(325 100% 57%), hsl(30 100% 50%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 0%), hsl(0 0% 5%));
+    --gradient-glow: radial-gradient(circle at center, hsl(325 100% 57% / 0.15), transparent);
+
+    /* Glow effects */
+    --glow-primary: 0 0 30px hsl(325 100% 57% / 0.5);
+    --glow-accent: 0 0 20px hsl(188 100% 46% / 0.4);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Pro/Promoter theme - more corporate, serious feel */
+    --pro-bg: 0 0% 10%;
+    --pro-bg-elevated: 0 0% 14%;
+    --pro-bg-card: 0 0% 12%;
+    --pro-border: 0 0% 22%;
+    --pro-accent: 188 100% 46%; /* Sky Cyan for pro */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html, body, #root {
+    @apply bg-background text-foreground min-h-screen;
+  }
+}

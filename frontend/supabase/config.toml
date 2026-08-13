@@ -1,0 +1,28 @@
+project_id = "ccdlygjdizpesdblymaq"
+
+[functions.chat]
+verify_jwt = false
+
+[functions.promoter-create]
+verify_jwt = false
+
+[functions.extract-event-details]
+verify_jwt = false
+
+[functions.extract-event-from-text]
+verify_jwt = false
+
+[functions.transcribe-audio]
+verify_jwt = false
+
+[functions.validate-conversation]
+verify_jwt = false
+
+[functions.validate-event]
+verify_jwt = false
+
+[functions.extract-event-from-url]
+verify_jwt = false
+
+[functions.promoter-signup]
+verify_jwt = false
