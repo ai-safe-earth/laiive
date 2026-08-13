@@ -1,5 +1,4 @@
 import re
-import json
 from typing import Optional, Dict, List
 from loguru import logger
 from config import settings
@@ -114,29 +113,23 @@ class LocationTool:
         if base_query_filter:
             extra_where = f"AND {base_query_filter}"
 
+        user_point = f"point({{latitude: {latitude}, longitude: {longitude}}})"
+
         cypher = f"""
         MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)
-        WHERE v.latitude IS NOT NULL AND v.longitude IS NOT NULL
-          AND point.distance(
-                point({{latitude: v.latitude, longitude: v.longitude}}),
-                point({{latitude: {latitude}, longitude: {longitude}}})
-              ) <= {radius_m}
+        WHERE v.location IS NOT NULL
+          AND point.distance(v.location, {user_point}) <= {radius_m}
           {extra_where}
         OPTIONAL MATCH (a:Artist)-[:PERFORMS_AT]->(e)
         OPTIONAL MATCH (v)-[:LOCATED_IN]->(c:City)
         WITH e, v, c,
              collect(DISTINCT a.name) AS artists,
-             point.distance(
-                point({{latitude: v.latitude, longitude: v.longitude}}),
-                point({{latitude: {latitude}, longitude: {longitude}}})
-             ) AS distance_m
+             point.distance(v.location, {user_point}) AS distance_m
         RETURN e AS event,
                v.name AS venue,
                c.name AS city,
                artists,
-               distance_m,
-               e.embedding AS event_embedding,
-               v.embedding AS venue_embedding
+               distance_m
         ORDER BY distance_m ASC
         LIMIT {settings.max_results_limit}
         """
@@ -159,10 +152,7 @@ class LocationTool:
             f"\nLOCATION FILTER:\n"
             f"The user is located at latitude {latitude}, longitude {longitude}.\n"
             f"Filter events within {r} km of the user's location using:\n"
-            f"  WHERE v.latitude IS NOT NULL AND v.longitude IS NOT NULL\n"
-            f"    AND point.distance(\n"
-            f"          point({{latitude: v.latitude, longitude: v.longitude}}),\n"
-            f"          point({{latitude: {latitude}, longitude: {longitude}}})\n"
-            f"        ) <= {r * 1000}\n"
-            f"  ORDER BY point.distance(...) ASC\n"
+            f"  WHERE v.location IS NOT NULL\n"
+            f"    AND point.distance(v.location, point({{latitude: {latitude}, longitude: {longitude}}})) <= {r * 1000}\n"
+            f"  ORDER BY point.distance(v.location, ...) ASC\n"
         )

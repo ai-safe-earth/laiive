@@ -1,9 +1,9 @@
 from typing import Optional, List, Literal
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uuid
-import time
 
 # TODO from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 # TODO add slowapi or similar rate limits
@@ -50,6 +50,15 @@ def log_request(
 
 
 app = FastAPI(title="laiive retriever API", version="0.2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 schema = neo4j_client.get_schema()
 manager = Orchestrator(schema)
 
@@ -151,7 +160,8 @@ def health():
         neo4j_client._driver.verify_connectivity()
         checks["neo4j"] = "ok"
     except Exception as e:
-        checks["neo4j"] = f"error: {str(e)}"
+        logger.warning(f"Neo4j health check failed: {e}")
+        checks["neo4j"] = "error"
 
     try:
         import openai
@@ -159,7 +169,8 @@ def health():
         openai.models.list(limit=1)
         checks["openai"] = "ok"
     except Exception as e:
-        checks["openai"] = f"error: {str(e)}"
+        logger.warning(f"OpenAI health check failed: {e}")
+        checks["openai"] = "error"
 
     all_ok = all(v == "ok" for v in checks.values())
     status_code = 200 if all_ok else 503
@@ -176,7 +187,8 @@ def get_schema():
         schema_text = neo4j_client.get_schema(force_refresh=True)
         return {"schema": schema_text, "status": "ok"}
     except Exception as e:
-        return {"schema": None, "status": "error", "error": str(e)}
+        logger.error(f"Schema fetch failed: {e}")
+        return {"schema": None, "status": "error"}
 
 
 # ============== Chat Endpoints ==============
@@ -204,7 +216,8 @@ def chat(request: ChatRequest):
             needs_more_info=needs_more_info,
         )
     except Exception as e:
-        raise HTTPException(500, f"[{request_id}] Error: {str(e)}")
+        logger.error(f"[{request_id}] Chat error: {e}", exc_info=True)
+        raise HTTPException(500, "An internal error occurred. Please try again.")
 
 
 @app.post("/chat/stream")
@@ -218,7 +231,9 @@ async def chat_stream(request: ChatRequestSSE):
     conversation_history = request.messages[:-1] if len(request.messages) > 1 else None
 
     return StreamingResponse(
-        _generate_sse_response(user_message, conversation_history, user_location=request.location),
+        _generate_sse_response(
+            user_message, conversation_history, user_location=request.location
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -239,7 +254,9 @@ async def _generate_sse_response(
     yield f'event: metadata\ndata: {{"request_id": "{request_id}"}}\n\n'
     try:
         response_text, cypher, results, used_query, needs_more_info, is_error = (
-            _process_chat(user_message, conversation_history, user_location=user_location)
+            _process_chat(
+                user_message, conversation_history, user_location=user_location
+            )
         )
 
         # Build full response
@@ -249,15 +266,20 @@ async def _generate_sse_response(
         else:
             full_response = response_text
 
-        # Stream character by character
-        for char in full_response:
-            yield create_sse_message(char)
-            await asyncio.sleep(settings.sse_stream_delay)
+        # Stream word by word for natural pacing
+        import re
+
+        tokens = re.findall(r"\S+|\s+", full_response)
+        for token in tokens:
+            yield create_sse_message(token)
+            if token.strip():  # only pause after actual words
+                await asyncio.sleep(settings.sse_stream_delay)
 
         yield create_sse_done()
 
     except Exception as e:
-        yield create_sse_message(f"An unexpected error occurred: {str(e)}")
+        logger.error(f"SSE stream error: {e}", exc_info=True)
+        yield create_sse_message("An unexpected error occurred. Please try again.")
         yield create_sse_done()
 
 
@@ -270,7 +292,7 @@ def get_metrics():
     return {
         "status": "operational",
         "langfuse_enabled": settings.langfuse_enabled,
-        "note": "Detailed metrics and traces available in Langfuse dashboard"
+        "note": "Detailed metrics and traces available in Langfuse dashboard",
     }
 
 
