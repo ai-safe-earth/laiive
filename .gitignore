@@ -111,6 +111,10 @@ data/
 *_cache
 .claude/
 
+# agent skills (personal tooling)
+.agents/
+skills-lock.json
+
 # neo4j files
 Neo4j-*
 
