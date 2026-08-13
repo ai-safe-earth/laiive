@@ -178,7 +178,55 @@ the only Phase 3 item left, and Phase 4's auth page will want it).
    work; the pusher's pattern (`await asyncio.to_thread(...)`) is the other
    valid shape.
 
-## Next: Phase 4 — new frontend (04-plan.md)
+### Phase 4a — new frontend, consumer chat ✅ (commit `330bb5a`)
+
+`frontend/` is a fresh Vite + React 18 + strict-TS app (the Lovable snapshot is
+in git history). Verified in Chrome against the live stack: anonymous "jazz in
+Madrid" streams status → cards → prose, the Leaflet map opens inside the card
+with a correct pin and a Google Maps deep link, read-more expands, no console
+errors.
+
+- **One backend**: `src/api/client.ts` → gateway only, token read per request
+  (never captured in a closure — supabase-js refreshes in the background).
+  `ApiError` carries status + whether the gateway sent `x-login-upsell`.
+- **`src/api/sse.ts`** parses the *named-event* v2 protocol; types come from
+  `services/shared/ts/protocol.ts` via the `@shared` alias (tsconfig path +
+  Vite alias + `server.fs.allow`), so `test_ts_contract.py` now guards the
+  frontend too. Never redeclare `EventCard` locally.
+- **Ported verbatim**: `index.css` tokens, `translations/` (en/es/it/ca),
+  `audioRecorder`. Dropped: 30 unused Radix packages, the second toast system
+  (sonner only), shadcn CLI wiring, the dead edge functions.
+- `npm run typecheck` runs **both** tsconfig projects — plain `tsc --noEmit` at
+  the root is a silent no-op with project references (it was, at first).
+- Windows trap: renaming `ui/button.tsx` → `ui/Button.tsx` needed
+  `git mv --force`; git kept the old casing and the Pages build (Linux) would
+  have failed on the import. Check `git ls-files` casing after any rename.
+
+## Next: Phase 4b/4c and the gaps 4a left
+
+- **4b — pro flows**: PusherChat against `/api/push/chat/stream`, form from
+  `form.extracted` with missing-field highlights, one-clarification-round UX,
+  batch mode with `batch.progress`, CSV/XLSX upload.
+- **4c — account + cleanup**: profile (ui_language), promoter entities via
+  react-query; then delete the legacy SSE frames, the `__EVENT_EXTRACTED__`
+  sentinel and `cards_to_markdown`, and drop `SERVICE_CORS_ALLOW_ORIGINS`.
+- **Voice input is not in 4a**: the only transcription endpoint is the pusher's
+  `/transcribe-audio`, which sits behind `/api/push/*` (pro+). Consumer voice
+  needs either a retriever-side transcribe route or a gateway exception —
+  owner decision, not a code detail. `audioRecorder.ts` is already ported.
+- **Google sign-in**: the Auth page has a placeholder comment where the button
+  goes; enable the provider in Supabase first (needs Google Cloud credentials).
+
+Backend follow-ups the browser walkthrough surfaced (not frontend bugs):
+
+1. **Composer answered in Spanish to an English question** ("jazz in Madrid" →
+   "Tres noches de jazz te esperan en Madrid"). D6 says it adapts to the
+   *user's* language; the city name appears to be pulling it over.
+2. **Genre recall is loose**: that jazz query returned Flamenco Eléctrico and
+   two Costa Norte events. Worth checking whether the genre constraint reaches
+   the Cypher or only the vector kNN.
+
+## Phase 4 plan of record (04-plan.md)
 
 Fresh Vite+React app (D1): v2 protocol, cards from `events.result`, Leaflet
 maps (D9), auth against the new Supabase project, `VITE_API_URL` → gateway
