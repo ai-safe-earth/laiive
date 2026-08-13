@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Tuple
+from typing import Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import time
@@ -10,47 +10,6 @@ from .tools.safety_guard import SafetyGuardTool
 from .tools.location import LocationTool
 from .tools.internet_search import InternetSearchTool
 from .utils.llm_utils import chat_completion_with_retry
-DECISION_PROMPT = """You are analyzing a user message for a live music events search assistant.
-
-{history_context}
-
-Current user message: "{user_message}"
-
-Classify the intent as ONE of:
-1. OUT_OF_SCOPE: Not about live music events (weather, directions, bookings, restaurants, general questions)
-2. NEEDS_INFO: About music but missing critical constraints (no location/date/artist/venue)
-3. QUERY_DB: Has specific constraints OR references previous context that provides constraints
-4. BYE_MESSAGE: Farewell message (goodbye, thanks, bye, etc.)
-
-IMPORTANT RULES:
-- Artist-specific queries → QUERY_DB (even without date/location)
-  Example: "Radiohead concerts" → QUERY_DB
-- Venue-specific queries → QUERY_DB (even without dates)
-  Example: "events at Berghain" → QUERY_DB
-- Context-dependent follow-ups → QUERY_DB if previous context provides constraints
-  Example: Previous: "concerts in Berlin", Current: "what about tomorrow?" → QUERY_DB
-  Example: Previous: "find jazz events", Current: "in that city" → NEEDS_INFO (no city mentioned)
-- Pronoun references → Resolve using conversation history
-  Example: "that venue", "those artists", "tomorrow" (relative to conversation)
-- Booking/tickets/directions → OUT_OF_SCOPE (we only search, not book)
-
-CONTEXT RESOLUTION:
-- Check conversation history for missing information
-- If history provides the constraint, classify as QUERY_DB
-- If history doesn't provide enough info, classify as NEEDS_INFO
-
-Respond with ONLY one word: OUT_OF_SCOPE, NEEDS_INFO, QUERY_DB, or BYE_MESSAGE"""
-
-OUT_OF_SCOPE_PROMPT = """You are a live music events search assistant. The user sent a message that is outside your scope.
-
-Respond politely explaining you only help with live music event searches.
-Mention what you CAN help with: finding events by date, location, genre, artist, or venue.
-End with a friendly invitation to ask about live music events.
-Reply in the same language as the user message.
-
-User message: "{user_message}"
-
-Keep your response concise and friendly."""
 
 UNSAFE_CONTENT_PROMPT = """You are a live music events search assistant. The user sent a message that cannot be processed safely.
 
@@ -103,25 +62,9 @@ Final Answer: <your response to the user>
 
 
 class Orchestrator:
-
-    CONVERSATION_SYSTEM_PROMPT = """You are a helpful assistant specialized in helping users search for live music events in a Neo4j database.
-
-Your role:
-1. Help users find live music events by understanding their preferences (date, location, genre, artist, venue, etc.)
-2. When a query is executed, provide clear, natural language responses based on the results
-3. If results are empty, suggest alternative search criteria
-4. Be conversational, friendly, and helpful
-
-Database Schema:
-{schema}
-"""
-
     def __init__(self, schema: str):
         self.client = get_openai_client()
         self.schema = schema
-        self._conversation_prompt = self.CONVERSATION_SYSTEM_PROMPT.format(
-            schema=schema
-        )
         self.query_builder_tool = QueryBuilderTool(schema=schema)
         self.safety_guard_tool = SafetyGuardTool()
         self.location_tool = LocationTool()
@@ -141,191 +84,6 @@ Database Schema:
             temperature=settings.llm_temperature_conversation,
         )
         return response.choices[0].message.content.strip()
-
-    def decide_action(
-        self, user_message: str, conversation_history: Optional[list] = None
-    ) -> Literal[
-        "QUERY_DB", "NEEDS_INFO", "OUT_OF_SCOPE", "BYE_MESSAGE", "UNSAFE_INPUT"
-    ]:
-
-        if self.safety_guard_tool.detect_injection(user_message):
-            return "UNSAFE_INPUT"
-
-        if self._check_safety(user_message).get("verdict") == "unsafe":
-            return "UNSAFE_INPUT"
-
-        history_context = ""
-        if conversation_history:
-            history_context = "\n\nConversation history:\n"
-            for msg in conversation_history:
-                role = msg.role if hasattr(msg, "role") else msg["role"]
-                content = msg.content if hasattr(msg, "content") else msg["content"]
-                history_context += f"{role}: {content}\n"
-
-        decision_prompt = DECISION_PROMPT.format(
-            history_context=history_context, user_message=user_message
-        )
-
-        response = self._call_decision_llm(decision_prompt)
-
-        decision = response.choices[0].message.content.strip().upper()
-
-        if "OUT_OF_SCOPE" in decision:
-            return "OUT_OF_SCOPE"
-        elif "NEEDS_INFO" in decision:
-            return "NEEDS_INFO"
-        elif "BYE_MESSAGE" in decision:
-            return "BYE_MESSAGE"
-        else:
-            return "QUERY_DB"
-
-    def execute_query(self, user_message: str) -> tuple[Optional[str], Optional[list]]:
-        result_json = self.query_builder_tool.run(user_message)
-
-        result_data = json.loads(result_json)
-
-        if result_data.get("status") == "error":
-            raise ValueError(result_data.get("error", "Query execution failed"))
-
-        cypher = result_data.get("cypher")
-        results = result_data.get("results", [])
-
-        return cypher, results
-
-    def generate_response(
-        self,
-        action: str,
-        user_message: str,
-        conversation_history: Optional[list] = None,
-        cypher: Optional[str] = None,
-        results: Optional[list] = None,
-    ) -> Tuple[str, Optional[str], Optional[list], bool, bool]:
-        if action == "UNSAFE_INPUT":
-            return (
-                self._generate_fallback_response(UNSAFE_CONTENT_PROMPT, user_message),
-                None,
-                None,
-                False,
-                False,
-            )
-
-        if action == "OUT_OF_SCOPE":
-            return (
-                self._generate_fallback_response(OUT_OF_SCOPE_PROMPT, user_message),
-                None,
-                None,
-                False,
-                False,
-            )
-
-        elif action == "NEEDS_INFO":
-            guidance_prompt = f"""The user wants to search for live music events but their request is missing minimum information to perform a query.
-
-User message: "{user_message}"
-
-Provide a friendly, helpful response that:
-1. Acknowledges their interest in finding events
-2. Asks for the missing information (date, location, genre, artist, or venue)
-3. Gives examples of what information would be helpful
-
-Be conversational and helpful."""
-
-            guidance_response = chat_completion_with_retry(
-                self.client,
-                model=settings.conversation_model,
-                messages=[{"role": "user", "content": guidance_prompt}],
-                temperature=settings.llm_temperature_conversation,
-            )
-
-            return (
-                guidance_response.choices[0].message.content.strip(),
-                None,
-                None,
-                False,
-                True,
-            )
-
-        elif action == "QUERY_DB":
-            messages = [{"role": "system", "content": self._conversation_prompt}]
-            if conversation_history:
-                for msg in conversation_history:
-                    messages.append({"role": msg.role, "content": msg.content})
-            messages.append({"role": "user", "content": user_message})
-
-            results_summary = f"Query executed successfully. Found {len(results) if results else 0} event(s)."
-            if results:
-                sample_results = results[:5] if len(results) > 5 else results
-                results_summary += f"\n\nEvent details:\n{str(sample_results)}"
-                if len(results) > settings.results_preview_limit:
-                    results_summary += f"\n\n(Showing 5 of {len(results)} total events)"
-            else:
-                results_summary += "\n\nNo events found matching your criteria. Try adjusting your search."
-
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": f"I searched the database and found these results:\n{results_summary}",
-                }
-            )
-
-            response = chat_completion_with_retry(
-                self.client,
-                model=settings.conversation_model,
-                messages=messages,
-                temperature=settings.llm_temperature_conversation,
-            )
-
-            response_text = response.choices[0].message.content.strip()
-
-            # Optionally validate output safety (disabled by default for performance)
-            if settings.enable_output_safety_check:
-                output_safety = self.safety_guard_tool.validate_output_safety(response_text)
-                if output_safety.get("verdict") == "unsafe":
-                    response_text = "I found some events, but I need to be more careful with how I present them. Could you rephrase your question?"
-
-            return (response_text, cypher, results, True, False)
-
-        elif action == "BYE_MESSAGE":
-            messages = [{"role": "system", "content": self._conversation_prompt}]
-            if conversation_history:
-                for msg in conversation_history:
-                    messages.append({"role": msg.role, "content": msg.content})
-            messages.append({"role": "user", "content": user_message})
-
-            goodbye_prompt = """The user is ending the conversation. Generate a warm, personal goodbye message that:
-
-1. Thanks them for using the service
-2. References specific details from our conversation if available (e.g., the type of events they searched for, location, genre, etc.) to make it personal
-3. Encourages them to:
-   - Come back anytime to search for more events
-   - Visit regularly to discover new concerts and shows
-   - Enjoy the live music experience
-   - Spread the word about amazing events they discover
-   - Give feedback and suggestions to laiive experience in this same chat.
-4. Wishes them well at the shows
-
-Be warm, friendly, and conversational. If you know what kind of events they were interested in, mention it naturally. Keep it concise but heartfelt."""
-
-            messages.append({"role": "user", "content": goodbye_prompt})
-
-            goodbye_response = chat_completion_with_retry(
-                self.client,
-                model=settings.conversation_model,
-                messages=messages,
-                temperature=settings.llm_temperature_goodbye,
-            )
-
-            response_text = goodbye_response.choices[0].message.content.strip()
-
-            # Optionally validate output safety (disabled by default for performance)
-            if settings.enable_output_safety_check:
-                output_safety = self.safety_guard_tool.validate_output_safety(response_text)
-                if output_safety.get("verdict") == "unsafe":
-                    response_text = "Thank you for using our live music events search! Come back anytime to discover more great shows!"
-
-            return (response_text, None, None, False, False)
-
-        return ("I'm not sure how to help with that.", None, None, False, False)
 
     def run_react(
         self,
@@ -491,9 +249,8 @@ Be warm, friendly, and conversational. If you know what kind of events they were
                             )
                             if results:
                                 sample = results[: min(3, count)]
-                                observation += (
-                                    f"\nSample results:\n"
-                                    + json.dumps(sample, default=str)
+                                observation += "\nSample results:\n" + json.dumps(
+                                    sample, default=str
                                 )
                         except Exception as e:
                             observation = f"Error in nearby search: {e}"
@@ -504,7 +261,9 @@ Be warm, friendly, and conversational. If you know what kind of events they were
                         f"Available actions: search_events, search_nearby"
                     )
 
-                messages.append({"role": "user", "content": f"Observation: {observation}"})
+                messages.append(
+                    {"role": "user", "content": f"Observation: {observation}"}
+                )
                 continue
 
             # ── Malformed output — treat as final answer ─────────────────────
@@ -524,7 +283,9 @@ Be warm, friendly, and conversational. If you know what kind of events they were
             return (assistant_content, cypher, results, used_query, needs_more_info)
 
         # ── Max loops reached — force a final answer ─────────────────────────
-        logger.warning(f"ReAct agent reached max loops ({max_loops}), forcing final answer")
+        logger.warning(
+            f"ReAct agent reached max loops ({max_loops}), forcing final answer"
+        )
         messages.append(
             {
                 "role": "user",
@@ -560,9 +321,8 @@ Be warm, friendly, and conversational. If you know what kind of events they were
                 f"lon {user_location['longitude']})"
             )
 
-        internet_enabled = (
-            settings.enable_internet_search
-            and bool(settings.brave_search_api_key)
+        internet_enabled = settings.enable_internet_search and bool(
+            settings.brave_search_api_key
         )
 
         kg_result_data = None
@@ -571,7 +331,9 @@ Be warm, friendly, and conversational. If you know what kind of events they were
         if internet_enabled:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 kg_future = executor.submit(self.query_builder_tool.run, enriched_input)
-                web_future = executor.submit(self.internet_search_tool.run, action_input)
+                web_future = executor.submit(
+                    self.internet_search_tool.run, action_input
+                )
 
                 for future in as_completed([kg_future, web_future]):
                     if future is kg_future:
@@ -607,7 +369,6 @@ Be warm, friendly, and conversational. If you know what kind of events they were
 
         # Merge: KG results first (verified), then internet results
         merged = kg_events + internet_events
-        results = merged if merged else None
 
         # Build observation for the ReAct loop
         kg_count = len(kg_events)
@@ -626,33 +387,15 @@ Be warm, friendly, and conversational. If you know what kind of events they were
         elif internet_enabled:
             parts.append("No events found from internet search")
 
-        observation = "Found " + ", ".join(parts) + "." if parts else "No results found."
+        observation = (
+            "Found " + ", ".join(parts) + "." if parts else "No results found."
+        )
 
         if merged:
             sample = merged[: min(3, len(merged))]
-            observation += (
-                f"\nSample results:\n" + json.dumps(sample, default=str)
-            )
+            observation += "\nSample results:\n" + json.dumps(sample, default=str)
 
         return observation, cypher, merged if merged else None, used_query
-
-    def _call_decision_llm(self, decision_prompt: str):
-        start_time = time.time()
-        try:
-            response = chat_completion_with_retry(
-                self.client,
-                model=settings.conversation_model,
-                messages=[{"role": "user", "content": decision_prompt}],
-                temperature=settings.llm_temperature_decision,
-                max_tokens=settings.decision_max_tokens,
-            )
-            elapsed = time.time() - start_time
-            logger.debug(f"Decision LLM call completed in {elapsed:.3f}s")
-            return response
-        except Exception as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Decision LLM call failed after {elapsed:.3f}s: {e}")
-            raise
 
     def _check_safety(self, message: str):
         start_time = time.time()

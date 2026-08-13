@@ -52,15 +52,9 @@ class TestCypherGeneration:
             Mock(message=Mock(content="MATCH (e:Event) RETURN e LIMIT 10"))
         ]
         mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
-        mock_embedding_response = Mock()
-        mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-
         with patch(
             "agent.tools.query_builder.chat_completion_with_retry",
             return_value=mock_response,
-        ), patch(
-            "agent.tools.query_builder.embedding_with_retry",
-            return_value=mock_embedding_response,
         ):
             result_json = query_builder.run("Find jazz concerts in Berlin")
 
@@ -181,56 +175,6 @@ class TestDateHandling:
         assert "datetime(" in result["cypher"]
         assert "Z" in result["cypher"]  # ISO-8601 with Z suffix
 
-    def test_system_prompt_includes_date_rules(self, query_builder):
-        """Test that system prompt includes date handling rules."""
-        system_prompt = QueryBuilderTool.SYSTEM_PROMPT
-
-        assert "ISO-8601" in system_prompt
-        assert "datetime(e.start_at)" in system_prompt
-        assert "CORRECT pattern" in system_prompt
-        assert "WRONG patterns" in system_prompt
-
-
-class TestArtistEmbeddingSearch:
-    """Test artist embedding-based search."""
-
-    @patch("agent.tools.query_builder.neo4j_client")
-    @patch("agent.tools.query_builder.embedding_with_retry")
-    def test_artist_embedding_search(self, mock_embedding, mock_neo4j, query_builder):
-        """Test artist search using embeddings."""
-        query_builder.safety_guard.run.return_value = json.dumps(
-            {"is_safe": True, "violations": []}
-        )
-
-        # Mock embedding generation
-        mock_embedding_response = Mock()
-        mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-        mock_embedding.return_value = mock_embedding_response
-
-        # Mock artist search results
-        mock_neo4j.execute_read.return_value = [
-            {"event": {"name": "Radiohead Live"}, "artist": {"name": "Radiohead"}}
-        ]
-
-        mock_response = Mock()
-        mock_response.choices = [
-            Mock(
-                message=Mock(
-                    content="MATCH (a:Artist) WHERE a.name CONTAINS 'Radiohead' RETURN a"
-                )
-            )
-        ]
-        mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
-
-        with patch(
-            "agent.tools.query_builder.chat_completion_with_retry",
-            return_value=mock_response,
-        ):
-            result_json = query_builder.run("Find concerts by Radiohead")
-
-        result = json.loads(result_json)
-        assert result["status"] == "success"
-
 
 class TestQueryExecution:
     """Test query execution against Neo4j."""
@@ -253,15 +197,9 @@ class TestQueryExecution:
             Mock(message=Mock(content="MATCH (e:Event) RETURN e LIMIT 2"))
         ]
         mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
-        mock_embedding_response = Mock()
-        mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-
         with patch(
             "agent.tools.query_builder.chat_completion_with_retry",
             return_value=mock_response,
-        ), patch(
-            "agent.tools.query_builder.embedding_with_retry",
-            return_value=mock_embedding_response,
         ):
             result_json = query_builder.run("Find 2 concerts")
 
@@ -308,15 +246,9 @@ class TestQueryExecution:
         mock_response = Mock()
         mock_response.choices = [Mock(message=Mock(content="MATCH (e:Event) RETURN e"))]
         mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
-        mock_embedding_response = Mock()
-        mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-
         with patch(
             "agent.tools.query_builder.chat_completion_with_retry",
             return_value=mock_response,
-        ), patch(
-            "agent.tools.query_builder.embedding_with_retry",
-            return_value=mock_embedding_response,
         ):
             result_json = query_builder.run("Find concerts")
 
@@ -366,26 +298,6 @@ class TestSchemaIntegration:
 
 class TestPromptEngineering:
     """Test prompt construction and rules."""
-
-    def test_system_prompt_has_required_rules(self):
-        """Test that system prompt includes all required rules."""
-        prompt = QueryBuilderTool.SYSTEM_PROMPT
-
-        # Check for key rules
-        assert "READ-ONLY" in prompt
-        assert "MATCH" in prompt
-        assert "Never CREATE/DELETE/MERGE/SET" in prompt
-        assert "embedding" in prompt  # Don't return embedding properties
-        assert "relationship types from the schema" in prompt
-        assert "DATE HANDLING" in prompt
-
-    def test_system_prompt_shows_correct_pattern(self):
-        """Test that system prompt shows correct datetime pattern."""
-        prompt = QueryBuilderTool.SYSTEM_PROMPT
-
-        assert "datetime(e.start_at)" in prompt
-        assert "CORRECT pattern" in prompt
-        assert "WRONG patterns" in prompt
 
     @patch("agent.tools.query_builder.neo4j_client")
     def test_date_context_injected_into_prompt(self, mock_neo4j, query_builder):

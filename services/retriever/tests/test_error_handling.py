@@ -6,7 +6,6 @@ Run with: pytest tests/test_error_handling.py -v
 import pytest
 from unittest.mock import Mock, patch
 import json
-from agent.orchestrator import Orchestrator
 from agent.tools.query_builder import QueryBuilderTool
 from agent.tools.safety_guard import SafetyGuardTool
 
@@ -111,48 +110,6 @@ class TestNeo4jConnectionErrors:
 class TestLLMAPIErrors:
     """Test LLM API failures."""
 
-    @patch("agent.orchestrator.get_openai_client")
-    def test_openai_api_timeout(self, mock_openai, mock_schema):
-        """Test handling of OpenAI API timeout."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        with patch.object(
-            orch, "_call_decision_llm", side_effect=Exception("Request timeout")
-        ):
-            with pytest.raises(Exception, match="timeout"):
-                orch.decide_action("Find concerts")
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_openai_api_rate_limit(self, mock_openai, mock_schema):
-        """Test handling of OpenAI rate limit errors."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        with patch.object(
-            orch, "_call_decision_llm", side_effect=Exception("Rate limit exceeded")
-        ):
-            with pytest.raises(Exception, match="Rate limit"):
-                orch.decide_action("Find concerts")
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_openai_invalid_api_key(self, mock_openai, mock_schema):
-        """Test handling of invalid API key."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        with patch.object(
-            orch, "_call_decision_llm", side_effect=Exception("Invalid API key")
-        ):
-            with pytest.raises(Exception, match="Invalid API key"):
-                orch.decide_action("Find concerts")
-
     @patch("agent.tools.query_builder.neo4j_client")
     @patch("agent.tools.query_builder.chat_completion_with_retry")
     def test_llm_returns_malformed_json(self, mock_chat, mock_neo4j):
@@ -179,72 +136,8 @@ class TestLLMAPIErrors:
             assert result["status"] == "error"
 
 
-class TestPartialFailures:
-    """Test scenarios where parts of the pipeline fail."""
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_query_succeeds_llm_response_fails(self, mock_openai, mock_schema):
-        """Test when query execution succeeds but response generation fails."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.query_builder_tool = Mock()
-        orch.query_builder_tool.run.return_value = json.dumps(
-            {
-                "status": "success",
-                "cypher": "MATCH (e:Event) RETURN e",
-                "results": [{"event": {"name": "Test"}}],
-            }
-        )
-
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_output_safety.return_value = {"verdict": "safe"}
-
-        # Simulate LLM failure in response generation
-        with patch(
-            "agent.orchestrator.chat_completion_with_retry",
-            side_effect=Exception("LLM failed"),
-        ):
-            with pytest.raises(Exception):
-                orch.generate_response(
-                    action="QUERY_DB",
-                    user_message="Find concerts",
-                    cypher="MATCH (e:Event) RETURN e",
-                    results=[{"event": {"name": "Test"}}],
-                )
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_query_fails_graceful_fallback(self, mock_openai, mock_schema):
-        """Test graceful handling when query fails."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.query_builder_tool = Mock()
-        orch.query_builder_tool.run.return_value = json.dumps(
-            {"status": "error", "error": "Query failed"}
-        )
-
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        with pytest.raises(ValueError, match="Query failed"):
-            orch.execute_query("Find concerts")
-
-
 class TestSafetyGuardErrors:
     """Test safety guard failures."""
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_safety_guard_llamaguard_timeout(self, mock_openai, mock_schema):
-        """Test handling of LlamaGuard API timeout."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.side_effect = Exception(
-            "LlamaGuard timeout"
-        )
-
-        with pytest.raises(Exception, match="timeout"):
-            orch.decide_action("Find concerts")
 
     def test_cypher_validation_failure(self):
         """Test handling of Cypher validation errors."""
@@ -252,63 +145,11 @@ class TestSafetyGuardErrors:
 
         # Should handle edge cases gracefully
         result_json = tool.run(None)
-        result = json.loads(result_json)
-        # Should not crash
-
-
-class TestConcurrentRequestErrors:
-    """Test errors in concurrent request scenarios."""
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_multiple_requests_one_fails(self, mock_openai, mock_schema):
-        """Test that one failing request doesn't affect others."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        # First request succeeds
-        mock_response1 = Mock()
-        mock_response1.choices = [Mock(message=Mock(content="QUERY_DB"))]
-
-        # Second request fails
-        with patch.object(orch, "_call_decision_llm", return_value=mock_response1):
-            result1 = orch.decide_action("Find jazz concerts")
-
-        assert result1 == "QUERY_DB"
-
-        # Simulate failure on next request
-        with patch.object(
-            orch, "_call_decision_llm", side_effect=Exception("API error")
-        ):
-            with pytest.raises(Exception):
-                orch.decide_action("Find rock concerts")
+        json.loads(result_json)  # should not crash
 
 
 class TestDataValidationErrors:
     """Test data validation and malformed input errors."""
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_malformed_conversation_history(self, mock_openai, mock_schema):
-        """Test handling of malformed conversation history."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content="QUERY_DB"))]
-
-        # History with missing attributes
-        bad_history = [Mock(role="user")]  # Missing content
-        delattr(bad_history[0], "content")
-
-        with patch.object(orch, "_call_decision_llm", return_value=mock_response):
-            # Should handle gracefully or raise clear error
-            try:
-                orch.decide_action("Find concerts", conversation_history=bad_history)
-            except (AttributeError, KeyError, TypeError):
-                pass  # Expected to fail
 
     @patch("agent.tools.query_builder.neo4j_client")
     def test_malformed_neo4j_results(self, mock_neo4j):
@@ -331,15 +172,9 @@ class TestDataValidationErrors:
             ]
             mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
 
-            mock_embedding_response = Mock()
-            mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-
             with patch(
                 "agent.tools.query_builder.chat_completion_with_retry",
                 return_value=mock_response,
-            ), patch(
-                "agent.tools.query_builder.embedding_with_retry",
-                return_value=mock_embedding_response,
             ):
                 result_json = tool.run("Find concerts")
 
@@ -382,8 +217,7 @@ class TestRecoveryMechanisms:
             # (If chat_completion_with_retry implements retries)
             try:
                 result_json = tool.run("Find concerts")
-                result = json.loads(result_json)
-                # If retry works, should eventually succeed
+                json.loads(result_json)  # if retry works, should eventually succeed
             except Exception:
                 # If no retry, will fail on first attempt
                 pass
@@ -391,23 +225,6 @@ class TestRecoveryMechanisms:
 
 class TestEdgeCaseErrors:
     """Test edge case error scenarios."""
-
-    @patch("agent.orchestrator.get_openai_client")
-    def test_unicode_characters_in_error_messages(self, mock_openai, mock_schema):
-        """Test handling of unicode in error messages."""
-        orch = Orchestrator(schema=mock_schema)
-        orch.query_builder_tool = Mock()
-        orch.query_builder_tool.run.return_value = json.dumps(
-            {"status": "error", "error": "Error: ñ ü ö emoji 🎵"}
-        )
-
-        orch.safety_guard_tool = Mock()
-        orch.safety_guard_tool.detect_injection.return_value = False
-        orch.safety_guard_tool.validate_input_safety.return_value = {"verdict": "safe"}
-
-        # Should handle unicode in errors
-        with pytest.raises(ValueError):
-            orch.execute_query("Find concerts with unicode")
 
     @patch("agent.tools.query_builder.neo4j_client")
     def test_extremely_large_result_set(self, mock_neo4j):
@@ -430,15 +247,9 @@ class TestEdgeCaseErrors:
             ]
             mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50)
 
-            mock_embedding_response = Mock()
-            mock_embedding_response.data = [Mock(embedding=[0.1] * 1536)]
-
             with patch(
                 "agent.tools.query_builder.chat_completion_with_retry",
                 return_value=mock_response,
-            ), patch(
-                "agent.tools.query_builder.embedding_with_retry",
-                return_value=mock_embedding_response,
             ):
                 result_json = tool.run("Find all events")
 
