@@ -4,6 +4,7 @@ The pipeline is faked; no Neo4j or OpenAI needed.
 """
 
 import inspect
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -226,6 +227,48 @@ class TestChatStreamV2:
         ).text
         assert "event: error" in body
         assert "event: done" in body  # stream still terminates cleanly
+
+
+class TestTranscribe:
+    """Voice input is public (D7): anonymous callers reach this through the
+    gateway, so the size/format guards run before the metered Whisper call."""
+
+    def _post(self, client, name="note.webm", body=b"audio-bytes"):
+        return client.post(
+            "/transcribe", files={"file": (name, io.BytesIO(body), "audio/webm")}
+        )
+
+    def test_returns_the_transcript(self, client):
+        fake = MagicMock()
+        fake.audio.transcriptions.create.return_value = MagicMock(
+            text=" jazz in madrid "
+        )
+        with patch.object(api_module, "get_openai_client", return_value=fake):
+            response = self._post(client)
+        assert response.status_code == 200
+        assert response.json() == {"text": "jazz in madrid"}
+
+    def test_oversized_recording_is_413(self, client):
+        from laiive_shared.speech import MAX_AUDIO_BYTES
+
+        fake = MagicMock()
+        with patch.object(api_module, "get_openai_client", return_value=fake):
+            response = self._post(client, body=b"x" * (MAX_AUDIO_BYTES + 1))
+        assert response.status_code == 413
+        fake.audio.transcriptions.create.assert_not_called()
+
+    def test_unsupported_format_is_400(self, client):
+        fake = MagicMock()
+        with patch.object(api_module, "get_openai_client", return_value=fake):
+            response = self._post(client, name="note.aiff")
+        assert response.status_code == 400
+
+    def test_upstream_failure_is_502(self, client):
+        fake = MagicMock()
+        fake.audio.transcriptions.create.side_effect = RuntimeError("whisper down")
+        with patch.object(api_module, "get_openai_client", return_value=fake):
+            response = self._post(client)
+        assert response.status_code == 502
 
 
 class TestStreamingIsIncremental:

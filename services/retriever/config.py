@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     composer_model: str = Field("gpt-4o", alias="COMPOSER_MODEL")
     embeddings_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     embeddings_dimensions: int = 1536
+    # Voice input is public (anonymous callers included), so the model choice
+    # and the size cap in laiive_shared.speech are both cost decisions.
+    whisper_model: str = Field("whisper-1", alias="WHISPER_MODEL")
 
     # Safety: OpenAI moderation endpoint (free) + regex Cypher guard.
     # The OpenRouter/LlamaGuard layer is gone (R3 — it never executed).

@@ -5,18 +5,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from laiive_shared import Done, Error, MessageDelta, sse_frame
+from laiive_shared import (
+    AudioTooLarge,
+    Done,
+    Error,
+    MessageDelta,
+    UnsupportedAudioFormat,
+    sse_frame,
+    transcribe,
+)
 from loguru import logger
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from config import settings
 
 from .clients.neo4j_client import neo4j_client
 from .pipeline import Pipeline, TurnResult
 from .utils.formatters import cards_to_markdown, create_sse_done, create_sse_message
+from .utils.llm_utils import get_openai_client
 
 LOG_FILE = Path("logs/requests.jsonl")
 
@@ -184,6 +194,40 @@ def get_schema():
     except Exception as e:
         logger.error(f"Schema fetch failed: {e}")
         return {"schema": None, "status": "error", "error": str(e)}
+
+
+# ============== Voice input ==============
+
+
+@app.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """Speech to text for the chat composer.
+
+    Public on purpose: anonymous users get voice too (D7), so the gateway's
+    anonymous per-IP quota is the only thing standing between this and a metered
+    Whisper bill — hence the size cap in laiive_shared.speech, checked before
+    the API call. The transcript goes back to the client, which sends it as an
+    ordinary chat message; there is no separate voice path through the pipeline.
+    """
+    audio_bytes = await file.read()
+    filename = file.filename or "audio.webm"
+    try:
+        text = await run_in_threadpool(
+            transcribe,
+            get_openai_client(),
+            audio_bytes,
+            filename,
+            settings.whisper_model,
+        )
+    except AudioTooLarge as e:
+        raise HTTPException(413, str(e)) from e
+    except (UnsupportedAudioFormat, ValueError) as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        logger.error(f"Transcription failed: {e}")
+        raise HTTPException(502, "Transcription failed") from e
+
+    return {"text": text}
 
 
 # ============== Chat Endpoints ==============
