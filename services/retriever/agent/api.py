@@ -246,13 +246,20 @@ async def chat_stream(request: ChatRequestSSE):
     )
 
 
-async def _generate_v2(
+def _generate_v2(
     request_id: str,
     user_message: str,
     history: list[dict] | None,
     location: dict | None,
 ):
-    """Named-event frames from the shared protocol."""
+    """Named-event frames from the shared protocol.
+
+    Deliberately a *sync* generator: `run_turn` is blocking (OpenAI + Neo4j
+    calls), so as an async generator it would hold the event loop between
+    yields and the frames only reach the socket once the turn is over — no
+    streaming at all. Starlette runs sync iterators in a threadpool, which
+    leaves the loop free to flush each frame as it is produced.
+    """
     result = TurnResult()
     try:
         for payload in get_pipeline().run_turn(
@@ -273,13 +280,16 @@ async def _generate_v2(
     yield sse_frame(Done(request_id=request_id))
 
 
-async def _generate_legacy(
+def _generate_legacy(
     request_id: str,
     user_message: str,
     history: list[dict] | None,
     location: dict | None,
 ):
-    """OpenAI-shaped data-only frames for the current frontend (delete with Phase 4)."""
+    """OpenAI-shaped data-only frames for the current frontend (delete with Phase 4).
+
+    Sync for the same reason as `_generate_v2`.
+    """
     yield f'event: metadata\ndata: {{"request_id": "{request_id}"}}\n\n'
     result = TurnResult()
     try:

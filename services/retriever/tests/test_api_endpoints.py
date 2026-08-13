@@ -3,6 +3,7 @@ FastAPI endpoint tests — health checks, chat endpoints, both SSE protocols.
 The pipeline is faked; no Neo4j or OpenAI needed.
 """
 
+import inspect
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -225,6 +226,22 @@ class TestChatStreamV2:
         ).text
         assert "event: error" in body
         assert "event: done" in body  # stream still terminates cleanly
+
+
+class TestStreamingIsIncremental:
+    """Both frame generators must stay *sync* generators.
+
+    `run_turn` blocks (OpenAI + Neo4j). As async generators these hold the
+    event loop between yields, so uvicorn only flushes the frames once the
+    turn is finished — the endpoint answers in one burst and streaming is a
+    lie. Sync generators get iterated in Starlette's threadpool instead.
+    """
+
+    def test_generators_are_sync(self):
+        assert not inspect.isasyncgenfunction(api_module._generate_v2)
+        assert not inspect.isasyncgenfunction(api_module._generate_legacy)
+        assert inspect.isgeneratorfunction(api_module._generate_v2)
+        assert inspect.isgeneratorfunction(api_module._generate_legacy)
 
 
 class TestRequestValidation:
