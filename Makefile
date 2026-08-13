@@ -28,10 +28,13 @@ shell-retriever:
 
 # --------------- local service starters (ports match frontend/.env: 8002/8003) -------------------
 start-retriever:
-	cd services/retriever && uv sync && uv run uvicorn agent.api:app --host 0.0.0.0 --port 8002 --reload
+	cd services/retriever && uv sync && uv run uvicorn agent.api:app --host 127.0.0.1 --port 8002 --reload
 
 start-pusher:
-	cd services/pusher && uv sync && uv run uvicorn agent.api:app --host 0.0.0.0 --port 8003 --reload
+	cd services/pusher && uv sync && uv run uvicorn agent.api:app --host 127.0.0.1 --port 8003 --reload
+
+start-gateway:
+	cd services/gateway && npm install && npm run dev
 
 # --------------- tests ---------------------------------------------------------------------------
 test-formatting:

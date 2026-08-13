@@ -1,0 +1,7 @@
+# build context for all service Dockerfiles is this directory
+**/__pycache__
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
+gateway/node_modules
+gateway/dist

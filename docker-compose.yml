@@ -1,13 +1,30 @@
-# base / production
+# base / production — the gateway is the only published surface;
+# retriever and pusher are reachable only on the compose network.
 services:
+
+  gateway:
+    container_name: laiive-gateway
+    build:
+      context: ./services
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      RETRIEVER_URL: http://retriever:8002
+      PUSHER_URL: http://pusher:8003
+    depends_on:
+      - retriever
+      - pusher
 
   pusher:
     container_name: laiive-pusher
     build:
       context: ./services
       dockerfile: pusher/Dockerfile
-    ports:
-      - "8003:8003"
+    expose:
+      - "8003"
     env_file:
       - .env
 
@@ -16,7 +33,7 @@ services:
     build:
       context: ./services
       dockerfile: retriever/Dockerfile
-    ports:
-      - "8002:8002"
+    expose:
+      - "8002"
     env_file:
       - .env
