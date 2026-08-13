@@ -8,30 +8,37 @@ import re
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from laiive_shared import (
+    ALLOWED_AUDIO_SUFFIXES,
+    AudioTooLarge,
     Done,
     Error,
     EventDraft,
     FormExtracted,
     MessageDelta,
     Status,
+    UnsupportedAudioFormat,
     missing_required,
     sse_frame,
 )
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from starlette.concurrency import run_in_threadpool
 
 from . import graph
 from .batch import drafts_with_missing, parse_batch
 from .conversation import default_currency, process_turn
 from .converters import (
+    UnreadableDocument,
     audio_to_text,
+    document_to_text,
     extract_draft_from_text,
     extract_from_url,
     image_to_text,
+    url_to_text,
 )
 
 app = FastAPI(title="laiive pusher API", version="0.3.0")
@@ -103,9 +110,23 @@ class EventDetailsModel(BaseModel):
 
 
 class ValidateEventRequest(BaseModel):
-    event: EventDetailsModel
+    """Either a full draft (new frontend) or the flat legacy form payload.
+
+    `draft` carries genre, venue_type, address, price ranges and a real
+    timestamp; `event` flattens all of that away, so the new form sends a draft
+    and the legacy branch dies with the rest of the legacy paths in Phase 4c.
+    """
+
+    draft: Optional[EventDraft] = None
+    event: Optional[EventDetailsModel] = None
     session_id: Optional[str] = None
     # owner identity is the gateway's X-User-Id header; a body user_id is ignored
+
+    @model_validator(mode="after")
+    def exactly_one_payload(self) -> "ValidateEventRequest":
+        if (self.draft is None) == (self.event is None):
+            raise ValueError("send either 'draft' (preferred) or 'event'")
+        return self
 
 
 class BatchValidateRequest(BaseModel):
@@ -261,6 +282,63 @@ async def _generate_legacy(request_id: str, messages: list[dict]):
     yield _create_sse_done()
 
 
+# ============== Multimodal ingestion ==============
+
+
+@app.post("/ingest")
+async def ingest(
+    file: UploadFile | None = File(None),
+    url: str | None = Form(None),
+):
+    """Turn any input modality into plain text.
+
+    Voice, flyer photo, PDF/DOCX and links all reduce to text here; the client
+    then appends that text to the conversation as an ordinary user message and
+    the normal turn extracts the fields. That is the whole point of this
+    endpoint: **one** extraction path over the whole conversation, so a photo
+    that supplies the venue and a follow-up sentence that supplies the price
+    merge into one draft without any client-side merge rules.
+
+    Returns `{kind, source, text}`. Extraction deliberately does not happen
+    here — /chat/stream owns it.
+    """
+    if url:
+        text = await run_in_threadpool(url_to_text, url)
+        return {"kind": "url", "source": url, "text": text}
+
+    if file is None:
+        raise HTTPException(400, "Send a file or a url")
+
+    payload = await file.read()
+    filename = file.filename or "upload"
+    content_type = file.content_type or ""
+
+    try:
+        if content_type.startswith("audio/") or filename.lower().endswith(
+            ALLOWED_AUDIO_SUFFIXES
+        ):
+            text = await run_in_threadpool(audio_to_text, payload, filename)
+            kind = "audio"
+        elif content_type.startswith("image/"):
+            text = await run_in_threadpool(image_to_text, payload, content_type)
+            kind = "image"
+        else:
+            text = await run_in_threadpool(document_to_text, payload, filename)
+            kind = "document"
+    except AudioTooLarge as e:
+        raise HTTPException(413, str(e)) from e
+    except (UnsupportedAudioFormat, UnreadableDocument, ValueError) as e:
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        logger.error(f"Ingestion of {filename} ({content_type}) failed: {e}")
+        raise HTTPException(502, "Could not read that file") from e
+
+    if not text.strip():
+        raise HTTPException(422, f"No readable event information in {filename}")
+
+    return {"kind": kind, "source": filename, "text": text}
+
+
 # ============== Transcription ==============
 
 
@@ -361,7 +439,9 @@ async def validate_event(
     x_user_id: Optional[str] = Header(None),
 ):
     """Publish a form-approved event — the only write trigger."""
-    draft = _details_to_draft(request.event)
+    draft = (
+        request.draft if request.draft is not None else _details_to_draft(request.event)
+    )
     # owner identity comes only from the gateway-verified header, never the body
     result = _write_or_raise(draft, owner_id=x_user_id)
     return {

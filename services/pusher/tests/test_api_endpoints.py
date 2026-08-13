@@ -152,6 +152,132 @@ class TestExtractEndpoints:
         assert client.post("/extract-event-details", json={}).status_code == 422
 
 
+class TestIngest:
+    """Every modality reduces to text here.
+
+    /ingest deliberately does not extract fields: the client appends the text
+    to the conversation and the normal turn extracts over the whole history, so
+    a flyer that supplies the venue and a sentence that supplies the price
+    merge into one draft with no client-side merge rules.
+    """
+
+    def _upload(self, client, name, content_type, body=b"data"):
+        return client.post(
+            "/ingest", files={"file": (name, io.BytesIO(body), content_type)}
+        )
+
+    def test_audio_returns_the_transcript(self, client):
+        data = self._upload(client, "note.webm", "audio/webm").json()
+        assert data["kind"] == "audio"
+        assert data["text"] == "Test Artist at Test Venue in Berlin on April 1st"
+
+    def test_image_returns_vision_text(self, client, mock_openai):
+        mock_openai.chat.completions.create.return_value.choices[
+            0
+        ].message.content = "Poster: Ana Beck at Quasimodo, Berlin"
+        data = self._upload(client, "flyer.png", "image/png").json()
+        assert data["kind"] == "image"
+        assert "Quasimodo" in data["text"]
+
+    def test_plain_text_document(self, client):
+        data = self._upload(
+            client, "event.txt", "text/plain", b"Ana Beck at Quasimodo"
+        ).json()
+        assert data["kind"] == "document"
+        assert data["text"] == "Ana Beck at Quasimodo"
+
+    def test_no_extraction_happens_here(self, client):
+        """The response is text, not a draft — extraction belongs to the turn."""
+        data = self._upload(client, "event.txt", "text/plain", b"Ana Beck").json()
+        assert set(data) == {"kind", "source", "text"}
+
+    def test_pdf_with_a_text_layer_is_read(self, client):
+        from pypdf import PdfWriter
+
+        buffer = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=200, height=200)
+        writer.write(buffer)
+        response = self._upload(
+            client, "flyer.pdf", "application/pdf", buffer.getvalue()
+        )
+        # A blank page has no text layer — the scanned-flyer branch.
+        assert response.status_code == 400
+        assert "image" in response.json()["detail"].lower()
+
+    def test_corrupt_pdf_is_a_client_error_not_a_502(self, client):
+        pdf = b"%PDF-1.4\nnot really a pdf"
+        response = self._upload(client, "flyer.pdf", "application/pdf", pdf)
+        assert response.status_code == 400
+
+    def test_unsupported_type_is_400(self, client):
+        response = self._upload(client, "song.xyz", "application/octet-stream")
+        assert response.status_code == 400
+
+    def test_oversized_audio_is_413(self, client):
+        from laiive_shared.speech import MAX_AUDIO_BYTES
+
+        response = self._upload(
+            client, "long.webm", "audio/webm", b"x" * (MAX_AUDIO_BYTES + 1)
+        )
+        assert response.status_code == 413
+
+    def test_empty_result_is_422(self, client):
+        response = self._upload(client, "blank.txt", "text/plain", b"   ")
+        assert response.status_code == 422
+
+    def test_requires_a_file_or_url(self, client):
+        assert client.post("/ingest").status_code == 400
+
+
+class TestValidateEventDraft:
+    """The new form sends a full draft; the flat legacy payload still works
+    until Phase 4c removes it, and sending both at once is a 422."""
+
+    DRAFT = {
+        "name": "Jazz Night",
+        "artists": ["Ana Beck Quartet"],
+        "start_at": "2026-09-01T20:00:00",
+        "venue": "Quasimodo",
+        "city": "Berlin",
+        "price_min": 22,
+        "price_max": 28,
+        "price_currency": "EUR",
+        "genre": "jazz",
+        "venue_type": "club",
+    }
+
+    def test_draft_payload_writes(self, client, mock_neo4j):
+        response = client.post("/validate-event", json={"draft": self.DRAFT})
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+    def test_draft_keeps_what_the_legacy_shape_would_drop(self, client, mock_neo4j):
+        client.post("/validate-event", json={"draft": self.DRAFT})
+        write_params = mock_neo4j.fake_session.queries[1][1]
+        assert write_params["genre"] == "jazz"
+        assert write_params["price_max"] == 28
+        assert write_params["venue_type"] == "club"
+
+    def test_neither_payload_is_422(self, client):
+        assert client.post("/validate-event", json={}).status_code == 422
+
+    def test_both_payloads_is_422(self, client):
+        response = client.post(
+            "/validate-event",
+            json={
+                "draft": self.DRAFT,
+                "event": {
+                    "name": "Jazz Night",
+                    "event_date": "2026-09-01T20:00:00",
+                    "venue": "Quasimodo",
+                    "city": "Berlin",
+                },
+            },
+        )
+        assert response.status_code == 422
+
+
 class TestValidateEvent:
     EVENT = {
         "name": "Test Event",

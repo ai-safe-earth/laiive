@@ -5,11 +5,12 @@ prompts/functions merged here). Everything funnels into `EventDraft`.
 """
 
 import base64
+import io
 import json
 from datetime import date
 
 import httpx
-from laiive_shared import EventDraft
+from laiive_shared import EventDraft, transcribe
 from loguru import logger
 from openai import OpenAI
 
@@ -98,12 +99,8 @@ def extract_draft_from_text(text: str) -> EventDraft:
 
 
 def audio_to_text(audio_bytes: bytes, filename: str = "audio.webm") -> str:
-    """Transcribe audio using OpenAI Whisper."""
-    response = _client.audio.transcriptions.create(
-        model=settings.whisper_model,
-        file=(filename, audio_bytes),
-    )
-    return response.text
+    """Transcribe audio using OpenAI Whisper (shared with the retriever)."""
+    return transcribe(_client, audio_bytes, filename, settings.whisper_model)
 
 
 def image_to_text(image_bytes: bytes, mime_type: str = "image/png") -> str:
@@ -136,15 +133,62 @@ def image_to_text(image_bytes: bytes, mime_type: str = "image/png") -> str:
     return response.choices[0].message.content.strip()
 
 
+class UnreadableDocument(ValueError):
+    """The document carries no text we can extract."""
+
+
 def document_to_text(doc_bytes: bytes, filename: str) -> str:
-    """Extract text from a document."""
-    if filename.lower().endswith((".txt", ".csv", ".md")):
+    """Extract text from a document (PDF, DOCX, or plain text).
+
+    PDFs are read through their text layer. A scanned flyer has none, and
+    OCR-ing it would mean rendering pages to images (pymupdf, ~40 MB of
+    dependency) — the vision path already handles flyers well, so we ask for
+    the image instead of carrying the renderer.
+    """
+    name = filename.lower()
+
+    if name.endswith((".txt", ".csv", ".md", ".json")):
         return doc_bytes.decode("utf-8", errors="replace")
-    return image_to_text(doc_bytes, mime_type="application/pdf")
+
+    if name.endswith(".pdf"):
+        from pypdf import PdfReader
+
+        try:
+            reader = PdfReader(io.BytesIO(doc_bytes))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as e:
+            # A file the user picked badly is their problem to fix, not a 5xx.
+            logger.warning(f"Could not parse PDF {filename}: {e}")
+            raise UnreadableDocument(
+                "Could not read that PDF. Send the flyer as an image instead."
+            ) from e
+        if not text.strip():
+            raise UnreadableDocument(
+                "This PDF has no text layer (it looks scanned). "
+                "Send the flyer as an image instead."
+            )
+        return text.strip()
+
+    if name.endswith(".docx"):
+        from docx import Document
+
+        try:
+            document = Document(io.BytesIO(doc_bytes))
+        except Exception as e:
+            logger.warning(f"Could not parse DOCX {filename}: {e}")
+            raise UnreadableDocument("Could not read that document.") from e
+        return "\n".join(p.text for p in document.paragraphs).strip()
+
+    raise UnreadableDocument(
+        f"Unsupported document type: {filename}. Send a PDF, DOCX, TXT, or an image."
+    )
 
 
-def extract_from_url(url: str, language: str = "en") -> EventDraft:
-    """Fetch a URL and extract an EventDraft from its content."""
+URL_MAX_CHARS = 8000
+
+
+def url_to_text(url: str) -> str:
+    """Fetch a page and return its content as text, truncated to a sane size."""
     try:
         with httpx.Client(timeout=15.0, follow_redirects=True) as http:
             resp = http.get(
@@ -155,12 +199,14 @@ def extract_from_url(url: str, language: str = "en") -> EventDraft:
             page_text = resp.text
     except Exception as e:
         logger.error(f"Failed to fetch URL {url}: {e}")
-        raise ValueError(f"Could not fetch URL: {e}")
+        raise ValueError(f"Could not fetch URL: {e}") from e
 
-    max_chars = 8000
-    if len(page_text) > max_chars:
-        page_text = page_text[:max_chars]
+    return page_text[:URL_MAX_CHARS]
 
+
+def extract_from_url(url: str, language: str = "en") -> EventDraft:
+    """Fetch a URL and extract an EventDraft from its content."""
+    page_text = url_to_text(url)
     return extract_draft_from_text(
         f"Webpage content (language preference: {language}):\n{page_text}"
     )
