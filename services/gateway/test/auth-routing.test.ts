@@ -128,6 +128,47 @@ describe("auth", () => {
   });
 });
 
+describe("uploads", () => {
+  it("routes anonymous voice input to the retriever (D7)", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/transcribe",
+      headers: { "content-type": "audio/webm" },
+      payload: Buffer.from("fake-audio"),
+    });
+    expect(res.statusCode).toBe(200);
+    const upstream = JSON.parse(res.body) as SeenRequest;
+    expect(upstream.url).toBe("/transcribe");
+    // Anonymous: no identity headers are injected, but the upsell still fires.
+    expect(upstream.headers["x-user-id"]).toBeUndefined();
+    expect(res.headers["x-login-upsell"]).toBeDefined();
+  });
+
+  it("routes pro ingestion to the pusher", async () => {
+    const token = await supabase.signToken({ sub: "pro-9", role: "pro" });
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/push/ingest",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/pdf" },
+      payload: Buffer.from("%PDF-1.4"),
+    });
+    expect(res.statusCode).toBe(200);
+    const upstream = JSON.parse(res.body) as SeenRequest;
+    expect(upstream.url).toBe("/ingest");
+    expect(upstream.headers["x-user-id"]).toBe("pro-9");
+  });
+
+  it("refuses an oversized upload before it reaches the metered API", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/transcribe",
+      headers: { "content-type": "audio/webm" },
+      payload: Buffer.alloc(8192, 1), // testConfig caps uploads at 4 kB
+    });
+    expect(res.statusCode).toBe(413);
+  });
+});
+
 describe("identity headers", () => {
   it("strips client-sent identity headers and injects verified ones", async () => {
     const token = await supabase.signToken({ sub: "user-9", role: "user" });

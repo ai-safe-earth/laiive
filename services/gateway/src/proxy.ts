@@ -38,6 +38,16 @@ export function registerProxies(app: FastifyInstance, config: GatewayConfig): vo
     replyOptions,
   });
 
+  // /api/transcribe → retriever /transcribe — anonymous allowed: voice input is
+  // public (D7). Multipart audio streams through unparsed, and the anonymous
+  // per-IP quota is what bounds the Whisper spend (the service also caps size).
+  app.register(httpProxy, {
+    upstream: config.retrieverUrl,
+    prefix: "/api/transcribe",
+    rewritePrefix: "/transcribe",
+    replyOptions,
+  });
+
   // /api/push/* → pusher /* — pro and admin only
   app.register(async (scope) => {
     scope.addHook("preHandler", requireRole("pro"));

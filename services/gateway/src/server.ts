@@ -47,6 +47,21 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
     }),
   });
 
+  // Upload routes are proxied as raw streams, which means Fastify's body limit
+  // never sees them. Reject oversized bodies on the declared length before any
+  // of it reaches Whisper or the vision model.
+  const UPLOAD_ROUTES = [/^\/api\/transcribe(\/|$)/, /^\/api\/push\/(ingest|batch\/parse)(\/|$)/];
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "POST") return;
+    if (!UPLOAD_ROUTES.some((route) => route.test(request.url))) return;
+    const declared = Number(request.headers["content-length"] ?? 0);
+    if (declared > config.uploadMaxBytes) {
+      return reply
+        .code(413)
+        .send({ error: `upload exceeds ${Math.floor(config.uploadMaxBytes / 1024)} kB` });
+    }
+  });
+
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", request.id);
     if (!request.user && request.url.startsWith("/api/")) {
