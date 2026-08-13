@@ -5,22 +5,14 @@ services:
     container_name: laiive-pusher
     build: ./services/pusher
     ports:
-      - "8001:8001"
+      - "8003:8003"
     env_file:
       - .env
-    environment:
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USERNAME}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
 
   retriever:
     container_name: laiive-retriever
     build: ./services/retriever
     ports:
-      - "8000:8000"
+      - "8002:8002"
     env_file:
       - .env
-    environment:
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USERNAME}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
