@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -46,14 +47,21 @@ def log_request(
 
 app = FastAPI(title="laiive retriever API", version="0.3.0")
 
-# CORS stays wide open until the gateway terminates browser traffic (Phase 3).
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Browser traffic terminates at the gateway; direct browser access needs an
+# explicit opt-in via SERVICE_CORS_ALLOW_ORIGINS (comma-separated).
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("SERVICE_CORS_ALLOW_ORIGINS", "").split(",")
+    if o.strip()
+]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 _pipeline: Pipeline | None = None
 

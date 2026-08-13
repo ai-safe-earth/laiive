@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+import os
 import re
 import uuid
 from typing import List, Literal, Optional
@@ -35,14 +36,21 @@ from .converters import (
 
 app = FastAPI(title="laiive pusher API", version="0.3.0")
 
-# CORS stays wide open until the gateway terminates browser traffic (Phase 3).
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Browser traffic terminates at the gateway; direct browser access needs an
+# explicit opt-in via SERVICE_CORS_ALLOW_ORIGINS (comma-separated).
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("SERVICE_CORS_ALLOW_ORIGINS", "").split(",")
+    if o.strip()
+]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 # ============== Pydantic Models ==============
@@ -97,7 +105,7 @@ class EventDetailsModel(BaseModel):
 class ValidateEventRequest(BaseModel):
     event: EventDetailsModel
     session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    # owner identity is the gateway's X-User-Id header; a body user_id is ignored
 
 
 class BatchValidateRequest(BaseModel):
@@ -354,7 +362,8 @@ async def validate_event(
 ):
     """Publish a form-approved event — the only write trigger."""
     draft = _details_to_draft(request.event)
-    result = _write_or_raise(draft, owner_id=x_user_id or request.user_id)
+    # owner identity comes only from the gateway-verified header, never the body
+    result = _write_or_raise(draft, owner_id=x_user_id)
     return {
         "success": True,
         "event_id": result.uid,
