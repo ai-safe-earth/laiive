@@ -1,4 +1,4 @@
-# HANDOFF — refactor status (updated 2026-08-14, later session)
+# HANDOFF — refactor status (updated 2026-08-14, third session)
 
 Continuation point for the laiive refactor. Read this first, then
 `04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
@@ -14,13 +14,11 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: the *Other gaps* list below — the 4d browser walkthrough is done
-(see *Phase 4d — walkthrough*), migration `20260814000008` is pushed, and
-Google OAuth is enabled end-to-end on the Supabase side with the frontend
-button wired (`36c1f87`); the one thing not exercised is a real Google
-click-through (needs the owner's Google account — the button renders and
-calls `signInWithOAuth`, the return leg is the stock
-detectSessionInUrl/onAuthStateChange path).
+**Next up**: two small gaps (Google click-through by the owner, the
+end-of-walk completion message), then **Phase 5** (SEARCH service + Prefect
+sweeps) — see *Other gaps* and *Phase 4 plan of record*. This session closed
+the other two gaps: the CSV fast lane is **deleted** (owner's call,
+`722c415`) and the translation sweep is done (`c5af2e0`).
 
 ## Done
 
@@ -440,14 +438,30 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
 
 ## Other gaps 4a–4d left
 
-- `/batch/parse` + `/batch/validate-event` still have no UI. The 4d walk now
-  covers small sheets conversationally — owner to decide whether the
-  deterministic CSV fast lane still earns a screen, or dies.
 - **Google sign-in**: wired and enabled (`36c1f87`); owner should click
-  through once with a real Google account.
+  through once with a real Google account. The one thing not exercised is
+  that real click-through — the button calls `signInWithOAuth`, the return
+  leg is the stock detectSessionInUrl/onAuthStateChange path.
 - End-of-walk UX nit: no completion message, just the reset (see 4d).
-- Translation sweep across pages (`about`/`promoter` sections unwired) — its
-  own task, noted in 4c.
+
+### Closed this session (2026-08-14)
+
+- **CSV fast lane deleted** (`722c415`, owner's call — the 4d walk covers
+  sheets conversationally): pusher `/batch/parse` + `/batch/validate-event`,
+  `agent/batch.py`, `TestBatch`, openpyxl; gateway upload/logging route
+  regexes trimmed. Recoverable from git if big-sheet promoters materialize.
+  The 25-event walk cap still asks for the rest in a separate message.
+- **Translation sweep done** (`c5af2e0`): every page/component now reads
+  `translations.ts` (en/es/it/ca) — auth, account, pro submission, event
+  form, event cards, user menu, 404, plus Chat's status labels and
+  429/401 messages. Dead `about`/`promoter`/`promoterCreate` sections
+  dropped (in git history for when those pages return). Parameterized
+  strings are *functions* on the `Translations` interface (counts/names
+  inflect); the mid-walk publish marker is now in the UI language, which is
+  what the pusher's `detect_language` reads on the next turn.
+  detect-secrets flags `passwordPlaceholder` lines — they carry
+  `pragma: allowlist secret`. Not browser-verified beyond typecheck+lint;
+  the next walkthrough should spot-check es/ca on /pro and /account.
 
 ## Phase 4 plan of record (04-plan.md)
 
