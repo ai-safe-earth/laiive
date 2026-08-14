@@ -97,6 +97,17 @@ class TestComposeStream:
         assert "Situation: ambiguous" in context
         assert "which city" in context
 
+    def test_reply_language_is_stated_last(self):
+        # The Spanish event names in the ground truth are what used to decide
+        # the reply language — the decided language has to come after them.
+        _, call = self._compose(classification=classification(language="en"))
+        context = call["messages"][-1]["content"]
+        assert context.index("Noche de Jazz") < context.index("English (en)")
+
+    def test_classifier_language_reaches_the_prompt(self):
+        _, call = self._compose(classification=classification(language="ca"))
+        assert "Catalan (ca)" in call["messages"][-1]["content"]
+
     def test_stream_failure_yields_graceful_text(self):
         client = Mock()
         client.chat.completions.create.side_effect = Exception("boom")

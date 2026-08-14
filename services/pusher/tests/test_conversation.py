@@ -147,6 +147,30 @@ class TestProcessTurn:
             == 1
         )
 
+    def test_reply_language_is_the_last_thing_the_model_reads(self, mock_openai):
+        # A pasted flyer is what used to decide the language; the instruction
+        # goes after the whole conversation for exactly that reason.
+        process_turn([{"role": "user", "content": "full event info"}])
+        reply_call = mock_openai.chat.completions.create.call_args.kwargs
+        last = reply_call["messages"][-1]
+        assert last["role"] == "system"
+        assert "Write your reply in" in last["content"]
+
+    def test_language_is_detected_from_the_promoters_own_last_words(self, mock_openai):
+        from agent.conversation import latest_user_text
+
+        assert (
+            latest_user_text(
+                [
+                    {"role": "user", "content": "un concierto"},
+                    {"role": "assistant", "content": "when?"},
+                    {"role": "user", "content": "next friday"},
+                ]
+            )
+            == "next friday"
+        )
+        assert latest_user_text([{"role": "assistant", "content": "hi"}]) == ""
+
     def test_no_confirmed_marker_anywhere(self, mock_openai):
         """The 'type yes'/**CONFIRMED** write path is gone."""
         import agent.api as api

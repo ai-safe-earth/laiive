@@ -16,7 +16,12 @@ correcting one of them ("the third is at 21:00") needs no state on either side.
 from collections import Counter
 from dataclasses import dataclass
 
-from laiive_shared import EventDraft, missing_required
+from laiive_shared import (
+    EventDraft,
+    detect_language,
+    missing_required,
+    reply_language_instruction,
+)
 from loguru import logger
 from openai import OpenAI
 
@@ -27,7 +32,7 @@ from .converters import extract_drafts_from_text
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-CONVERSATION_PROMPT_VERSION = "v3"
+CONVERSATION_PROMPT_VERSION = "v4"
 
 # How many events one conversation may carry. Past this the reply asks for the
 # rest separately: every turn re-emits all of the drafts, so a 200-row sheet
@@ -38,25 +43,25 @@ CLARIFY_PROMPT = """You help event promoters publish live music events. Warm, br
 
 The promoter's message(s) did not include everything needed. Missing: {missing}.
 
-Write ONE short message asking naturally for the missing details — conversational, not a form or a bullet list. Reply in the language the promoter writes in. Do not repeat back what they already gave you."""
+Write ONE short message asking naturally for the missing details — conversational, not a form or a bullet list. Do not repeat back what they already gave you."""
 
 CLARIFY_MANY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
 
 You recognized {total} events in what the promoter sent, and some are incomplete: {gaps}.
 
-Write ONE short message: tell them how many events you recognized, then ask naturally for what is missing — conversational, not a form or a bullet list. Ask once for anything several events are missing, rather than event by event. Reply in the language the promoter writes in. Do not repeat back what they already gave you."""
+Write ONE short message: tell them how many events you recognized, then ask naturally for what is missing — conversational, not a form or a bullet list. Ask once for anything several events are missing, rather than event by event. Do not repeat back what they already gave you."""
 
 HANDOFF_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
 
 A review form with the extracted event details is being shown to the promoter right now, next to your message.{missing_note}
 
-Write ONE short sentence telling them to check the details and publish when ready{missing_hint}. Reply in the language the promoter writes in."""
+Write ONE short sentence telling them to check the details and publish when ready{missing_hint}."""
 
 HANDOFF_MANY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
 
 {total} review forms — one per event you recognized — are being shown to the promoter, one at a time.{missing_note}{truncation_note}
 
-Write ONE short sentence telling them how many events you recognized and to check each form and publish it when ready{missing_hint}. Reply in the language the promoter writes in."""
+Write ONE short sentence telling them how many events you recognized and to check each form and publish it when ready{missing_hint}."""
 
 # Field names as shown inside prompts — keep human, not schema-speak.
 _FIELD_LABELS = {
@@ -148,20 +153,24 @@ def process_turn(messages: list[dict], one_round_rule: bool = True) -> PusherTur
             draft.price_currency = default_currency(draft.city)
     missing = [missing_required(draft) for draft in drafts]
 
+    language = detect_language(
+        _client, settings.classifier_model, latest_user_text(messages)
+    )
+
     asked_before = clarification_rounds(history) > 0
     if any(missing) and not (one_round_rule and asked_before):
         return PusherTurn(
             drafts=drafts,
             missing=missing,
             show_form=False,
-            reply=_clarify(messages, missing),
+            reply=_clarify(messages, missing, language),
             truncated=truncated,
         )
     return PusherTurn(
         drafts=drafts,
         missing=missing,
         show_form=True,
-        reply=_handoff(messages, missing, truncated),
+        reply=_handoff(messages, missing, language, truncated),
         truncated=truncated,
     )
 
@@ -181,26 +190,50 @@ def _gaps(missing: list[list[str]]) -> str:
     )
 
 
-def _chat(system: str, messages: list[dict]) -> str:
+def latest_user_text(messages: list[dict]) -> str:
+    """The promoter's own last words — what decides the reply language.
+
+    Not the whole conversation: that carries pasted flyers and spreadsheets,
+    and a Spanish venue in an English flyer is what used to flip the reply.
+    """
+    for message in reversed(messages):
+        if message.get("role") == "user" and message.get("content"):
+            return str(message["content"])
+    return ""
+
+
+def _chat(system: str, messages: list[dict], language: str) -> str:
     response = _client.chat.completions.create(
         model=settings.conversation_model,
-        messages=[{"role": "system", "content": system}, *messages],
+        messages=[
+            {"role": "system", "content": system},
+            *messages,
+            # Last, after the conversation: the pasted event details are what
+            # the model used to take its language cue from.
+            {"role": "system", "content": reply_language_instruction(language)},
+        ],
         temperature=0.5,
     )
     return response.choices[0].message.content.strip()
 
 
-def _clarify(messages: list[dict], missing: list[list[str]]) -> str:
+def _clarify(messages: list[dict], missing: list[list[str]], language: str) -> str:
     if len(missing) == 1:
-        return _chat(CLARIFY_PROMPT.format(missing=_labels(missing[0])), messages)
+        return _chat(
+            CLARIFY_PROMPT.format(missing=_labels(missing[0])), messages, language
+        )
     return _chat(
         CLARIFY_MANY_PROMPT.format(total=len(missing), gaps=_gaps(missing)),
         messages,
+        language,
     )
 
 
 def _handoff(
-    messages: list[dict], missing: list[list[str]], truncated: bool = False
+    messages: list[dict],
+    missing: list[list[str]],
+    language: str,
+    truncated: bool = False,
 ) -> str:
     incomplete = any(missing)
     hint = ", filling in what's highlighted" if incomplete else ""
@@ -212,7 +245,9 @@ def _handoff(
             else ""
         )
         return _chat(
-            HANDOFF_PROMPT.format(missing_note=note, missing_hint=hint), messages
+            HANDOFF_PROMPT.format(missing_note=note, missing_hint=hint),
+            messages,
+            language,
         )
 
     note = f" Some are still incomplete: {_gaps(missing)}." if incomplete else ""
@@ -230,4 +265,5 @@ def _handoff(
             missing_hint=hint,
         ),
         messages,
+        language,
     )

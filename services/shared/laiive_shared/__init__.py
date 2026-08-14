@@ -1,6 +1,14 @@
 """Shared contracts and graph write path for laiive services."""
 
 from .cards import EventCard, EventDraft, REQUIRED_DRAFT_FIELDS, missing_required
+from .language import (
+    DEFAULT_LANGUAGE,
+    DETECTION_RULE,
+    detect_language,
+    language_name,
+    normalize_language,
+    reply_language_instruction,
+)
 from .speech import (
     ALLOWED_AUDIO_SUFFIXES,
     MAX_AUDIO_BYTES,
@@ -37,4 +45,10 @@ __all__ = [
     "UnsupportedAudioFormat",
     "MAX_AUDIO_BYTES",
     "ALLOWED_AUDIO_SUFFIXES",
+    "DEFAULT_LANGUAGE",
+    "DETECTION_RULE",
+    "detect_language",
+    "language_name",
+    "normalize_language",
+    "reply_language_instruction",
 ]

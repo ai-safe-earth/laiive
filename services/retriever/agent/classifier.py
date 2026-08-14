@@ -9,6 +9,7 @@ atomic sub-queries. Re-emitting the whole state every turn is how refinements
 from datetime import datetime
 from typing import Literal, Optional
 
+from laiive_shared import DEFAULT_LANGUAGE, DETECTION_RULE, normalize_language
 from loguru import logger
 from pydantic import BaseModel, ValidationError, field_validator
 
@@ -16,7 +17,7 @@ from config import settings
 
 from .utils.llm_utils import chat_completion_with_retry, get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v1"
+CLASSIFIER_PROMPT_VERSION = "v2"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
@@ -27,6 +28,7 @@ Read the conversation and the latest user message, then return ONE JSON object:
 {{
   "query_type": "event_search" | "nearby" | "smalltalk" | "out_of_scope",
   "moment": "first_query" | "refinement" | "new_topic" | "ambiguous",
+  "language": string,          // ISO 639-1 code of the LATEST user message
   "sub_queries": [Constraints, ...],
   "clarification": string or null
 }}
@@ -65,6 +67,7 @@ Rules:
   missing thing, not a full sentence to parrot.
 - smalltalk covers greetings/thanks/goodbyes; out_of_scope is anything not
   about live music events. Both need no sub_queries.
+- language: {language_rule} A follow-up in a new language switches it.
 - JSON only. No prose, no markdown fences."""
 
 
@@ -110,8 +113,16 @@ class Constraints(BaseModel):
 class Classification(BaseModel):
     query_type: Literal["event_search", "nearby", "smalltalk", "out_of_scope"]
     moment: Literal["first_query", "refinement", "new_topic", "ambiguous"]
+    # Decided here so the composer is told the language instead of inferring it
+    # from a result set full of Spanish venue names (laiive_shared.language).
+    language: str = DEFAULT_LANGUAGE
     sub_queries: list[Constraints] = []
     clarification: Optional[str] = None
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _clean_language(cls, v):
+        return normalize_language(v)
 
 
 FALLBACK = Classification(
@@ -139,6 +150,7 @@ class Classifier:
             location_note="known (they shared coordinates)"
             if has_location
             else "NOT available",
+            language_rule=DETECTION_RULE,
         )
         messages = [{"role": "system", "content": system}]
         messages.extend(history or [])

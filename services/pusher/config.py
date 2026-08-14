@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
     conversation_model: str = Field("gpt-4o", alias="OPENAI_MODEL")
+    # Same env key the retriever's classifier uses: both are the cheap
+    # "decide one small thing" model. Here it only detects the reply language.
+    classifier_model: str = Field("gpt-4o-mini", alias="CLASSIFIER_MODEL")
     embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     whisper_model: str = Field("whisper-1", alias="WHISPER_MODEL")
 

@@ -8,7 +8,7 @@ the composer must never enumerate listings.
 
 from collections.abc import Iterator
 
-from laiive_shared import EventCard
+from laiive_shared import EventCard, reply_language_instruction
 from loguru import logger
 
 from config import settings
@@ -16,11 +16,9 @@ from config import settings
 from .classifier import Classification
 from .utils.llm_utils import get_openai_client
 
-COMPOSER_PROMPT_VERSION = "v1"
+COMPOSER_PROMPT_VERSION = "v2"
 
 COMPOSER_SYSTEM_PROMPT = """You are the voice of a live music events assistant: light, a bit jazzy, warm. Never neutral-robotic, never slangy, never trying too hard. Short sentences.
-
-ALWAYS answer in the language the user writes in — their latest message decides, not the language of the event names.
 
 The search already happened. You receive the situation and the found events as
 ground truth. The user sees the events as rich cards NEXT TO your text, so:
@@ -83,11 +81,14 @@ class Composer:
             }
             for card in cards[: settings.max_results_limit]
         ]
+        # The language line goes LAST, after the ground truth: the event names
+        # and cities are what used to decide it (laiive_shared.language).
         context = (
             f"Situation: {situation}\n"
             f"Query type: {classification.query_type}\n"
             f"Clarification needed: {classification.clarification or 'none'}\n"
-            f"Found events (ground truth, shown to the user as cards): {ground_truth}"
+            f"Found events (ground truth, shown to the user as cards): {ground_truth}\n"
+            f"{reply_language_instruction(classification.language)}"
         )
         messages = [{"role": "system", "content": COMPOSER_SYSTEM_PROMPT}]
         messages.extend(history or [])
