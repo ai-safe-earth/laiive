@@ -1,4 +1,4 @@
-# HANDOFF — refactor status (updated 2026-08-14)
+# HANDOFF — refactor status (updated 2026-08-14, later session)
 
 Continuation point for the laiive refactor. Read this first, then
 `04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
@@ -6,12 +6,16 @@ Branch: **`refactor/foundation`** (from `connect-to-ui`). Nothing pushed yet;
 canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
 *named* `laiive` is the personal fork, do not push there.
 
-**Where things stand**: phases 0–3 done and verified live; phase 4 is a new
-frontend, of which 4a (consumer chat) and 4b (multimodal submission) are done,
-including multi-event submission **server-side** — its UI waits for Phase 5.
-Nothing is deployed yet. To run the stack locally:
+**Where things stand**: phases 0–3 done and verified live; phase 4a (consumer
+chat), 4b (multimodal submission) and **4c (legacy deletion + account page)**
+are done. Nothing is deployed yet. To run the stack locally:
 gateway :8000, retriever :8002, pusher :8003, frontend :8081 (see *Environment
 gotchas* — stale servers from earlier sessions are a recurring time sink).
+
+**Next up is 4d — the multi-event conversational walk** (owner's design, decided
+this session; see *Phase 4d* below). Two things are waiting on the owner:
+the new migration `20260814000008` needs pushing, and the signed-in half of
+`/account` has never been opened in a browser.
 
 ## Done
 
@@ -283,39 +287,122 @@ them are jazz." landed on the right draft and the genre on all four, order
 preserved, 4 frames indexed 0–3 of 4. Suites: shared 36, pusher 70,
 retriever 107, frontend typecheck + lint clean.
 
-**Why no UI**: owner deferred it — "leave the front end modification for the
-phase 5 when we will see the needs". Today's `/pro` calls `onForm` once per
-frame and therefore shows the *last* event of a set; a queue keyed on
-`index`/`total` is the Phase 5 piece. Nothing else regressed (single-event
-submission is unchanged, index 0 of 1).
+**Why no UI**: owner deferred it at the time. Superseded — see *Phase 4d* below:
+the answer is not a queue in the browser but a walk driven by the agent, one
+event per turn. Nothing else regressed (single-event submission is unchanged,
+index 0 of 1).
 
-## Next: Phase 4c and the gaps 4a/4b left
+### Phase 4c — legacy deletion + account ✅ (commits `de46fda`…`d2b45a6`)
 
-- **No multi-event UI yet** (deferred above): server emits N forms, `/pro`
-  renders one. `/batch/parse` + `/batch/validate-event` also still have no UI.
-- **4c — account + cleanup**: profile (ui_language), promoter entities via
-  react-query; then delete the legacy SSE frames, the `__EVENT_EXTRACTED__`
-  sentinel, `cards_to_markdown`, the pusher's `/transcribe-audio` +
-  `/extract-event-*` endpoints (superseded by `/ingest`), the
-  `EventDetailsModel` branch of `/validate-event`, and
-  `SERVICE_CORS_ALLOW_ORIGINS`.
-- **`src/audio/audioRecorder.ts` is now unused** — `useRecorder.ts` replaced it.
-  Delete it in 4c unless something else wants a class-based recorder.
+**The three walkthrough follow-ups are fixed and verified live**, and two of the
+three diagnoses in the old handoff were wrong — worth reading before trusting a
+symptom report:
+
+- **Language** (`fix(agent)`, `fix(shared)`): both services *already* had a
+  "reply in the user's language" rule and both ignored it, because it sat at the
+  top of a long prompt with a wall of Spanish proper nouns after it. The
+  language is now decided once per turn from the user's own words and handed to
+  the reply prompt as a fact, **placed last** — `laiive_shared/language.py`.
+  The retriever gets it free (one more field on the classifier's existing
+  structured call); the pusher has no classifier, so `detect_language` makes one
+  cheap gpt-4o-mini call on the promoter's *latest message only* (not the whole
+  conversation — that carries pasted flyers).
+  A listing like "Marta Sanchez Trio plays Sala Clamores, Madrid, tickets 18
+  euros" is the hard case: mostly names, and two ordinary words carry the whole
+  signal. The first prompt failed it on mini; four worked examples took mini
+  from 8/10 to 10/10, matching gpt-4o, so detection stays cheap. Verified
+  end-to-end in en/es/it/ca.
+- **Genre recall was not a ranking problem** (`fix(retriever)`): the executor
+  applies the genre clause on every path. The *classifier* was dropping the
+  constraint on terse English — "jazz in Madrid" came out as city='Madrid',
+  genre=None, i.e. "everything in Madrid". Longer phrasings were always fine.
+  Also: **the seed has no jazz in Madrid at all** (only Barcelona and Berlin),
+  so the correct answer there is the empty-result moment, not a consolation
+  list. A prompt rule now pins genre; verified across terse phrasings while a
+  real vibe ask ("something intimate and candle-lit") still routes to free_text.
+- **Same smoke found a third bug**: "concerti jazz a Barcellona" resolved to
+  city='Barcellona' and, since city matching is exact on `name_norm`, returned
+  nothing. Cities now come back in their local name (Barcellona/Londres/Múnich →
+  Barcelona/London/München).
+
+**Legacy paths deleted** (`refactor:`): retriever `_generate_legacy`, all of
+`utils/formatters.py` (`cards_to_markdown` + OpenAI-shaped frame helpers), the
+markdown block `/chat` appended to its prose; pusher `_generate_legacy` with the
+`__EVENT_EXTRACTED__` sentinel, the flat `EventDetailsModel` branch of
+`/validate-event`, `/transcribe-audio` and the three `/extract-event-*`
+endpoints (superseded by `/ingest`), and `process_turn`'s `one_round_rule` flag.
+The `protocol` request field is **dropped entirely**, not pinned to "v2" — a
+stale caller gets the only protocol there is rather than a 422 about a choice
+that no longer exists. `SERVICE_CORS_ALLOW_ORIGINS` and
+`frontend/src/audio/audioRecorder.ts` are gone too.
+
+**`/account`** (`feat(frontend)`): display name + UI language for everyone,
+organisation/website/phone/managed venues/artists for pros. Language now follows
+the account (`profiles.ui_language` beats localStorage once signed in, picking
+one writes through) via `src/i18n/useLanguagePreference.ts`.
+
+- **Owner decision — profile data goes direct to Supabase, not through the
+  gateway.** The ownership rule is already an RLS policy enforced by Postgres;
+  a gateway route would restate it in TypeScript *and* run with the service-role
+  key, so a bug there leaks the whole table instead of one row. It is all behind
+  `src/api/profile.ts`, so moving it server-side later is an implementation
+  change. `frontend/src/auth/supabase.ts`'s old "auth only, never reads
+  application tables" comment was updated to match.
+- RLS does not narrow *which columns* of the owned row are writable, so
+  **migration `20260814000008` grants UPDATE on display_name/ui_language only** —
+  it keeps a future `plan` or `quota_override` column from being self-settable.
+  **Not pushed yet** (Supabase writes are refused here — owner runs it).
+- Copy is English, like Auth and ProSubmit. Only `t.chat.*` is actually wired to
+  `translations/` — the ported `about`/`promoter`/`promoterCreate` sections have
+  no callers. A translation sweep across all pages is its own task.
+
+**Not verified**: the signed-in half of `/account` has never been opened —
+that needs a real account on `pjlcfdyheyubsemwlzzv`. Signed-out redirect to
+`/auth` is clean with no console errors. Suites after 4c: shared 48,
+retriever 103, pusher 65, gateway 19, frontend typecheck + lint clean.
+
+## Next: Phase 4d — many events, one conversation
+
+**The owner's design, decided this session.** A spreadsheet or a line-up is not
+a batch screen: the chat walks the promoter through the events one at a time.
+
+> "event 1 of 5, Go Go Dolls at the Butterfly Circus, this is the data I have
+> ****, I need from you the price and the date." → form, gaps marked → approve →
+> saved → "let's go with event 2…" → … → "let's go for event 3 of 5…"
+
+This is **backend and agent-loop work; the UI barely changes** — `/pro` already
+renders one form per `form.extracted` frame, which is exactly right for a walk.
+Today it calls `onForm` once per frame and so shows the *last* of a set; a walk
+sends one frame per turn instead, and that symptom disappears.
+
+**Where the cursor lives (owner chose A):** the browser echoes the draft list
+and the current index back with each message; the pusher refines only
+`drafts[cursor]` and advances on publish. The server stays stateless, the
+numbering cannot drift, and a turn costs one draft's worth of extraction instead
+of re-extracting all N. Rejected: re-extracting the whole set every turn (N×
+tokens per turn, and indices only as stable as the extractor), and a server-side
+session store (reintroduces what Phase 2 deleted and breaks under multiple
+instances without Redis).
+
+Notes for whoever picks this up:
+
+- Persist the draft array with the message list the client already stores, so a
+  page reload resumes mid-walk rather than losing the set.
+- `MAX_EVENTS_PER_TURN = 25` and the `truncated` flag were built for the
+  re-extract-everything model; revisit what they mean once turn 1 is the only
+  turn that extracts a set.
+- A queue (Redis/RabbitMQ) is **not** needed for this. Concurrent writes are
+  already safe — the shared writer MERGEs by identity against uniqueness
+  constraints, so a double submission collapses or 409s. A queue buys retry and
+  backpressure later, and if Redis ever arrives for other reasons, the cursor
+  could move server-side without changing the contract.
+
+## Other gaps 4a/4b/4c left
+
+- `/batch/parse` + `/batch/validate-event` still have no UI. The 4d walk may
+  make the deterministic CSV fast lane redundant for small sheets — decide then.
 - **Google sign-in**: the Auth page has a placeholder comment where the button
   goes; enable the provider in Supabase first (needs Google Cloud credentials).
-
-Backend follow-ups the browser walkthrough surfaced (not frontend bugs):
-
-1. **Composer answered in Spanish to an English question** ("jazz in Madrid" →
-   "Tres noches de jazz te esperan en Madrid"). D6 says it adapts to the
-   *user's* language; the city name appears to be pulling it over.
-2. **Genre recall is loose**: that jazz query returned Flamenco Eléctrico and
-   two Costa Norte events. Worth checking whether the genre constraint reaches
-   the Cypher or only the vector kNN.
-3. **The pusher answers in Spanish too** — an English flyer got "Por favor,
-   revise los detalles y publique cuando esté listo." Same symptom as (1) in a
-   different service, so the fix probably belongs in a shared prompt rule about
-   following the *user's* language rather than the event's city.
 
 ## Phase 4 plan of record (04-plan.md)
 
@@ -372,6 +459,19 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
   refused by the permission classifier — hand the owner the command to run.
 - MCP `aura-neo4j` points at `2099d44c` (write access; ask owner before
   writing data). Playwright + claude-in-chrome MCPs available.
+  **Its host stopped resolving this session** (`2099d44c.mcp-instances.neo4j.io`
+  → ENOTFOUND) while the database itself was perfectly reachable on
+  `2099d44c.databases.neo4j.io`. If the MCP is down, query through the service:
+  `cd services/retriever && PYTHONPATH=. uv run python -c "…Neo4jClient()…"`.
+- `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services
+  (`agent` is not an installed package), and piping their output through `grep`
+  trips Windows binary detection on accented text — redirect to a file and
+  `grep -a` it instead.
+- The **ruff `--fix` pre-commit hook deletes an import the moment it is
+  momentarily unused**. It bit twice this session: adding an import in one edit
+  and its first use in the next leaves the file broken with a `NameError` that
+  only surfaces at test time. Add the import and the usage in the same write, or
+  re-check the import block afterwards.
 
 ## Standing rules from the owner
 
