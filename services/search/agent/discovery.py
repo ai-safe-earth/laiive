@@ -90,7 +90,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         seen_keys.add(key)
 
         candidate = Candidate(
-            draft=draft, source_url=url, missing=missing_required(draft)
+            draft=draft, source_url=url, missing=missing_required(draft, "admin_search")
         )
         try:
             if exact := graph.probe_duplicate(draft):

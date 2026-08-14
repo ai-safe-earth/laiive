@@ -50,11 +50,21 @@ class EventDraft(BaseModel):
 # counts as present when it is not None.
 REQUIRED_DRAFT_FIELDS = ("artists", "start_at", "venue", "city", "price_min")
 
+# Internet listings rarely state the lineup or the price, so discovery only
+# demands what a consumer card cannot do without — and a name, since there
+# are no artists to derive one from.
+ADMIN_SEARCH_REQUIRED_FIELDS = ("name", "start_at", "venue", "city")
 
-def missing_required(draft: EventDraft) -> list[str]:
+
+def missing_required(draft: EventDraft, source: str = "pro_submission") -> list[str]:
     """Names of required fields that are still empty on this draft."""
+    required = (
+        ADMIN_SEARCH_REQUIRED_FIELDS
+        if source == "admin_search"
+        else REQUIRED_DRAFT_FIELDS
+    )
     missing: list[str] = []
-    for field in REQUIRED_DRAFT_FIELDS:
+    for field in required:
         value = getattr(draft, field)
         if value is None or value == [] or value == "":
             missing.append(field)

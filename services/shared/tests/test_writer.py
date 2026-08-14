@@ -67,6 +67,24 @@ def test_invalid_draft_lists_missing_fields():
     assert set(result.missing) == {"start_at", "venue", "city", "price_min"}
 
 
+def test_admin_search_requires_name_not_artists_or_price():
+    """Internet listings rarely state lineup or price (D13): discovery drafts
+    write with just name + date + venue + city; a nameless one is refused."""
+    listing = EventDraft(
+        name="Barcelona Rock Fest",
+        start_at="2026-10-08T19:00:00",
+        venue="Poble Espanyol",
+        city="Barcelona",
+    )
+    result = write_event(FakeSession(), listing, source="admin_search")
+    assert result.status == "created"
+
+    nameless = listing.model_copy(update={"name": None})
+    result = write_event(FakeSession(), nameless, source="admin_search")
+    assert result.status == "invalid"
+    assert result.missing == ["name"]
+
+
 def test_unparseable_date_is_invalid():
     draft = DRAFT.model_copy(update={"start_at": "next full moon"})
     result = write_event(FakeSession(), draft, source="pro_submission")

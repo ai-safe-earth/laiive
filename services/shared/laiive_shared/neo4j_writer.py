@@ -86,7 +86,7 @@ def write_event(
         embedding_model: recorded on nodes alongside the vectors.
         geocoder: venue/city geocoding; skipped (with a warning) when None.
     """
-    missing = missing_required(draft)
+    missing = missing_required(draft, source)
     if missing:
         return WriteResult(
             status="invalid",

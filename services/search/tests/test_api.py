@@ -109,6 +109,30 @@ def test_approve_source_is_admin_search(mock_reports_http, mock_neo4j):
     assert write_params["owner_id"] is None
 
 
+def test_approve_non_uuid_user_id_does_not_break_the_update(mock_reports_http):
+    """approved_by is a uuid column — a stray header value becomes null."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    response = client.post(
+        f"/reports/{REPORT_ID}/approve",
+        json={},
+        headers={"X-User-Id": "not-a-uuid"},
+    )
+    assert response.status_code == 200
+    patch_payload = mock_reports_http.patch.call_args.kwargs["json"]
+    assert patch_payload["approved_by"] is None
+
+
+def test_approve_update_failure_still_returns_write_results(mock_reports_http):
+    """Graph writes are committed by then — surface them, never 502."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    mock_reports_http.patch.return_value = http_response(500, {}, text="boom")
+    response = client.post(f"/reports/{REPORT_ID}/approve", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created"] == 1
+    assert body["warnings"]
+
+
 def test_report_store_failure_is_502(mock_reports_http):
     mock_reports_http.post.return_value = http_response(500, {}, text="boom")
     response = client.post("/sweep", json={"city": "Berlin"})

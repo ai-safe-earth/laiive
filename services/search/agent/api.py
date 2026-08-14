@@ -7,6 +7,7 @@ plain `def` — Starlette runs them in a threadpool, so the minutes-long sweep
 never starves the event loop (the Phase-3 SSE lesson, applied here).
 """
 
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, Header, HTTPException
@@ -113,20 +114,40 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     created = sum(1 for r in results if r["status"] == "created")
-    reports.update_report(
-        report_id,
-        {
-            "status": "approved",
-            "approved_by": x_user_id or None,
-            "approved_at": datetime.now(UTC).isoformat(),
-            "write_results": results,
-        },
-    )
+    # The graph writes above are already committed — a failed report update
+    # must not turn them into a 502 that hides what was written.
+    warnings = []
+    try:
+        reports.update_report(
+            report_id,
+            {
+                "status": "approved",
+                "approved_by": _as_uuid(x_user_id),
+                "approved_at": datetime.now(UTC).isoformat(),
+                "write_results": results,
+            },
+        )
+    except reports.ReportStoreError as e:
+        logger.error(f"Report {report_id} written but not marked approved: {e}")
+        warnings.append(f"Events written, but the report update failed: {e}")
     logger.info(
         f"Report {report_id} approved by {x_user_id or 'unknown'}: "
         f"{created}/{len(results)} created"
     )
-    return {"report_id": report_id, "created": created, "results": results}
+    return {
+        "report_id": report_id,
+        "created": created,
+        "results": results,
+        "warnings": warnings,
+    }
+
+
+def _as_uuid(value: str) -> str | None:
+    """approved_by is a uuid column; anything else must not break the update."""
+    try:
+        return str(uuid.UUID(value))
+    except (ValueError, AttributeError, TypeError):
+        return None
 
 
 class BackfillRequest(BaseModel):
