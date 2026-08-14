@@ -1,13 +1,20 @@
-import type { EventDraft } from "@shared/protocol";
+import type { EventDraft, WalkState } from "@shared/protocol";
 import { apiFetch } from "./client";
 import { readProtocolStream } from "./sse";
 import type { ChatMessage } from "./chat";
 
 export interface SubmissionHandlers {
   onStatus?: (state: string) => void;
-  onForm?: (draft: EventDraft, missing: string[]) => void;
+  onForm?: (draft: EventDraft, missing: string[], index: number, total: number) => void;
+  onWalk?: (walk: WalkState) => void;
   onDelta?: (text: string) => void;
   onError?: (message: string) => void;
+}
+
+/** The client-carried walk state, echoed back with each message. */
+export interface WalkEcho {
+  drafts: EventDraft[];
+  cursor: number;
 }
 
 /**
@@ -16,18 +23,27 @@ export interface SubmissionHandlers {
  * The pusher is stateless: the whole conversation goes up every turn and
  * extraction runs over all of it, which is why text pulled out of a flyer or a
  * recording only has to be appended to `messages` to be merged into the draft.
+ *
+ * A turn that recognized several events starts a walk — the server hands the
+ * whole draft set back in walk.state, and we echo it (with the cursor) via
+ * `walk` on every following turn so it can refine just the current event.
  */
 export async function streamSubmission(
   messages: ChatMessage[],
-  options: { signal?: AbortSignal; handlers?: SubmissionHandlers } = {},
+  options: {
+    signal?: AbortSignal;
+    handlers?: SubmissionHandlers;
+    walk?: WalkEcho | null;
+  } = {},
 ): Promise<void> {
-  const { signal, handlers = {} } = options;
+  const { signal, handlers = {}, walk } = options;
 
   const response = await apiFetch("/api/push/chat/stream", {
     method: "POST",
     signal,
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
+      ...(walk ? { walk } : {}),
     }),
   });
 
@@ -37,7 +53,15 @@ export async function streamSubmission(
         handlers.onStatus?.(frame.data.state);
         break;
       case "form.extracted":
-        handlers.onForm?.(frame.data.draft, frame.data.missing);
+        handlers.onForm?.(
+          frame.data.draft,
+          frame.data.missing,
+          frame.data.index,
+          frame.data.total,
+        );
+        break;
+      case "walk.state":
+        handlers.onWalk?.(frame.data);
         break;
       case "message.delta":
         handlers.onDelta?.(frame.data.text);

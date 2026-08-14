@@ -6,6 +6,7 @@ import type {
   MessageDelta,
   SSEEventName,
   Status,
+  WalkState,
 } from "@shared/protocol";
 
 /**
@@ -22,6 +23,7 @@ export type ProtocolFrame =
   | { event: "message.delta"; data: MessageDelta }
   | { event: "events.result"; data: EventsResult }
   | { event: "form.extracted"; data: FormExtracted }
+  | { event: "walk.state"; data: WalkState }
   | { event: "status"; data: Status }
   | { event: "error"; data: ProtocolError }
   | { event: "done"; data: Done };
@@ -30,6 +32,7 @@ const KNOWN: ReadonlySet<string> = new Set<SSEEventName>([
   "message.delta",
   "events.result",
   "form.extracted",
+  "walk.state",
   "status",
   "error",
   "done",

@@ -1,4 +1,4 @@
-import type { EventDraft } from "@shared/protocol";
+import type { EventDraft, WalkState } from "@shared/protocol";
 import { Loader2, Paperclip, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -23,13 +23,39 @@ const STATUS_LABEL: Record<string, string> = {
 const ACCEPTED =
   "image/*,audio/*,.pdf,.docx,.txt,.md,.csv";
 
+/**
+ * A multi-event walk survives a page reload: the draft set lives only in the
+ * browser (the server is stateless), so losing it would lose the promoter's
+ * place mid-walk.
+ */
+const STORAGE_KEY = "laiive-pro-submission";
+
+interface StoredSession {
+  messages: ChatMessage[];
+  walk: WalkState | null;
+  draft: EventDraft | null;
+  missing: string[];
+}
+
+function loadSession(): StoredSession | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredSession) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProSubmit() {
   const { user, role, isLoading } = useAuth();
 
+  const restored = useRef(loadSession()).current;
+
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState<EventDraft | null>(null);
-  const [missing, setMissing] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(restored?.messages ?? []);
+  const [walk, setWalk] = useState<WalkState | null>(restored?.walk ?? null);
+  const [draft, setDraft] = useState<EventDraft | null>(restored?.draft ?? null);
+  const [missing, setMissing] = useState<string[]>(restored?.missing ?? []);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -39,6 +65,15 @@ export default function ProSubmit() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, draft, status]);
+
+  useEffect(() => {
+    if (messages.length === 0 && !walk && !draft) {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } else {
+      const session: StoredSession = { messages, walk, draft, missing };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    }
+  }, [messages, walk, draft, missing]);
 
   if (isLoading) return null;
   if (!user || (role !== "pro" && role !== "admin")) {
@@ -55,8 +90,15 @@ export default function ProSubmit() {
     );
   }
 
-  /** Send the conversation up; the server re-extracts over all of it. */
-  const runTurn = async (history: ChatMessage[]) => {
+  /**
+   * Send the conversation up. Outside a walk the server re-extracts over all
+   * of it; mid-walk we echo the draft set + cursor back (`walkEcho`) and it
+   * refines only the current event.
+   */
+  const runTurn = async (
+    history: ChatMessage[],
+    walkEcho?: { drafts: EventDraft[]; cursor: number } | null,
+  ) => {
     setMessages(history);
     setBusy(true);
 
@@ -65,8 +107,10 @@ export default function ProSubmit() {
 
     try {
       await streamSubmission(history, {
+        walk: walkEcho,
         handlers: {
           onStatus: (state) => setStatus(STATUS_LABEL[state] ?? state),
+          onWalk: (state) => setWalk(state),
           onForm: (extracted, stillMissing) => {
             setDraft(extracted);
             setMissing(stillMissing);
@@ -100,11 +144,13 @@ export default function ProSubmit() {
     }
   };
 
+  const walkEcho = walk ? { drafts: walk.drafts, cursor: walk.cursor } : null;
+
   const send = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setInput("");
-    void runTurn([...messages, { role: "user", content: trimmed }]);
+    void runTurn([...messages, { role: "user", content: trimmed }], walkEcho);
   };
 
   /**
@@ -117,10 +163,10 @@ export default function ProSubmit() {
     setStatus(`reading ${file.name}…`);
     try {
       const { text, source, kind } = await ingestFile(file);
-      await runTurn([
-        ...messages,
-        { role: "user", content: `[${kind} · ${source}]\n${text}` },
-      ]);
+      await runTurn(
+        [...messages, { role: "user", content: `[${kind} · ${source}]\n${text}` }],
+        walkEcho,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not read that file");
       setBusy(false);
@@ -136,7 +182,21 @@ export default function ProSubmit() {
       for (const warning of result.warnings ?? []) toast.warning(warning);
       setDraft(null);
       setMissing([]);
-      setMessages([]);
+
+      if (walk && walk.cursor + 1 < walk.total) {
+        // Mid-walk: keep the promoter's final edits in the echoed set, tell
+        // the server we advanced, and let it introduce the next event.
+        const drafts = walk.drafts.map((d, i) => (i === walk.cursor ? completed : d));
+        const name = result.event_name ?? completed.name ?? "the event";
+        const marker = `Published "${name}" (event ${walk.cursor + 1} of ${walk.total}).`;
+        await runTurn([...messages, { role: "user", content: marker }], {
+          drafts,
+          cursor: walk.cursor + 1,
+        });
+      } else {
+        setWalk(null);
+        setMessages([]);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         toast.error("That event is already on laiive.");
@@ -202,7 +262,14 @@ export default function ProSubmit() {
           )}
 
           {draft && (
-            <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
+            <div className="space-y-1">
+              {walk && (
+                <p className="font-ibm-plex text-xs font-bold uppercase tracking-wider text-accent">
+                  event {walk.cursor + 1} of {walk.total}
+                </p>
+              )}
+              <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
+            </div>
           )}
           <div ref={bottomRef} />
         </div>
