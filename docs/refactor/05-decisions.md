@@ -21,7 +21,7 @@
 | D10 | Shared Python code | `services/shared` package (SSE protocol, Neo4j writer, embedding text builders); CI contract job |
 | D11 | Package manager | npm, single lockfile |
 | D12 | Geocoding | Nominatim (with local cache + 1 req/s politeness); Google only if it underperforms |
-| D13 | SEARCH trigger | CLI + admin-authed endpoint; no UI yet. Search API stays Brave |
+| D13 | SEARCH trigger | CLI + admin-authed endpoint; no UI yet. Search API: **Tavily** (revised 2026-08-14, owner call — the provisioned key was Tavily, and its cleaned page content removes the fetch-and-strip step Brave would need) |
 | D14 | Evals | Quarantine datasets, delete broken runners |
 | D15 | Supabase | **Fresh project**; new migrations from scratch; old project is reference only |
 | D16 | Canonical remote | `origin` = github.com/ai-safe-earth/laiive (the remote *named* `laiive` is the personal fork — don't push there) |
@@ -34,7 +34,7 @@
 | D18 | Frontend hosting | **Cloudflare Pages** (Fly.io considered, declined — a static bundle gets nothing from a container runtime); services stay on Railway/Fly per R2 |
 
 **D17 trade-off**: managed execution has no private networking, so flows cannot reach
-Neo4j, Brave or `search:8004` directly — every scheduled run authenticates as an admin
+Neo4j, Tavily or `search:8004` directly — every scheduled run authenticates as an admin
 service account and goes through the public gateway, the same path a human admin uses.
 Bought: zero worker infrastructure to operate or pay for, and the scheduled path is
 covered by the auth tests that already exist. Exit if it binds: run a self-hosted worker

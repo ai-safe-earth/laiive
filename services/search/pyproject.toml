@@ -1,0 +1,28 @@
+[project]
+name = "search-api"
+version = "0.1.0"
+description = "Admin-triggered internet event discovery with clean provenance (Phase 5)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.127.1",
+    "httpx>=0.27.0",
+    "laiive-shared",
+    "loguru>=0.7.3",
+    "neo4j>=6.0.3",
+    "openai>=2.14.0",
+    "pydantic-settings>=2.12.0",
+    "uvicorn>=0.40.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-timeout>=2.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.uv.sources]
+laiive-shared = { path = "../shared", editable = true }

@@ -14,9 +14,11 @@ services:
     environment:
       RETRIEVER_URL: http://retriever:8002
       PUSHER_URL: http://pusher:8003
+      SEARCH_URL: http://search:8004
     depends_on:
       - retriever
       - pusher
+      - search
 
   pusher:
     container_name: laiive-pusher
@@ -35,5 +37,15 @@ services:
       dockerfile: retriever/Dockerfile
     expose:
       - "8002"
+    env_file:
+      - .env
+
+  search:
+    container_name: laiive-search
+    build:
+      context: ./services
+      dockerfile: search/Dockerfile
+    expose:
+      - "8004"
     env_file:
       - .env

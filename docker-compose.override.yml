@@ -65,6 +65,29 @@ services:
           ignore:
             - .venv/
 
+  search:
+    container_name: laiive-search
+    build:
+      context: ./services
+      dockerfile: search/Dockerfile
+    volumes:
+      - ./services/search:/app:cached
+      - ./services/shared:/shared:cached
+      - search-venv:/app/.venv
+    tty: true
+    stdin_open: true
+    environment:
+      UV_LINK_MODE: copy
+    command: ["sleep", "infinity"]
+    develop:
+      watch:
+        - action: sync
+          path: ./services/search
+          target: /app
+          ignore:
+            - .venv/
+
 volumes:
   pusher-venv:
   retriever-venv:
+  search-venv:

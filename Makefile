@@ -36,6 +36,9 @@ start-pusher:
 start-gateway:
 	cd services/gateway && npm install && npm run dev
 
+start-search:
+	cd services/search && uv sync && uv run uvicorn agent.api:app --host 127.0.0.1 --port 8004 --reload
+
 # --------------- tests ---------------------------------------------------------------------------
 test-formatting:
 	cd services/retriever && uv sync && uv run pytest tests/test_formatting.py
