@@ -14,10 +14,18 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: browser walkthrough of the walk on `/pro` (needs a pro user;
-publishing writes to Aura — owner approval), then the *Other gaps* list.
-One thing still waits on the owner: migration `20260814000008` needs pushing
-(Supabase writes are refused here).
+**Next up**: browser walkthrough of the walk on `/pro` — **owner has approved
+real publishes to Aura for this walkthrough (2026-08-14)**; delete the smoke
+events afterwards. Use a throwaway pro user via the admin API (pattern:
+`services/gateway/scripts/e2e-live.mjs`); check sessionStorage resume and the
+mid-walk 409 dedup path while there. Then the *Other gaps* list.
+Migration `20260814000008` is **pushed** (owner ran it 2026-08-14). Google
+OAuth: owner is setting up Google Cloud credentials (consent screen + OAuth
+client with redirect URI
+`https://pjlcfdyheyubsemwlzzv.supabase.co/auth/v1/callback`, JS origin
+`http://localhost:8081`) and enabling the provider in Supabase; once done, the
+frontend work is wiring `signInWithOAuth({provider:'google'})` into the Auth
+page placeholder.
 
 ## Done
 
@@ -353,7 +361,7 @@ one writes through) via `src/i18n/useLanguagePreference.ts`.
 - RLS does not narrow *which columns* of the owned row are writable, so
   **migration `20260814000008` grants UPDATE on display_name/ui_language only** —
   it keeps a future `plan` or `quota_override` column from being self-settable.
-  **Not pushed yet** (Supabase writes are refused here — owner runs it).
+  Pushed by the owner 2026-08-14.
 - Copy is English, like Auth and ProSubmit. Only `t.chat.*` is actually wired to
   `translations/` — the ported `about`/`promoter`/`promoterCreate` sections have
   no callers. A translation sweep across all pages is its own task.

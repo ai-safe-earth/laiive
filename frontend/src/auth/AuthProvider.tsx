@@ -8,6 +8,7 @@ interface AuthState {
   role: UserRole;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -42,6 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw new Error(error.message);
+      },
+      signInWithGoogle: async () => {
+        // Google → Supabase's /auth/v1/callback → back here; detectSessionInUrl
+        // picks the session out of the redirect, onAuthStateChange does the rest.
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.origin },
+        });
         if (error) throw new Error(error.message);
       },
       signUp: async (email, password, displayName) => {
