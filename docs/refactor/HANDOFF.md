@@ -14,11 +14,11 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: two small gaps (Google click-through by the owner, the
-end-of-walk completion message), then **Phase 5** (SEARCH service + Prefect
-sweeps) — see *Other gaps* and *Phase 4 plan of record*. This session closed
-the other two gaps: the CSV fast lane is **deleted** (owner's call,
-`722c415`) and the translation sweep is done (`c5af2e0`).
+**Next up**: **Phase 5** (SEARCH service + Prefect sweeps) — see *Phase 4
+plan of record* and 04-plan.md. The only Phase-4 leftover is the Google
+click-through by the owner. Earlier this session: CSV fast lane **deleted**
+(owner's call, `722c415`), translation sweep done (`c5af2e0`), end-of-walk
+completion message added (`2398cfa`).
 
 ## Done
 
@@ -442,7 +442,11 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   through once with a real Google account. The one thing not exercised is
   that real click-through — the button calls `signInWithOAuth`, the return
   leg is the stock detectSessionInUrl/onAuthStateChange path.
-- End-of-walk UX nit: no completion message, just the reset (see 4d).
+- ~~End-of-walk UX nit~~ closed (`2398cfa`): the final publish now leaves one
+  assistant completion message (`t.pro.walkComplete`, en/es/it/ca) instead of
+  wiping to the empty composer; walk/draft state still resets, and the message
+  names no event details so the next listing extracts cleanly. Typecheck+lint
+  verified only — spot-check in the next browser walkthrough.
 
 ### Closed this session (2026-08-14)
 
