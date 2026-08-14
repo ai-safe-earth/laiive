@@ -14,18 +14,13 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: browser walkthrough of the walk on `/pro` — **owner has approved
-real publishes to Aura for this walkthrough (2026-08-14)**; delete the smoke
-events afterwards. Use a throwaway pro user via the admin API (pattern:
-`services/gateway/scripts/e2e-live.mjs`); check sessionStorage resume and the
-mid-walk 409 dedup path while there. Then the *Other gaps* list.
-Migration `20260814000008` is **pushed** (owner ran it 2026-08-14). Google
-OAuth: owner is setting up Google Cloud credentials (consent screen + OAuth
-client with redirect URI
-`https://pjlcfdyheyubsemwlzzv.supabase.co/auth/v1/callback`, JS origin
-`http://localhost:8081`) and enabling the provider in Supabase; once done, the
-frontend work is wiring `signInWithOAuth({provider:'google'})` into the Auth
-page placeholder.
+**Next up**: the *Other gaps* list below — the 4d browser walkthrough is done
+(see *Phase 4d — walkthrough*), migration `20260814000008` is pushed, and
+Google OAuth is enabled end-to-end on the Supabase side with the frontend
+button wired (`36c1f87`); the one thing not exercised is a real Google
+click-through (needs the owner's Google account — the button renders and
+calls `signInWithOAuth`, the return leg is the stock
+detectSessionInUrl/onAuthStateChange path).
 
 ## Done
 
@@ -420,11 +415,24 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   and asked exactly for its gaps (city, price); "Está en Madrid y son 14
   euros" merged into event 2 only, neighbours byte-identical, gaps closed.
   Suites: shared 50, pusher 71, frontend typecheck + lint clean.
-- **Not done: a browser walkthrough of the walk UI.** Publishing writes to
-  Aura, so it needs owner approval (or stub `saveEvent`); check the
-  sessionStorage resume and the mid-walk 409 path while there. The refine
-  model inferred `price_max` from "son 14 euros" (14–14) — harmless, but a
-  prompt nit if it bothers the owner.
+- **Browser walkthrough done (2026-08-14, real publishes, owner-approved)**,
+  full stack live + throwaway pro user via the admin API (kept as a reusable
+  script pattern: provision, PATCH `user_roles` to pro, delete). A Spanish
+  3-gig listing → intro + "EVENT 1 OF 3" + pre-filled form; **reload mid-walk
+  resumed** conversation, walk and form from sessionStorage; publish advanced
+  to event 2 and asked exactly for its gaps (city, price); "Está en Barcelona
+  y las entradas cuestan 14 euros" merged into event 2 only; a manual form
+  edit (typing the genre) travelled through publish into the graph; after the
+  last publish the page resets to the empty composer (coded:
+  `setWalk(null); setMessages([])`). All 3 events verified in Aura with
+  `source='pro_submission'`, the pro user's `owner_id`, embeddings, geocoded
+  venues and genre; **the mid-walk 409 path verified** by re-submitting event
+  1 — pusher returned 409, UI toasted "That event is already on laiive."
+  Smoke events, their artists and orphaned venues deleted after; the
+  throwaway user too. Two nits, not bugs: the refine model still infers
+  `price_max` (14–14) from a single price, and end-of-walk has no completion
+  message in the conversation — only the transient success toast before the
+  reset.
 - A queue (Redis/RabbitMQ) is still **not** needed: the shared writer MERGEs
   by identity, so a double submission collapses or 409s. If Redis ever
   arrives for other reasons, the cursor could move server-side without
@@ -432,12 +440,14 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
 
 ## Other gaps 4a–4d left
 
-- Browser walkthrough of the 4d walk UI (see *Phase 4d — not done*).
 - `/batch/parse` + `/batch/validate-event` still have no UI. The 4d walk now
-  covers small sheets conversationally — decide whether the deterministic CSV
-  fast lane still earns a screen, or dies.
-- **Google sign-in**: the Auth page has a placeholder comment where the button
-  goes; enable the provider in Supabase first (needs Google Cloud credentials).
+  covers small sheets conversationally — owner to decide whether the
+  deterministic CSV fast lane still earns a screen, or dies.
+- **Google sign-in**: wired and enabled (`36c1f87`); owner should click
+  through once with a real Google account.
+- End-of-walk UX nit: no completion message, just the reset (see 4d).
+- Translation sweep across pages (`about`/`promoter` sections unwired) — its
+  own task, noted in 4c.
 
 ## Phase 4 plan of record (04-plan.md)
 
