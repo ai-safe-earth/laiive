@@ -14,17 +14,41 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b verification** — the flows code is written and
-unit-tested (see *Phase 5b* below) but blocked on two owner actions:
-(1) provision the Supabase admin service account
-(`cd services/search && uv run --env-file ../../.env python
-scripts/create_admin_user.py --email <email>` — idempotent, prints the
-password once), then a local flow run against the live stack;
-(2) a Prefect Cloud workspace (managed pool `laiive-managed`, the Secret
-blocks/Variables listed in `services/search/README.md`), then
-`prefect deploy --all` and one manual run from the Cloud UI. After that:
-Phase 6 (CI/CD + deploy). The only Phase-4 leftover is the Google
-click-through by the owner.
+**Next up**: **Phase 5b, Prefect Cloud half** — the local flow run is done
+and green (see *Phase 5b* below). Owner steps, in order (two gotchas:
+`prefect.yaml` git-clones **`main` of `ai-safe-earth/laiive`** at run time
+and nothing is pushed yet; and a managed pool cannot reach a localhost
+gateway, so the manual test run needs a tunnel or the Phase 6 deploy):
+
+1. Push the code Prefect will clone: merge/push `main` on `origin`, or for
+   a pre-merge test push `refactor/foundation` and temporarily set
+   `branch: refactor/foundation` in `prefect.yaml` (revert after).
+2. Prefect Cloud account + workspace at app.prefect.cloud (free tier is
+   fine), then `cd services/search && uv sync --group flows &&
+   uv run prefect cloud login` (interactive — browser auth).
+3. `uv run prefect work-pool create laiive-managed --type prefect:managed`.
+4. In the Cloud UI: Secret blocks `supabase-admin-email`,
+   `supabase-admin-password` (the already-provisioned service account),
+   `github-laiive-pat` (fine-grained PAT, Contents read-only, only this
+   repo); Variables `laiive_supabase_url` (project URL in root `.env`),
+   `laiive_supabase_publishable_key`, and `laiive_gateway_url` (step 5).
+5. Public gateway URL: until Phase 6 deploys one, tunnel the local stack —
+   `cloudflared tunnel --url http://localhost:8000` (or ngrok) with
+   gateway :8000 + search :8004 running and `SEARCH_ENABLED=true` — and put
+   the tunnel URL in `laiive_gateway_url`.
+6. From the repo root: `uv run --project services/search prefect deploy --all`.
+7. Cloud UI → Deployments → `city-sweep-weekly` → Run. This answers the
+   open question whether a managed pool tolerates the 2–6 min synchronous
+   sweep call per city (04-plan sanctions the 202+poll redesign if not).
+   Trigger `backfill-nightly` once too.
+8. Deploying activates the cron schedules (Mon 06:00 sweep, 04:30 backfill
+   Europe/Madrid) — pause them in the UI if weekly runs shouldn't start
+   yet, and remember new sweeps still need a human approve. ~~88 candidates
+pending review~~ — reviewed and **54 approved into the graph 2026-08-14**
+(see *Phase 5b — approvals*); the writer fix that run produced is
+**uncommitted** in `laiive_shared/neo4j_writer.py`. After that: Phase 6
+(CI/CD + deploy). The only Phase-4 leftover is the Google click-through by
+the owner.
 
 ## Done
 
@@ -518,7 +542,65 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   dedup probe sits outside its try/except, so connection-level errors
   surface as 500s rather than typed results.
 
-### Phase 5b — Prefect flows ✍️ code done, live verify pending owner steps
+### Phase 5b — Prefect flows: local half ✅ verified live 2026-08-14, Cloud half pending
+
+- **Local flow run green end-to-end**: admin service account provisioned by
+  the owner (`create_admin_user.py`); root `.env` gained `SEARCH_ENABLED=true`,
+  `GATEWAY_URL=http://127.0.0.1:8000`, `SUPABASE_ADMIN_EMAIL/PASSWORD`
+  (env-first resolution worked — no Prefect Cloud involved).
+  `python flows/city_sweep.py` from `services/search`: password grant → admin
+  JWT (`user_role: admin` from the hook) → gateway `/api/admin/search/sweep` →
+  three sequential city tasks, all Completed, dry-run reports persisted +
+  readable. Stats: Madrid 49 new / Barcelona 28 new **+ 3 `exists`** (the
+  identity probe recognized the morning's approved events — dedup proven
+  through the whole loop) / Berlin 10 new. Reports awaiting owner review:
+  `c34a282f` (Madrid), `53983964` (Barcelona), `388d35ed` (Berlin).
+- Sweep calls took ~2–6 min per city, well inside the client's 900 s timeout
+  locally; the managed-pool question stays open until the Cloud run.
+- Two gotchas from the run: the ephemeral Prefect server logs a scary but
+  harmless `sqlite3.OperationalError: database is locked` traceback from its
+  telemetry heartbeat at startup; and an `.env` hand-edit dropped
+  `TAVILY_API_KEY` first and restored a stale value second (Tavily 401s made
+  sweeps "succeed" with 0 pages — a sweep that finishes in ~2 s instead of
+  minutes means the search API errored per-query and the endpoint swallowed
+  it into an empty report).
+
+#### Phase 5b — approvals of the 2026-08-14 sweep reports (done)
+
+- Owner approved the recommended cut: **54 of 88** candidates written
+  (Madrid 21, Barcelona 25, Berlin 8), all embedded, all venues located
+  (city-centroid fallback where Nominatim missed). Graph now holds 57
+  `admin_search` events. Skipped: 23 Songkick rows whose `start_at` was the
+  *scrape date* (all `2026-08-15T00:00:00`), 7 cross-source duplicates
+  (The Weeknd ×5, Shakira, Ca7riel — venue-string variants the name-exact
+  probe can't match), 2 non-music (stand-up, dinner-variety), 1 screening.
+  Full review with per-report indices: session scratchpad
+  `sweep-review-2026-08-14.md` (regenerable from the `search_reports` rows).
+- **Writer bug found and fixed (uncommitted)**: `neo4j_writer.write_event`'s
+  artist block used `UNWIND $artists` — an empty list consumed the row, the
+  final `RETURN` came back empty, and an event that had *already committed*
+  was reported `status: "error", "No record returned from Neo4j"`. Berlin's
+  Pop Kultur + Atonal hit it (in the graph, recorded as errors in that
+  report's `write_results`). Now `FOREACH`, which iterates without touching
+  cardinality. Shared suite 51 green; only reachable via `admin_search`
+  (pro submissions require artists), so no pusher impact.
+- The Madrid/Barcelona batch runs first 500'd with zero writes while Berlin
+  passed — consistent with the known nit: the writer's dedup probe sits
+  outside its try/except, so a transient Aura `SessionExpired` on the first
+  candidate 500s the whole approve. Retry (after resetting the report row to
+  `dry_run` via `reports.update_report`; approve marks a report `approved`
+  even on partial/errored runs) succeeded end-to-end. Berlin's stored
+  `write_results` still carry the two phantom "error" rows — cosmetic.
+- Sweep-quality follow-ups the review surfaced (not implemented): listing-
+  page date poisoning (N drafts from one page sharing one `start_at` ⇒ page
+  date, drop or flag); cross-source dedup is name-exact and the 0.92 vector
+  advisory fired 0 times all sweep — check whether `similar_event` runs at
+  all; extractor fabricates `price_min: 0.0` from pages that state no price
+  (UI will say "free"); non-music leakage (comedy/screenings/dinner shows)
+  wants a type gate. Also: Ticketmaster's joke venue "Shakira Stadium" is
+  now a Venue node (real venue: Iberdrola Music) — approve has no edit path.
+
+#### Phase 5b — original design notes
 
 - **`services/search/flows/`** (D17, thin HTTP clients of the public
   gateway — no new write path): `auth.py` (password grant → admin JWT;
