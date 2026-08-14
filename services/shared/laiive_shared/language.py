@@ -57,6 +57,16 @@ _DETECT_PROMPT = f"""Identify the language of the message below.
 
 {DETECTION_RULE}
 
+Event listings are the hard case: they are mostly names, and the handful of
+ordinary words is the whole signal. Weigh those words, and nothing else.
+  "Marta Sanchez Trio plays Sala Clamores, Madrid, tickets 18 euros" → en
+    (plays / tickets are English; every other word is a name)
+  "Els Vermuts live at Razzmatazz, Barcelona, Friday, free entry" → en
+    (at / Friday / free entry are English; the band and venue are Catalan)
+  "Concerto di Ana Beck al Palau de la Musica, Barcellona, 12 ottobre" → it
+    (di / al / ottobre are Italian)
+  "Klangfeld Nacht im Berghain, Berlin, 3. Oktober" → de
+
 Answer with the ISO 639-1 two-letter code only — no punctuation, no explanation.
 
 Message:
