@@ -2,8 +2,7 @@
 
 Stateless per request — the client sends history + location; the classifier
 re-derives the resolved constraint state each turn. Yields shared-protocol
-payload models; the API layer decides the wire format (named SSE events, or
-the legacy OpenAI-shaped frames until the new frontend lands)."""
+payload models; the API layer wraps them as named SSE events."""
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field

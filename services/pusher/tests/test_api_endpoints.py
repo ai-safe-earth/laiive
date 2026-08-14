@@ -1,6 +1,5 @@
 """Pusher API endpoint tests — OpenAI, Neo4j, and Nominatim all mocked."""
 
-import base64
 import io
 import json
 
@@ -42,35 +41,7 @@ class TestHealthEndpoints:
         assert data["status"] == "degraded"
 
 
-class TestChatStreamLegacy:
-    def test_complete_info_emits_sentinel(self, client, mock_openai):
-        response = client.post(
-            "/chat/stream",
-            json={"messages": [{"role": "user", "content": "full event info"}]},
-        )
-        assert response.status_code == 200
-        body = response.text
-        assert "__EVENT_EXTRACTED__" in body
-        assert body.rstrip().endswith("data: [DONE]")
-        first_frame = next(
-            line for line in body.splitlines() if line.startswith("data: {")
-        )
-        content = json.loads(first_frame[len("data: ") :])["choices"][0]["delta"][
-            "content"
-        ]
-        details = json.loads(content.split("__EVENT_EXTRACTED__")[1])
-        assert details["artist"] == "Test Artist"
-        assert details["venue"] == "Test Venue"
-
-    def test_incomplete_info_streams_clarification(self, client, mock_openai):
-        set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
-        body = client.post(
-            "/chat/stream",
-            json={"messages": [{"role": "user", "content": "gig by X in Berlin"}]},
-        ).text
-        assert "__EVENT_EXTRACTED__" not in body
-        assert '"delta"' in body
-
+class TestChatStreamRequests:
     def test_empty_messages_400(self, client):
         assert client.post("/chat/stream", json={"messages": []}).status_code == 400
 
@@ -87,7 +58,6 @@ class TestChatStreamV2:
             "/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "full event info"}],
-                "protocol": "v2",
             },
         ).text
         assert "event: form.extracted" in body
@@ -101,7 +71,6 @@ class TestChatStreamV2:
             "/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "gig by X"}],
-                "protocol": "v2",
             },
         ).text
         assert "event: form.extracted" not in first  # round 1: ask naturally
@@ -114,7 +83,6 @@ class TestChatStreamV2:
                     {"role": "assistant", "content": "when and where?"},
                     {"role": "user", "content": "dunno"},
                 ],
-                "protocol": "v2",
             },
         ).text
         assert "event: form.extracted" in second  # round 2: form, gaps marked
@@ -138,7 +106,6 @@ class TestChatStreamV2:
             "/chat/stream",
             json={
                 "messages": [{"role": "user", "content": "three gigs in a csv"}],
-                "protocol": "v2",
             },
         ).text
 
@@ -155,43 +122,21 @@ class TestChatStreamV2:
         assert [(f["index"], f["total"]) for f in forms] == [(0, 3), (1, 3), (2, 3)]
 
 
-class TestTranscribeEndpoint:
-    def test_transcribe_audio(self, client):
-        audio = base64.b64encode(b"fake-audio").decode()
-        data = client.post("/transcribe-audio", json={"audio": audio}).json()
-        assert "Test Artist" in data["text"]
+class TestSupersededEndpointsAreGone:
+    """`/ingest` + `/chat/stream` replaced all of these: every modality becomes
+    text, and extraction happens once over the whole conversation."""
 
-    def test_transcribe_empty_audio(self, client):
-        assert client.post("/transcribe-audio", json={"audio": ""}).status_code == 400
-
-    def test_transcribe_missing_field(self, client):
-        assert client.post("/transcribe-audio", json={}).status_code == 422
-
-
-class TestExtractEndpoints:
-    def test_extract_from_text(self, client, mock_openai):
-        data = client.post(
-            "/extract-event-from-text", json={"text": "Test Artist ..."}
-        ).json()
-        assert data["success"] is True
-        assert data["eventDetails"]["venue"] == "Test Venue"
-        assert data["draft"]["artists"] == ["Test Artist"]
-        assert data["missing"] == []
-
-    def test_extract_from_text_empty(self, client, mock_openai):
-        set_extraction(mock_openai, "{}")
-        data = client.post("/extract-event-from-text", json={"text": "hello"}).json()
-        assert data["success"] is False
-
-    def test_extract_from_image(self, client, mock_openai):
-        image = base64.b64encode(b"fake-image").decode()
-        data = client.post("/extract-event-details", json={"imageBase64": image}).json()
-        # vision call and extraction call share the mocked client; the
-        # extraction JSON is what lands in the draft
-        assert data["success"] is True
-
-    def test_extract_image_missing_field(self, client):
-        assert client.post("/extract-event-details", json={}).status_code == 422
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/transcribe-audio",
+            "/extract-event-from-text",
+            "/extract-event-from-url",
+            "/extract-event-details",
+        ],
+    )
+    def test_gone(self, client, path):
+        assert client.post(path, json={}).status_code == 404
 
 
 class TestIngest:
@@ -273,8 +218,8 @@ class TestIngest:
 
 
 class TestValidateEventDraft:
-    """The new form sends a full draft; the flat legacy payload still works
-    until Phase 4c removes it, and sending both at once is a 422."""
+    """The form sends the whole draft — genre, venue_type, address and price
+    ranges included. The flat payload that dropped all of that is gone."""
 
     DRAFT = {
         "name": "Jazz Night",
@@ -294,52 +239,25 @@ class TestValidateEventDraft:
         assert response.status_code == 200
         assert response.json()["success"] is True
 
-    def test_draft_keeps_what_the_legacy_shape_would_drop(self, client, mock_neo4j):
+    def test_draft_keeps_the_fields_a_flat_form_would_drop(self, client, mock_neo4j):
         client.post("/validate-event", json={"draft": self.DRAFT})
         write_params = mock_neo4j.fake_session.queries[1][1]
         assert write_params["genre"] == "jazz"
         assert write_params["price_max"] == 28
         assert write_params["venue_type"] == "club"
 
-    def test_neither_payload_is_422(self, client):
+    def test_no_draft_is_422(self, client):
         assert client.post("/validate-event", json={}).status_code == 422
 
-    def test_both_payloads_is_422(self, client):
-        response = client.post(
-            "/validate-event",
-            json={
-                "draft": self.DRAFT,
-                "event": {
-                    "name": "Jazz Night",
-                    "event_date": "2026-09-01T20:00:00",
-                    "venue": "Quasimodo",
-                    "city": "Berlin",
-                },
-            },
-        )
-        assert response.status_code == 422
-
-
-class TestValidateEvent:
-    EVENT = {
-        "name": "Test Event",
-        "artist": "Test Artist",
-        "event_date": "2026-04-01T21:00:00",
-        "venue": "Test Venue",
-        "city": "Berlin",
-        "price": 15.0,
-    }
-
-    def test_validate_event_success(self, client, mock_neo4j):
-        data = client.post("/validate-event", json={"event": self.EVENT}).json()
-        assert data["success"] is True
-        assert data["event_name"] == "Test Event"
-        assert data["artist"] == "Test Artist"
+    def test_response_names_the_event(self, client, mock_neo4j):
+        data = client.post("/validate-event", json={"draft": self.DRAFT}).json()
+        assert data["event_name"] == "Jazz Night"
+        assert data["artist"] == "Ana Beck Quartet"
 
     def test_write_carries_owner_and_provenance(self, client, mock_neo4j):
         client.post(
             "/validate-event",
-            json={"event": self.EVENT},
+            json={"draft": self.DRAFT},
             headers={"X-User-Id": "user-42"},
         )
         write_params = mock_neo4j.fake_session.queries[1][1]
@@ -349,15 +267,15 @@ class TestValidateEvent:
         assert write_params["venue_lat"] == 52.52
 
     def test_duplicate_is_409(self, client, mock_neo4j):
-        mock_neo4j.fake_session.dedup_hit = {"uid": "dup-1", "name": "Test Event"}
-        response = client.post("/validate-event", json={"event": self.EVENT})
+        mock_neo4j.fake_session.dedup_hit = {"uid": "dup-1", "name": "Jazz Night"}
+        response = client.post("/validate-event", json={"draft": self.DRAFT})
         assert response.status_code == 409
 
     def test_free_event_price_zero(self, client, mock_neo4j):
-        event = dict(self.EVENT, price=0.0)
-        assert client.post("/validate-event", json={"event": event}).json()["success"]
+        draft = dict(self.DRAFT, price_min=0.0, price_max=None)
+        assert client.post("/validate-event", json={"draft": draft}).json()["success"]
 
-    def test_missing_required_fields_422_from_pydantic(self, client):
+    def test_unknown_payload_shape_is_422(self, client):
         response = client.post("/validate-event", json={"event": {"name": "X"}})
         assert response.status_code == 422
 

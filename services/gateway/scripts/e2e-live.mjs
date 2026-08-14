@@ -116,11 +116,10 @@ async function cleanup(users) {
   }
 }
 
-/** /chat/stream body — retriever ChatRequestSSE (messages + protocol). */
-const chatBody = (protocol = "v2") =>
+/** /chat/stream body — retriever ChatRequestSSE. */
+const chatBody = () =>
   JSON.stringify({
     messages: [{ role: "user", content: "jazz concerts in Barcelona" }],
-    protocol,
   });
 
 /** Reads an SSE response, returning the chunk count and total bytes. */
@@ -258,7 +257,7 @@ async function main() {
     const authed = await fetch(`${GATEWAY}/api/chat/stream`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${pro.token}` },
-      body: chatBody("legacy"),
+      body: chatBody(),
     });
     check("pro POST /api/chat/stream 200", authed.status === 200, `got ${authed.status}`);
     check("no upsell header when authed", !authed.headers.get("x-login-upsell"));

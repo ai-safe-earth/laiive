@@ -12,10 +12,10 @@ from agent.conversation import (
 from agent.converters import (
     audio_to_text,
     document_to_text,
-    extract_draft_from_text,
     extract_drafts_from_text,
     image_to_text,
 )
+from laiive_shared import EventDraft
 
 
 def set_extraction(mock_openai, payload: dict | list | str):
@@ -34,38 +34,39 @@ COMPLETE = {
 }
 
 
+def first_draft(text: str):
+    """The one-event view of an extraction that always returns a list."""
+    drafts = extract_drafts_from_text(text)
+    return drafts[0] if drafts else EventDraft()
+
+
 class TestExtraction:
     def test_extracts_complete_draft(self, mock_openai):
-        draft = extract_draft_from_text(
-            "Test Artist, April 1st, Test Venue, Berlin, 15€"
-        )
+        draft = first_draft("Test Artist, April 1st, Test Venue, Berlin, 15€")
         assert draft.artists == ["Test Artist"]
         assert draft.venue == "Test Venue"
         assert draft.price_min == 15.0
 
     def test_invalid_json_gives_empty_draft(self, mock_openai):
         set_extraction(mock_openai, "not json")
-        draft = extract_draft_from_text("gibberish")
+        draft = first_draft("gibberish")
         assert draft.model_dump(exclude_none=True, exclude_defaults=True) == {}
 
     def test_markdown_fences_stripped(self, mock_openai):
         set_extraction(mock_openai, "```json\n" + json.dumps(COMPLETE) + "\n```")
-        draft = extract_draft_from_text("whatever")
-        assert draft.venue == "Test Venue"
+        assert first_draft("whatever").venue == "Test Venue"
 
     def test_string_artist_becomes_list(self, mock_openai):
         set_extraction(mock_openai, {**COMPLETE, "artists": "Solo Act"})
-        assert extract_draft_from_text("x").artists == ["Solo Act"]
+        assert first_draft("x").artists == ["Solo Act"]
 
     def test_free_price_is_zero_not_missing(self, mock_openai):
         set_extraction(mock_openai, {**COMPLETE, "price_min": "free"})
-        draft = extract_draft_from_text("free show")
-        assert draft.price_min == 0.0
+        assert first_draft("free show").price_min == 0.0
 
     def test_unknown_fields_ignored(self, mock_openai):
         set_extraction(mock_openai, {**COMPLETE, "hacker_field": "boom"})
-        draft = extract_draft_from_text("x")
-        assert draft.venue == "Test Venue"
+        assert first_draft("x").venue == "Test Venue"
 
 
 class TestMultiEventExtraction:
@@ -102,13 +103,13 @@ class TestProcessTurn:
         turn = process_turn([{"role": "user", "content": "full event info"}])
         assert turn.show_form is True
         assert turn.missing == [[]]
-        assert turn.draft.price_currency == "EUR"  # defaulted from Berlin
+        assert turn.drafts[0].price_currency == "EUR"  # defaulted from Berlin
 
     def test_incomplete_first_message_asks_once(self, mock_openai):
         set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
         turn = process_turn([{"role": "user", "content": "gig by X in Berlin"}])
         assert turn.show_form is False
-        assert set(turn.draft_missing) == {"start_at", "venue", "price_min"}
+        assert set(turn.missing[0]) == {"start_at", "venue", "price_min"}
 
     def test_second_round_always_shows_form_even_if_incomplete(self, mock_openai):
         set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
@@ -121,18 +122,6 @@ class TestProcessTurn:
         )
         assert turn.show_form is True  # ONE clarification round, then the form
         assert any(turn.missing)  # still-missing fields travel with it
-
-    def test_legacy_mode_keeps_asking(self, mock_openai):
-        set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
-        turn = process_turn(
-            [
-                {"role": "user", "content": "gig by X"},
-                {"role": "assistant", "content": "when?"},
-                {"role": "user", "content": "hmm"},
-            ],
-            one_round_rule=False,
-        )
-        assert turn.show_form is False
 
     def test_clarification_rounds_counted_from_history(self):
         assert clarification_rounds(None) == 0

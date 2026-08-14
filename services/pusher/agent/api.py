@@ -1,15 +1,10 @@
 """Pusher API — multimodal event submission via chat, voice, image, URL, batch."""
 
 import asyncio
-import base64
-import json
-import os
-import re
 import uuid
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from laiive_shared import (
     ALLOWED_AUDIO_SUFFIXES,
@@ -21,11 +16,10 @@ from laiive_shared import (
     MessageDelta,
     Status,
     UnsupportedAudioFormat,
-    missing_required,
     sse_frame,
 )
 from loguru import logger
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from . import graph
@@ -35,29 +29,16 @@ from .converters import (
     UnreadableDocument,
     audio_to_text,
     document_to_text,
-    extract_draft_from_text,
-    extract_from_url,
     image_to_text,
     url_to_text,
 )
 
 app = FastAPI(title="laiive pusher API", version="0.3.0")
 
-# Browser traffic terminates at the gateway; direct browser access needs an
-# explicit opt-in via SERVICE_CORS_ALLOW_ORIGINS (comma-separated).
-_cors_origins = [
-    o.strip()
-    for o in os.environ.get("SERVICE_CORS_ALLOW_ORIGINS", "").split(",")
-    if o.strip()
-]
-if _cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# No CORS middleware on purpose: browser traffic terminates at the gateway, and
+# the service is only reachable through it (compose `expose`s it, `make start-*`
+# binds 127.0.0.1). The SERVICE_CORS_ALLOW_ORIGINS escape hatch existed for the
+# Phase 3 frontend that still called 8002/8003 directly; that frontend is gone.
 
 
 # ============== Pydantic Models ==============
@@ -70,63 +51,18 @@ class Message(BaseModel):
 
 class ChatStreamRequest(BaseModel):
     messages: List[Message]
-    # 'legacy' = OpenAI-shaped frames + __EVENT_EXTRACTED__ sentinel (current
-    # frontend); 'v2' = named-event shared protocol (Phase 4 frontend).
-    protocol: Literal["legacy", "v2"] = "legacy"
-
-
-class TranscribeRequest(BaseModel):
-    audio: str  # base64 encoded
-
-
-class TranscribeResponse(BaseModel):
-    text: str
-
-
-class ExtractFromTextRequest(BaseModel):
-    text: str
-
-
-class ExtractFromUrlRequest(BaseModel):
-    url: str
-    language: str = "en"
-
-
-class ExtractFromImageRequest(BaseModel):
-    imageBase64: str
-
-
-class EventDetailsModel(BaseModel):
-    """Legacy form payload (current frontend). Dies with Phase 4."""
-
-    name: str
-    artist: Optional[str] = None
-    description: Optional[str] = None
-    event_date: str
-    venue: str
-    city: str
-    price: Optional[float] = None
-    ticket_url: Optional[str] = None
 
 
 class ValidateEventRequest(BaseModel):
-    """Either a full draft (new frontend) or the flat legacy form payload.
+    """The full draft the review form approved.
 
-    `draft` carries genre, venue_type, address, price ranges and a real
-    timestamp; `event` flattens all of that away, so the new form sends a draft
-    and the legacy branch dies with the rest of the legacy paths in Phase 4c.
+    A draft carries genre, venue_type, address, price ranges and a real
+    timestamp. The flat `event` payload that flattened all of that away went
+    with the old frontend.
     """
 
-    draft: Optional[EventDraft] = None
-    event: Optional[EventDetailsModel] = None
-    session_id: Optional[str] = None
+    draft: EventDraft
     # owner identity is the gateway's X-User-Id header; a body user_id is ignored
-
-    @model_validator(mode="after")
-    def exactly_one_payload(self) -> "ValidateEventRequest":
-        if (self.draft is None) == (self.event is None):
-            raise ValueError("send either 'draft' (preferred) or 'event'")
-        return self
 
 
 class BatchValidateRequest(BaseModel):
@@ -136,46 +72,6 @@ class BatchValidateRequest(BaseModel):
 
 
 # ============== Helpers ==============
-
-
-def _create_sse_message(content: str) -> str:
-    payload = json.dumps(
-        {"choices": [{"delta": {"content": content}}]}, ensure_ascii=False
-    )
-    return f"data: {payload}\n\n"
-
-
-def _create_sse_done() -> str:
-    return "data: [DONE]\n\n"
-
-
-def _legacy_details(draft: EventDraft) -> dict:
-    """EventDraft → the legacy EventDetails shape the current frontend renders."""
-    artist = draft.artists[0] if draft.artists else None
-    return {
-        "name": draft.name or (f"{artist} Live" if artist else ""),
-        "artist": artist,
-        "description": draft.description,
-        "event_date": draft.start_at or "",
-        "venue": draft.venue or "",
-        "city": draft.city or "",
-        "price": draft.price_min,
-        "ticket_url": draft.ticket_url,
-    }
-
-
-def _details_to_draft(event: EventDetailsModel) -> EventDraft:
-    return EventDraft(
-        name=event.name,
-        artists=[event.artist] if event.artist else [event.name],
-        start_at=event.event_date,
-        venue=event.venue,
-        city=event.city,
-        price_min=event.price if event.price is not None else 0.0,
-        price_currency=default_currency(event.city),
-        description=event.description,
-        ticket_url=event.ticket_url,
-    )
 
 
 def _write_or_raise(draft: EventDraft, owner_id: str | None):
@@ -200,10 +96,7 @@ def root():
         "endpoints": {
             "health": "/health",
             "chat_stream": "/chat/stream (POST) - SSE streaming",
-            "transcribe": "/transcribe-audio (POST)",
-            "extract_text": "/extract-event-from-text (POST)",
-            "extract_url": "/extract-event-from-url (POST)",
-            "extract_image": "/extract-event-details (POST)",
+            "ingest": "/ingest (POST, multipart) - audio/image/document/url → text",
             "validate": "/validate-event (POST)",
             "batch_parse": "/batch/parse (POST, multipart)",
             "batch_validate": "/batch/validate-event (POST)",
@@ -234,9 +127,8 @@ async def chat_stream(request: ChatStreamRequest):
         raise HTTPException(400, "No messages provided")
     request_id = str(uuid.uuid4())
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
-    generate = _generate_v2 if request.protocol == "v2" else _generate_legacy
     return StreamingResponse(
-        generate(request_id, messages),
+        _generate(request_id, messages),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -247,7 +139,7 @@ async def chat_stream(request: ChatStreamRequest):
     )
 
 
-async def _generate_v2(request_id: str, messages: list[dict]):
+async def _generate(request_id: str, messages: list[dict]):
     """Named-event frames: form.extracted replaces the sentinel.
 
     A conversation that carries several events (a spreadsheet, a line-up)
@@ -270,27 +162,6 @@ async def _generate_v2(request_id: str, messages: list[dict]):
         logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
         yield sse_frame(Error(code="internal_error", message="Something went wrong."))
     yield sse_frame(Done(request_id=request_id))
-
-
-async def _generate_legacy(request_id: str, messages: list[dict]):
-    """Legacy frames. The old frontend cannot render a partial form, so the
-    one-round rule is off: the sentinel only fires when nothing is missing."""
-    try:
-        turn = await asyncio.to_thread(process_turn, messages, one_round_rule=False)
-        if turn.show_form:
-            details = json.dumps(_legacy_details(turn.draft))
-            yield _create_sse_message(
-                f"__EVENT_EXTRACTED__{details}__EVENT_EXTRACTED__"
-            )
-        else:
-            for token in re.findall(r"\S+|\s+", turn.reply):
-                yield _create_sse_message(token)
-                if token.strip():
-                    await asyncio.sleep(0.01)
-    except Exception as e:
-        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
-        yield _create_sse_message("An unexpected error occurred. Please try again.")
-    yield _create_sse_done()
 
 
 # ============== Multimodal ingestion ==============
@@ -350,97 +221,6 @@ async def ingest(
     return {"kind": kind, "source": filename, "text": text}
 
 
-# ============== Transcription ==============
-
-
-@app.post("/transcribe-audio", response_model=TranscribeResponse)
-async def transcribe_audio(request: TranscribeRequest):
-    """Transcribe base64-encoded audio to text using Whisper."""
-    try:
-        audio_bytes = base64.b64decode(request.audio)
-        if not audio_bytes:
-            raise HTTPException(400, "Empty audio data")
-        text = audio_to_text(audio_bytes, filename="audio.webm")
-        return TranscribeResponse(text=text)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Transcription failed: {e}")
-        raise HTTPException(500, f"Transcription failed: {str(e)}")
-
-
-# ============== Event Extraction ==============
-
-
-@app.post("/extract-event-from-text")
-async def extract_event_from_text(request: ExtractFromTextRequest):
-    """Extract event details from plain text."""
-    try:
-        draft = extract_draft_from_text(request.text)
-        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
-            return {
-                "success": False,
-                "error": "Could not extract event details from text",
-            }
-        return {
-            "success": True,
-            "eventDetails": _legacy_details(draft),
-            "draft": draft.model_dump(exclude_none=True),
-            "missing": missing_required(draft),
-        }
-    except Exception as e:
-        logger.error(f"Text extraction failed: {e}")
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/extract-event-from-url")
-async def extract_event_from_url(request: ExtractFromUrlRequest):
-    """Extract event details from a URL."""
-    try:
-        draft = extract_from_url(request.url, language=request.language)
-        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
-            return {
-                "success": False,
-                "error": "Could not extract event details from URL",
-            }
-        return {
-            "success": True,
-            "eventData": _legacy_details(draft),
-            "draft": draft.model_dump(exclude_none=True),
-            "missing": missing_required(draft),
-        }
-    except Exception as e:
-        logger.error(f"URL extraction failed: {e}")
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/extract-event-details")
-async def extract_event_details(request: ExtractFromImageRequest):
-    """Extract event details from a base64-encoded image."""
-    try:
-        image_bytes = base64.b64decode(request.imageBase64)
-        if not image_bytes:
-            raise HTTPException(400, "Empty image data")
-        text = image_to_text(image_bytes, mime_type="image/png")
-        draft = extract_draft_from_text(text)
-        if not draft.model_dump(exclude_none=True, exclude_defaults=True):
-            return {
-                "success": False,
-                "error": "Could not extract event details from image",
-            }
-        return {
-            "success": True,
-            "eventDetails": _legacy_details(draft),
-            "draft": draft.model_dump(exclude_none=True),
-            "missing": missing_required(draft),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Image extraction failed: {e}")
-        return {"success": False, "error": str(e)}
-
-
 # ============== Validation / Publication ==============
 
 
@@ -450,9 +230,7 @@ async def validate_event(
     x_user_id: Optional[str] = Header(None),
 ):
     """Publish a form-approved event — the only write trigger."""
-    draft = (
-        request.draft if request.draft is not None else _details_to_draft(request.event)
-    )
+    draft = request.draft
     # owner identity comes only from the gateway-verified header, never the body
     result = _write_or_raise(draft, owner_id=x_user_id)
     return {

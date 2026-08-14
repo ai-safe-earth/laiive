@@ -44,7 +44,6 @@ export async function streamChat(
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
       location: location ?? null,
-      protocol: "v2",
     }),
   });
 

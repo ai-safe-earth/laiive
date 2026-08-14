@@ -28,7 +28,6 @@ export async function streamSubmission(
     signal,
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
-      protocol: "v2",
     }),
   });
 

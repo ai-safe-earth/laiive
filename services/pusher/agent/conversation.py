@@ -109,30 +109,20 @@ class PusherTurn:
     reply: str
     truncated: bool = False
 
-    @property
-    def draft(self) -> EventDraft:
-        """The first event — all the single-draft callers (legacy frames, the
-        `/extract-event-*` endpoints) ever wanted."""
-        return self.drafts[0]
-
-    @property
-    def draft_missing(self) -> list[str]:
-        return self.missing[0] if self.missing else []
-
 
 def clarification_rounds(history: list[dict] | None) -> int:
     """How many times we already asked — assistant messages in the history."""
     return sum(1 for m in history or [] if m.get("role") == "assistant")
 
 
-def process_turn(messages: list[dict], one_round_rule: bool = True) -> PusherTurn:
+def process_turn(messages: list[dict]) -> PusherTurn:
     """One submission-chat turn.
 
     Extracts every event described in the full conversation. If a required
     field is missing anywhere and we have not asked yet: exactly one natural
     clarification round, covering the whole set at once. After that the forms
-    always go out, missing fields marked (one_round_rule=False keeps asking
-    instead — legacy frontend behavior, it cannot render a partial form).
+    always go out, missing fields marked — the form renders partial drafts, so
+    there is never a reason to ask twice.
     """
     history = messages[:-1]
     user_text = "\n".join(m["content"] for m in messages if m.get("role") == "user")
@@ -158,7 +148,7 @@ def process_turn(messages: list[dict], one_round_rule: bool = True) -> PusherTur
     )
 
     asked_before = clarification_rounds(history) > 0
-    if any(missing) and not (one_round_rule and asked_before):
+    if any(missing) and not asked_before:
         return PusherTurn(
             drafts=drafts,
             missing=missing,

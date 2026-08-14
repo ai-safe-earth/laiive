@@ -1,18 +1,15 @@
 import json
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from laiive_shared import (
     AudioTooLarge,
     Done,
     Error,
-    MessageDelta,
     UnsupportedAudioFormat,
     sse_frame,
     transcribe,
@@ -25,7 +22,6 @@ from config import settings
 
 from .clients.neo4j_client import neo4j_client
 from .pipeline import Pipeline, TurnResult
-from .utils.formatters import cards_to_markdown, create_sse_done, create_sse_message
 from .utils.llm_utils import get_openai_client
 
 LOG_FILE = Path("logs/requests.jsonl")
@@ -57,22 +53,10 @@ def log_request(
 
 app = FastAPI(title="laiive retriever API", version="0.3.0")
 
-# Browser traffic terminates at the gateway; direct browser access needs an
-# explicit opt-in via SERVICE_CORS_ALLOW_ORIGINS (comma-separated).
-_cors_origins = [
-    o.strip()
-    for o in os.environ.get("SERVICE_CORS_ALLOW_ORIGINS", "").split(",")
-    if o.strip()
-]
-if _cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
+# No CORS middleware on purpose: browser traffic terminates at the gateway, and
+# the service is only reachable through it (compose `expose`s it, `make start-*`
+# binds 127.0.0.1). The SERVICE_CORS_ALLOW_ORIGINS escape hatch existed for the
+# Phase 3 frontend that still called 8002/8003 directly; that frontend is gone.
 _pipeline: Pipeline | None = None
 
 
@@ -103,9 +87,6 @@ class ChatRequestSSE(BaseModel):
 
     messages: List[Message]
     location: Optional[UserLocation] = None
-    # 'legacy' = OpenAI-shaped data-only frames (current frontend);
-    # 'v2' = the named-event shared protocol (new frontend, Phase 4).
-    protocol: Literal["legacy", "v2"] = "legacy"
 
 
 class ChatRequest(BaseModel):
@@ -250,12 +231,9 @@ def chat(request: ChatRequest):
             [c.model_dump() for c in result.cards],
             "; ".join(result.errors) or None,
         )
-        response_text = result.text
-        if result.cards:
-            response_text += "\n\n" + cards_to_markdown(result.cards)
         return ChatResponse(
             request_id=request_id,
-            response=response_text,
+            response=result.text,
             cypher=result.cyphers[0] if result.cyphers else None,
             results=[c.model_dump() for c in result.cards] or None,
             used_query=result.used_query,
@@ -277,9 +255,8 @@ async def chat_stream(request: ChatRequestSSE):
     history = _history_dicts(request.messages[:-1])
     location = _location_dict(request.location)
 
-    generate = _generate_v2 if request.protocol == "v2" else _generate_legacy
     return StreamingResponse(
-        generate(request_id, user_message, history, location),
+        _generate(request_id, user_message, history, location),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -290,7 +267,7 @@ async def chat_stream(request: ChatRequestSSE):
     )
 
 
-def _generate_v2(
+def _generate(
     request_id: str,
     user_message: str,
     history: list[dict] | None,
@@ -322,42 +299,6 @@ def _generate_v2(
             "; ".join(result.errors) or None,
         )
     yield sse_frame(Done(request_id=request_id))
-
-
-def _generate_legacy(
-    request_id: str,
-    user_message: str,
-    history: list[dict] | None,
-    location: dict | None,
-):
-    """OpenAI-shaped data-only frames for the current frontend (delete with Phase 4).
-
-    Sync for the same reason as `_generate_v2`.
-    """
-    yield f'event: metadata\ndata: {{"request_id": "{request_id}"}}\n\n'
-    result = TurnResult()
-    try:
-        for payload in get_pipeline().run_turn(
-            user_message, history, location, result=result
-        ):
-            if isinstance(payload, MessageDelta):
-                yield create_sse_message(payload.text)
-            # EventsResult/Status frames have no legacy equivalent mid-stream;
-            # cards are appended as markdown below.
-        if result.cards:
-            yield create_sse_message("\n\n" + cards_to_markdown(result.cards))
-    except Exception as e:
-        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
-        yield create_sse_message("An unexpected error occurred. Please try again.")
-    finally:
-        log_request(
-            user_message,
-            "pipeline",
-            result.cyphers[0] if result.cyphers else None,
-            [c.model_dump() for c in result.cards],
-            "; ".join(result.errors) or None,
-        )
-    yield create_sse_done()
 
 
 # ============== Metrics and Observability ==============

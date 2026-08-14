@@ -133,8 +133,8 @@ class TestChatEndpoint:
         assert "request_id" in data
         assert data["used_query"] is True
         assert data["results"][0]["uid"] == "e1"
-        assert "Jazz on the way." in data["response"]
-        assert "Café Central" in data["response"]  # legacy markdown appended
+        # prose and structured results, never prose *containing* the results
+        assert data["response"].strip() == "Jazz on the way."
         assert data["cypher"] == "MATCH (e:Event) RETURN e"
 
     def test_chat_needs_more_info(self, client):
@@ -160,22 +160,7 @@ class TestChatEndpoint:
         assert client.post("/chat", json={}).status_code == 422
 
 
-class TestChatStreamLegacy:
-    def test_legacy_stream_shape(self, client):
-        response = client.post(
-            "/chat/stream",
-            json={"messages": [{"role": "user", "content": "jazz in madrid"}]},
-        )
-        assert response.status_code == 200
-        assert "text/event-stream" in response.headers["content-type"]
-        body = response.text
-        request_id = response.headers["X-Request-ID"]
-        # metadata frame carries the real request id (not "None")
-        assert f'"request_id": "{request_id}"' in body
-        assert '"delta"' in body
-        assert "Café Central" in body  # markdown appended
-        assert body.rstrip().endswith("data: [DONE]")
-
+class TestChatStreamRequests:
     def test_no_messages_is_400(self, client):
         assert client.post("/chat/stream", json={"messages": []}).status_code == 400
 
@@ -272,7 +257,7 @@ class TestTranscribe:
 
 
 class TestStreamingIsIncremental:
-    """Both frame generators must stay *sync* generators.
+    """The frame generator must stay a *sync* generator.
 
     `run_turn` blocks (OpenAI + Neo4j). As async generators these hold the
     event loop between yields, so uvicorn only flushes the frames once the
@@ -280,11 +265,9 @@ class TestStreamingIsIncremental:
     lie. Sync generators get iterated in Starlette's threadpool instead.
     """
 
-    def test_generators_are_sync(self):
-        assert not inspect.isasyncgenfunction(api_module._generate_v2)
-        assert not inspect.isasyncgenfunction(api_module._generate_legacy)
-        assert inspect.isgeneratorfunction(api_module._generate_v2)
-        assert inspect.isgeneratorfunction(api_module._generate_legacy)
+    def test_generator_is_sync(self):
+        assert not inspect.isasyncgenfunction(api_module._generate)
+        assert inspect.isgeneratorfunction(api_module._generate)
 
 
 class TestRequestValidation:
@@ -298,9 +281,12 @@ class TestRequestValidation:
         )
         assert response.status_code == 422
 
-    def test_unknown_protocol_rejected(self, client):
+    def test_protocol_field_is_gone_and_ignored(self, client):
+        """A stale client sending the old switch gets the only protocol there
+        is, not a 422 — the field stopped being part of the contract."""
         response = client.post(
             "/chat/stream",
-            json={"messages": [{"role": "user", "content": "x"}], "protocol": "v3"},
+            json={"messages": [{"role": "user", "content": "x"}], "protocol": "legacy"},
         )
-        assert response.status_code == 422
+        assert response.status_code == 200
+        assert "event: done" in response.text

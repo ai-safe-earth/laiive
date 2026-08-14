@@ -142,12 +142,6 @@ def _entry_to_draft(entry: dict) -> EventDraft | None:
         return None
 
 
-def extract_draft_from_text(text: str) -> EventDraft:
-    """First event only — for the single-draft endpoints 4c deletes."""
-    drafts = extract_drafts_from_text(text)
-    return drafts[0] if drafts else EventDraft()
-
-
 def audio_to_text(audio_bytes: bytes, filename: str = "audio.webm") -> str:
     """Transcribe audio using OpenAI Whisper (shared with the retriever)."""
     return transcribe(_client, audio_bytes, filename, settings.whisper_model)
@@ -252,11 +246,3 @@ def url_to_text(url: str) -> str:
         raise ValueError(f"Could not fetch URL: {e}") from e
 
     return page_text[:URL_MAX_CHARS]
-
-
-def extract_from_url(url: str, language: str = "en") -> EventDraft:
-    """Fetch a URL and extract an EventDraft from its content."""
-    page_text = url_to_text(url)
-    return extract_draft_from_text(
-        f"Webpage content (language preference: {language}):\n{page_text}"
-    )
