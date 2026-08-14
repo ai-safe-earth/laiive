@@ -193,8 +193,12 @@ export default function ProSubmit() {
           cursor: walk.cursor + 1,
         });
       } else {
+        // End of the walk: reset the draft state but leave a completion
+        // message behind. It names no event details, so a fresh listing
+        // typed after it extracts cleanly.
+        const total = walk?.total ?? 1;
         setWalk(null);
-        setMessages([]);
+        setMessages([{ role: "assistant", content: t.pro.walkComplete(total) }]);
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {

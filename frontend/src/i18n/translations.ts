@@ -84,6 +84,7 @@ export interface Translations {
     couldNotRead: string;
     published: (name: string) => string;
     publishedMarker: (name: string, k: number, n: number) => string;
+    walkComplete: (n: number) => string;
     alreadyExists: string;
     publishFailed: string;
     eventOf: (k: number, n: number) => string;
@@ -192,6 +193,10 @@ export const translations: Record<Language, Translations> = {
       couldNotRead: "Could not read that file",
       published: (name) => `Published — ${name} is live`,
       publishedMarker: (name, k, n) => `Published "${name}" (event ${k} of ${n}).`,
+      walkComplete: (n) =>
+        n > 1
+          ? `All ${n} events are live on laiive. 🎉 Send another listing whenever you're ready.`
+          : `Your event is live on laiive. 🎉 Send another listing whenever you're ready.`,
       alreadyExists: "That event is already on laiive.",
       publishFailed: "Could not publish",
       eventOf: (k, n) => `event ${k} of ${n}`,
@@ -311,6 +316,10 @@ export const translations: Record<Language, Translations> = {
       couldNotRead: "No se pudo leer ese archivo",
       published: (name) => `Publicado — ${name} ya está en laiive`,
       publishedMarker: (name, k, n) => `He publicado "${name}" (evento ${k} de ${n}).`,
+      walkComplete: (n) =>
+        n > 1
+          ? `Los ${n} eventos ya están en laiive. 🎉 Envía otro listado cuando quieras.`
+          : `Tu evento ya está en laiive. 🎉 Envía otro listado cuando quieras.`,
       alreadyExists: "Ese evento ya está en laiive.",
       publishFailed: "No se pudo publicar",
       eventOf: (k, n) => `evento ${k} de ${n}`,
@@ -430,6 +439,10 @@ export const translations: Record<Language, Translations> = {
       couldNotRead: "Impossibile leggere quel file",
       published: (name) => `Pubblicato — ${name} è online`,
       publishedMarker: (name, k, n) => `Ho pubblicato "${name}" (evento ${k} di ${n}).`,
+      walkComplete: (n) =>
+        n > 1
+          ? `Tutti e ${n} gli eventi sono online su laiive. 🎉 Invia un altro elenco quando vuoi.`
+          : `Il tuo evento è online su laiive. 🎉 Invia un altro elenco quando vuoi.`,
       alreadyExists: "Quell'evento è già su laiive.",
       publishFailed: "Impossibile pubblicare",
       eventOf: (k, n) => `evento ${k} di ${n}`,
@@ -549,6 +562,10 @@ export const translations: Record<Language, Translations> = {
       couldNotRead: "No s'ha pogut llegir aquest fitxer",
       published: (name) => `Publicat — ${name} ja és a laiive`,
       publishedMarker: (name, k, n) => `He publicat "${name}" (esdeveniment ${k} de ${n}).`,
+      walkComplete: (n) =>
+        n > 1
+          ? `Els ${n} esdeveniments ja són a laiive. 🎉 Envia un altre llistat quan vulguis.`
+          : `El teu esdeveniment ja és a laiive. 🎉 Envia un altre llistat quan vulguis.`,
       alreadyExists: "Aquest esdeveniment ja és a laiive.",
       publishFailed: "No s'ha pogut publicar",
       eventOf: (k, n) => `esdeveniment ${k} de ${n}`,
