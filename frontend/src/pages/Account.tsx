@@ -1,5 +1,5 @@
 import { ArrowLeft, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -105,13 +105,21 @@ export default function Account() {
   const [venues, setVenues] = useState<string[]>([]);
   const [artists, setArtists] = useState<string[]>([]);
 
-  // Server state seeds the form once it arrives; typing owns it afterwards.
+  // Seed from the server ONCE per account, not on every refetch. react-query
+  // hands back a fresh object each time it refetches, and picking a language
+  // writes through and invalidates the profile — seeding on that would wipe a
+  // display name typed but not yet saved. (It did, before this ref.)
+  const seededProfile = useRef<string | null>(null);
   useEffect(() => {
-    if (profile) setDisplayName(profile.display_name ?? "");
+    if (!profile || seededProfile.current === profile.id) return;
+    seededProfile.current = profile.id;
+    setDisplayName(profile.display_name ?? "");
   }, [profile]);
 
+  const seededPromoter = useRef<string | null>(null);
   useEffect(() => {
-    if (!promoter) return;
+    if (!promoter || seededPromoter.current === promoter.user_id) return;
+    seededPromoter.current = promoter.user_id;
     setOrgName(promoter.org_name);
     setWebsite(promoter.website ?? "");
     setPhone(promoter.phone ?? "");
