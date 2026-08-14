@@ -7,14 +7,17 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
 *named* `laiive` is the personal fork, do not push there.
 
 **Where things stand**: phases 0–3 done and verified live; phase 4a (consumer
-chat), 4b (multimodal submission) and **4c (legacy deletion + account page)**
-are done. Nothing is deployed yet. To run the stack locally:
-gateway :8000, retriever :8002, pusher :8003, frontend :8081 (see *Environment
-gotchas* — stale servers from earlier sessions are a recurring time sink).
+chat), 4b (multimodal submission), 4c (legacy deletion + account page) and
+**4d (the multi-event walk)** are done — 4d is live-smoked against the real
+LLM but its UI has not had a browser walkthrough yet (see *Phase 4d*).
+Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
+:8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
+servers from earlier sessions are a recurring time sink).
 
-**Next up is 4d — the multi-event conversational walk** (owner's design, decided
-this session; see *Phase 4d* below). One thing waits on the owner: migration
-`20260814000008` still needs pushing (Supabase writes are refused here).
+**Next up**: browser walkthrough of the walk on `/pro` (needs a pro user;
+publishing writes to Aura — owner approval), then the *Other gaps* list.
+One thing still waits on the owner: migration `20260814000008` needs pushing
+(Supabase writes are refused here).
 
 ## Done
 
@@ -374,46 +377,57 @@ re-seeds on every refetch**, and a sibling mutation is enough to trigger one.
 Suites after 4c: shared 48, retriever 103, pusher 65, gateway 19, frontend
 typecheck + lint clean.
 
-## Next: Phase 4d — many events, one conversation
+### Phase 4d — the multi-event walk ✅ (commits `148f239`…`2a08c67`)
 
-**The owner's design, decided this session.** A spreadsheet or a line-up is not
-a batch screen: the chat walks the promoter through the events one at a time.
+The owner's design implemented: a spreadsheet or a line-up is not a batch
+screen, the chat walks the promoter through the events one at a time — "event
+1 of 5, here is what I have, I need the price and the date" → form, gaps
+marked → publish → "let's go with event 2". The cursor lives client-side
+(owner chose A): the browser echoes the draft list + cursor with each message,
+the pusher refines only `drafts[cursor]`, and it advances on publish.
 
-> "event 1 of 5, Go Go Dolls at the Butterfly Circus, this is the data I have
-> ****, I need from you the price and the date." → form, gaps marked → approve →
-> saved → "let's go with event 2…" → … → "let's go for event 3 of 5…"
+- **Shared**: new `walk.state` SSE frame (`drafts`, `missing`, `cursor`,
+  `total`) in `protocol.py` + TS mirror; `form.extracted` unchanged, now
+  carrying only the event under the cursor (`index=cursor`).
+- **Pusher**: `process_turn(messages, walk)` — with no `walk`, N>1 extracted
+  events enter the walk immediately (the per-event intro *is* the ask, so the
+  set-wide clarification round and `CLARIFY_MANY`/`HANDOFF_MANY`/`_gaps` are
+  deleted; a single event keeps the old one-round shape). Mid-walk there is
+  **no re-extraction**: `converters.refine_draft()` merges the promoter's
+  latest message into the cursor's draft only, falling back to the unchanged
+  draft on any unparseable reply, so a turn costs one draft's worth of tokens.
+  Cursor is clamped; an empty echoed set falls back to extraction;
+  `MAX_EVENTS_PER_TURN = 25` still caps the entry turn (big sheets keep
+  `/batch/parse`). Prompt version bumped to v5.
+- **Frontend `/pro`**: persists `{messages, walk, draft, missing}` in
+  sessionStorage so a reload resumes mid-walk; echoes `{drafts, cursor}` on
+  every turn (typing *and* attachments); publish sends the promoter's final
+  form edits back in the echoed set, appends a
+  `Published "name" (event k of N).` marker message and calls the next turn
+  with `cursor+1` — the server words the next intro in the user's language.
+  The form gets an "event k of N" heading while walking.
+- **Live-smoked** on a scratch pusher :8013 (no writes): a Spanish 3-gig
+  listing → `walk.state` with 3 drafts + one form (event 1) + "He reconocido
+  3 eventos…"; the publish marker advanced to event 2 without corrupting it
+  and asked exactly for its gaps (city, price); "Está en Madrid y son 14
+  euros" merged into event 2 only, neighbours byte-identical, gaps closed.
+  Suites: shared 50, pusher 71, frontend typecheck + lint clean.
+- **Not done: a browser walkthrough of the walk UI.** Publishing writes to
+  Aura, so it needs owner approval (or stub `saveEvent`); check the
+  sessionStorage resume and the mid-walk 409 path while there. The refine
+  model inferred `price_max` from "son 14 euros" (14–14) — harmless, but a
+  prompt nit if it bothers the owner.
+- A queue (Redis/RabbitMQ) is still **not** needed: the shared writer MERGEs
+  by identity, so a double submission collapses or 409s. If Redis ever
+  arrives for other reasons, the cursor could move server-side without
+  changing the contract.
 
-This is **backend and agent-loop work; the UI barely changes** — `/pro` already
-renders one form per `form.extracted` frame, which is exactly right for a walk.
-Today it calls `onForm` once per frame and so shows the *last* of a set; a walk
-sends one frame per turn instead, and that symptom disappears.
+## Other gaps 4a–4d left
 
-**Where the cursor lives (owner chose A):** the browser echoes the draft list
-and the current index back with each message; the pusher refines only
-`drafts[cursor]` and advances on publish. The server stays stateless, the
-numbering cannot drift, and a turn costs one draft's worth of extraction instead
-of re-extracting all N. Rejected: re-extracting the whole set every turn (N×
-tokens per turn, and indices only as stable as the extractor), and a server-side
-session store (reintroduces what Phase 2 deleted and breaks under multiple
-instances without Redis).
-
-Notes for whoever picks this up:
-
-- Persist the draft array with the message list the client already stores, so a
-  page reload resumes mid-walk rather than losing the set.
-- `MAX_EVENTS_PER_TURN = 25` and the `truncated` flag were built for the
-  re-extract-everything model; revisit what they mean once turn 1 is the only
-  turn that extracts a set.
-- A queue (Redis/RabbitMQ) is **not** needed for this. Concurrent writes are
-  already safe — the shared writer MERGEs by identity against uniqueness
-  constraints, so a double submission collapses or 409s. A queue buys retry and
-  backpressure later, and if Redis ever arrives for other reasons, the cursor
-  could move server-side without changing the contract.
-
-## Other gaps 4a/4b/4c left
-
-- `/batch/parse` + `/batch/validate-event` still have no UI. The 4d walk may
-  make the deterministic CSV fast lane redundant for small sheets — decide then.
+- Browser walkthrough of the 4d walk UI (see *Phase 4d — not done*).
+- `/batch/parse` + `/batch/validate-event` still have no UI. The 4d walk now
+  covers small sheets conversationally — decide whether the deterministic CSV
+  fast lane still earns a screen, or dies.
 - **Google sign-in**: the Auth page has a placeholder comment where the button
   goes; enable the provider in Supabase first (needs Google Cloud credentials).
 
