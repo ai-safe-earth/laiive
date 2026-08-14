@@ -13,9 +13,8 @@ gateway :8000, retriever :8002, pusher :8003, frontend :8081 (see *Environment
 gotchas* — stale servers from earlier sessions are a recurring time sink).
 
 **Next up is 4d — the multi-event conversational walk** (owner's design, decided
-this session; see *Phase 4d* below). Two things are waiting on the owner:
-the new migration `20260814000008` needs pushing, and the signed-in half of
-`/account` has never been opened in a browser.
+this session; see *Phase 4d* below). One thing waits on the owner: migration
+`20260814000008` still needs pushing (Supabase writes are refused here).
 
 ## Done
 
@@ -356,10 +355,24 @@ one writes through) via `src/i18n/useLanguagePreference.ts`.
   `translations/` — the ported `about`/`promoter`/`promoterCreate` sections have
   no callers. A translation sweep across all pages is its own task.
 
-**Not verified**: the signed-in half of `/account` has never been opened —
-that needs a real account on `pjlcfdyheyubsemwlzzv`. Signed-out redirect to
-`/auth` is clean with no console errors. Suites after 4c: shared 48,
-retriever 103, pusher 65, gateway 19, frontend typecheck + lint clean.
+**Verified signed in** against the live project, with a throwaway pro user
+created and deleted through the admin API (same pattern as `e2e-live.mjs` —
+the script is worth rewriting when the next page needs it): display name,
+language, organisation, website, phone and both chip lists round-trip through
+Supabase and reload; `ui_language` sets `document.documentElement.lang` on load;
+the promoter section appears for `pro` and is absent for `user`; signed-out
+`/account` redirects to `/auth`. No console errors.
+
+**That walkthrough caught a bug typecheck could not** (`fix(frontend)`,
+`11ccffa`): picking a language writes through and invalidates the profile query,
+react-query hands back a *new* object, and the `[profile]` seeding effect re-ran
+and wiped a display name typed but not yet saved — it reached the database as
+null. Both seeding effects are now guarded by a ref and run once per account id.
+Worth remembering as a shape: **any form seeded from a react-query result
+re-seeds on every refetch**, and a sibling mutation is enough to trigger one.
+
+Suites after 4c: shared 48, retriever 103, pusher 65, gateway 19, frontend
+typecheck + lint clean.
 
 ## Next: Phase 4d — many events, one conversation
 
