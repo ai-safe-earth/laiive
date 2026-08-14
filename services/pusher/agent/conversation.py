@@ -37,7 +37,7 @@ CONVERSATION_PROMPT_VERSION = "v5"
 
 # How many events one walk may carry. Only the entry turn extracts a set now,
 # but a 200-row sheet would still make a 200-stop walk and re-echo itself with
-# every message — big sheets keep the deterministic /batch/parse fast lane.
+# every message — past the cap the reply asks for the rest separately.
 MAX_EVENTS_PER_TURN = 25
 
 CLARIFY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.

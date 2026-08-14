@@ -29,7 +29,7 @@ class TestHealthEndpoints:
     def test_root_endpoint(self, client):
         data = client.get("/").json()
         assert data["version"] == "0.3.0"
-        assert "batch_parse" in data["endpoints"]
+        assert "validate" in data["endpoints"]
 
     def test_health(self, client, mock_neo4j):
         data = client.get("/health").json()
@@ -317,69 +317,4 @@ class TestValidateEventDraft:
 
     def test_unknown_payload_shape_is_422(self, client):
         response = client.post("/validate-event", json={"event": {"name": "X"}})
-        assert response.status_code == 422
-
-
-class TestBatch:
-    CSV = (
-        "name,artist,date,venue,city,price,genre\n"
-        "Jazz Night,Ana Beck Quartet,2026-09-01 20:00,Quasimodo,Berlin,22,jazz\n"
-        "Techno Sunday,DJ Petra;Klangfeld,2026-09-07 22:00,Berghain,Berlin,18,techno\n"
-        ",,,,,\n"
-    )
-
-    def _upload(self, client, content=None, filename="events.csv"):
-        return client.post(
-            "/batch/parse",
-            files={
-                "file": (
-                    filename,
-                    io.BytesIO((content or self.CSV).encode()),
-                    "text/csv",
-                )
-            },
-        )
-
-    def test_parse_csv(self, client):
-        data = self._upload(client).json()
-        assert data["total"] == 2  # empty row dropped
-        first = data["drafts"][0]
-        assert first["draft"]["name"] == "Jazz Night"
-        assert first["draft"]["artists"] == ["Ana Beck Quartet"]
-        assert first["missing"] == []
-        assert data["drafts"][1]["draft"]["artists"] == ["DJ Petra", "Klangfeld"]
-
-    def test_parse_reports_missing_per_row(self, client):
-        csv_text = "artist,city\nSolo Act,Berlin\n"
-        data = self._upload(client, csv_text).json()
-        assert set(data["drafts"][0]["missing"]) == {"start_at", "venue", "price_min"}
-
-    def test_unsupported_extension_422(self, client):
-        response = self._upload(client, filename="events.pdf")
-        assert response.status_code == 422
-
-    def test_empty_file_422(self, client):
-        assert self._upload(client, "name,city\n").status_code == 422
-
-    def test_batch_validate_writes_with_progress(self, client, mock_neo4j):
-        draft = {
-            "name": "Jazz Night",
-            "artists": ["Ana Beck Quartet"],
-            "start_at": "2026-09-01T20:00:00",
-            "venue": "Quasimodo",
-            "city": "Berlin",
-            "price_min": 22.0,
-        }
-        data = client.post(
-            "/batch/validate-event", json={"draft": draft, "index": 1, "total": 5}
-        ).json()
-        assert data["success"] is True
-        assert (data["index"], data["total"]) == (1, 5)
-        assert data["event_name"] == "Jazz Night"
-
-    def test_batch_validate_invalid_draft_422(self, client, mock_neo4j):
-        response = client.post(
-            "/batch/validate-event",
-            json={"draft": {"artists": ["X"]}, "index": 1, "total": 1},
-        )
         assert response.status_code == 422

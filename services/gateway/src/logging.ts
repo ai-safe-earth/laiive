@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
 
-const LOGGED_ROUTES = [/^\/api\/chat(\/|$)/, /^\/api\/push\/(chat|validate-event|batch)(\/|$)/];
+const LOGGED_ROUTES = [/^\/api\/chat(\/|$)/, /^\/api\/push\/(chat|validate-event)(\/|$)/];
 
 /**
  * Fire-and-forget conversation capture into Supabase `conversation_logs`

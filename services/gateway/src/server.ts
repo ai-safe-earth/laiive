@@ -50,7 +50,7 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
   // Upload routes are proxied as raw streams, which means Fastify's body limit
   // never sees them. Reject oversized bodies on the declared length before any
   // of it reaches Whisper or the vision model.
-  const UPLOAD_ROUTES = [/^\/api\/transcribe(\/|$)/, /^\/api\/push\/(ingest|batch\/parse)(\/|$)/];
+  const UPLOAD_ROUTES = [/^\/api\/transcribe(\/|$)/, /^\/api\/push\/ingest(\/|$)/];
   app.addHook("onRequest", async (request, reply) => {
     if (request.method !== "POST") return;
     if (!UPLOAD_ROUTES.some((route) => route.test(request.url))) return;

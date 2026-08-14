@@ -27,7 +27,7 @@ const replyOptions: NonNullable<FastifyHttpProxyOptions["replyOptions"]> = {
 export function registerProxies(app: FastifyInstance, config: GatewayConfig): void {
   // Chat proxies parse the JSON body (proxyPayloads: false) so conversation
   // logging can capture it; everything else streams bodies through untouched
-  // (batch/audio uploads must not be buffered or parsed here).
+  // (audio/file uploads must not be buffered or parsed here).
 
   // /api/chat/* → retriever /chat/* — anonymous allowed (D7)
   app.register(httpProxy, {

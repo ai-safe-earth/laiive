@@ -1,4 +1,4 @@
-"""Pusher API — multimodal event submission via chat, voice, image, URL, batch."""
+"""Pusher API — multimodal event submission via chat, voice, image and URL."""
 
 import asyncio
 import uuid
@@ -24,8 +24,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from . import graph
-from .batch import drafts_with_missing, parse_batch
-from .conversation import WalkInput, default_currency, process_turn
+from .conversation import WalkInput, process_turn
 from .converters import (
     UnreadableDocument,
     audio_to_text,
@@ -75,12 +74,6 @@ class ValidateEventRequest(BaseModel):
     # owner identity is the gateway's X-User-Id header; a body user_id is ignored
 
 
-class BatchValidateRequest(BaseModel):
-    draft: EventDraft
-    index: int
-    total: int
-
-
 # ============== Helpers ==============
 
 
@@ -108,8 +101,6 @@ def root():
             "chat_stream": "/chat/stream (POST) - SSE streaming",
             "ingest": "/ingest (POST, multipart) - audio/image/document/url → text",
             "validate": "/validate-event (POST)",
-            "batch_parse": "/batch/parse (POST, multipart)",
-            "batch_validate": "/batch/validate-event (POST)",
         },
     }
 
@@ -272,44 +263,5 @@ async def validate_event(
         "artist": draft.artists[0] if draft.artists else None,
         "venue": result.venue,
         "city": result.city,
-        "warnings": result.warnings,
-    }
-
-
-# ============== Batch ==============
-
-
-@app.post("/batch/parse")
-async def batch_parse(file: UploadFile = File(...)):
-    """CSV/XLSX upload → drafts with their missing fields ("event i of N")."""
-    try:
-        content = await file.read()
-        drafts = parse_batch(content, file.filename or "upload.csv")
-    except ValueError as e:
-        raise HTTPException(422, str(e))
-    except Exception as e:
-        logger.error(f"Batch parse failed: {e}")
-        raise HTTPException(500, f"Could not parse file: {e}")
-    if not drafts:
-        raise HTTPException(422, "No event rows found in the file")
-    return {"total": len(drafts), "drafts": drafts_with_missing(drafts)}
-
-
-@app.post("/batch/validate-event")
-async def batch_validate_event(
-    request: BatchValidateRequest,
-    x_user_id: Optional[str] = Header(None),
-):
-    """Publish draft i of N after the promoter approved its form."""
-    draft = request.draft
-    if draft.city and not draft.price_currency:
-        draft.price_currency = default_currency(draft.city)
-    result = _write_or_raise(draft, owner_id=x_user_id)
-    return {
-        "success": True,
-        "index": request.index,
-        "total": request.total,
-        "event_id": result.uid,
-        "event_name": result.name,
         "warnings": result.warnings,
     }
