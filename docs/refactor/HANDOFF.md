@@ -14,13 +14,17 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b** — the Prefect flows (`services/search/flows/`:
-`auth.py` Supabase password grant → admin JWT, `city_sweep.py` one task per
-city + markdown artifact, `backfill.py`; thin HTTP clients of the public
-gateway per D17). **5a is done and live-verified** — see *Phase 5a* below.
-5b needs from the owner: a Supabase admin service account and a Prefect
-Cloud workspace. The only Phase-4 leftover is the Google click-through by
-the owner.
+**Next up**: **Phase 5b verification** — the flows code is written and
+unit-tested (see *Phase 5b* below) but blocked on two owner actions:
+(1) provision the Supabase admin service account
+(`cd services/search && uv run --env-file ../../.env python
+scripts/create_admin_user.py --email <email>` — idempotent, prints the
+password once), then a local flow run against the live stack;
+(2) a Prefect Cloud workspace (managed pool `laiive-managed`, the Secret
+blocks/Variables listed in `services/search/README.md`), then
+`prefect deploy --all` and one manual run from the Cloud UI. After that:
+Phase 6 (CI/CD + deploy). The only Phase-4 leftover is the Google
+click-through by the owner.
 
 ## Done
 
@@ -513,6 +517,37 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   `SessionExpired` 500'd an approve; the retry succeeded — the writer's
   dedup probe sits outside its try/except, so connection-level errors
   surface as 500s rather than typed results.
+
+### Phase 5b — Prefect flows ✍️ code done, live verify pending owner steps
+
+- **`services/search/flows/`** (D17, thin HTTP clients of the public
+  gateway — no new write path): `auth.py` (password grant → admin JWT;
+  every setting resolves **env first, then Prefect** — Variables
+  `laiive_gateway_url` / `laiive_supabase_url` /
+  `laiive_supabase_publishable_key`, Secret blocks `supabase-admin-email` /
+  `supabase-admin-password` — so a local run needs no Prefect Cloud),
+  `city_sweep.py` (one task per city, retries=2, sequential on purpose —
+  the sweep endpoint is a minutes-long synchronous call; markdown artifact
+  tables the **new** candidates per city + approve URL; sweeps stay
+  dry-run), `backfill.py` (nightly, `max_venues=100`). JWTs are minted
+  *inside* tasks so they never appear as Prefect task parameters.
+- **Root `prefect.yaml`**: deployments `city-sweep-weekly` (Mon 06:00
+  Europe/Madrid) + `backfill-nightly` (04:30); pull = git_clone of
+  `ai-safe-earth/laiive` (Secret block `github-laiive-pat`) +
+  set_working_directory to `services/search`. Both flow files carry a
+  dual-import guard (`flows.auth` / bare `auth`) because Prefect loads
+  entrypoints as top-level modules and the sys.path root differs by loader.
+- **`scripts/create_admin_user.py`** — owner-run provisioning: auth admin
+  API create (or password reset if existing) + `user_roles` upsert to
+  admin via PostgREST with the service-role key; the existing access-token
+  hook stamps the JWT, zero new machinery.
+- **Deps**: `prefect>=3.1` lives in a `flows` dependency group (dev
+  includes it); the search Dockerfile now syncs `--no-group flows` so the
+  API image stays slim. Setup order is in `services/search/README.md`.
+- **Tests** (search 31 total, 9 new): task `.fn` + renderer with httpx
+  mocked — the sync-sweep-vs-202+poll question stays open until a managed
+  run shows whether the ~minutes-long call survives; 04-plan sanctions the
+  poll redesign if not.
 
 ## Phase 4 plan of record (04-plan.md)
 

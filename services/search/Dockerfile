@@ -10,7 +10,7 @@ COPY search /app
 WORKDIR /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    uv sync --locked --no-group flows
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENTRYPOINT []

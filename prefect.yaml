@@ -1,0 +1,45 @@
+# Prefect deployments for the SEARCH flows (Phase 5b, D17).
+#
+# Run `prefect deploy --all` from the repo root, logged in to the Prefect
+# Cloud workspace. The managed work pool clones this repo at run time —
+# create a Secret block `github-laiive-pat` holding a read-only fine-grained
+# PAT for ai-safe-earth/laiive first (plus the Secret blocks and Variables
+# listed in services/search/flows/auth.py).
+#
+# Schedules live here, on the deployment, so cadence changes without a
+# redeploy of any service. Sweeps stay dry-run — approval is a human action.
+
+name: laiive
+prefect-version: 3.0.0
+
+pull:
+  - prefect.deployments.steps.git_clone:
+      id: clone
+      repository: https://github.com/ai-safe-earth/laiive.git
+      branch: main
+      access_token: "{{ prefect.blocks.secret.github-laiive-pat }}"
+  - prefect.deployments.steps.set_working_directory:
+      directory: "{{ clone.directory }}/services/search"
+
+definitions:
+  work_pool: &managed_pool
+    name: laiive-managed
+    job_variables:
+      pip_packages:
+        - "prefect>=3.0"
+        - "httpx>=0.27"
+
+deployments:
+  - name: city-sweep-weekly
+    entrypoint: flows/city_sweep.py:city_sweep
+    work_pool: *managed_pool
+    schedules:
+      - cron: "0 6 * * 1"
+        timezone: "Europe/Madrid"
+
+  - name: backfill-nightly
+    entrypoint: flows/backfill.py:backfill
+    work_pool: *managed_pool
+    schedules:
+      - cron: "30 4 * * *"
+        timezone: "Europe/Madrid"
