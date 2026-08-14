@@ -1,4 +1,4 @@
-# HANDOFF — refactor status (updated 2026-08-14, third session)
+# HANDOFF — refactor status (updated 2026-08-14, fourth session)
 
 Continuation point for the laiive refactor. Read this first, then
 `04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
@@ -14,11 +14,13 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5** (SEARCH service + Prefect sweeps) — see *Phase 4
-plan of record* and 04-plan.md. The only Phase-4 leftover is the Google
-click-through by the owner. Earlier this session: CSV fast lane **deleted**
-(owner's call, `722c415`), translation sweep done (`c5af2e0`), end-of-walk
-completion message added (`2398cfa`).
+**Next up**: **Phase 5b** — the Prefect flows (`services/search/flows/`:
+`auth.py` Supabase password grant → admin JWT, `city_sweep.py` one task per
+city + markdown artifact, `backfill.py`; thin HTTP clients of the public
+gateway per D17). **5a is done and live-verified** — see *Phase 5a* below.
+5b needs from the owner: a Supabase admin service account and a Prefect
+Cloud workspace. The only Phase-4 leftover is the Google click-through by
+the owner.
 
 ## Done
 
@@ -466,6 +468,51 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   detect-secrets flags `passwordPlaceholder` lines — they carry
   `pragma: allowlist secret`. Not browser-verified beyond typecheck+lint;
   the next walkthrough should spot-check es/ca on /pro and /account.
+
+### Phase 5a — SEARCH service ✅ (commits `7484781`, `fa6699f` + feat commit; live-verified 2026-08-14)
+
+- **D13 revised (owner call): Tavily, not Brave** — the provisioned key was
+  Tavily (`TAVILY_API_KEY` in root `.env`, renamed from `BRAVE_API_KEY`), and
+  Tavily returns cleaned page content, so there is no fetch-and-strip step.
+- **`services/search/`** (FastAPI :8004, internal, admin-only via the
+  gateway's existing `/api/admin/search/*` + `SEARCH_ENABLED=true` — gateway
+  needed zero code changes): `POST /sweep` (Tavily per-city queries →
+  gpt-4o-mini extraction with gpt-4o fallback *only on unparseable replies*,
+  an empty page is final → past-event filter → intra-sweep dedup → graph
+  identity probe + vector-similarity advisory (`event_embedding`, threshold
+  0.92) → dry-run report, zero writes), `GET /reports(/{id})`,
+  `POST /reports/{id}/approve` (replays the *stored* report through the
+  shared writer, `source='admin_search'`, `owner_id=None`; default = only
+  "new" candidates, explicit `indices` override), `POST /backfill`
+  (embeddings + venue geocoding, bounded), `/health`. Endpoints are plain
+  `def` (threadpool — the Phase-3 SSE lesson). Migration
+  `20260814000009_search_reports.sql` (service-role only, jsonb candidates)
+  pushed by the owner. `make start-search`, compose service, pre-commit
+  scope all wired. `laiive_shared/drafts.py` now owns the JSON→EventDraft
+  coercion helpers (moved out of pusher's converters).
+- **Write gate relaxed for discovery (owner call)**: agenda pages state
+  name/date/venue but rarely lineup or price, so under promoter rules every
+  candidate was unapprovable (`complete: 0`). `missing_required(draft,
+  source)`: `admin_search` requires only name + start_at + venue + city.
+- **Live-verified end-to-end**: Barcelona sweep (4 pages, ~100 s) → 57
+  drafts, 50 past filtered, 7 real candidates (Poble Espanyol agenda);
+  node counts unchanged; report persisted + re-readable. Owner-approved 3
+  (Cosquin Rock, Rock The Sun, Europe – Barcelona Rock Fest) → landed
+  tagged `admin_search`, venue geocoded; **re-approve returned 3×
+  `duplicate`, 0 created** (writer probe, idempotent); retriever surfaces
+  them mixed with seed events, `source: "admin_search"` on the cards.
+- Live smoke found and fixed: non-uuid `X-User-Id` broke the report PATCH
+  (uuid column — now coerced to null), and a failed report update after
+  committed graph writes 502'd away the write results (now 200 + warning).
+- **Nits, not blockers**: (1) approve's inline embedding backfill silently
+  did nothing during the live run — `/backfill` covered it (embedded 4) and
+  the nightly flow is the real answer; warnings now surface in the approve
+  response if it recurs. (2) admin_search events carry no genre, so
+  genre-pinned queries ("rock in Barcelona") miss them — vector search and
+  city/date queries find them fine. (3) One transient Aura
+  `SessionExpired` 500'd an approve; the retry succeeded — the writer's
+  dedup probe sits outside its try/except, so connection-level errors
+  surface as 500s rather than typed results.
 
 ## Phase 4 plan of record (04-plan.md)
 
