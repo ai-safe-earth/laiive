@@ -6,15 +6,16 @@ assistant messages tells us how many clarification rounds already happened.
 No in-process sessions, no hashed session ids, no "type yes" write path —
 the form (form.extracted) is the only route to publication.
 
-A turn can recognize several events at once (a spreadsheet, a festival
-line-up). That is the same path, not a batch mode: the drafts are a list, the
-clarification round covers the whole set at once, and the forms then go out
-one per event. Since every turn re-extracts the whole conversation, a promoter
-correcting one of them ("the third is at 21:00") needs no state on either side.
+A turn that recognizes several events at once (a spreadsheet, a festival
+line-up) starts a *walk*: the chat takes the promoter through the set one
+event per turn — "event 1 of 5, here is what I have, I need the price and the
+date" → form → publish → "let's go with event 2". The client persists the
+draft list and echoes it back with the cursor each message (`WalkInput`), so
+the server stays stateless and a walk turn refines only the event under the
+cursor instead of re-extracting all N.
 """
 
-from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from laiive_shared import (
     EventDraft,
@@ -27,16 +28,16 @@ from openai import OpenAI
 
 from config import settings
 
-from .converters import extract_drafts_from_text
+from .converters import extract_drafts_from_text, refine_draft
 
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-CONVERSATION_PROMPT_VERSION = "v4"
+CONVERSATION_PROMPT_VERSION = "v5"
 
-# How many events one conversation may carry. Past this the reply asks for the
-# rest separately: every turn re-emits all of the drafts, so a 200-row sheet
-# would spend the whole turn re-writing itself and drift while doing it.
+# How many events one walk may carry. Only the entry turn extracts a set now,
+# but a 200-row sheet would still make a 200-stop walk and re-echo itself with
+# every message — big sheets keep the deterministic /batch/parse fast lane.
 MAX_EVENTS_PER_TURN = 25
 
 CLARIFY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
@@ -45,23 +46,19 @@ The promoter's message(s) did not include everything needed. Missing: {missing}.
 
 Write ONE short message asking naturally for the missing details — conversational, not a form or a bullet list. Do not repeat back what they already gave you."""
 
-CLARIFY_MANY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
-
-You recognized {total} events in what the promoter sent, and some are incomplete: {gaps}.
-
-Write ONE short message: tell them how many events you recognized, then ask naturally for what is missing — conversational, not a form or a bullet list. Ask once for anything several events are missing, rather than event by event. Do not repeat back what they already gave you."""
-
 HANDOFF_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
 
 A review form with the extracted event details is being shown to the promoter right now, next to your message.{missing_note}
 
 Write ONE short sentence telling them to check the details and publish when ready{missing_hint}."""
 
-HANDOFF_MANY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
+WALK_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
 
-{total} review forms — one per event you recognized — are being shown to the promoter, one at a time.{missing_note}{truncation_note}
+You are walking the promoter through publishing their events one at a time — one review form per event, in order.{opening_note}{truncation_note}
 
-Write ONE short sentence telling them how many events you recognized and to check each form and publish it when ready{missing_hint}."""
+The form being shown next to your message is for event {position} of {total}: {summary}.{missing_note}
+
+Write ONE short message: say which event this is ("event {position} of {total}") and {ask} — conversational, not a form or a bullet list. Do not list the other events, and do not repeat details the form already shows."""
 
 # Field names as shown inside prompts — keep human, not schema-speak.
 _FIELD_LABELS = {
@@ -102,12 +99,26 @@ def default_currency(city: str | None) -> str:
 
 
 @dataclass
+class WalkInput:
+    """The client-carried walk state, echoed back with each message.
+
+    The browser persists the draft set walk.state gave it and sends it up with
+    the cursor; the numbering cannot drift and the server holds nothing.
+    """
+
+    drafts: list[EventDraft] = field(default_factory=list)
+    cursor: int = 0
+
+
+@dataclass
 class PusherTurn:
     drafts: list[EventDraft]
     missing: list[list[str]]  # parallel to drafts
     show_form: bool
     reply: str
     truncated: bool = False
+    walk: bool = False  # emit walk.state; the form is drafts[cursor] only
+    cursor: int = 0
 
 
 def clarification_rounds(history: list[dict] | None) -> int:
@@ -115,15 +126,21 @@ def clarification_rounds(history: list[dict] | None) -> int:
     return sum(1 for m in history or [] if m.get("role") == "assistant")
 
 
-def process_turn(messages: list[dict]) -> PusherTurn:
+def process_turn(messages: list[dict], walk: WalkInput | None = None) -> PusherTurn:
     """One submission-chat turn.
 
-    Extracts every event described in the full conversation. If a required
-    field is missing anywhere and we have not asked yet: exactly one natural
-    clarification round, covering the whole set at once. After that the forms
-    always go out, missing fields marked — the form renders partial drafts, so
-    there is never a reason to ask twice.
+    Mid-walk (`walk` carries drafts) nothing is re-extracted: only the event
+    under the cursor is refined with the promoter's latest message.
+
+    Otherwise every event described in the full conversation is extracted. One
+    event keeps the old shape — at most one natural clarification round, then
+    the form always, missing fields marked. Several events enter the walk
+    immediately: the form for event 1 goes out with the gaps highlighted, and
+    the intro *is* the ask, so there is no set-wide clarification round.
     """
+    if walk is not None and walk.drafts:
+        return _walk_turn(messages, walk)
+
     history = messages[:-1]
     user_text = "\n".join(m["content"] for m in messages if m.get("role") == "user")
 
@@ -147,37 +164,68 @@ def process_turn(messages: list[dict]) -> PusherTurn:
         _client, settings.classifier_model, latest_user_text(messages)
     )
 
+    if len(drafts) > 1:
+        return PusherTurn(
+            drafts=drafts,
+            missing=missing,
+            show_form=True,
+            reply=_walk_reply(
+                messages,
+                drafts,
+                missing,
+                0,
+                language,
+                entering=True,
+                truncated=truncated,
+            ),
+            truncated=truncated,
+            walk=True,
+            cursor=0,
+        )
+
     asked_before = clarification_rounds(history) > 0
-    if any(missing) and not asked_before:
+    if missing[0] and not asked_before:
         return PusherTurn(
             drafts=drafts,
             missing=missing,
             show_form=False,
-            reply=_clarify(messages, missing, language),
+            reply=_clarify(messages, missing[0], language),
             truncated=truncated,
         )
     return PusherTurn(
         drafts=drafts,
         missing=missing,
         show_form=True,
-        reply=_handoff(messages, missing, language, truncated),
+        reply=_handoff(messages, missing[0], language),
         truncated=truncated,
+    )
+
+
+def _walk_turn(messages: list[dict], walk: WalkInput) -> PusherTurn:
+    """Refine the event under the cursor, leave the rest of the set alone."""
+    drafts = list(walk.drafts)
+    cursor = min(max(walk.cursor, 0), len(drafts) - 1)
+
+    drafts[cursor] = refine_draft(drafts[cursor], latest_user_text(messages))
+    if drafts[cursor].city and not drafts[cursor].price_currency:
+        drafts[cursor].price_currency = default_currency(drafts[cursor].city)
+    missing = [missing_required(draft) for draft in drafts]
+
+    language = detect_language(
+        _client, settings.classifier_model, latest_user_text(messages)
+    )
+    return PusherTurn(
+        drafts=drafts,
+        missing=missing,
+        show_form=True,
+        reply=_walk_reply(messages, drafts, missing, cursor, language),
+        walk=True,
+        cursor=cursor,
     )
 
 
 def _labels(missing: list[str]) -> str:
     return ", ".join(_FIELD_LABELS.get(f, f) for f in missing)
-
-
-def _gaps(missing: list[list[str]]) -> str:
-    """ "3 of them are missing the ticket price; 1 is missing the venue" — the
-    set-wide view, so the assistant asks once instead of event by event."""
-    counts = Counter(field for fields in missing for field in fields)
-    return "; ".join(
-        f"{counts[field]} of them {'is' if counts[field] == 1 else 'are'} missing {label}"
-        for field, label in _FIELD_LABELS.items()
-        if counts.get(field)
-    )
 
 
 def latest_user_text(messages: list[dict]) -> str:
@@ -207,52 +255,69 @@ def _chat(system: str, messages: list[dict], language: str) -> str:
     return response.choices[0].message.content.strip()
 
 
-def _clarify(messages: list[dict], missing: list[list[str]], language: str) -> str:
-    if len(missing) == 1:
-        return _chat(
-            CLARIFY_PROMPT.format(missing=_labels(missing[0])), messages, language
-        )
+def _clarify(messages: list[dict], missing: list[str], language: str) -> str:
+    return _chat(CLARIFY_PROMPT.format(missing=_labels(missing)), messages, language)
+
+
+def _handoff(messages: list[dict], missing: list[str], language: str) -> str:
+    note = (
+        f" Some fields are still empty and highlighted: {_labels(missing)}."
+        if missing
+        else ""
+    )
+    hint = ", filling in what's highlighted" if missing else ""
     return _chat(
-        CLARIFY_MANY_PROMPT.format(total=len(missing), gaps=_gaps(missing)),
+        HANDOFF_PROMPT.format(missing_note=note, missing_hint=hint),
         messages,
         language,
     )
 
 
-def _handoff(
+def _event_summary(draft: EventDraft) -> str:
+    """ "Go Go Dolls at the Butterfly Circus" — how the intro names the event."""
+    who = draft.name or ", ".join(draft.artists) or "an event with no details yet"
+    return f"{who} at {draft.venue}" if draft.venue else who
+
+
+def _walk_reply(
     messages: list[dict],
+    drafts: list[EventDraft],
     missing: list[list[str]],
+    cursor: int,
     language: str,
+    entering: bool = False,
     truncated: bool = False,
 ) -> str:
-    incomplete = any(missing)
-    hint = ", filling in what's highlighted" if incomplete else ""
-
-    if len(missing) == 1:
-        note = (
-            f" Some fields are still empty and highlighted: {_labels(missing[0])}."
-            if incomplete
-            else ""
-        )
-        return _chat(
-            HANDOFF_PROMPT.format(missing_note=note, missing_hint=hint),
-            messages,
-            language,
-        )
-
-    note = f" Some are still incomplete: {_gaps(missing)}." if incomplete else ""
+    gaps = missing[cursor]
+    opening = (
+        " They just sent the whole set at once — start by saying how many "
+        "events you recognized."
+        if entering
+        else ""
+    )
     truncation = (
         f" You could only take the first {MAX_EVENTS_PER_TURN} — ask them to send "
         "the rest in a separate message."
         if truncated
         else ""
     )
+    note = (
+        f" Still missing and highlighted on the form: {_labels(gaps)}." if gaps else ""
+    )
+    ask = (
+        "ask naturally for the missing details"
+        if gaps
+        else "tell them to check the details and publish when ready"
+    )
     return _chat(
-        HANDOFF_MANY_PROMPT.format(
-            total=len(missing),
-            missing_note=note,
+        WALK_PROMPT.format(
+            opening_note=opening,
             truncation_note=truncation,
-            missing_hint=hint,
+            position=cursor + 1,
+            total=len(drafts),
+            summary=_event_summary(drafts[cursor]),
+            missing_note=note,
+            ask=ask,
         ),
         messages,
         language,

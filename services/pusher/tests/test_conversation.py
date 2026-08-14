@@ -4,7 +4,7 @@ import json
 
 from agent.conversation import (
     MAX_EVENTS_PER_TURN,
-    _gaps,
+    WalkInput,
     clarification_rounds,
     default_currency,
     process_turn,
@@ -14,6 +14,7 @@ from agent.converters import (
     document_to_text,
     extract_drafts_from_text,
     image_to_text,
+    refine_draft,
 )
 from laiive_shared import EventDraft
 
@@ -170,42 +171,72 @@ class TestProcessTurn:
             assert "CONFIRMED" not in source
 
 
-class TestManyEventsInOneTurn:
+class TestWalk:
+    """Several events = a walk: one form per turn, client-carried cursor."""
+
     TWO = {"events": [COMPLETE, {"artists": ["Y"], "city": "Berlin"}]}
 
-    def test_one_clarification_round_covers_the_whole_set(self, mock_openai):
+    def test_many_events_enter_the_walk_immediately(self, mock_openai):
         set_extraction(mock_openai, self.TWO)
         turn = process_turn([{"role": "user", "content": "two gigs"}])
+        assert turn.walk is True
+        assert turn.cursor == 0
+        assert turn.show_form is True  # no set-wide round: the intro is the ask
         assert len(turn.drafts) == 2
-        assert turn.show_form is False  # one event incomplete → still one round
         assert turn.missing[0] == []
         assert set(turn.missing[1]) == {"start_at", "venue", "price_min"}
 
-    def test_after_the_round_every_event_gets_its_form(self, mock_openai):
-        set_extraction(mock_openai, self.TWO)
-        turn = process_turn(
-            [
-                {"role": "user", "content": "two gigs"},
-                {"role": "assistant", "content": "when is the second one?"},
-                {"role": "user", "content": "not sure yet"},
-            ]
-        )
-        assert turn.show_form is True
-        assert len(turn.drafts) == len(turn.missing) == 2
+    def test_a_single_event_never_walks(self, mock_openai):
+        turn = process_turn([{"role": "user", "content": "full event info"}])
+        assert turn.walk is False
 
-    def test_currency_defaulted_per_event(self, mock_openai):
-        set_extraction(
-            mock_openai,
-            {"events": [COMPLETE, {**COMPLETE, "city": "London"}]},
+    def test_walk_turn_refines_only_the_cursor(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "venue": "Refined Venue"})
+        untouched = EventDraft(artists=["A"], venue="First Venue")
+        turn = process_turn(
+            [{"role": "user", "content": "it's at Refined Venue"}],
+            walk=WalkInput(drafts=[untouched, EventDraft(artists=["Y"])], cursor=1),
         )
-        turn = process_turn([{"role": "user", "content": "two gigs"}])
-        assert [d.price_currency for d in turn.drafts] == ["EUR", "GBP"]
+        assert turn.walk is True
+        assert turn.cursor == 1
+        assert turn.drafts[0] is untouched  # neighbour not even copied
+        assert turn.drafts[1].venue == "Refined Venue"
+        # only refine + language + reply ran — no full re-extraction prompt
+        prompts = [
+            call.kwargs["messages"][0]["content"]
+            for call in mock_openai.chat.completions.create.call_args_list
+        ]
+        assert not any("Extract live music events" in p for p in prompts)
+
+    def test_walk_cursor_is_clamped(self, mock_openai):
+        turn = process_turn(
+            [{"role": "user", "content": "next"}],
+            walk=WalkInput(drafts=[EventDraft(artists=["A"])], cursor=7),
+        )
+        assert turn.cursor == 0
+
+    def test_empty_walk_falls_back_to_extraction(self, mock_openai):
+        turn = process_turn(
+            [{"role": "user", "content": "full event info"}],
+            walk=WalkInput(drafts=[], cursor=0),
+        )
+        assert turn.walk is False
+        assert turn.drafts[0].venue == "Test Venue"
+
+    def test_walk_turn_defaults_currency_on_the_cursor(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "city": "London"})
+        turn = process_turn(
+            [{"role": "user", "content": "it's in London"}],
+            walk=WalkInput(drafts=[EventDraft(artists=["A"])], cursor=0),
+        )
+        assert turn.drafts[0].price_currency == "GBP"
 
     def test_beyond_the_cap_is_truncated_and_flagged(self, mock_openai):
         set_extraction(mock_openai, {"events": [COMPLETE] * (MAX_EVENTS_PER_TURN + 3)})
         turn = process_turn([{"role": "user", "content": "a whole season"}])
         assert len(turn.drafts) == MAX_EVENTS_PER_TURN
         assert turn.truncated is True
+        assert turn.walk is True
 
     def test_nothing_extracted_still_makes_one_draft(self, mock_openai):
         set_extraction(mock_openai, "not json")
@@ -213,11 +244,25 @@ class TestManyEventsInOneTurn:
         assert len(turn.drafts) == 1
         assert turn.show_form is False  # unchanged behavior: ask, don't dump a form
 
-    def test_gap_summary_counts_across_events(self):
-        gaps = _gaps([[], ["price_min"], ["price_min", "venue"]])
-        assert gaps == (
-            "1 of them is missing the venue; 2 of them are missing the ticket price"
-        )
+
+class TestRefineDraft:
+    def test_merges_the_message_into_the_draft(self, mock_openai):
+        set_extraction(mock_openai, {**COMPLETE, "price_min": 20})
+        refined = refine_draft(EventDraft(artists=["Test Artist"]), "20 euros")
+        assert refined.price_min == 20.0
+
+    def test_unparseable_reply_returns_the_draft_unchanged(self, mock_openai):
+        set_extraction(mock_openai, "sure, done!")
+        draft = EventDraft(artists=["A"], venue="V")
+        assert refine_draft(draft, "thanks") is draft
+
+    def test_current_draft_travels_in_the_prompt(self, mock_openai):
+        refine_draft(EventDraft(artists=["A"], venue="Sala X"), "18 euros")
+        prompt = mock_openai.chat.completions.create.call_args.kwargs["messages"][0][
+            "content"
+        ]
+        assert "Sala X" in prompt
+        assert "18 euros" in prompt
 
 
 class TestCurrency:

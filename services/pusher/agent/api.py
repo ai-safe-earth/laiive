@@ -16,6 +16,7 @@ from laiive_shared import (
     MessageDelta,
     Status,
     UnsupportedAudioFormat,
+    WalkState,
     sse_frame,
 )
 from loguru import logger
@@ -24,7 +25,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import graph
 from .batch import drafts_with_missing, parse_batch
-from .conversation import default_currency, process_turn
+from .conversation import WalkInput, default_currency, process_turn
 from .converters import (
     UnreadableDocument,
     audio_to_text,
@@ -49,8 +50,17 @@ class Message(BaseModel):
     content: str
 
 
+class WalkModel(BaseModel):
+    """The client-carried walk state: the draft set walk.state handed the
+    browser, echoed back with the cursor so the server stays stateless."""
+
+    drafts: List[EventDraft]
+    cursor: int = 0
+
+
 class ChatStreamRequest(BaseModel):
     messages: List[Message]
+    walk: Optional[WalkModel] = None
 
 
 class ValidateEventRequest(BaseModel):
@@ -127,8 +137,13 @@ async def chat_stream(request: ChatStreamRequest):
         raise HTTPException(400, "No messages provided")
     request_id = str(uuid.uuid4())
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
+    walk = (
+        WalkInput(drafts=request.walk.drafts, cursor=request.walk.cursor)
+        if request.walk
+        else None
+    )
     return StreamingResponse(
-        _generate(request_id, messages),
+        _generate(request_id, messages, walk),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -139,24 +154,41 @@ async def chat_stream(request: ChatStreamRequest):
     )
 
 
-async def _generate(request_id: str, messages: list[dict]):
+async def _generate(request_id: str, messages: list[dict], walk: WalkInput | None):
     """Named-event frames: form.extracted replaces the sentinel.
 
     A conversation that carries several events (a spreadsheet, a line-up)
-    emits one frame per event, in source order — index/total is what lets the
-    client walk them one form at a time.
+    walks them one per turn: walk.state carries the whole set for the client
+    to persist and echo back, form.extracted only the event under the cursor.
+    A single event stays one form.extracted, index 0 of 1.
     """
     try:
         yield sse_frame(Status(state="extracting"))
-        turn = await asyncio.to_thread(process_turn, messages)
-        if turn.show_form:
+        turn = await asyncio.to_thread(process_turn, messages, walk)
+        if turn.walk:
             total = len(turn.drafts)
-            for index, (draft, missing) in enumerate(zip(turn.drafts, turn.missing)):
-                yield sse_frame(
-                    FormExtracted(
-                        draft=draft, missing=missing, index=index, total=total
-                    )
+            yield sse_frame(
+                WalkState(
+                    drafts=turn.drafts,
+                    missing=turn.missing,
+                    cursor=turn.cursor,
+                    total=total,
                 )
+            )
+            yield sse_frame(
+                FormExtracted(
+                    draft=turn.drafts[turn.cursor],
+                    missing=turn.missing[turn.cursor],
+                    index=turn.cursor,
+                    total=total,
+                )
+            )
+        elif turn.show_form:
+            yield sse_frame(
+                FormExtracted(
+                    draft=turn.drafts[0], missing=turn.missing[0], index=0, total=1
+                )
+            )
         yield sse_frame(MessageDelta(text=turn.reply))
     except Exception as e:
         logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)

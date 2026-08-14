@@ -90,8 +90,9 @@ class TestChatStreamV2:
         form_payload = json.loads(frame_data[1][len("data: ") :])
         assert "start_at" in form_payload["missing"]
 
-    def test_many_events_emit_one_frame_each_in_order(self, client, mock_openai):
-        """A spreadsheet-shaped conversation: N forms, N-1 of them for later."""
+    def test_many_events_start_a_walk(self, client, mock_openai):
+        """A spreadsheet-shaped conversation: walk.state carries the set,
+        the one form is event 1."""
         set_extraction(
             mock_openai,
             {
@@ -109,17 +110,56 @@ class TestChatStreamV2:
             },
         ).text
 
+        frames = dict(_frames(body))
+        walk = json.loads(frames["walk.state"][len("data: ") :])
+        assert [d["venue"] for d in walk["drafts"]] == [
+            "First Venue",
+            "Second Venue",
+            "Third Venue",
+        ]
+        assert (walk["cursor"], walk["total"]) == (0, 3)
+
         forms = [
             json.loads(payload[len("data: ") :])
             for name, payload in _frames(body)
             if name == "form.extracted"
         ]
-        assert [f["draft"]["venue"] for f in forms] == [
-            "First Venue",
-            "Second Venue",
-            "Third Venue",
-        ]
-        assert [(f["index"], f["total"]) for f in forms] == [(0, 3), (1, 3), (2, 3)]
+        assert len(forms) == 1  # one event per turn — that is the walk
+        assert forms[0]["draft"]["venue"] == "First Venue"
+        assert (forms[0]["index"], forms[0]["total"]) == (0, 3)
+
+    def test_walk_turn_refines_only_the_cursor(self, client, mock_openai):
+        """Echoed walk state: no re-extraction, the cursor's draft refined."""
+        set_extraction(mock_openai, {**COMPLETE, "venue": "Second Venue"})
+        body = client.post(
+            "/chat/stream",
+            json={
+                "messages": [
+                    {"role": "user", "content": "three gigs in a csv"},
+                    {"role": "assistant", "content": "event 1 of 3 …"},
+                    {"role": "user", "content": 'Published "x" (event 1 of 3).'},
+                ],
+                "walk": {
+                    "drafts": [
+                        {**COMPLETE, "venue": "First Venue"},
+                        {"artists": ["Y"]},
+                        {**COMPLETE, "venue": "Third Venue"},
+                    ],
+                    "cursor": 1,
+                },
+            },
+        ).text
+
+        frames = dict(_frames(body))
+        walk = json.loads(frames["walk.state"][len("data: ") :])
+        assert (walk["cursor"], walk["total"]) == (1, 3)
+        # untouched neighbours survive verbatim
+        assert walk["drafts"][0]["venue"] == "First Venue"
+        assert walk["drafts"][2]["venue"] == "Third Venue"
+
+        form = json.loads(frames["form.extracted"][len("data: ") :])
+        assert (form["index"], form["total"]) == (1, 3)
+        assert form["draft"]["venue"] == "Second Venue"  # the refined cursor
 
 
 class TestSupersededEndpointsAreGone:

@@ -58,6 +58,72 @@ Text to extract from:
 {text}"""
 
 
+REFINE_PROMPT = """A promoter is completing the details of ONE live music event. Today is {today}.
+
+Current draft (JSON):
+{draft}
+
+The promoter's latest message:
+{text}
+
+If the message adds or corrects details of THIS event, merge them into the
+draft. If it clearly talks about a different event, or carries no event
+details at all (a greeting, a confirmation), return the draft unchanged.
+
+Return the full updated draft as a single JSON object with the same fields as
+the input, plus any of: name, artists (list), start_at ("YYYY-MM-DDTHH:MM:SS",
+resolve relative dates from today), venue, address, city, venue_type ("club" |
+"bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",
+only when stated), price_min (number, 0 for free), price_max (number),
+price_currency (ISO code, only when stated or implied by symbol), description,
+genre (lowercase-hyphenated slug), ticket_url.
+
+Rules:
+- NEVER invent data; never drop a field the message did not change.
+- Numbers for prices — no currency symbols.
+- JSON only. No explanation, no markdown fences."""
+
+
+def _strip_fences(content: str) -> str:
+    if content.startswith("```"):
+        lines = content.split("\n")
+        return "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+    return content
+
+
+def refine_draft(draft: EventDraft, text: str) -> EventDraft:
+    """Merge the promoter's latest message into one draft — the walk's turn.
+
+    Mid-walk there is no full re-extraction: only the event under the cursor
+    is refined, so a turn costs one draft's worth of tokens however long the
+    set is. Anything unparseable falls back to the draft unchanged — a bad
+    model reply must never eat the promoter's data.
+    """
+    response = _client.chat.completions.create(
+        model=settings.conversation_model,
+        messages=[
+            {
+                "role": "user",
+                "content": REFINE_PROMPT.format(
+                    today=date.today().isoformat(),
+                    draft=draft.model_dump_json(exclude_none=True),
+                    text=text,
+                ),
+            }
+        ],
+        temperature=0.0,
+    )
+    content = _strip_fences(response.choices[0].message.content.strip())
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        logger.warning(f"Failed to parse refine response: {content[:200]}")
+        return draft
+    if not isinstance(data, dict):
+        return draft
+    return _entry_to_draft(data) or draft
+
+
 def extract_drafts_from_text(text: str) -> list[EventDraft]:
     """LLM extraction of every event described in free text.
 
@@ -78,10 +144,7 @@ def extract_drafts_from_text(text: str) -> list[EventDraft]:
         ],
         temperature=0.0,
     )
-    content = response.choices[0].message.content.strip()
-    if content.startswith("```"):
-        lines = content.split("\n")
-        content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+    content = _strip_fences(response.choices[0].message.content.strip())
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
