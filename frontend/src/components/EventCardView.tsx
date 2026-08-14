@@ -1,6 +1,7 @@
 import type { EventCard } from "@shared/protocol";
 import { ExternalLink, MapPin, Ticket } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 import { EventMap } from "./EventMap";
 
@@ -18,23 +19,24 @@ function formatWhen(startAt: string | null | undefined, language: string): strin
   }).format(date);
 }
 
-function formatPrice(card: EventCard): string | null {
+function formatPrice(card: EventCard, free: string): string | null {
   const { price_min: min, price_max: max, price_currency: currency } = card;
   if (min === null || min === undefined) return null;
   const unit = currency ?? "EUR";
   const money = (value: number) =>
     new Intl.NumberFormat(undefined, { style: "currency", currency: unit }).format(value);
-  if (min === 0 && (max === null || max === undefined || max === 0)) return "free";
+  if (min === 0 && (max === null || max === undefined || max === 0)) return free;
   if (max === null || max === undefined || max === min) return money(min);
   return `${money(min)} – ${money(max)}`;
 }
 
 export function EventCardView({ card, language }: { card: EventCard; language: string }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
   const when = formatWhen(card.start_at, language);
-  const price = formatPrice(card);
+  const price = formatPrice(card, t.cards.free);
   const hasCoordinates =
     typeof card.lat === "number" && typeof card.lng === "number";
   const place = [card.venue, card.city].filter(Boolean).join(", ");
@@ -53,9 +55,9 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
         {card.source !== "seed" && card.source !== "pro_submission" && (
           <span
             className="shrink-0 rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-            title="Found on the internet, not submitted by the promoter"
+            title={t.cards.webTitle}
           >
-            web
+            {t.cards.web}
           </span>
         )}
       </header>
@@ -84,7 +86,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
           >
-            open in Google Maps <ExternalLink className="h-3 w-3" />
+            {t.cards.openMaps} <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       )}
@@ -95,7 +97,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             onClick={() => setExpanded(!expanded)}
             className="text-muted-foreground/80 transition-colors hover:text-primary"
           >
-            {expanded ? "− less" : "+ read more"}
+            {expanded ? t.cards.less : t.cards.readMore}
           </button>
         )}
         {hasCoordinates && (
@@ -107,7 +109,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             )}
           >
             <MapPin className="h-3 w-3" />
-            {showMap ? "hide map" : "map"}
+            {showMap ? t.cards.hideMap : t.cards.map}
           </button>
         )}
         {card.ticket_url && (
@@ -117,7 +119,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-primary hover:underline"
           >
-            <Ticket className="h-3 w-3" /> tickets
+            <Ticket className="h-3 w-3" /> {t.cards.tickets}
           </a>
         )}
       </footer>

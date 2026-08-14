@@ -4,11 +4,13 @@ import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useTranslation } from "@/i18n/useTranslation";
 
 type Mode = "signin" | "signup";
 
 export default function Auth() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { signIn, signInWithGoogle, signUp } = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -21,7 +23,7 @@ export default function Auth() {
     try {
       await signInWithGoogle(); // navigates away; busy stays on until the redirect
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Google sign-in failed");
+      toast.error(error instanceof Error ? error.message : t.auth.googleFailed);
       setBusy(false);
     }
   };
@@ -35,11 +37,11 @@ export default function Auth() {
         navigate("/");
       } else {
         await signUp(email, password, displayName || undefined);
-        toast.success("Check your inbox to confirm the address, then sign in.");
+        toast.success(t.auth.checkInbox);
         setMode("signin");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Authentication failed");
+      toast.error(error instanceof Error ? error.message : t.auth.failed);
     } finally {
       setBusy(false);
     }
@@ -57,14 +59,14 @@ export default function Auth() {
         className="w-full max-w-sm space-y-4 rounded-lg border border-border bg-card p-6"
       >
         <h1 className="font-montserrat text-lg font-bold text-foreground">
-          {mode === "signin" ? "sign in" : "create an account"}
+          {mode === "signin" ? t.auth.signInTitle : t.auth.signUpTitle}
         </h1>
 
         {mode === "signup" && (
           <Input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="display name (optional)"
+            placeholder={t.auth.displayNamePlaceholder}
             autoComplete="nickname"
           />
         )}
@@ -74,7 +76,7 @@ export default function Auth() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="email"
+          placeholder={t.auth.emailPlaceholder}
           autoComplete="email"
         />
         <Input
@@ -83,17 +85,17 @@ export default function Auth() {
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="password"
+          placeholder={t.auth.passwordPlaceholder}
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
         />
 
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? "…" : mode === "signin" ? "sign in" : "sign up"}
+          {busy ? "…" : mode === "signin" ? t.auth.signIn : t.auth.signUp}
         </Button>
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="h-px flex-1 bg-border" />
-          or
+          {t.auth.or}
           <span className="h-px flex-1 bg-border" />
         </div>
 
@@ -122,7 +124,7 @@ export default function Auth() {
               d="M12 4.77c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A11.99 11.99 0 0 0 1.29 6.62l4 3.1C6.23 6.88 8.88 4.77 12 4.77Z"
             />
           </svg>
-          continue with google
+          {t.auth.google}
         </Button>
 
         <button
@@ -130,12 +132,12 @@ export default function Auth() {
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="w-full text-center text-xs text-muted-foreground hover:text-primary"
         >
-          {mode === "signin" ? "no account? sign up" : "already have an account? sign in"}
+          {mode === "signin" ? t.auth.toSignUp : t.auth.toSignIn}
         </button>
       </form>
 
       <Link to="/" className="mt-6 text-xs text-muted-foreground hover:text-primary">
-        continue without an account →
+        {t.auth.withoutAccount}
       </Link>
     </div>
   );

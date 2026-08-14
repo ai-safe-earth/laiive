@@ -12,7 +12,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLanguagePreference } from "@/i18n/useLanguagePreference";
-import { LANGUAGES, type Language } from "@/i18n/useTranslation";
+import { LANGUAGES, useTranslation, type Language } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 const LANGUAGE_LABELS: Record<Language, string> = {
@@ -35,6 +35,7 @@ function ChipList({
   onChange: (next: string[]) => void;
   placeholder: string;
 }) {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState("");
 
   const add = () => {
@@ -59,7 +60,7 @@ function ChipList({
               {item}
               <button
                 type="button"
-                aria-label={`remove ${item}`}
+                aria-label={t.account.remove(item)}
                 onClick={() => onChange(items.filter((i) => i !== item))}
                 className="text-muted-foreground hover:text-destructive"
               >
@@ -82,7 +83,7 @@ function ChipList({
           placeholder={placeholder}
         />
         <Button variant="outline" onClick={add} disabled={!draft.trim()}>
-          add
+          {t.account.add}
         </Button>
       </div>
     </div>
@@ -91,6 +92,7 @@ function ChipList({
 
 export default function Account() {
   const { user, role, isLoading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const { language, chooseLanguage } = useLanguagePreference();
 
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
@@ -134,14 +136,14 @@ export default function Account() {
   const saveProfile = async () => {
     try {
       await updateProfile.mutateAsync({ display_name: displayName.trim() || null });
-      toast.success("profile saved");
+      toast.success(t.account.profileSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "could not save the profile");
+      toast.error(error instanceof Error ? error.message : t.account.saveFailed);
     }
   };
 
   const savePromoterProfile = async () => {
-    if (!orgName.trim()) return toast.error("the organisation name is required");
+    if (!orgName.trim()) return toast.error(t.account.orgRequired);
     try {
       await savePromoter.mutateAsync({
         org_name: orgName.trim(),
@@ -151,9 +153,9 @@ export default function Account() {
         managed_artists: artists,
         notes: promoter?.notes ?? null,
       });
-      toast.success("promoter details saved");
+      toast.success(t.account.promoterSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "could not save the details");
+      toast.error(error instanceof Error ? error.message : t.account.saveFailed);
     }
   };
 
@@ -164,15 +166,19 @@ export default function Account() {
           to="/"
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
         >
-          <ArrowLeft className="h-4 w-4" /> back
+          <ArrowLeft className="h-4 w-4" /> {t.account.back}
         </Link>
-        <h1 className="font-montserrat text-lg font-bold text-foreground">account</h1>
+        <h1 className="font-montserrat text-lg font-bold text-foreground">
+          {t.account.title}
+        </h1>
       </header>
 
       <div className="mx-auto max-w-xl space-y-8 p-4 sm:p-6">
         <section className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div>
-            <h2 className="font-montserrat text-base font-bold text-foreground">you</h2>
+            <h2 className="font-montserrat text-base font-bold text-foreground">
+              {t.account.you}
+            </h2>
             <p className="text-xs text-muted-foreground">
               {user?.email} · <span className="uppercase text-accent">{role}</span>
             </p>
@@ -183,20 +189,20 @@ export default function Account() {
               htmlFor="display-name"
               className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
             >
-              display name
+              {t.account.displayName}
             </label>
             <Input
               id="display-name"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              placeholder={profileLoading ? "…" : "how we greet you"}
+              placeholder={profileLoading ? "…" : t.account.displayNamePlaceholder}
               autoComplete="nickname"
             />
           </div>
 
           <div className="space-y-2">
             <span className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground">
-              language
+              {t.account.language}
             </span>
             <div className="flex flex-wrap gap-2">
               {LANGUAGES.map((code) => (
@@ -215,14 +221,11 @@ export default function Account() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Saved to your account — the assistant still answers in whatever language you
-              write in.
-            </p>
+            <p className="text-xs text-muted-foreground">{t.account.languageNote}</p>
           </div>
 
           <Button onClick={saveProfile} disabled={updateProfile.isPending}>
-            {updateProfile.isPending ? "…" : "save"}
+            {updateProfile.isPending ? "…" : t.account.save}
           </Button>
         </section>
 
@@ -230,12 +233,9 @@ export default function Account() {
           <section className="space-y-4 rounded-lg border border-border bg-card p-5">
             <div>
               <h2 className="font-montserrat text-base font-bold text-foreground">
-                promoter
+                {t.account.promoter}
               </h2>
-              <p className="text-xs text-muted-foreground">
-                What you run. Submitted events are linked to you regardless; this is
-                context, not a permission.
-              </p>
+              <p className="text-xs text-muted-foreground">{t.account.promoterNote}</p>
             </div>
 
             <div className="space-y-2">
@@ -243,13 +243,13 @@ export default function Account() {
                 htmlFor="org-name"
                 className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
               >
-                organisation
+                {t.account.organisation}
               </label>
               <Input
                 id="org-name"
                 value={orgName}
                 onChange={(event) => setOrgName(event.target.value)}
-                placeholder={promoterLoading ? "…" : "venue, label, collective…"}
+                placeholder={promoterLoading ? "…" : t.account.organisationPlaceholder}
               />
             </div>
 
@@ -259,7 +259,7 @@ export default function Account() {
                   htmlFor="website"
                   className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
                 >
-                  website
+                  {t.account.website}
                 </label>
                 <Input
                   id="website"
@@ -274,7 +274,7 @@ export default function Account() {
                   htmlFor="phone"
                   className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
                 >
-                  phone
+                  {t.account.phone}
                 </label>
                 <Input
                   id="phone"
@@ -287,20 +287,20 @@ export default function Account() {
             </div>
 
             <ChipList
-              label="venues you manage"
+              label={t.account.venues}
               items={venues}
               onChange={setVenues}
               placeholder="Sala Clamores"
             />
             <ChipList
-              label="artists you manage"
+              label={t.account.artists}
               items={artists}
               onChange={setArtists}
               placeholder="Ana Beck Quartet"
             />
 
             <Button onClick={savePromoterProfile} disabled={savePromoter.isPending}>
-              {savePromoter.isPending ? "…" : "save"}
+              {savePromoter.isPending ? "…" : t.account.save}
             </Button>
           </section>
         )}

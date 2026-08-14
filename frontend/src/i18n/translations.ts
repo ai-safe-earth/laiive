@@ -1,53 +1,124 @@
 export type Language = 'en' | 'es' | 'it' | 'ca';
 
+/** Every field of an EventDraft the form renders, in form order. */
+export type DraftFieldKey =
+  | 'name'
+  | 'artists'
+  | 'start_at'
+  | 'venue'
+  | 'address'
+  | 'city'
+  | 'price_min'
+  | 'price_max'
+  | 'price_currency'
+  | 'genre'
+  | 'ticket_url'
+  | 'description';
+
 export interface Translations {
-  // Chat page
   chat: {
     welcome: string;
     promoterLink: string;
     placeholder: string;
+    statusReading: string;
+    statusSearching: string;
+    statusWriting: string;
+    rateLimited: string;
+    rateLimitedAnon: string; // markdown, links to /auth
+    sessionExpired: string; // markdown, links to /auth
+    genericError: string;
+    stop: string;
+    send: string;
   };
-  // Promoter page
-  promoter: {
-    title: string;
-    subtitle: string;
-    videoPlaceholder: string;
-    videoDescription: string;
-    ctaButton: string;
-    learnMore: string;
-    moreAboutLaiive: string;
-    welcomeTitle: string;
-    welcomeText: string;
-    backToUser: string;
+  auth: {
+    signInTitle: string;
+    signUpTitle: string;
+    displayNamePlaceholder: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    signIn: string;
+    signUp: string;
+    or: string;
+    google: string;
+    toSignUp: string;
+    toSignIn: string;
+    withoutAccount: string;
+    checkInbox: string;
+    failed: string;
+    googleFailed: string;
   };
-  // About page
-  about: {
-    title: string;
-    subtitle: string;
-    philosophyTitle: string;
-    philosophyText: string;
-    aiEthicsTitle: string;
-    aiEthicsText: string;
-    smallVenuesTitle: string;
-    smallVenuesText: string;
-    joinTitle: string;
-    joinText: string;
-    joinInstructionsTitle: string;
-    joinStep1: string;
-    joinStep2: string;
-    joinStep3: string;
-    joinStep3Link: string;
-    joinStep4: string;
+  account: {
     back: string;
+    title: string;
+    you: string;
+    displayName: string;
+    displayNamePlaceholder: string;
+    language: string;
+    languageNote: string;
+    save: string;
+    promoter: string;
+    promoterNote: string;
+    organisation: string;
+    organisationPlaceholder: string;
+    website: string;
+    phone: string;
+    venues: string;
+    artists: string;
+    add: string;
+    remove: (item: string) => string;
+    profileSaved: string;
+    promoterSaved: string;
+    saveFailed: string;
+    orgRequired: string;
   };
-  // Language selector
-  language: {
-    label: string;
-  };
-  // Promoter create page
-  promoterCreate: {
-    welcome: string;
+  pro: {
+    needsPro: string;
+    contactUs: string;
+    signInLink: string;
+    emptyTitle: string;
+    emptyHint: string;
+    statusExtracting: string;
+    readingFile: (name: string) => string;
+    notPromoter: string;
+    genericError: string;
+    couldNotRead: string;
+    published: (name: string) => string;
+    publishedMarker: (name: string, k: number, n: number) => string;
+    alreadyExists: string;
+    publishFailed: string;
+    eventOf: (k: number, n: number) => string;
+    attach: string;
+    send: string;
     placeholder: string;
+  };
+  form: {
+    title: string;
+    stillNeeded: (n: number) => string;
+    labels: Record<DraftFieldKey, string>;
+    missingPlaceholder: string;
+    publish: string;
+    publishing: string;
+    fillHint: (fields: string) => string;
+  };
+  cards: {
+    free: string;
+    readMore: string;
+    less: string;
+    map: string;
+    hideMap: string;
+    openMaps: string;
+    tickets: string;
+    web: string;
+    webTitle: string;
+  };
+  menu: {
+    account: string;
+    signOut: string;
+    signIn: string;
+    aria: string;
+  };
+  notFound: {
+    back: string;
   };
 }
 
@@ -57,44 +128,118 @@ export const translations: Record<Language, Translations> = {
       welcome: "Hey! 👋 I'm here to help you discover amazing live music events near you. What are you in the mood for today?",
       promoterLink: "promoter/musician →",
       placeholder: "Tell me what you're looking for...",
+      statusReading: "reading your question…",
+      statusSearching: "searching the graph…",
+      statusWriting: "writing…",
+      rateLimited: "You are sending requests a little fast — give it a minute.",
+      rateLimitedAnon: "That's the free quota for now. [Sign in →](/auth) for a higher limit.",
+      sessionExpired: "Your session expired. [Sign in again →](/auth)",
+      genericError: "Something went wrong.",
+      stop: "Stop",
+      send: "Send",
     },
-    promoter: {
-      title: "Small stages. Big connections.",
-      subtitle: "Share your events with thousands of music lovers",
-      videoPlaceholder: "Walkthrough video placeholder",
-      videoDescription: "Video will be embedded here",
-      ctaButton: "Push your event now",
-      learnMore: "Learn more about the project →",
-      moreAboutLaiive: "more about laiive →",
-      welcomeTitle: "help laiive to lead a cultural revolution 🎵🎵🎵",
-      welcomeText: "Your feedback is valuable to us. Tell us how we can help you build a community around your events.",
-      backToUser: "← public app",
+    auth: {
+      signInTitle: "sign in",
+      signUpTitle: "create an account",
+      displayNamePlaceholder: "display name (optional)",
+      emailPlaceholder: "email",
+      passwordPlaceholder: "password", // pragma: allowlist secret
+      signIn: "sign in",
+      signUp: "sign up",
+      or: "or",
+      google: "continue with google",
+      toSignUp: "no account? sign up",
+      toSignIn: "already have an account? sign in",
+      withoutAccount: "continue without an account →",
+      checkInbox: "Check your inbox to confirm the address, then sign in.",
+      failed: "Authentication failed",
+      googleFailed: "Google sign-in failed",
     },
-    about: {
-      title: "Laiive is not a social network!!!",
-      subtitle: "Quite the opposite, laiive is an enabler of decentralized community networks built around live music and cultural events.",
-      philosophyTitle: "Our Philosophy",
-      philosophyText: "Laiive is not a social network. It enables social networks around live cultural events. We believe live music is the heartbeat of local communities. Small venues, emerging artists, and independent promoters deserve the same visibility as major events. Our platform connects passionate music lovers with authentic live experiences, making it easier to discover what's happening in your neighborhood.",
-      aiEthicsTitle: "AI Ethics Layer",
-      aiEthicsText: "AI in laiive is not a product—it's an enabler. It exists to back the platform's real purpose: connecting people through live cultural experiences. Ethics are not applied as guardrails after the fact; they are foundational and scalable, built into everything we do from day one. This is an ethical project at scale, where transparency, fairness, and community benefit are not constraints but core architecture.",
-      smallVenuesTitle: "Why Small Venues Matter",
-      smallVenuesText: "Small venues are where legends are born. They're where communities gather, where new sounds emerge, and where music stays real. But they often struggle with visibility and marketing. We're building tools to amplify their voice without changing their soul. By making event discovery smarter and more accessible, we help keep local music scenes alive and thriving.",
-      joinTitle: "Join the Movement",
-      joinText: "As an early partner, you're helping us shape the future of live music discovery. Your feedback, your events, and your community make this platform what it is. Together, we're creating something that puts people and music first—not algorithms and advertising.",
-      joinInstructionsTitle: "Instructions to change the world:",
-      joinStep1: "If you are a musician, a promoter, a venue owner or an event organizer... do your pro account (it's free forever).",
-      joinStep2: "Upload your events",
-      joinStep3: "Spread the word, tell your friends, colleagues, print",
-      joinStep3Link: "this",
-      joinStep4: "and paste it to your local door, your car, your guitar, your battery. Enjoy!!! Use it, and go to a good concert!!",
-      back: "← back",
+    account: {
+      back: "back",
+      title: "account",
+      you: "you",
+      displayName: "display name",
+      displayNamePlaceholder: "how we greet you",
+      language: "language",
+      languageNote: "Saved to your account — the assistant still answers in whatever language you write in.",
+      save: "save",
+      promoter: "promoter",
+      promoterNote: "What you run. Submitted events are linked to you regardless; this is context, not a permission.",
+      organisation: "organisation",
+      organisationPlaceholder: "venue, label, collective…",
+      website: "website",
+      phone: "phone",
+      venues: "venues you manage",
+      artists: "artists you manage",
+      add: "add",
+      remove: (item) => `remove ${item}`,
+      profileSaved: "profile saved",
+      promoterSaved: "promoter details saved",
+      saveFailed: "could not save",
+      orgRequired: "the organisation name is required",
     },
-    language: {
-      label: "Language",
+    pro: {
+      needsPro: "Publishing events needs a promoter account.",
+      contactUs: "signed in without pro access — contact us",
+      signInLink: "sign in →",
+      emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
+      emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
+      statusExtracting: "reading what you sent…",
+      readingFile: (name) => `reading ${name}…`,
+      notPromoter: "Your account is not a promoter account yet.",
+      genericError: "Something went wrong",
+      couldNotRead: "Could not read that file",
+      published: (name) => `Published — ${name} is live`,
+      publishedMarker: (name, k, n) => `Published "${name}" (event ${k} of ${n}).`,
+      alreadyExists: "That event is already on laiive.",
+      publishFailed: "Could not publish",
+      eventOf: (k, n) => `event ${k} of ${n}`,
+      attach: "Attach a flyer, document or recording",
+      send: "Send",
+      placeholder: "artist, venue, date, price…",
     },
-    promoterCreate: {
-      welcome: "Hi! Tell me about your event and I'll help you publish it on laiive.",
-      placeholder: "Describe your event...",
+    form: {
+      title: "event details",
+      stillNeeded: (n) => `${n} still needed`,
+      labels: {
+        name: "event name",
+        artists: "artists (comma separated)",
+        start_at: "starts at",
+        venue: "venue",
+        address: "address",
+        city: "city",
+        price_min: "price from",
+        price_max: "price to",
+        price_currency: "currency",
+        genre: "genre",
+        ticket_url: "ticket link",
+        description: "description",
+      },
+      missingPlaceholder: "the assistant could not find this",
+      publish: "publish to laiive",
+      publishing: "publishing…",
+      fillHint: (fields) => `fill ${fields} — by typing here or just telling the assistant`,
+    },
+    cards: {
+      free: "free",
+      readMore: "+ read more",
+      less: "− less",
+      map: "map",
+      hideMap: "hide map",
+      openMaps: "open in Google Maps",
+      tickets: "tickets",
+      web: "web",
+      webTitle: "Found on the internet, not submitted by the promoter",
+    },
+    menu: {
+      account: "account",
+      signOut: "sign out",
+      signIn: "sign in",
+      aria: "Account menu",
+    },
+    notFound: {
+      back: "back to the chat →",
     },
   },
   es: {
@@ -102,44 +247,118 @@ export const translations: Record<Language, Translations> = {
       welcome: "¡Hola! 👋 Estoy aquí para ayudarte a descubrir increíbles eventos de música en vivo cerca de ti. ¿Qué te apetece hoy?",
       promoterLink: "promotor/músico →",
       placeholder: "Dime qué estás buscando...",
+      statusReading: "leyendo tu pregunta…",
+      statusSearching: "buscando en el grafo…",
+      statusWriting: "escribiendo…",
+      rateLimited: "Estás enviando mensajes muy rápido — dale un minuto.",
+      rateLimitedAnon: "Ese es el límite gratuito por ahora. [Inicia sesión →](/auth) para un límite mayor.",
+      sessionExpired: "Tu sesión ha caducado. [Vuelve a iniciar sesión →](/auth)",
+      genericError: "Algo ha ido mal.",
+      stop: "Detener",
+      send: "Enviar",
     },
-    promoter: {
-      title: "Escenarios pequeños. Grandes conexiones.",
-      subtitle: "Comparte tus eventos con miles de amantes de la música",
-      videoPlaceholder: "Marcador de video tutorial",
-      videoDescription: "El video se incrustará aquí",
-      ctaButton: "Publica tu evento ahora",
-      learnMore: "Más información sobre el proyecto →",
-      moreAboutLaiive: "más sobre laiive →",
-      welcomeTitle: "ayuda a laiive a liderar una revolución cultural 🎵🎵🎵",
-      welcomeText: "Tu feedback es valioso para nosotros. Cuéntanos cómo podemos ayudarte a construir una comunidad alrededor de tus eventos.",
-      backToUser: "← app pública",
+    auth: {
+      signInTitle: "inicia sesión",
+      signUpTitle: "crea una cuenta",
+      displayNamePlaceholder: "nombre visible (opcional)",
+      emailPlaceholder: "email",
+      passwordPlaceholder: "contraseña", // pragma: allowlist secret
+      signIn: "inicia sesión",
+      signUp: "regístrate",
+      or: "o",
+      google: "continúa con google",
+      toSignUp: "¿sin cuenta? regístrate",
+      toSignIn: "¿ya tienes cuenta? inicia sesión",
+      withoutAccount: "continúa sin cuenta →",
+      checkInbox: "Revisa tu correo para confirmar la dirección y luego inicia sesión.",
+      failed: "No se pudo iniciar sesión",
+      googleFailed: "No se pudo iniciar sesión con Google",
     },
-    about: {
-      title: "Laiive no es una red social!!!",
-      subtitle: "Todo lo contrario, laiive es un habilitador de redes comunitarias descentralizadas construidas alrededor de la música en vivo y eventos culturales.",
-      philosophyTitle: "Nuestra Filosofía",
-      philosophyText: "Laiive no es una red social. Permite crear redes sociales alrededor de eventos culturales en vivo. Creemos que la música en vivo es el corazón de las comunidades locales. Los lugares pequeños, artistas emergentes y promotores independientes merecen la misma visibilidad que los grandes eventos. Nuestra plataforma conecta amantes apasionados de la música con experiencias auténticas en vivo.",
-      aiEthicsTitle: "Capa de Ética de IA",
-      aiEthicsText: "La IA en laiive no es un producto, es un facilitador. Existe para respaldar el verdadero propósito de la plataforma: conectar personas a través de experiencias culturales en vivo. La ética no se aplica como barandillas después del hecho; es fundacional y escalable, integrada en todo lo que hacemos desde el primer día. Este es un proyecto ético a escala, donde la transparencia, la equidad y el beneficio comunitario no son restricciones sino arquitectura central.",
-      smallVenuesTitle: "Por Qué Importan los Lugares Pequeños",
-      smallVenuesText: "Los lugares pequeños son donde nacen las leyendas. Son donde las comunidades se reúnen, donde emergen nuevos sonidos y donde la música se mantiene real. Pero a menudo luchan con visibilidad y marketing. Estamos construyendo herramientas para amplificar su voz sin cambiar su alma. Al hacer el descubrimiento de eventos más inteligente y accesible, ayudamos a mantener vivas las escenas musicales locales.",
-      joinTitle: "Únete al Movimiento",
-      joinText: "Como socio fundador, estás ayudándonos a dar forma al futuro del descubrimiento de música en vivo. Tu feedback, tus eventos y tu comunidad hacen que esta plataforma sea lo que es. Juntos, estamos creando algo que pone a las personas y la música primero, no algoritmos y publicidad.",
-      joinInstructionsTitle: "Instrucciones para cambiar el mundo:",
-      joinStep1: "Si eres músico, promotor, dueño de un local o organizador de eventos... crea tu cuenta pro (es gratis para siempre).",
-      joinStep2: "Sube tus eventos",
-      joinStep3: "Corre la voz, cuéntaselo a tus amigos, colegas, imprime",
-      joinStep3Link: "esto",
-      joinStep4: "y pégalo en tu puerta local, tu coche, tu guitarra, tu batería. ¡¡¡Disfruta!!! Úsalo, ¡y ve a un buen concierto!!",
-      back: "← atrás",
+    account: {
+      back: "atrás",
+      title: "cuenta",
+      you: "tú",
+      displayName: "nombre visible",
+      displayNamePlaceholder: "cómo te saludamos",
+      language: "idioma",
+      languageNote: "Se guarda en tu cuenta — el asistente sigue respondiendo en el idioma en que escribas.",
+      save: "guardar",
+      promoter: "promotor",
+      promoterNote: "Lo que gestionas. Los eventos enviados se vinculan a ti igualmente; esto es contexto, no un permiso.",
+      organisation: "organización",
+      organisationPlaceholder: "sala, sello, colectivo…",
+      website: "web",
+      phone: "teléfono",
+      venues: "salas que gestionas",
+      artists: "artistas que gestionas",
+      add: "añadir",
+      remove: (item) => `quitar ${item}`,
+      profileSaved: "perfil guardado",
+      promoterSaved: "datos de promotor guardados",
+      saveFailed: "no se pudo guardar",
+      orgRequired: "el nombre de la organización es obligatorio",
     },
-    language: {
-      label: "Idioma",
+    pro: {
+      needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
+      contactUs: "sesión iniciada sin acceso pro — contáctanos",
+      signInLink: "inicia sesión →",
+      emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
+      emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
+      statusExtracting: "leyendo lo que has enviado…",
+      readingFile: (name) => `leyendo ${name}…`,
+      notPromoter: "Tu cuenta aún no es de promotor.",
+      genericError: "Algo ha ido mal",
+      couldNotRead: "No se pudo leer ese archivo",
+      published: (name) => `Publicado — ${name} ya está en laiive`,
+      publishedMarker: (name, k, n) => `He publicado "${name}" (evento ${k} de ${n}).`,
+      alreadyExists: "Ese evento ya está en laiive.",
+      publishFailed: "No se pudo publicar",
+      eventOf: (k, n) => `evento ${k} de ${n}`,
+      attach: "Adjunta un cartel, documento o grabación",
+      send: "Enviar",
+      placeholder: "artista, sala, fecha, precio…",
     },
-    promoterCreate: {
-      welcome: "¡Hola! Cuéntame sobre tu evento y te ayudaré a publicarlo en laiive.",
-      placeholder: "Describe tu evento...",
+    form: {
+      title: "detalles del evento",
+      stillNeeded: (n) => (n === 1 ? "falta 1" : `faltan ${n}`),
+      labels: {
+        name: "nombre del evento",
+        artists: "artistas (separados por comas)",
+        start_at: "empieza",
+        venue: "sala",
+        address: "dirección",
+        city: "ciudad",
+        price_min: "precio desde",
+        price_max: "precio hasta",
+        price_currency: "moneda",
+        genre: "género",
+        ticket_url: "enlace de entradas",
+        description: "descripción",
+      },
+      missingPlaceholder: "el asistente no pudo encontrarlo",
+      publish: "publicar en laiive",
+      publishing: "publicando…",
+      fillHint: (fields) => `rellena ${fields} — escribiendo aquí o diciéndoselo al asistente`,
+    },
+    cards: {
+      free: "gratis",
+      readMore: "+ leer más",
+      less: "− menos",
+      map: "mapa",
+      hideMap: "ocultar mapa",
+      openMaps: "abrir en Google Maps",
+      tickets: "entradas",
+      web: "web",
+      webTitle: "Encontrado en internet, no enviado por el promotor",
+    },
+    menu: {
+      account: "cuenta",
+      signOut: "cerrar sesión",
+      signIn: "inicia sesión",
+      aria: "Menú de cuenta",
+    },
+    notFound: {
+      back: "volver al chat →",
     },
   },
   it: {
@@ -147,44 +366,118 @@ export const translations: Record<Language, Translations> = {
       welcome: "Ciao! 👋 Sono qui per aiutarti a scoprire fantastici eventi di musica dal vivo vicino a te. Cosa ti va oggi?",
       promoterLink: "promoter/musicista →",
       placeholder: "Dimmi cosa stai cercando...",
+      statusReading: "leggo la tua domanda…",
+      statusSearching: "cerco nel grafo…",
+      statusWriting: "scrivo…",
+      rateLimited: "Stai inviando richieste un po' troppo in fretta — aspetta un minuto.",
+      rateLimitedAnon: "Questo è il limite gratuito per ora. [Accedi →](/auth) per un limite più alto.",
+      sessionExpired: "La tua sessione è scaduta. [Accedi di nuovo →](/auth)",
+      genericError: "Qualcosa è andato storto.",
+      stop: "Interrompi",
+      send: "Invia",
     },
-    promoter: {
-      title: "Piccoli palchi. Grandi connessioni.",
-      subtitle: "Condividi i tuoi eventi con migliaia di amanti della musica",
-      videoPlaceholder: "Segnaposto video tutorial",
-      videoDescription: "Il video sarà incorporato qui",
-      ctaButton: "Pubblica il tuo evento ora",
-      learnMore: "Scopri di più sul progetto →",
-      moreAboutLaiive: "più su laiive →",
-      welcomeTitle: "aiuta laiive a guidare una rivoluzione culturale 🎵🎵🎵",
-      welcomeText: "Il tuo feedback è prezioso per noi. Raccontaci come possiamo aiutarti a costruire una comunità attorno ai tuoi eventi.",
-      backToUser: "← app pubblica",
+    auth: {
+      signInTitle: "accedi",
+      signUpTitle: "crea un account",
+      displayNamePlaceholder: "nome visibile (opzionale)",
+      emailPlaceholder: "email",
+      passwordPlaceholder: "password", // pragma: allowlist secret
+      signIn: "accedi",
+      signUp: "registrati",
+      or: "o",
+      google: "continua con google",
+      toSignUp: "niente account? registrati",
+      toSignIn: "hai già un account? accedi",
+      withoutAccount: "continua senza account →",
+      checkInbox: "Controlla la tua casella per confermare l'indirizzo, poi accedi.",
+      failed: "Autenticazione non riuscita",
+      googleFailed: "Accesso con Google non riuscito",
     },
-    about: {
-      title: "Laiive non è un social network!!!",
-      subtitle: "Anzi, al contrario, laiive è un abilitatore di reti comunitarie decentralizzate costruite attorno alla musica dal vivo e agli eventi culturali.",
-      philosophyTitle: "La Nostra Filosofia",
-      philosophyText: "Laiive non è un social network. Abilita reti sociali attorno a eventi culturali dal vivo. Crediamo che la musica dal vivo sia il battito del cuore delle comunità locali. I piccoli locali, gli artisti emergenti e i promoter indipendenti meritano la stessa visibilità dei grandi eventi. La nostra piattaforma connette gli amanti appassionati della musica con esperienze autentiche dal vivo.",
-      aiEthicsTitle: "Livello di Etica dell'IA",
-      aiEthicsText: "L'IA in laiive non è un prodotto, è un abilitatore. Esiste per supportare il vero scopo della piattaforma: connettere le persone attraverso esperienze culturali dal vivo. L'etica non viene applicata come guardrail a posteriori; è fondamentale e scalabile, integrata in tutto ciò che facciamo dal primo giorno. Questo è un progetto etico su scala, dove trasparenza, equità e beneficio per la comunità non sono vincoli ma architettura centrale.",
-      smallVenuesTitle: "Perché i Piccoli Locali Contano",
-      smallVenuesText: "I piccoli locali sono dove nascono le leggende. Sono dove le comunità si riuniscono, dove emergono nuovi suoni e dove la musica rimane vera. Ma spesso lottano con visibilità e marketing. Stiamo costruendo strumenti per amplificare la loro voce senza cambiare la loro anima. Rendendo la scoperta di eventi più intelligente e accessibile, aiutiamo a mantenere vive le scene musicali locali.",
-      joinTitle: "Unisciti al Movimento",
-      joinText: "Come partner iniziale, stai aiutandoci a plasmare il futuro della scoperta di musica dal vivo. Il tuo feedback, i tuoi eventi e la tua comunità rendono questa piattaforma ciò che è. Insieme, stiamo creando qualcosa che mette le persone e la musica al primo posto, non algoritmi e pubblicità.",
-      joinInstructionsTitle: "Istruzioni per cambiare il mondo:",
-      joinStep1: "Se sei un musicista, un promoter, un proprietario di locale o un organizzatore di eventi... fai il tuo account pro (è gratis per sempre).",
-      joinStep2: "Carica i tuoi eventi",
-      joinStep3: "Spargi la voce, dillo ai tuoi amici, colleghi, stampa",
-      joinStep3Link: "questo",
-      joinStep4: "e attaccalo alla tua porta locale, alla tua macchina, alla tua chitarra, alla tua batteria. Divertiti!!! Usalo, e vai a un bel concerto!!",
-      back: "← indietro",
+    account: {
+      back: "indietro",
+      title: "account",
+      you: "tu",
+      displayName: "nome visibile",
+      displayNamePlaceholder: "come ti salutiamo",
+      language: "lingua",
+      languageNote: "Salvato nel tuo account — l'assistente risponde comunque nella lingua in cui scrivi.",
+      save: "salva",
+      promoter: "promoter",
+      promoterNote: "Ciò che gestisci. Gli eventi inviati sono comunque collegati a te; questo è contesto, non un permesso.",
+      organisation: "organizzazione",
+      organisationPlaceholder: "locale, etichetta, collettivo…",
+      website: "sito web",
+      phone: "telefono",
+      venues: "locali che gestisci",
+      artists: "artisti che gestisci",
+      add: "aggiungi",
+      remove: (item) => `rimuovi ${item}`,
+      profileSaved: "profilo salvato",
+      promoterSaved: "dati promoter salvati",
+      saveFailed: "impossibile salvare",
+      orgRequired: "il nome dell'organizzazione è obbligatorio",
     },
-    language: {
-      label: "Lingua",
+    pro: {
+      needsPro: "Per pubblicare eventi serve un account promoter.",
+      contactUs: "accesso senza permessi pro — contattaci",
+      signInLink: "accedi →",
+      emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
+      emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
+      statusExtracting: "leggo quello che hai inviato…",
+      readingFile: (name) => `leggo ${name}…`,
+      notPromoter: "Il tuo account non è ancora un account promoter.",
+      genericError: "Qualcosa è andato storto",
+      couldNotRead: "Impossibile leggere quel file",
+      published: (name) => `Pubblicato — ${name} è online`,
+      publishedMarker: (name, k, n) => `Ho pubblicato "${name}" (evento ${k} di ${n}).`,
+      alreadyExists: "Quell'evento è già su laiive.",
+      publishFailed: "Impossibile pubblicare",
+      eventOf: (k, n) => `evento ${k} di ${n}`,
+      attach: "Allega un volantino, un documento o una registrazione",
+      send: "Invia",
+      placeholder: "artista, locale, data, prezzo…",
     },
-    promoterCreate: {
-      welcome: "Ciao! Raccontami del tuo evento e ti aiuterò a pubblicarlo su laiive.",
-      placeholder: "Descrivi il tuo evento...",
+    form: {
+      title: "dettagli dell'evento",
+      stillNeeded: (n) => (n === 1 ? "ne manca 1" : `ne mancano ${n}`),
+      labels: {
+        name: "nome dell'evento",
+        artists: "artisti (separati da virgole)",
+        start_at: "inizia",
+        venue: "locale",
+        address: "indirizzo",
+        city: "città",
+        price_min: "prezzo da",
+        price_max: "prezzo fino a",
+        price_currency: "valuta",
+        genre: "genere",
+        ticket_url: "link biglietti",
+        description: "descrizione",
+      },
+      missingPlaceholder: "l'assistente non è riuscito a trovarlo",
+      publish: "pubblica su laiive",
+      publishing: "pubblico…",
+      fillHint: (fields) => `completa ${fields} — scrivendo qui o dicendolo all'assistente`,
+    },
+    cards: {
+      free: "gratis",
+      readMore: "+ leggi di più",
+      less: "− meno",
+      map: "mappa",
+      hideMap: "nascondi mappa",
+      openMaps: "apri in Google Maps",
+      tickets: "biglietti",
+      web: "web",
+      webTitle: "Trovato su internet, non inviato dal promoter",
+    },
+    menu: {
+      account: "account",
+      signOut: "esci",
+      signIn: "accedi",
+      aria: "Menu account",
+    },
+    notFound: {
+      back: "torna alla chat →",
     },
   },
   ca: {
@@ -192,44 +485,118 @@ export const translations: Record<Language, Translations> = {
       welcome: "Hola! 👋 Estic aquí per ajudar-te a descobrir increïbles esdeveniments de música en directe a prop teu. Què t'agradaria avui?",
       promoterLink: "promotor/músic →",
       placeholder: "Digues-me què estàs buscant...",
+      statusReading: "llegint la teva pregunta…",
+      statusSearching: "cercant al graf…",
+      statusWriting: "escrivint…",
+      rateLimited: "Estàs enviant missatges molt ràpid — espera un minut.",
+      rateLimitedAnon: "Aquest és el límit gratuït per ara. [Inicia sessió →](/auth) per a un límit més alt.",
+      sessionExpired: "La teva sessió ha caducat. [Torna a iniciar sessió →](/auth)",
+      genericError: "Alguna cosa ha anat malament.",
+      stop: "Atura",
+      send: "Envia",
     },
-    promoter: {
-      title: "Escenaris petits. Grans connexions.",
-      subtitle: "Comparteix els teus esdeveniments amb milers d'amants de la música",
-      videoPlaceholder: "Marcador de vídeo tutorial",
-      videoDescription: "El vídeo s'inserirà aquí",
-      ctaButton: "Publica el teu esdeveniment ara",
-      learnMore: "Més informació sobre el projecte →",
-      moreAboutLaiive: "més sobre laiive →",
-      welcomeTitle: "ajuda laiive a liderar una revolució cultural 🎵🎵🎵",
-      welcomeText: "El teu feedback és valuós per a nosaltres. Explica'ns com podem ajudar-te a construir una comunitat al voltant dels teus esdeveniments.",
-      backToUser: "← app pública",
+    auth: {
+      signInTitle: "inicia sessió",
+      signUpTitle: "crea un compte",
+      displayNamePlaceholder: "nom visible (opcional)",
+      emailPlaceholder: "correu",
+      passwordPlaceholder: "contrasenya", // pragma: allowlist secret
+      signIn: "inicia sessió",
+      signUp: "registra't",
+      or: "o",
+      google: "continua amb google",
+      toSignUp: "sense compte? registra't",
+      toSignIn: "ja tens compte? inicia sessió",
+      withoutAccount: "continua sense compte →",
+      checkInbox: "Revisa el correu per confirmar l'adreça i després inicia sessió.",
+      failed: "No s'ha pogut iniciar la sessió",
+      googleFailed: "No s'ha pogut iniciar la sessió amb Google",
     },
-    about: {
-      title: "Laiive no és una xarxa social!!!",
-      subtitle: "Ben al contrari, laiive és un habilitador de xarxes comunitàries descentralitzades construïdes al voltant de la música en directe i esdeveniments culturals.",
-      philosophyTitle: "La Nostra Filosofia",
-      philosophyText: "Laiive no és una xarxa social. Permet crear xarxes socials al voltant d'esdeveniments culturals en directe. Creiem que la música en directe és el cor de les comunitats locals. Els llocs petits, artistes emergents i promotors independents mereixen la mateixa visibilitat que els grans esdeveniments. La nostra plataforma connecta amants apassionats de la música amb experiències autèntiques en directe.",
-      aiEthicsTitle: "Capa d'Ètica d'IA",
-      aiEthicsText: "La IA a laiive no és un producte, és un habilitador. Existeix per donar suport al veritable propòsit de la plataforma: connectar persones a través d'experiències culturals en directe. L'ètica no s'aplica com a baranes després del fet; és fonamental i escalable, integrada en tot el que fem des del primer dia. Aquest és un projecte ètic a escala, on la transparència, l'equitat i el benefici comunitari no són restriccions sinó arquitectura central.",
-      smallVenuesTitle: "Per Què Importen els Llocs Petits",
-      smallVenuesText: "Els llocs petits són on neixen les llegendes. Són on les comunitats es reuneixen, on emergeixen nous sons i on la música es manté real. Però sovint lluiten amb visibilitat i màrqueting. Estem construint eines per amplificar la seva veu sense canviar la seva ànima. Fent el descobriment d'esdeveniments més intel·ligent i accessible, ajudem a mantenir vives les escenes musicals locals.",
-      joinTitle: "Uneix-te al Moviment",
-      joinText: "Com a soci fundador, estàs ajudant-nos a donar forma al futur del descobriment de música en directe. El teu feedback, els teus esdeveniments i la teva comunitat fan que aquesta plataforma sigui el que és. Junts, estem creant alguna cosa que posa les persones i la música primer, no algorismes i publicitat.",
-      joinInstructionsTitle: "Instruccions per canviar el món:",
-      joinStep1: "Si ets músic, promotor, propietari d'un local o organitzador d'esdeveniments... fes el teu compte pro (és gratis per sempre).",
-      joinStep2: "Puja els teus esdeveniments",
-      joinStep3: "Escampa la veu, explica-ho als teus amics, col·legues, imprimeix",
-      joinStep3Link: "això",
-      joinStep4: "i enganxa-ho a la teva porta local, el teu cotxe, la teva guitarra, la teva bateria. Gaudeix!!! Utilitza-ho, i vés a un bon concert!!",
-      back: "← enrere",
+    account: {
+      back: "enrere",
+      title: "compte",
+      you: "tu",
+      displayName: "nom visible",
+      displayNamePlaceholder: "com et saludem",
+      language: "idioma",
+      languageNote: "Es desa al teu compte — l'assistent segueix responent en l'idioma en què escriguis.",
+      save: "desa",
+      promoter: "promotor",
+      promoterNote: "El que gestiones. Els esdeveniments enviats es vinculen a tu igualment; això és context, no un permís.",
+      organisation: "organització",
+      organisationPlaceholder: "sala, segell, col·lectiu…",
+      website: "web",
+      phone: "telèfon",
+      venues: "sales que gestiones",
+      artists: "artistes que gestiones",
+      add: "afegeix",
+      remove: (item) => `treu ${item}`,
+      profileSaved: "perfil desat",
+      promoterSaved: "dades de promotor desades",
+      saveFailed: "no s'ha pogut desar",
+      orgRequired: "el nom de l'organització és obligatori",
     },
-    language: {
-      label: "Idioma",
+    pro: {
+      needsPro: "Per publicar esdeveniments cal un compte de promotor.",
+      contactUs: "sessió iniciada sense accés pro — contacta'ns",
+      signInLink: "inicia sessió →",
+      emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
+      emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",
+      statusExtracting: "llegint el que has enviat…",
+      readingFile: (name) => `llegint ${name}…`,
+      notPromoter: "El teu compte encara no és de promotor.",
+      genericError: "Alguna cosa ha anat malament",
+      couldNotRead: "No s'ha pogut llegir aquest fitxer",
+      published: (name) => `Publicat — ${name} ja és a laiive`,
+      publishedMarker: (name, k, n) => `He publicat "${name}" (esdeveniment ${k} de ${n}).`,
+      alreadyExists: "Aquest esdeveniment ja és a laiive.",
+      publishFailed: "No s'ha pogut publicar",
+      eventOf: (k, n) => `esdeveniment ${k} de ${n}`,
+      attach: "Adjunta un cartell, document o gravació",
+      send: "Envia",
+      placeholder: "artista, sala, data, preu…",
     },
-    promoterCreate: {
-      welcome: "Hola! Explica'm sobre el teu esdeveniment i t'ajudaré a publicar-lo a laiive.",
-      placeholder: "Descriu el teu esdeveniment...",
+    form: {
+      title: "detalls de l'esdeveniment",
+      stillNeeded: (n) => (n === 1 ? "en falta 1" : `en falten ${n}`),
+      labels: {
+        name: "nom de l'esdeveniment",
+        artists: "artistes (separats per comes)",
+        start_at: "comença",
+        venue: "sala",
+        address: "adreça",
+        city: "ciutat",
+        price_min: "preu des de",
+        price_max: "preu fins a",
+        price_currency: "moneda",
+        genre: "gènere",
+        ticket_url: "enllaç d'entrades",
+        description: "descripció",
+      },
+      missingPlaceholder: "l'assistent no ho ha pogut trobar",
+      publish: "publica a laiive",
+      publishing: "publicant…",
+      fillHint: (fields) => `omple ${fields} — escrivint aquí o dient-ho a l'assistent`,
+    },
+    cards: {
+      free: "gratuït",
+      readMore: "+ llegeix més",
+      less: "− menys",
+      map: "mapa",
+      hideMap: "amaga el mapa",
+      openMaps: "obre a Google Maps",
+      tickets: "entrades",
+      web: "web",
+      webTitle: "Trobat a internet, no enviat pel promotor",
+    },
+    menu: {
+      account: "compte",
+      signOut: "tanca la sessió",
+      signIn: "inicia sessió",
+      aria: "Menú del compte",
+    },
+    notFound: {
+      back: "torna al xat →",
     },
   },
 };

@@ -3,24 +3,26 @@ import { AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import type { DraftFieldKey } from "@/i18n/translations";
+import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 /** Fields the graph write refuses without (laiive_shared.REQUIRED_DRAFT_FIELDS). */
 const REQUIRED = ["artists", "start_at", "venue", "city", "price_min"] as const;
 
-const FIELDS: { key: keyof EventDraft; label: string; type?: string }[] = [
-  { key: "name", label: "event name" },
-  { key: "artists", label: "artists (comma separated)" },
-  { key: "start_at", label: "starts at", type: "datetime-local" },
-  { key: "venue", label: "venue" },
-  { key: "address", label: "address" },
-  { key: "city", label: "city" },
-  { key: "price_min", label: "price from", type: "number" },
-  { key: "price_max", label: "price to", type: "number" },
-  { key: "price_currency", label: "currency" },
-  { key: "genre", label: "genre" },
-  { key: "ticket_url", label: "ticket link" },
-  { key: "description", label: "description" },
+const FIELDS: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
+  { key: "name" },
+  { key: "artists" },
+  { key: "start_at", type: "datetime-local" },
+  { key: "venue" },
+  { key: "address" },
+  { key: "city" },
+  { key: "price_min", type: "number" },
+  { key: "price_max", type: "number" },
+  { key: "price_currency" },
+  { key: "genre" },
+  { key: "ticket_url" },
+  { key: "description" },
 ];
 
 /** `datetime-local` wants "YYYY-MM-DDTHH:mm" and rejects anything longer. */
@@ -53,6 +55,7 @@ export function EventForm({
   onSave: (draft: EventDraft) => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [values, setValues] = useState<EventDraft>(draft);
 
   // Each turn re-extracts over the whole conversation, so a later message can
@@ -86,17 +89,17 @@ export function EventForm({
       className="space-y-3 rounded-lg border border-pro-border bg-pro-card p-4"
     >
       <div className="flex items-center justify-between">
-        <h3 className="font-montserrat text-sm font-bold text-accent">event details</h3>
+        <h3 className="font-montserrat text-sm font-bold text-accent">{t.form.title}</h3>
         {stillMissing.length > 0 && (
           <span className="flex items-center gap-1 text-xs text-destructive">
             <AlertCircle className="h-3 w-3" />
-            {stillMissing.length} still needed
+            {t.form.stillNeeded(stillMissing.length)}
           </span>
         )}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {FIELDS.map(({ key, label, type }) => {
+        {FIELDS.map(({ key, type }) => {
           const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
           const wasMissing = missing.includes(key);
           return (
@@ -107,14 +110,14 @@ export function EventForm({
                   isMissing ? "text-destructive" : "text-muted-foreground",
                 )}
               >
-                {label}
+                {t.form.labels[key]}
                 {(REQUIRED as readonly string[]).includes(key) && " *"}
               </span>
               <Input
                 type={type ?? "text"}
                 value={displayValue(values, key)}
                 onChange={(event) => update(key, event.target.value)}
-                placeholder={wasMissing ? "the assistant could not find this" : ""}
+                placeholder={wasMissing ? t.form.missingPlaceholder : ""}
                 className={cn(
                   "h-9 text-sm",
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
@@ -127,11 +130,11 @@ export function EventForm({
 
       <div className="flex items-center gap-3 pt-1">
         <Button type="submit" variant="accent" disabled={saving || stillMissing.length > 0}>
-          {saving ? "publishing…" : "publish to laiive"}
+          {saving ? t.form.publishing : t.form.publish}
         </Button>
         {stillMissing.length > 0 && (
           <span className="text-xs text-muted-foreground">
-            fill {stillMissing.join(", ")} — by typing here or just telling the assistant
+            {t.form.fillHint(stillMissing.map((key) => t.form.labels[key]).join(", "))}
           </span>
         )}
       </div>

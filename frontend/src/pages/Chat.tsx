@@ -17,15 +17,15 @@ import { detectLanguageFromText } from "@/i18n/detectLanguage";
 import { useTranslation, type Language } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
-/** Pipeline states the retriever emits, worded for humans. */
-const STATUS_LABEL: Record<string, string> = {
-  classifying: "reading your question…",
-  searching: "searching the graph…",
-  composing: "writing…",
-};
-
 export default function Chat() {
   const { t, language, setLanguage } = useTranslation();
+
+  // Pipeline states the retriever emits, worded for humans.
+  const statusLabel: Record<string, string> = {
+    classifying: t.chat.statusReading,
+    searching: t.chat.statusSearching,
+    composing: t.chat.statusWriting,
+  };
   const { user } = useAuth();
 
   const [input, setInput] = useState("");
@@ -95,7 +95,7 @@ export default function Chat() {
         location,
         signal: controller.signal,
         handlers: {
-          onStatus: (state) => setStatus(STATUS_LABEL[state] ?? state),
+          onStatus: (state) => setStatus(statusLabel[state] ?? state),
           onEvents: (events) => {
             cards = events;
             started = true;
@@ -131,9 +131,7 @@ export default function Chat() {
         ...prev,
         {
           role: "assistant",
-          content: user
-            ? "You are sending requests a little fast — give it a minute."
-            : "That's the free quota for now. [Sign in →](/auth) for a higher limit.",
+          content: user ? t.chat.rateLimited : t.chat.rateLimitedAnon,
         },
       ]);
       return;
@@ -141,11 +139,11 @@ export default function Chat() {
     if (error instanceof ApiError && error.status === 401) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Your session expired. [Sign in again →](/auth)" },
+        { role: "assistant", content: t.chat.sessionExpired },
       ]);
       return;
     }
-    toast.error(error instanceof Error ? error.message : "Something went wrong.");
+    toast.error(error instanceof Error ? error.message : t.chat.genericError);
   };
 
   return (
@@ -242,7 +240,7 @@ export default function Chat() {
             aria-label={t.chat.placeholder}
           />
           {isStreaming ? (
-            <Button variant="outline" size="icon" onClick={stop} aria-label="Stop">
+            <Button variant="outline" size="icon" onClick={stop} aria-label={t.chat.stop}>
               <Square className="h-4 w-4" />
             </Button>
           ) : (
@@ -250,7 +248,7 @@ export default function Chat() {
               size="icon"
               onClick={() => void send()}
               disabled={!input.trim()}
-              aria-label="Send"
+              aria-label={t.chat.send}
             >
               <Send className="h-5 w-5" />
             </Button>

@@ -3,10 +3,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { useLanguagePreference } from "@/i18n/useLanguagePreference";
-import { LANGUAGES, type Language } from "@/i18n/useTranslation";
+import { LANGUAGES, useTranslation, type Language } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 export function UserMenu() {
+  const { t } = useTranslation();
   const { user, role, signOut } = useAuth();
   const { language, chooseLanguage } = useLanguagePreference();
   const [open, setOpen] = useState(false);
@@ -33,7 +34,7 @@ export function UserMenu() {
           <button
             onClick={() => setOpen(!open)}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-foreground"
-            aria-label="Account menu"
+            aria-label={t.menu.aria}
           >
             {user.email?.[0] ?? <UserIcon className="h-4 w-4" />}
           </button>
@@ -46,7 +47,7 @@ export function UserMenu() {
                 onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
               >
-                <UserIcon className="h-4 w-4" /> account
+                <UserIcon className="h-4 w-4" /> {t.menu.account}
               </Link>
               <button
                 onClick={() => {
@@ -55,7 +56,7 @@ export function UserMenu() {
                 }}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
               >
-                <LogOut className="h-4 w-4" /> sign out
+                <LogOut className="h-4 w-4" /> {t.menu.signOut}
               </button>
             </div>
           )}
@@ -65,7 +66,7 @@ export function UserMenu() {
           to="/auth"
           className="font-ibm-plex text-sm text-muted-foreground transition-colors hover:text-primary"
         >
-          sign in
+          {t.menu.signIn}
         </Link>
       )}
     </div>

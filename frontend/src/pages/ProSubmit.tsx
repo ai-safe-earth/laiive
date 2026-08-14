@@ -14,11 +14,8 @@ import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
+import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
-
-const STATUS_LABEL: Record<string, string> = {
-  extracting: "reading what you sent…",
-};
 
 const ACCEPTED =
   "image/*,audio/*,.pdf,.docx,.txt,.md,.csv";
@@ -48,6 +45,7 @@ function loadSession(): StoredSession | null {
 
 export default function ProSubmit() {
   const { user, role, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   const restored = useRef(loadSession()).current;
 
@@ -81,10 +79,10 @@ export default function ProSubmit() {
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-pro-bg p-6 text-center">
         <p className="font-montserrat text-lg font-bold text-accent">laiive pro</p>
         <p className="max-w-sm font-ibm-plex text-sm text-muted-foreground">
-          Publishing events needs a promoter account.
+          {t.pro.needsPro}
         </p>
         <Link to="/auth" className="text-sm text-accent hover:underline">
-          {user ? "signed in without pro access — contact us" : "sign in →"}
+          {user ? t.pro.contactUs : t.pro.signInLink}
         </Link>
       </div>
     );
@@ -109,7 +107,8 @@ export default function ProSubmit() {
       await streamSubmission(history, {
         walk: walkEcho,
         handlers: {
-          onStatus: (state) => setStatus(STATUS_LABEL[state] ?? state),
+          onStatus: (state) =>
+            setStatus(state === "extracting" ? t.pro.statusExtracting : state),
           onWalk: (state) => setWalk(state),
           onForm: (extracted, stillMissing) => {
             setDraft(extracted);
@@ -134,9 +133,9 @@ export default function ProSubmit() {
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 403) {
-        toast.error("Your account is not a promoter account yet.");
+        toast.error(t.pro.notPromoter);
       } else {
-        toast.error(error instanceof Error ? error.message : "Something went wrong");
+        toast.error(error instanceof Error ? error.message : t.pro.genericError);
       }
     } finally {
       setBusy(false);
@@ -160,7 +159,7 @@ export default function ProSubmit() {
    */
   const attach = async (file: File) => {
     setBusy(true);
-    setStatus(`reading ${file.name}…`);
+    setStatus(t.pro.readingFile(file.name));
     try {
       const { text, source, kind } = await ingestFile(file);
       await runTurn(
@@ -168,7 +167,7 @@ export default function ProSubmit() {
         walkEcho,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not read that file");
+      toast.error(error instanceof Error ? error.message : t.pro.couldNotRead);
       setBusy(false);
       setStatus(null);
     }
@@ -178,7 +177,7 @@ export default function ProSubmit() {
     setSaving(true);
     try {
       const result = await saveEvent(completed);
-      toast.success(`Published — ${result.event_name ?? "event"} is live`);
+      toast.success(t.pro.published(result.event_name ?? completed.name ?? "✓"));
       for (const warning of result.warnings ?? []) toast.warning(warning);
       setDraft(null);
       setMissing([]);
@@ -188,7 +187,7 @@ export default function ProSubmit() {
         // the server we advanced, and let it introduce the next event.
         const drafts = walk.drafts.map((d, i) => (i === walk.cursor ? completed : d));
         const name = result.event_name ?? completed.name ?? "the event";
-        const marker = `Published "${name}" (event ${walk.cursor + 1} of ${walk.total}).`;
+        const marker = t.pro.publishedMarker(name, walk.cursor + 1, walk.total);
         await runTurn([...messages, { role: "user", content: marker }], {
           drafts,
           cursor: walk.cursor + 1,
@@ -199,9 +198,9 @@ export default function ProSubmit() {
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        toast.error("That event is already on laiive.");
+        toast.error(t.pro.alreadyExists);
       } else {
-        toast.error(error instanceof Error ? error.message : "Could not publish");
+        toast.error(error instanceof Error ? error.message : t.pro.publishFailed);
       }
     } finally {
       setSaving(false);
@@ -229,10 +228,8 @@ export default function ProSubmit() {
         <div className="mx-auto max-w-3xl space-y-3">
           {messages.length === 0 && !draft && (
             <div className="space-y-2 pt-8 text-center font-ibm-plex text-muted-foreground">
-              <p>Tell me about your event — type it, say it, or drop a flyer.</p>
-              <p className="text-xs">
-                photo · PDF · Word · voice — all of it becomes the same form
-              </p>
+              <p>{t.pro.emptyTitle}</p>
+              <p className="text-xs">{t.pro.emptyHint}</p>
             </div>
           )}
 
@@ -265,7 +262,7 @@ export default function ProSubmit() {
             <div className="space-y-1">
               {walk && (
                 <p className="font-ibm-plex text-xs font-bold uppercase tracking-wider text-accent">
-                  event {walk.cursor + 1} of {walk.total}
+                  {t.pro.eventOf(walk.cursor + 1, walk.total)}
                 </p>
               )}
               <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
@@ -293,8 +290,8 @@ export default function ProSubmit() {
             size="icon"
             onClick={() => fileInput.current?.click()}
             disabled={busy}
-            aria-label="Attach a flyer, document or recording"
-            title="Attach a flyer, document or recording"
+            aria-label={t.pro.attach}
+            title={t.pro.attach}
           >
             <Paperclip className="h-5 w-5" />
           </Button>
@@ -313,7 +310,7 @@ export default function ProSubmit() {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && send(input)}
-            placeholder="artist, venue, date, price…"
+            placeholder={t.pro.placeholder}
             className="focus-visible:ring-accent"
           />
 
@@ -322,7 +319,7 @@ export default function ProSubmit() {
             size="icon"
             onClick={() => send(input)}
             disabled={busy || !input.trim()}
-            aria-label="Send"
+            aria-label={t.pro.send}
           >
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
