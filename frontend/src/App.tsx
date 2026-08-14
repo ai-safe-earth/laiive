@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { LanguageProvider } from "@/i18n/useTranslation";
+import Account from "@/pages/Account";
 import Auth from "@/pages/Auth";
 import Chat from "@/pages/Chat";
 import NotFound from "@/pages/NotFound";
@@ -24,6 +25,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Chat />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/account" element={<Account />} />
               <Route path="/pro" element={<ProSubmit />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -2,8 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { env } from "@/env";
 
 /**
- * Auth only — this client never reads application tables. Profile and role data
- * reach the browser through the gateway, which holds the service role key.
+ * Auth, plus the user's own profile rows through `src/api/profile.ts` — those
+ * tables carry RLS policies scoped to `auth.uid()`, which is a stronger and
+ * less duplicated place to enforce ownership than a gateway route would be
+ * (see the note in profile.ts). Everything else — chat, submissions, the graph
+ * — goes through the gateway; this client never touches those.
  */
 export const supabase = createClient(env.supabaseUrl, env.supabasePublishableKey, {
   auth: {

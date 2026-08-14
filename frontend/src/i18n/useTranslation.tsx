@@ -31,6 +31,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = language;
   }, [language]);
 
+  // The provider stays above AuthProvider and knows nothing about sessions —
+  // Account.tsx pushes the signed-in profile's ui_language down through
+  // setLanguage, and localStorage keeps it for the anonymous case.
+
   const value = useMemo<LanguageState>(
     () => ({ language, setLanguage, t: translations[language] }),
     [language],

@@ -2,12 +2,13 @@ import { LogOut, User as UserIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import { LANGUAGES, useTranslation, type Language } from "@/i18n/useTranslation";
+import { useLanguagePreference } from "@/i18n/useLanguagePreference";
+import { LANGUAGES, type Language } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 export function UserMenu() {
   const { user, role, signOut } = useAuth();
-  const { language, setLanguage } = useTranslation();
+  const { language, chooseLanguage } = useLanguagePreference();
   const [open, setOpen] = useState(false);
 
   return (
@@ -16,7 +17,7 @@ export function UserMenu() {
         {LANGUAGES.map((code: Language) => (
           <button
             key={code}
-            onClick={() => setLanguage(code)}
+            onClick={() => chooseLanguage(code)}
             className={cn(
               "px-1 font-ibm-plex text-[11px] uppercase transition-colors",
               code === language ? "text-primary" : "text-muted-foreground hover:text-foreground",
@@ -40,6 +41,13 @@ export function UserMenu() {
             <div className="absolute right-0 z-20 mt-2 w-56 rounded-md border border-border bg-popover p-2 shadow-lg">
               <p className="truncate px-2 py-1 text-xs text-muted-foreground">{user.email}</p>
               <p className="px-2 pb-2 text-[10px] uppercase tracking-wider text-accent">{role}</p>
+              <Link
+                to="/account"
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+              >
+                <UserIcon className="h-4 w-4" /> account
+              </Link>
               <button
                 onClick={() => {
                   setOpen(false);

@@ -20,7 +20,9 @@ function required(name: keyof ImportMetaEnv): string {
 }
 
 export const env: Env = {
-  // The gateway is the only backend the browser talks to (Phase 3).
+  // Everything application-side goes through the gateway (Phase 3). Supabase is
+  // reached directly for auth and for the user's own profile rows, which RLS
+  // scopes to them (src/api/profile.ts).
   apiUrl: required("VITE_API_URL").replace(/\/$/, ""),
   supabaseUrl: required("VITE_SUPABASE_URL").replace(/\/$/, ""),
   supabasePublishableKey: required("VITE_SUPABASE_PUBLISHABLE_KEY"),
