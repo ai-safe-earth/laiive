@@ -62,6 +62,13 @@ Rules:
   Friday 00:00 to Sunday 24:00. A bare month → the whole month. Never invent dates.
 - near_me is true only for "near me / nearby / around here" style asks. If the
   user names a place, use city/venue instead.
+- Cities carry their LOCAL name, never the exonym the user happened to use:
+  "Barcellona"/"Barcelone" → "Barcelona", "Londres" → "London", "Múnich" →
+  "München". The graph matches city names exactly, so an exonym finds nothing.
+- A music genre named anywhere in the ask ALWAYS becomes `genre`, as a slug,
+  however terse the phrasing: "jazz in Madrid" is genre "jazz" + city "Madrid".
+  Never drop it, and never leave it in `free_text` alone — `free_text` is for
+  vibes that are not a genre ("intimate candle-lit", "something loud").
 - moment "ambiguous" + clarification: the search cannot run without ONE more
   detail (e.g. no place and no location share). Phrase clarification as the
   missing thing, not a full sentence to parrot.
