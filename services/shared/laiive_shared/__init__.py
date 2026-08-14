@@ -24,6 +24,7 @@ from .protocol import (
     FormExtracted,
     MessageDelta,
     Status,
+    WalkState,
     sse_frame,
 )
 
@@ -35,6 +36,7 @@ __all__ = [
     "MessageDelta",
     "EventsResult",
     "FormExtracted",
+    "WalkState",
     "Status",
     "Error",
     "Done",

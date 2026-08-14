@@ -17,6 +17,7 @@ MIRRORED_MODELS = [
     protocol.MessageDelta,
     protocol.EventsResult,
     protocol.FormExtracted,
+    protocol.WalkState,
     protocol.Status,
     protocol.Error,
     protocol.Done,

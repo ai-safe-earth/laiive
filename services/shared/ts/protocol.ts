@@ -9,6 +9,7 @@ export const SSE_EVENTS = [
   "message.delta",
   "events.result",
   "form.extracted",
+  "walk.state",
   "status",
   "error",
   "done",
@@ -69,6 +70,18 @@ export interface FormExtracted {
   draft: EventDraft;
   missing: string[];
   index: number;
+  total: number;
+}
+
+// event: walk.state
+// A turn that recognized several events starts a walk: this frame carries the
+// whole set, the client persists it and echoes it back with each message, and
+// form.extracted shows only the event under the cursor. A single event never
+// enters a walk.
+export interface WalkState {
+  drafts: EventDraft[];
+  missing: string[][];
+  cursor: number;
   total: number;
 }
 

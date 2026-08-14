@@ -9,10 +9,14 @@ Named SSE events (02-architecture §2):
     event: error           data: {"code": "…", "message": "…"}
     event: done            data: {"request_id": "…"}
 
-A submission turn can recognize several events at once (a spreadsheet, a
-festival line-up), and then emits one `form.extracted` per event in source
-order — `index`/`total` are how the client shows them one at a time. A single
-event is that same frame with index 0 of 1, so there is no second shape.
+A submission turn that recognizes several events at once (a spreadsheet, a
+festival line-up) starts a *walk*: the promoter is taken through the set one
+event per turn. `walk.state` carries the whole set — the client persists it
+and echoes it back with each message, so the server stays stateless — while
+`form.extracted` carries only the event under the cursor. A single event
+never enters a walk: it is one `form.extracted` with index 0 of 1.
+
+    event: walk.state      data: {"drafts": [EventDraft…], "missing": [[]…], "cursor": 0, "total": 5}
 
 Emit frames with `sse_frame(payload)`; the event name comes from the payload
 type, so a frame can never carry the wrong name.
@@ -43,6 +47,14 @@ class FormExtracted(BaseModel):
     total: int = 1
 
 
+class WalkState(BaseModel):
+    event: ClassVar[str] = "walk.state"
+    drafts: list[EventDraft]
+    missing: list[list[str]]  # parallel to drafts
+    cursor: int
+    total: int
+
+
 class Status(BaseModel):
     event: ClassVar[str] = "status"
     state: str  # e.g. classifying | searching | composing | extracting | writing
@@ -59,7 +71,7 @@ class Done(BaseModel):
     request_id: str
 
 
-Frame = MessageDelta | EventsResult | FormExtracted | Status | Error | Done
+Frame = MessageDelta | EventsResult | FormExtracted | WalkState | Status | Error | Done
 
 
 def sse_frame(payload: Frame) -> str:

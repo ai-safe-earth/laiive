@@ -9,6 +9,7 @@ from laiive_shared import (
     FormExtracted,
     MessageDelta,
     Status,
+    WalkState,
     sse_frame,
 )
 
@@ -49,6 +50,17 @@ def test_form_extracted_carries_its_position_in_the_set():
     draft = EventDraft(artists=["A"])
     _, data = parse_frame(sse_frame(FormExtracted(draft=draft, index=2, total=12)))
     assert (data["index"], data["total"]) == (2, 12)
+
+
+def test_walk_state_frame_carries_the_whole_set():
+    drafts = [EventDraft(artists=["A"]), EventDraft(artists=["B"], venue="V")]
+    event, data = parse_frame(
+        sse_frame(WalkState(drafts=drafts, missing=[["venue"], []], cursor=1, total=2))
+    )
+    assert event == "walk.state"
+    assert [d["artists"] for d in data["drafts"]] == [["A"], ["B"]]
+    assert data["missing"] == [["venue"], []]
+    assert (data["cursor"], data["total"]) == (1, 2)
 
 
 def test_scalar_frames():
