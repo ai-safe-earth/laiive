@@ -10,7 +10,6 @@ from .speech import (
     validate_audio,
 )
 from .protocol import (
-    BatchProgress,
     Done,
     Error,
     EventsResult,
@@ -28,7 +27,6 @@ __all__ = [
     "MessageDelta",
     "EventsResult",
     "FormExtracted",
-    "BatchProgress",
     "Status",
     "Error",
     "Done",

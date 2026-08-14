@@ -8,12 +8,22 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent.api import app
-from tests.test_conversation import set_extraction
+from tests.test_conversation import COMPLETE, set_extraction
 
 
 @pytest.fixture
 def client():
     return TestClient(app)
+
+
+def _frames(body: str) -> list[tuple[str, str]]:
+    """[(event name, raw data line)] from a v2 stream, in arrival order."""
+    frames = []
+    for block in body.split("\n\n"):
+        lines = block.strip().split("\n")
+        if len(lines) == 2 and lines[0].startswith("event: "):
+            frames.append((lines[0][len("event: ") :], lines[1]))
+    return frames
 
 
 class TestHealthEndpoints:
@@ -111,6 +121,38 @@ class TestChatStreamV2:
         frame_data = [line for line in second.splitlines() if line.startswith("data: ")]
         form_payload = json.loads(frame_data[1][len("data: ") :])
         assert "start_at" in form_payload["missing"]
+
+    def test_many_events_emit_one_frame_each_in_order(self, client, mock_openai):
+        """A spreadsheet-shaped conversation: N forms, N-1 of them for later."""
+        set_extraction(
+            mock_openai,
+            {
+                "events": [
+                    {**COMPLETE, "venue": "First Venue"},
+                    {**COMPLETE, "venue": "Second Venue"},
+                    {**COMPLETE, "venue": "Third Venue"},
+                ]
+            },
+        )
+        body = client.post(
+            "/chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "three gigs in a csv"}],
+                "protocol": "v2",
+            },
+        ).text
+
+        forms = [
+            json.loads(payload[len("data: ") :])
+            for name, payload in _frames(body)
+            if name == "form.extracted"
+        ]
+        assert [f["draft"]["venue"] for f in forms] == [
+            "First Venue",
+            "Second Venue",
+            "Third Venue",
+        ]
+        assert [(f["index"], f["total"]) for f in forms] == [(0, 3), (1, 3), (2, 3)]
 
 
 class TestTranscribeEndpoint:

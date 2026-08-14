@@ -4,11 +4,15 @@ Named SSE events (02-architecture §2):
 
     event: message.delta   data: {"text": "…"}
     event: events.result   data: {"events": [EventCard…]}
-    event: form.extracted  data: {"event": EventDraft, "missing": []}
-    event: batch.progress  data: {"index": 1, "total": 5}
+    event: form.extracted  data: {"draft": EventDraft, "missing": [], "index": 0, "total": 1}
     event: status          data: {"state": "searching"}
     event: error           data: {"code": "…", "message": "…"}
     event: done            data: {"request_id": "…"}
+
+A submission turn can recognize several events at once (a spreadsheet, a
+festival line-up), and then emits one `form.extracted` per event in source
+order — `index`/`total` are how the client shows them one at a time. A single
+event is that same frame with index 0 of 1, so there is no second shape.
 
 Emit frames with `sse_frame(payload)`; the event name comes from the payload
 type, so a frame can never carry the wrong name.
@@ -35,12 +39,8 @@ class FormExtracted(BaseModel):
     event: ClassVar[str] = "form.extracted"
     draft: EventDraft
     missing: list[str] = []
-
-
-class BatchProgress(BaseModel):
-    event: ClassVar[str] = "batch.progress"
-    index: int
-    total: int
+    index: int = 0
+    total: int = 1
 
 
 class Status(BaseModel):
@@ -59,9 +59,7 @@ class Done(BaseModel):
     request_id: str
 
 
-Frame = (
-    MessageDelta | EventsResult | FormExtracted | BatchProgress | Status | Error | Done
-)
+Frame = MessageDelta | EventsResult | FormExtracted | Status | Error | Done
 
 
 def sse_frame(payload: Frame) -> str:

@@ -1,7 +1,6 @@
 import json
 
 from laiive_shared import (
-    BatchProgress,
     Done,
     Error,
     EventCard,
@@ -43,13 +42,16 @@ def test_form_extracted_frame():
     assert event == "form.extracted"
     assert data["missing"] == ["start_at"]
     assert data["draft"]["city"] == "Madrid"
+    assert (data["index"], data["total"]) == (0, 1)  # a lone event is 0 of 1
+
+
+def test_form_extracted_carries_its_position_in_the_set():
+    draft = EventDraft(artists=["A"])
+    _, data = parse_frame(sse_frame(FormExtracted(draft=draft, index=2, total=12)))
+    assert (data["index"], data["total"]) == (2, 12)
 
 
 def test_scalar_frames():
-    assert parse_frame(sse_frame(BatchProgress(index=1, total=5)))[1] == {
-        "index": 1,
-        "total": 5,
-    }
     assert parse_frame(sse_frame(Status(state="searching")))[0] == "status"
     assert parse_frame(sse_frame(Error(code="bad_request", message="x")))[0] == "error"
     event, data = parse_frame(sse_frame(Done(request_id="r1")))

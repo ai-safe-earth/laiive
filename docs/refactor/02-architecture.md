@@ -55,12 +55,17 @@ frontend; drift-checked by a contract test) using **named SSE events**:
 ```
 event: message.delta      data: {"text": "…"}                         # assistant prose
 event: events.result      data: {"events": [EventCard...]}            # structured cards
-event: form.extracted     data: {"event": EventDraft, "missing": []}  # pusher form
-event: batch.progress     data: {"index": 1, "total": 5}              # "event 1 of 5"
+event: form.extracted     data: {"draft": EventDraft, "missing": [],  # pusher form
+                                 "index": 0, "total": 1}              #   "event 1 of 5"
 event: status             data: {"state": "searching|composing|…"}    # UX affordance
 event: error              data: {"code": "...", "message": "..."}
 event: done               data: {"request_id": "..."}
 ```
+
+A submission turn that recognizes several events emits one `form.extracted` per
+event in source order; `index`/`total` are how the client walks them one at a time.
+A single event is that same frame with index 0 of 1, so there is no separate batch
+frame (the sketched `batch.progress` was dropped for this reason).
 
 `EventCard` (the card contract — one shape, typed on both sides):
 ```json
@@ -127,9 +132,13 @@ list applies only to UI chrome, chosen at signup and in profile settings.
   visibly marked. No long guided completion.
 - Form payload travels as `form.extracted` (typed SSE event) — the
   `__EVENT_EXTRACTED__` sentinel dies.
-- **Batch mode**: spreadsheet/CSV upload → server parses rows → N `EventDraft`s → the
-  frontend shows one form at a time with edit-and-approve, `batch.progress` drives
-  "event 1 of 5". Approval of draft i triggers write i; next form appears.
+- **Many events are not a separate mode** (revised in 4b): extraction runs over the
+  whole conversation and returns a *list* of drafts, so a spreadsheet, a festival
+  line-up and a promoter listing four gigs all take the ordinary path. The chat says
+  how many it recognized, one clarification round covers the whole set, then one
+  `form.extracted` per event carries `index`/`total` and the frontend shows them one
+  at a time. Approval of draft i triggers write i. `/batch/parse` +
+  `/batch/validate-event` remain as the deterministic fast lane for large sheets.
 - Write path fixes: MERGE identity (see 03), venue geocoded on write (`location`
   point), `source: 'pro_submission'`, `owner_id` from the authenticated user, dedup
   check before write (same name_norm + date + venue → warn instead of duplicate).

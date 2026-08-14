@@ -248,12 +248,23 @@ async def chat_stream(request: ChatStreamRequest):
 
 
 async def _generate_v2(request_id: str, messages: list[dict]):
-    """Named-event frames: form.extracted replaces the sentinel."""
+    """Named-event frames: form.extracted replaces the sentinel.
+
+    A conversation that carries several events (a spreadsheet, a line-up)
+    emits one frame per event, in source order — index/total is what lets the
+    client walk them one form at a time.
+    """
     try:
         yield sse_frame(Status(state="extracting"))
         turn = await asyncio.to_thread(process_turn, messages)
         if turn.show_form:
-            yield sse_frame(FormExtracted(draft=turn.draft, missing=turn.missing))
+            total = len(turn.drafts)
+            for index, (draft, missing) in enumerate(zip(turn.drafts, turn.missing)):
+                yield sse_frame(
+                    FormExtracted(
+                        draft=draft, missing=missing, index=index, total=total
+                    )
+                )
         yield sse_frame(MessageDelta(text=turn.reply))
     except Exception as e:
         logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)

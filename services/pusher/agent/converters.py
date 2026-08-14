@@ -18,11 +18,15 @@ from config import settings
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-EXTRACTION_PROMPT_VERSION = "v2"
+EXTRACTION_PROMPT_VERSION = "v3"
 
-EXTRACTION_PROMPT = """Extract live music event information from this text. Today is {today}.
+EXTRACTION_PROMPT = """Extract live music events from this text. Today is {today}.
 
-Return ONE JSON object with ONLY the fields you can actually identify:
+The text may describe ONE event or MANY — a spreadsheet of gigs, a festival
+line-up, a promoter listing their season. Return every event you find.
+
+Return JSON of the form {{"events": [ ... ]}}, where each entry carries ONLY
+the fields you can actually identify:
 {{
   "name": string,            // event title if stated (do NOT invent one)
   "artists": [string, ...],  // performing artists/bands/DJs
@@ -30,7 +34,7 @@ Return ONE JSON object with ONLY the fields you can actually identify:
   "venue": string,
   "address": string,         // street address if stated
   "city": string,
-  "venue_type": "club" | "bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",
+  "venue_type": "club" | "bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",  // only when the text says so — omit rather than guessing "other"
   "price_min": number,       // 0 for free events
   "price_max": number,       // only when a range is stated
   "price_currency": string,  // ISO code (EUR, USD...) only when stated or implied by symbol
@@ -40,6 +44,12 @@ Return ONE JSON object with ONLY the fields you can actually identify:
 }}
 
 Rules:
+- One entry per event; a single event is a list of one.
+- Keep the events in the order they appear in the text, and keep that order
+  stable — the same text must always produce the same events in the same
+  order, because the promoter refers to them by position ("the third one").
+- A detail stated once for the whole set ("all of these are at Sala Clamores")
+  belongs on every event it covers.
 - Omit any field that is not present. NEVER invent data.
 - Numbers for prices — no currency symbols.
 - JSON only. No explanation, no markdown fences.
@@ -48,8 +58,14 @@ Text to extract from:
 {text}"""
 
 
-def extract_draft_from_text(text: str) -> EventDraft:
-    """LLM extraction of a (possibly partial) EventDraft from free text."""
+def extract_drafts_from_text(text: str) -> list[EventDraft]:
+    """LLM extraction of every event described in free text.
+
+    One extraction path whether the promoter sent one gig or fifty: the whole
+    conversation is re-read every turn, so a later sentence ("all of them are
+    at Sala Clamores", "the third one starts at 21:00") lands on the right
+    drafts without any merge rules on either side of the wire.
+    """
     response = _client.chat.completions.create(
         model=settings.conversation_model,
         messages=[
@@ -70,9 +86,37 @@ def extract_draft_from_text(text: str) -> EventDraft:
         data = json.loads(content)
     except json.JSONDecodeError:
         logger.warning(f"Failed to parse extraction response: {content[:200]}")
-        return EventDraft()
-    if not isinstance(data, dict):
-        return EventDraft()
+        return []
+
+    drafts = [
+        draft
+        for entry in _entries(data)
+        if (draft := _entry_to_draft(entry)) is not None
+    ]
+    if len(drafts) > 1:
+        logger.info(f"Extraction recognized {len(drafts)} events")
+    return drafts
+
+
+def _entries(data: object) -> list[dict]:
+    """The event list, however the model chose to wrap it.
+
+    Asked for `{"events": [...]}` it usually complies, but a lone event often
+    comes back as a bare object and sometimes as a bare list — all three are
+    the same thing to us.
+    """
+    if isinstance(data, dict):
+        events = data.get("events")
+        if isinstance(events, list):
+            return [e for e in events if isinstance(e, dict)]
+        return [data]
+    if isinstance(data, list):
+        return [e for e in data if isinstance(e, dict)]
+    return []
+
+
+def _entry_to_draft(entry: dict) -> EventDraft | None:
+    data = dict(entry)
 
     if isinstance(data.get("artists"), str):
         data["artists"] = [data["artists"]]
@@ -95,7 +139,13 @@ def extract_draft_from_text(text: str) -> EventDraft:
         return EventDraft(**known)
     except Exception as e:
         logger.warning(f"Extraction produced an invalid draft: {e}")
-        return EventDraft()
+        return None
+
+
+def extract_draft_from_text(text: str) -> EventDraft:
+    """First event only — for the single-draft endpoints 4c deletes."""
+    drafts = extract_drafts_from_text(text)
+    return drafts[0] if drafts else EventDraft()
 
 
 def audio_to_text(audio_bytes: bytes, filename: str = "audio.webm") -> str:

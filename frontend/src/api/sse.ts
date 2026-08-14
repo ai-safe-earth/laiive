@@ -1,5 +1,4 @@
 import type {
-  BatchProgress,
   Done,
   Error as ProtocolError,
   EventsResult,
@@ -23,7 +22,6 @@ export type ProtocolFrame =
   | { event: "message.delta"; data: MessageDelta }
   | { event: "events.result"; data: EventsResult }
   | { event: "form.extracted"; data: FormExtracted }
-  | { event: "batch.progress"; data: BatchProgress }
   | { event: "status"; data: Status }
   | { event: "error"; data: ProtocolError }
   | { event: "done"; data: Done };
@@ -32,7 +30,6 @@ const KNOWN: ReadonlySet<string> = new Set<SSEEventName>([
   "message.delta",
   "events.result",
   "form.extracted",
-  "batch.progress",
   "status",
   "error",
   "done",

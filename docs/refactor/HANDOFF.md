@@ -7,8 +7,9 @@ canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
 *named* `laiive` is the personal fork, do not push there.
 
 **Where things stand**: phases 0–3 done and verified live; phase 4 is a new
-frontend, of which 4a (consumer chat) and 4b (multimodal submission) are done —
-batch UI is the piece left. Nothing is deployed yet. To run the stack locally:
+frontend, of which 4a (consumer chat) and 4b (multimodal submission) are done,
+including multi-event submission **server-side** — its UI waits for Phase 5.
+Nothing is deployed yet. To run the stack locally:
 gateway :8000, retriever :8002, pusher :8003, frontend :8081 (see *Environment
 gotchas* — stale servers from earlier sessions are a recurring time sink).
 
@@ -32,7 +33,7 @@ gotchas* — stale servers from earlier sessions are a recurring time sink).
 ### Phase 2 — backend contracts + redesign ✅ (commits `f566d2b`, `6e5c6e1`, `9897d30`)
 - **`services/shared`** (D10): `laiive-shared` package installed editable in
   both services — typed SSE protocol (`message.delta`, `events.result`,
-  `form.extracted`, `batch.progress`, `status`, `error`, `done`) with
+  `form.extracted`, `status`, `error`, `done`) with
   `sse_frame()`; `EventCard`/`EventDraft`; `norm()`/`genre_slug()`;
   embedding-text recipes; Nominatim geocoder (cache + 1 req/s, D12);
   MERGE-by-identity `neo4j_writer` (dedup probe, `source`, `owner_id`,
@@ -250,11 +251,48 @@ the user's flyer from the conversation sent back up. Decide append-vs-replace
 outside the updater; keep updaters pure. The gateway's `conversation_logs`
 payloads are what pinned it down — query them when the UI and the API disagree.
 
+### Phase 4b (cont.) — many events in one conversation ✅ backend only
+
+The owner's call: a spreadsheet is **not** a batch mode, it is a longer
+conversation. Extraction now returns a *list*, so a CSV, a festival line-up and
+"I have four gigs next week" all take the ordinary path; the assistant says how
+many it recognized, one clarification round covers the whole set, and the forms
+then go out one per event.
+
+- `converters.extract_drafts_from_text()` (prompt v3) asks for
+  `{"events": [...]}` and tolerates a bare object or bare list — a lone event
+  still comes back unwrapped often. `extract_draft_from_text` survives as a
+  `[0]` wrapper for the `/extract-event-*` endpoints 4c deletes.
+- `PusherTurn` carries `drafts` + a parallel `missing`; `.draft` /
+  `.draft_missing` are the first-event view the legacy frames use. The
+  clarification prompt for a set is written from `_gaps()` ("2 of them are
+  missing the ticket price") so the assistant asks once, not event by event.
+- `MAX_EVENTS_PER_TURN = 25` (conversation.py). Past it the turn keeps the
+  first 25, sets `truncated`, and the reply asks for the rest separately —
+  every turn re-emits all drafts, so a 200-row sheet would spend the turn
+  rewriting itself. Big sheets keep the deterministic `/batch/parse` fast lane.
+- **Protocol**: `form.extracted` gained `index`/`total` and `/chat/stream` v2
+  emits one frame per event in source order. `batch.progress` is **deleted** —
+  a lone event is index 0 of 1, so a second frame shape had nothing to carry.
+- Extraction no longer guesses `venue_type: "other"` when nothing says so.
+
+Live-smoked against a 4-row CSV pasted as conversation text (scratch pusher on
+:8013, no writes): "He reconocido cuatro eventos" + one round asking only for
+the row with gaps; then "The third one is at Café Berlin, 14 euros. And all of
+them are jazz." landed on the right draft and the genre on all four, order
+preserved, 4 frames indexed 0–3 of 4. Suites: shared 36, pusher 70,
+retriever 107, frontend typecheck + lint clean.
+
+**Why no UI**: owner deferred it — "leave the front end modification for the
+phase 5 when we will see the needs". Today's `/pro` calls `onForm` once per
+frame and therefore shows the *last* event of a set; a queue keyed on
+`index`/`total` is the Phase 5 piece. Nothing else regressed (single-event
+submission is unchanged, index 0 of 1).
+
 ## Next: Phase 4c and the gaps 4a/4b left
 
-- **Batch mode is still unbuilt**: `/batch/parse` and `/batch/validate-event`
-  work server-side (CSV/XLSX → drafts + `batch.progress`), but `/pro` has no UI
-  for them yet — that is the remaining piece of 4b.
+- **No multi-event UI yet** (deferred above): server emits N forms, `/pro`
+  renders one. `/batch/parse` + `/batch/validate-event` also still have no UI.
 - **4c — account + cleanup**: profile (ui_language), promoter entities via
   react-query; then delete the legacy SSE frames, the `__EVENT_EXTRACTED__`
   sentinel, `cards_to_markdown`, the pusher's `/transcribe-audio` +

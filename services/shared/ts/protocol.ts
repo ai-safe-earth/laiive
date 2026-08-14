@@ -9,7 +9,6 @@ export const SSE_EVENTS = [
   "message.delta",
   "events.result",
   "form.extracted",
-  "batch.progress",
   "status",
   "error",
   "done",
@@ -63,13 +62,12 @@ export interface EventsResult {
 }
 
 // event: form.extracted
+// One frame per recognized event, in source order: a turn that reads a
+// spreadsheet or a festival line-up emits several, and the client shows them
+// one at a time. A single event is index 0 of 1.
 export interface FormExtracted {
   draft: EventDraft;
   missing: string[];
-}
-
-// event: batch.progress
-export interface BatchProgress {
   index: number;
   total: number;
 }

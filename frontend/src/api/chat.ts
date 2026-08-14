@@ -68,8 +68,8 @@ function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {
       handlers.onError?.(frame.data.message);
       break;
     default:
-      // form.extracted / batch.progress belong to the pusher flow; done needs
-      // no handling — the stream ending is the signal.
+      // form.extracted belongs to the pusher flow; done needs no handling —
+      // the stream ending is the signal.
       break;
   }
 }
