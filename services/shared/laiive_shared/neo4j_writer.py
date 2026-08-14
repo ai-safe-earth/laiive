@@ -181,16 +181,19 @@ def write_event(
                 MERGE (e)-[:HAS_GENRE]->(g)
             )
 
-            WITH e, v, c
-            UNWIND $artists AS artist
-            MERGE (a:Artist {name_norm: artist.name_norm})
-            ON CREATE SET a.uid = artist.uid, a.name = artist.name,
-                          a.source = $source, a.owner_id = $owner_id,
-                          a.created_at = datetime()
-            MERGE (a)-[:PERFORMS_AT]->(e)
-            FOREACH (_ IN CASE WHEN $genre <> '' THEN [1] ELSE [] END |
-                MERGE (g:Genre {slug: $genre})
-                MERGE (a)-[:HAS_GENRE]->(g)
+            // FOREACH, not UNWIND: an empty artist list must not consume the
+            // row and turn the RETURN below into "no record" after the CREATE
+            // has already committed.
+            FOREACH (artist IN $artists |
+                MERGE (a:Artist {name_norm: artist.name_norm})
+                ON CREATE SET a.uid = artist.uid, a.name = artist.name,
+                              a.source = $source, a.owner_id = $owner_id,
+                              a.created_at = datetime()
+                MERGE (a)-[:PERFORMS_AT]->(e)
+                FOREACH (_ IN CASE WHEN $genre <> '' THEN [1] ELSE [] END |
+                    MERGE (g:Genre {slug: $genre})
+                    MERGE (a)-[:HAS_GENRE]->(g)
+                )
             )
 
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city
