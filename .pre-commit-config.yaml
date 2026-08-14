@@ -27,9 +27,9 @@ repos:
       # see Ruff docs on ordering
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
-        files: "^services/(retriever|pusher|shared)/.*\\.py$"
+        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
       - id: ruff-format
-        files: "^services/(retriever|pusher|shared)/.*\\.py$"
+        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
 
   #######################################################################
   # 3. Static typing
@@ -40,7 +40,7 @@ repos:
       - id: mypy
         additional_dependencies: ["types-requests"]   # add stubs your app needs
         args: ["--ignore-missing-imports", "--no-strict-optional"]
-        files: "^services/(retriever|pusher|shared)/.*\\.py$"
+        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
         exclude: "^services/retriever/evals/"   # quarantined eval tooling
 
   #######################################################################
