@@ -2,9 +2,10 @@
 
 Continuation point for the laiive refactor. Read this first, then
 `04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
-Branch: **`refactor/foundation`** (from `connect-to-ui`). Nothing pushed yet;
-canonical remote for future PRs = `origin` (ai-safe-earth/laiive) — the remote
-*named* `laiive` is the personal fork, do not push there.
+Branch: **`refactor/foundation`** (from `connect-to-ui`), pushed to `origin`
+(ai-safe-earth/laiive) 2026-08-15; `main` on `origin` not updated yet.
+Canonical remote for PRs = `origin` — the remote *named* `laiive` is the
+personal fork, do not push there.
 
 **Where things stand**: phases 0–3 done and verified live; phase 4a (consumer
 chat), 4b (multimodal submission), 4c (legacy deletion + account page) and
@@ -17,12 +18,16 @@ servers from earlier sessions are a recurring time sink).
 **Next up**: **Phase 5b, Prefect Cloud half** — the local flow run is done
 and green (see *Phase 5b* below). Owner steps, in order (two gotchas:
 `prefect.yaml` git-clones **`main` of `ai-safe-earth/laiive`** at run time
-and nothing is pushed yet; and a managed pool cannot reach a localhost
-gateway, so the manual test run needs a tunnel or the Phase 6 deploy):
+but only `refactor/foundation` is pushed (see step 1); and a managed pool
+cannot reach a localhost gateway, so the manual test run needs a tunnel or
+the Phase 6 deploy):
 
-1. Push the code Prefect will clone: merge/push `main` on `origin`, or for
-   a pre-merge test push `refactor/foundation` and temporarily set
-   `branch: refactor/foundation` in `prefect.yaml` (revert after).
+1. Push the code Prefect will clone: `refactor/foundation` is pushed to
+   `origin` (2026-08-15). For a pre-merge test, set
+   `branch: refactor/foundation` in `prefect.yaml` locally before
+   `prefect deploy` — no commit needed, the pull step is baked into the
+   deployment at deploy time (revert the local edit after). Or merge/push
+   `main` on `origin` and deploy as-is.
 2. Prefect Cloud account + workspace at app.prefect.cloud (free tier is
    fine), then `cd services/search && uv sync --group flows &&
    uv run prefect cloud login` (interactive — browser auth).
@@ -46,7 +51,7 @@ gateway, so the manual test run needs a tunnel or the Phase 6 deploy):
    yet, and remember new sweeps still need a human approve. ~~88 candidates
 pending review~~ — reviewed and **54 approved into the graph 2026-08-14**
 (see *Phase 5b — approvals*); the writer fix that run produced is
-**uncommitted** in `laiive_shared/neo4j_writer.py`. After that: Phase 6
+committed (`7bb7ad0`) in `laiive_shared/neo4j_writer.py`. After that: Phase 6
 (CI/CD + deploy). The only Phase-4 leftover is the Google click-through by
 the owner.
 
@@ -576,7 +581,7 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   probe can't match), 2 non-music (stand-up, dinner-variety), 1 screening.
   Full review with per-report indices: session scratchpad
   `sweep-review-2026-08-14.md` (regenerable from the `search_reports` rows).
-- **Writer bug found and fixed (uncommitted)**: `neo4j_writer.write_event`'s
+- **Writer bug found and fixed** (`7bb7ad0`): `neo4j_writer.write_event`'s
   artist block used `UNWIND $artists` — an empty list consumed the row, the
   final `RETURN` came back empty, and an event that had *already committed*
   was reported `status: "error", "No record returned from Neo4j"`. Berlin's
