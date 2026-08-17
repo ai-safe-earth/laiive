@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     neo4j_user: str = Field("neo4j", alias="NEO4J_USERNAME")
     neo4j_password: str = Field(..., alias="NEO4J_PASSWORD")
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
+    neo4j_max_pool_size: int = Field(5, alias="SEARCH_NEO4J_MAX_POOL_SIZE")
 
     host: str = Field("0.0.0.0", alias="HOST")
     port: int = Field(8004, alias="PORT")
@@ -46,6 +47,11 @@ class Settings(BaseSettings):
     dedup_similarity: float = Field(0.92, alias="SEARCH_DEDUP_SIMILARITY")
 
     geocode_cache_path: str = Field(".geocode_cache.json", alias="GEOCODE_CACHE_PATH")
+    # Set it and the geocode cache and its 1 req/s gate become shared across
+    # replicas; unset keeps the process-local JSON file (see geocode_store.py).
+    redis_url: str = Field("", alias="REDIS_URL")
+    # Shared with the gateway; empty disables the check (see internal_auth.py).
+    internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
 
 try:

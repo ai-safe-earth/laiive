@@ -73,6 +73,34 @@ def list_reports(limit: int = 20) -> list[dict]:
     return response.json()
 
 
+def claim_report(report_id: str, approved_by: str | None, approved_at: str) -> bool:
+    """Flip dry_run → approved, returning False if someone already did.
+
+    A compare-and-set in Postgres: the `status=eq.dry_run` filter is part of the
+    UPDATE, so two concurrent approves cannot both match. `return=representation`
+    makes the outcome visible — an empty array means this caller lost the race.
+
+    Claiming happens *before* the graph writes. If the process dies in between,
+    the report reads approved with no `write_results`, and a re-run is safe
+    because the shared writer's dedup probe answers `duplicate` per candidate.
+    """
+    response = _http.patch(
+        _url(),
+        headers=_headers(Prefer="return=representation"),
+        params={"id": f"eq.{report_id}", "status": "eq.dry_run"},
+        json={
+            "status": "approved",
+            "approved_by": approved_by,
+            "approved_at": approved_at,
+        },
+    )
+    # `return=representation` means PostgREST answers 200 with the updated rows;
+    # anything else is a real failure, not a lost race.
+    if response.status_code != 200:
+        raise ReportStoreError(f"Could not claim the report ({response.status_code})")
+    return bool(response.json())
+
+
 def update_report(report_id: str, patch: dict) -> None:
     response = _http.patch(
         _url(),

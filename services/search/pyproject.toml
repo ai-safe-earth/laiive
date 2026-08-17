@@ -12,6 +12,8 @@ dependencies = [
     "neo4j>=6.0.3",
     "openai>=2.14.0",
     "pydantic-settings>=2.12.0",
+    # Shared geocode cache + 1 req/s gate across replicas (laiive_shared.geocode_store).
+    "redis>=5.0",
     "uvicorn>=0.40.0",
 ]
 

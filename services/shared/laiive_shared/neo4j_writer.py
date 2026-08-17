@@ -149,6 +149,14 @@ def write_event(
 
     event_uid = str(uuid.uuid4())
     genre = genre_slug(draft.genre) if draft.genre else ""
+    # Hoisted so the embedding backfill below can be scoped to what this write
+    # touched. MERGE means a pre-existing artist keeps its own uid and these are
+    # never used — which is fine, it already has an embedding or the nightly
+    # backfill will reach it.
+    artist_rows = [
+        {"name": a, "name_norm": norm(a), "uid": str(uuid.uuid4())}
+        for a in draft.artists
+    ]
     try:
         record = session.run(
             """
@@ -196,7 +204,8 @@ def write_event(
                 )
             )
 
-            RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city
+            RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
+                   v.uid AS venue_uid
             """,
             city=draft.city,
             city_norm=norm(draft.city),
@@ -223,10 +232,7 @@ def write_event(
             ticket_url=draft.ticket_url or "",
             genre=genre,
             genre_name=(draft.genre or "").strip().title(),
-            artists=[
-                {"name": a, "name_norm": norm(a), "uid": str(uuid.uuid4())}
-                for a in draft.artists
-            ],
+            artists=artist_rows,
             source=source,
             owner_id=owner_id,
         ).single()
@@ -238,8 +244,19 @@ def write_event(
         return WriteResult(status="error", message="No record returned from Neo4j")
 
     if embed_texts is not None:
+        # Scoped to the nodes this write created. Unscoped, this was a full-graph
+        # scan for un-embedded nodes inside every single submission — the cost
+        # grew with the graph, two writers duplicated each other's work and each
+        # paid OpenAI for it. The unbounded sweep has exactly one owner now: the
+        # nightly backfill flow.
+        written = [record["uid"], record["venue_uid"]] + [a["uid"] for a in artist_rows]
         try:
-            backfill_embeddings(session, embed_texts, embedding_model)
+            backfill_embeddings(
+                session,
+                embed_texts,
+                embedding_model,
+                uids=[u for u in written if u],
+            )
         except Exception as e:
             logger.error("Embedding backfill failed: %s", e)
             warnings.append(f"Embeddings not written: {e}")
@@ -255,18 +272,32 @@ def write_event(
     )
 
 
-def backfill_embeddings(session, embed_texts: EmbedFn, embedding_model: str) -> int:
-    """Embed every Event/Artist/Venue node that has no embedding yet.
+def backfill_embeddings(
+    session,
+    embed_texts: EmbedFn,
+    embedding_model: str,
+    uids: list[str] | None = None,
+) -> int:
+    """Embed Event/Artist/Venue nodes that have no embedding yet.
 
     Builds the composite texts with the shared recipes, embeds them in one
     batch call per label, and stores vector + text + model. Returns the number
     of nodes embedded.
+
+    `uids` narrows the scan to specific nodes — that is the per-write path, where
+    the cost must be proportional to the event being written, not to the size of
+    the graph. Omit it for the nightly sweep that catches everything else
+    (`services/search/flows/backfill.py`); it is the only caller that should.
     """
     jobs: list[tuple[str, str, str]] = []  # (label, uid, text)
 
+    def scope(var: str) -> str:
+        """The uid predicate for one query variable, or nothing when unscoped."""
+        return f"AND {var}.uid IN $uids" if uids is not None else ""
+
     for row in session.run(
-        """
-        MATCH (e:Event) WHERE e.embedding IS NULL
+        f"""
+        MATCH (e:Event) WHERE e.embedding IS NULL {scope("e")}
         OPTIONAL MATCH (e)-[:HOSTED_AT]->(v:Venue)
         OPTIONAL MATCH (v)-[:LOCATED_IN]->(c:City)
         OPTIONAL MATCH (a:Artist)-[:PERFORMS_AT]->(e)
@@ -274,7 +305,8 @@ def backfill_embeddings(session, embed_texts: EmbedFn, embedding_model: str) -> 
         RETURN e.uid AS uid, e.name AS name, e.description AS description,
                toString(e.start_at) AS start_at, v.name AS venue, c.name AS city,
                collect(DISTINCT a.name) AS artists, collect(DISTINCT g.name) AS genres
-        """
+        """,
+        uids=uids,
     ):
         jobs.append(
             (
@@ -293,13 +325,14 @@ def backfill_embeddings(session, embed_texts: EmbedFn, embedding_model: str) -> 
         )
 
     for row in session.run(
-        """
-        MATCH (a:Artist) WHERE a.embedding IS NULL
+        f"""
+        MATCH (a:Artist) WHERE a.embedding IS NULL {scope("a")}
         OPTIONAL MATCH (a)-[:BASED_IN]->(c:City)
         OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)
         RETURN a.uid AS uid, a.name AS name, a.description AS description,
                c.name AS city, collect(DISTINCT g.name) AS genres
-        """
+        """,
+        uids=uids,
     ):
         jobs.append(
             (
@@ -315,12 +348,13 @@ def backfill_embeddings(session, embed_texts: EmbedFn, embedding_model: str) -> 
         )
 
     for row in session.run(
-        """
-        MATCH (v:Venue) WHERE v.embedding IS NULL
+        f"""
+        MATCH (v:Venue) WHERE v.embedding IS NULL {scope("v")}
         OPTIONAL MATCH (v)-[:LOCATED_IN]->(c:City)
         RETURN v.uid AS uid, v.name AS name, v.venue_type AS venue_type,
                v.address AS address, c.name AS city, v.description AS description
-        """
+        """,
+        uids=uids,
     ):
         jobs.append(
             (

@@ -17,11 +17,15 @@ from laiive_shared import (
     Status,
     UnsupportedAudioFormat,
     WalkState,
+    install_internal_auth,
+    register_health,
     sse_frame,
 )
 from loguru import logger
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+
+from config import settings
 
 from . import graph
 from .conversation import WalkInput, process_turn
@@ -39,6 +43,17 @@ app = FastAPI(title="laiive pusher API", version="0.3.0")
 # the service is only reachable through it (compose `expose`s it, `make start-*`
 # binds 127.0.0.1). The SERVICE_CORS_ALLOW_ORIGINS escape hatch existed for the
 # Phase 3 frontend that still called 8002/8003 directly; that frontend is gone.
+
+# /livez and /readyz for the kubelet — the deep `/health` below stays for humans.
+register_health(
+    app,
+    service="pusher",
+    ready_check=graph.verify_connectivity,
+)
+
+# Defence in depth behind the NetworkPolicy — matters most here, since this is
+# the service that writes. Unset key = no-op (local runs, compose, tests).
+install_internal_auth(app, expected=settings.internal_api_key)
 
 
 # ============== Pydantic Models ==============
@@ -109,7 +124,7 @@ def root():
 def health():
     checks = {"api": "ok", "neo4j": "unknown"}
     try:
-        graph._driver.verify_connectivity()
+        graph.verify_connectivity()
         checks["neo4j"] = "ok"
     except Exception as e:
         logger.warning(f"Neo4j health check failed: {e}")
@@ -254,8 +269,11 @@ async def validate_event(
 ):
     """Publish a form-approved event — the only write trigger."""
     draft = request.draft
-    # owner identity comes only from the gateway-verified header, never the body
-    result = _write_or_raise(draft, owner_id=x_user_id)
+    # owner identity comes only from the gateway-verified header, never the body.
+    # The write blocks for a dedup probe, two geocodes (>=1 s each on a cache miss)
+    # and the MERGE — off the event loop, or one submission stalls the whole
+    # process. Same shape as `/chat/stream` above.
+    result = await asyncio.to_thread(_write_or_raise, draft, x_user_id)
     return {
         "success": True,
         "event_id": result.uid,

@@ -55,17 +55,53 @@ free (D18), Prefect Cloud free tier (D17 — re-check its managed-execution quot
 Phase 5 lands; the free allowance changes), services on one cheap runtime (~$5–15),
 leaving ~$20–35 for LLM spend — mini-first model policy matters (R3).
 
+## Decided 2026-08-17, withdrawn 2026-08-17 (Phase 6 shape)
+
+| # | Decision | Choice |
+|---|---|---|
+| D19 | Service hosting + orchestration | ~~k3s on one Hetzner CX32~~ — **withdrawn the same day** after weighing the trade-off; **R1 and R2 are reinstated** (compose now, Railway/Fly at deploy time). The full k3s work (Kustomize base+overlays, six NetworkPolicies, SOPS+age, CI deploy over Tailscale) is parked on branch **`experiment/k3s`** (`99c92d4`) for a future revival. |
+
+**Why it was considered.** "Only the gateway may reach the services" was enforced by
+nothing but network placement — CORS cannot do that job (browser-enforced; the gateway
+is not a browser), and k3s's default-on NetworkPolicy controller was the cheapest
+honest enforcement. **Why it was withdrawn.** The priced trade-off: Railway/Fly absorb
+TLS, ingress timeouts, registry, secrets, probes, rollouts and private networking for
+~$15–25/mo, while k3s converts that into ~10 working days plus a standing ops tax on
+one node with no second AZ — and buys **no capacity** (HPA 2→4 on one 4-vCPU box is a
+Railway slider's ceiling). The owner chose simple.
+
+**What survived D19** (substrate-independent, kept on `refactor/foundation`):
+
+- **The boundary, layer 2 without layer 1**: a shared `INTERNAL_API_KEY` the gateway
+  injects and every service verifies (`laiive_shared/internal_auth.py`) — the services
+  no longer trust `X-User-Id` merely because they are unreachable. Works identically
+  under compose; unset key = no-op for local runs.
+- **Replica-safety fixes** that were simply latent bugs: Redis-backed gateway rate
+  limit + `trustProxy` (in-memory store meant N replicas = N× quota; no trustProxy
+  meant one shared anonymous bucket behind any proxy); the geocoder's cache and
+  1 req/s Nominatim gate behind a `GeocodeStore` (Redis or the old JSON file);
+  `backfill_embeddings` scoped to the written nodes instead of a full-graph scan per
+  submission; `/validate-event` off the event loop; liveness/readiness probes split
+  (`/livez` `/readyz` — the old `/health` called `openai.models.list()`); the
+  retriever's `requests.jsonl` replaced by a structured log line.
+- **Hardened images**: multi-stage, non-root uid 10001, `--no-dev --no-editable`,
+  venv uvicorn (no `uv run` at runtime), verified running with a read-only root
+  filesystem — and the **first verified compose build since Phase 3**.
+- **Compose as the deploy shape**: gateway the only published port, Redis service,
+  healthchecks on `/livez`, `restart: unless-stopped`, `service_healthy` ordering.
+
 ## Recommendations awaiting sign-off
 
-### R1. Docker, not Kubernetes
+### R1. Docker, not Kubernetes — **reinstated 2026-08-17 after the D19 detour**
 Three small stateless services + a gateway, one developer, no traffic yet. Kubernetes
 buys autoscaling, self-healing and org-scale ops at the cost of manifests, upgrades,
 and a control plane to babysit — all cost, no benefit at this stage. Docker images +
 compose (dev) + a PaaS runtime (prod) covers everything needed. Revisit K8s only if you
 ever need multi-node scaling or hiring expects it. **Trade-off**: if the product
-explodes, migration to K8s later is real but mechanical (images already exist).
+explodes, migration to K8s later is real but mechanical — and now more than mechanical:
+the manifests already exist on `experiment/k3s`.
 
-### R2. Deployment platforms
+### R2. Deployment platforms — **reinstated 2026-08-17**
 - **Services (gateway + retriever + pusher + search): Railway** (first choice — deploys
   Dockerfiles straight from the repo, private networking between services, per-service
   env, logs; ~$5–20/mo at this scale) or **Fly.io** (second — more control, closer to

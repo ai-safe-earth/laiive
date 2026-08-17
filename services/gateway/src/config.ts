@@ -15,6 +15,8 @@ export interface GatewayConfig {
   jwtIssuer: string;
   jwtAudience: string;
   corsAllowOrigins: string[];
+  internalApiKey: string;
+  redisUrl: string;
   rateLimitWindowMs: number;
   rateLimitAnonMax: number;
   rateLimitUserMax: number;
@@ -59,6 +61,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
       .split(",")
       .map((origin) => origin.trim())
       .filter(Boolean),
+    // Shared with the Python services, which reject anything without it. Unset
+    // on both sides means no check — the local and single-host path.
+    internalApiKey: env.INTERNAL_API_KEY ?? "",
+    // Unset means the rate limiter keeps its in-memory store, which is correct
+    // for a single process and wrong for replicas — see server.ts.
+    redisUrl: env.REDIS_URL ?? "",
     rateLimitWindowMs: Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000),
     rateLimitAnonMax: Number(env.RATE_LIMIT_ANON_MAX ?? 10),
     rateLimitUserMax: Number(env.RATE_LIMIT_USER_MAX ?? 60),

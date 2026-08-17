@@ -318,3 +318,84 @@ class TestValidateEventDraft:
     def test_unknown_payload_shape_is_422(self, client):
         response = client.post("/validate-event", json={"event": {"name": "X"}})
         assert response.status_code == 422
+
+    def test_embedding_backfill_is_scoped_to_this_write(self, client, mock_neo4j):
+        """A submission must not pay for a full-graph scan of un-embedded nodes.
+
+        Unscoped, the cost of publishing one event grew with the size of the
+        graph and two writers duplicated each other's embedding spend. The
+        nightly backfill flow is the only caller allowed to sweep everything.
+        """
+        client.post("/validate-event", json={"draft": self.DRAFT})
+        backfill = [
+            (q, p)
+            for q, p in mock_neo4j.fake_session.queries
+            if "embedding IS NULL" in q
+        ]
+        assert backfill, "the write should still embed what it created"
+        for query, params in backfill:
+            assert "uid IN $uids" in query
+            assert params["uids"]
+
+    def test_the_write_does_not_block_the_event_loop(self, mock_neo4j):
+        """/validate-event is async but the write beneath it is not.
+
+        Called directly it would stall every other request on this process for
+        the duration of a dedup probe, two geocodes and a MERGE — on the one
+        service that owns the write path. Needs a single shared event loop to
+        observe, which TestClient does not give (it runs one loop per request).
+        """
+        import asyncio
+        import threading
+        import time
+
+        import httpx
+
+        from agent import api as pusher_api
+
+        original = pusher_api._write_or_raise
+        started = threading.Event()
+
+        def slow_write(draft, owner_id):
+            started.set()
+            time.sleep(0.3)
+            return original(draft, owner_id)
+
+        async def exercise():
+            # Watch how long the loop goes without getting a turn. A handler that
+            # blocks shows up here as a gap the length of the whole write; timing
+            # a probe *after* the write would measure nothing, because the probe
+            # cannot even be issued while the loop is stuck.
+            stop = asyncio.Event()
+            gaps: list[float] = []
+
+            async def monitor():
+                last = time.monotonic()
+                while not stop.is_set():
+                    await asyncio.sleep(0.02)
+                    now = time.monotonic()
+                    gaps.append(now - last)
+                    last = now
+
+            transport = httpx.ASGITransport(app=pusher_api.app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as ac:
+                watcher = asyncio.create_task(monitor())
+                write = asyncio.create_task(
+                    ac.post("/validate-event", json={"draft": self.DRAFT})
+                )
+                assert await asyncio.to_thread(started.wait, 2)
+                assert (await write).status_code == 200
+                stop.set()
+                await watcher
+
+            assert (
+                max(gaps) < 0.15
+            ), f"the event loop stalled for {max(gaps):.2f}s during the write"
+
+        pusher_api._write_or_raise = slow_write
+        try:
+            asyncio.run(exercise())
+        finally:
+            pusher_api._write_or_raise = original

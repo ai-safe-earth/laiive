@@ -9,6 +9,7 @@ probes and the backfill selects. Tests patch _openai / _driver / _geocoder
 from laiive_shared import EventDraft
 from laiive_shared.embedding_text import event_text
 from laiive_shared.geocode import NominatimGeocoder
+from laiive_shared.geocode_store import RedisGeocodeStore
 from laiive_shared.neo4j_writer import (
     WriteResult,
     backfill_embeddings,
@@ -26,8 +27,15 @@ _openai = OpenAI(api_key=settings.openai_api_key)
 _driver = GraphDatabase.driver(
     settings.neo4j_uri,
     auth=(settings.neo4j_user, settings.neo4j_password),
+    connection_timeout=10,
+    # Single replica, sequential per-candidate probes and writes — a small pool
+    # keeps a sweep or an approve from crowding the retriever out of Aura.
+    max_connection_pool_size=settings.neo4j_max_pool_size,
 )
-_geocoder = NominatimGeocoder(cache_path=settings.geocode_cache_path)
+_geocoder = NominatimGeocoder(
+    cache_path=settings.geocode_cache_path,
+    store=RedisGeocodeStore(settings.redis_url) if settings.redis_url else None,
+)
 
 
 def _embed_texts(texts: list[str]) -> list[list[float]]:

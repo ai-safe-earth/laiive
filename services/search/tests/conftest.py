@@ -11,9 +11,15 @@ module-level client gets added to this list or tests hit the real API):
 """
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# The root .env carries a real INTERNAL_API_KEY and the middleware installs at
+# import time of agent.api — blank it before any test module imports the app.
+# Enforcement itself is covered in shared's test_internal_auth.py.
+os.environ["INTERNAL_API_KEY"] = ""
 
 EXTRACTION_JSON = json.dumps(
     {
@@ -87,7 +93,10 @@ def mock_reports_http():
         201, [{"id": "00000000-0000-0000-0000-000000000001"}]
     )
     http.get.return_value = http_response(200, [])
-    http.patch.return_value = http_response(204, {})
+    # A non-empty representation = the claim won the race (see reports.claim_report).
+    http.patch.return_value = http_response(
+        200, [{"id": "00000000-0000-0000-0000-000000000001", "status": "approved"}]
+    )
     with patch("agent.reports._http", http):
         yield http
 
@@ -137,6 +146,7 @@ class FakeNeo4jSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
+                    "venue_uid": params["venue_uid"],
                 }
             )
         if "RETURN 1" in query:

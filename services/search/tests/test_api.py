@@ -83,12 +83,28 @@ def test_approve_writes_only_new_by_default(mock_reports_http, mock_neo4j):
     assert mock_reports_http.patch.called
 
 
-def test_approve_already_approved_409(mock_reports_http):
+def test_approve_already_approved_409(mock_reports_http, mock_neo4j):
+    """The claim is the gate: an empty representation means someone else won."""
     mock_reports_http.get.return_value = http_response(
         200, [stored_report(status="approved")]
     )
+    mock_reports_http.patch.return_value = http_response(200, [])
     response = client.post(f"/reports/{REPORT_ID}/approve", json={})
     assert response.status_code == 409
+    # and nothing was written
+    assert [
+        q for q, _ in mock_neo4j.fake_session.queries if "CREATE (e:Event" in q
+    ] == []
+
+
+def test_approve_claims_before_writing(mock_reports_http, mock_neo4j):
+    """The status filter must be part of the claiming UPDATE, not a prior read."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    assert client.post(f"/reports/{REPORT_ID}/approve", json={}).status_code == 200
+    claim = mock_reports_http.patch.call_args_list[0]
+    assert claim.kwargs["params"]["status"] == "eq.dry_run"
+    assert claim.kwargs["json"]["status"] == "approved"
+    assert claim.kwargs["headers"]["Prefer"] == "return=representation"
 
 
 def test_approve_rejects_bad_indices(mock_reports_http):
@@ -118,14 +134,18 @@ def test_approve_non_uuid_user_id_does_not_break_the_update(mock_reports_http):
         headers={"X-User-Id": "not-a-uuid"},
     )
     assert response.status_code == 200
-    patch_payload = mock_reports_http.patch.call_args.kwargs["json"]
-    assert patch_payload["approved_by"] is None
+    claim_payload = mock_reports_http.patch.call_args_list[0].kwargs["json"]
+    assert claim_payload["approved_by"] is None
 
 
 def test_approve_update_failure_still_returns_write_results(mock_reports_http):
     """Graph writes are committed by then — surface them, never 502."""
     mock_reports_http.get.return_value = http_response(200, [stored_report()])
-    mock_reports_http.patch.return_value = http_response(500, {}, text="boom")
+    # The claim succeeds; recording write_results afterwards is what fails.
+    mock_reports_http.patch.side_effect = [
+        http_response(200, [{"id": REPORT_ID, "status": "approved"}]),
+        http_response(500, {}, text="boom"),
+    ]
     response = client.post(f"/reports/{REPORT_ID}/approve", json={})
     assert response.status_code == 200
     body = response.json()

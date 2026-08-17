@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     neo4j_user: str = Field(..., alias="NEO4J_USERNAME")
     neo4j_password: str = Field(..., alias="NEO4J_PASSWORD")
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
+    # Per replica. 4 retriever pods x 16 + pusher 5 + search 5 = 74 connections.
+    neo4j_max_pool_size: int = Field(16, alias="NEO4J_MAX_POOL_SIZE")
+    # Shared with the gateway; empty disables the check (see internal_auth.py).
+    internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
 

@@ -3,7 +3,7 @@
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
 first, then `docs/refactor/04-plan.md` (phases) and `docs/refactor/05-decisions.md`
-(all decisions, D1–D18 + budget).
+(all decisions, D1–D19 + budget).
 Branch: **`refactor/foundation`** (from `connect-to-ui`), pushed to `origin`
 (ai-safe-earth/laiive) 2026-08-15; `main` on `origin` not updated yet.
 Canonical remote for PRs = `origin` — the remote *named* `laiive` is the
@@ -17,16 +17,17 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b, scheduling half — the plan changed.** The managed-pool
-route stalled on three independent walls this session (2026-08-17); the
-recommended shape is now **Prefect Cloud as scheduler + UI only, with the flows
-executing locally**. Nothing was implemented — read *Phase 5b — the scheduling
-rethink* below before touching anything. The local flow run itself is still done
-and green. The 88 swept candidates were reviewed and **54 approved into the graph
-2026-08-14** (see *Phase 5b — approvals*); the writer fix that run produced is
-committed (`7bb7ad0`) in `laiive_shared/neo4j_writer.py`. After scheduling:
-Phase 6 (CI/CD + deploy). The only Phase-4 leftover is the Google click-through
-by the owner.
+**Next up**: **Phase 5b scheduling, then Phase 6 on compose + PaaS.** The k3s
+detour (D19) was **withdrawn the same day it was decided** — the owner chose
+simple: compose stays the shape, gateway the only published surface, Railway/Fly
+at deploy time per the reinstated R1/R2. The full k3s work is parked on branch
+**`experiment/k3s`** (`99c92d4`); everything substrate-independent from that
+session **survived and is committed on this branch** — read *Phase 6 — the k3s
+detour and what survived* below before touching the gateway, the geocoder, the
+writer, or any Dockerfile, because all of them changed. Scheduling: search is a
+compose service and Prefect triggers sweeps through the gateway — the local
+`serve()` shape from *Phase 5b — the scheduling rethink*, or a `flows` container
+in compose. The only Phase-4 leftover is the Google click-through by the owner.
 
 ## Done
 
@@ -603,9 +604,12 @@ like the local run that already passed green.
   `host.docker.internal`). Then `docker compose up -d` is the whole system and
   sweeps fire Mon 06:00 Madrid unattended. Two snags: `services/search/Dockerfile`
   deliberately syncs `--no-group flows` to stay slim, so the flows container needs
-  its own stage or Dockerfile; and it needs `PREFECT_API_KEY` + `PREFECT_API_URL`
-  in root `.env` (mint a key in the Cloud UI). This step is also the **first real
-  verification of the compose builds**, still unverified since Phase 3.
+  its own stage or Dockerfile (note: since the image hardening, the runtime stage
+  has no uv — a flows image would build from the `build` stage or its own
+  Dockerfile); and it needs `PREFECT_API_KEY` + `PREFECT_API_URL` in root `.env`
+  (mint a key in the Cloud UI). The compose builds themselves are **verified now**
+  (2026-08-17, the k3s-detour session) — all four images build and the stack
+  reaches healthy.
 - **What it deletes**: the tunnel, `github-laiive-pat`, the "`main` is not pushed"
   problem, and the open question about a managed pool tolerating a 2–6 min
   synchronous call. The `laiive-managed` work pool created this session becomes
@@ -711,6 +715,91 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
 - **Phase 6 frontend host = Cloudflare Pages** (D18). Fly.io was considered and
   declined for a static SPA; services still go to Railway/Fly per R2.
 
+### Phase 6 — the k3s detour and what survived (2026-08-17)
+
+The owner asked for CORS between the gateway and the services "for security".
+CORS cannot do that — it is browser-enforced and the gateway is not a browser;
+the gateway's own CORS (for the SPA origin) already exists and is the only CORS
+that means anything. The real gap was that the services trust
+`X-User-Id`/`X-User-Role` blindly because nothing else can reach them, enforced
+only by network placement. That led to **D19: k3s on a Hetzner CX32** — decided,
+built for a day, and **withdrawn the same day** when the owner weighed the priced
+trade-off (a PaaS absorbs TLS/ingress/registry/secrets/probes/rollouts for
+$15–25/mo; k3s converts that into ~10 working days plus a standing ops tax and
+buys no capacity) and chose simple. `05-decisions.md` records the full arc; R1/R2
+are reinstated (compose now, Railway/Fly at Phase 6 deploy).
+
+**The complete k3s work is parked on branch `experiment/k3s` (`99c92d4`)**:
+Kustomize base+overlays, six NetworkPolicies (default-deny + explicit allows,
+including the `except:` blocks on egress without which the whole default-deny is
+silently undone), SOPS+age secrets with an env-to-secret script, Traefik
+timeout/`externalTrafficPolicy: Local` config, cert-manager issuers, a deploy
+workflow over Tailscale, and a node bootstrap runbook in `k8s/README.md`. If k8s
+ever revives, start from that branch — it is a merge, not a rewrite.
+
+**What survived onto this branch** (committed, all suites green: shared 67,
+retriever 103, pusher 67, search 32, gateway 23):
+
+- **The service boundary, minus the cluster**: `laiive_shared/internal_auth.py` —
+  the gateway injects `X-Internal-Key` (and strips any client-supplied copy in
+  `proxy.ts`'s strip-list), each service verifies it with `hmac.compare_digest`;
+  probes and `/health` exempt; **unset key = no-op** so local runs and tests are
+  unchanged. `INTERNAL_API_KEY` is in root `.env` (generated this session — note
+  the generator initially spliced it onto the `GATEWAY_URL` line because `.env`
+  had no trailing newline; fixed, backup at `.env.bak.*`, now gitignored).
+  **Verified live**: direct `POST /chat` to the retriever → 403, `/livez` → 200,
+  the same call through the gateway → passes.
+- **Replica-safety fixes that were latent bugs regardless of substrate**:
+  - Gateway rate limit → Redis store when `REDIS_URL` is set (`skipOnError`, so a
+    Redis outage costs quota enforcement, not uptime) + **`trustProxy: 1`** —
+    without it, behind any proxy every anonymous user shares one bucket.
+    **Proven both directions** with two gateway containers on one Redis.
+  - Geocoder cache + the 1 req/s Nominatim gate behind a `GeocodeStore`
+    (`laiive_shared/geocode_store.py`): `JsonFileGeocodeStore` (old behaviour,
+    default) or `RedisGeocodeStore` (`SET NX PX` gate; **misses now expire after
+    7 days** — a transient 503 used to be cached as "no such place" forever).
+  - `backfill_embeddings(uids=…)` — was a full-graph scan inside every write;
+    now scoped to the ≤6 nodes the write created. The unbounded sweep has one
+    owner: the nightly flow.
+  - `/validate-event` off the event loop (`asyncio.to_thread`) — it was blocking
+    the pusher's loop for the whole geocode+write. The guarding test measures
+    event-loop stall directly (first version was vacuous; the rewrite fails with
+    "stalled for 0.30s" when the fix is reverted).
+  - **Probe split** (`laiive_shared/health.py`): `/livez` (no I/O) and `/readyz`
+    (Neo4j check, successes cached 20 s) on all three services + the gateway.
+    The deep `/health` remains for humans — the retriever's calls
+    `openai.models.list()` and must never be a liveness probe.
+  - Retriever `requests.jsonl` deleted → one structured `log_turn` line; the
+    eval record lives gateway-side in Supabase `conversation_logs`.
+  - Neo4j pools budgeted (retriever 100→16 `NEO4J_MAX_POOL_SIZE`, writers 5) —
+    Aura Free's real ceiling is undocumented, hence env knobs.
+  - Search approve is atomic: `claim_report()` compare-and-sets
+    `status=eq.dry_run` in PostgREST **before** writing; a lost race is a 409
+    and writes nothing.
+  - Gateway handles SIGTERM with `app.close()` — rollouts/restarts drain
+    in-flight SSE instead of truncating it.
+- **Hardened images** (first verified compose build since Phase 3): multi-stage,
+  `python:3.13-slim` runtime without uv, uid 10001, `--no-dev --no-editable`,
+  venv uvicorn with graceful-shutdown windows; retriever's `pytest` moved to the
+  dev group and unused-yanked `numpy` dropped. All three verified running with a
+  **read-only root filesystem** and serving both probes.
+- **Compose is the deploy shape**: gateway the only published port (8000), Redis
+  service (`volatile-lru` so rate-limit keys evict and geocode hits never do),
+  healthchecks on `/livez`, `restart: unless-stopped`, `service_healthy`
+  ordering. The dev override builds `target: build` (runtime has no uv for its
+  idle shells) with healthchecks disabled.
+- **CI**: `.github/workflows/ci.yml` — python matrix (ruff+pytest per service),
+  node matrix (gateway/frontend), buildx of all four images with GHA cache.
+  YAML-validated, fires when the branch is pushed. The k3s deploy workflow went
+  to the experiment branch.
+- Traps: two pre-commit fixes were needed the moment one commit spanned services
+  — mypy is now **one hook per service** (retriever/pusher/search each have a
+  top-level `agent` package and a single run dies on "Duplicate module named
+  agent"), and `check-yaml` gained `--allow-multiple-documents`. Excluding
+  `**/*.md` from the docker build context **fails the build**: `--no-editable`
+  builds the laiive-shared wheel and hatchling requires the `README.md` its
+  metadata names.
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -778,6 +867,27 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
 - Background dev servers survive their launcher: stopping the wrapped
   `npm run dev` / `uv run uvicorn` task left `node` and `python` still holding
   :8000 and :8004. Kill by PID from `Get-NetTCPConnection` after stopping a task.
+- **`uv run uvicorn …` now fails** with `Failed to canonicalize script path` on this
+  machine. Use `uv run --no-sync python -m uvicorn …` with a separate `uv sync`.
+  The `make start-*` targets still use the broken form.
+- **Other projects squat the stack's ports.** An `A02_VaiVia` uvicorn holds :8000
+  and a `laiive-global-workspace` container holds :8002/:8003. Everything is
+  env-overridable, so shift rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`,
+  `PUSHER_URL`, `CORS_ALLOW_ORIGINS` on the gateway and inline `VITE_API_URL` for
+  Vite (Vite prioritises inline `VITE_*` over `.env` files).
+- **`npm run dev -- --port 8081` silently loses the flags** in PowerShell — Vite
+  starts on 5173 and treats `8081` as a root directory. Call `npx vite --port 8081
+  --strictPort` instead.
+- The shared venv had `laiive-shared` installed from the repo's **old DIALOGOO
+  path**, which made pytest tracebacks cite files that no longer exist. `uv sync`
+  in `services/shared` fixed it; suspect this first if a traceback names a path
+  outside this repo.
+- Docker Desktop's loopback: `127.0.0.1:<published>` sometimes refuses while
+  `localhost:<published>` works. Use `localhost` for published container ports.
+- The **ruff `--fix` pre-commit hook bit four more times** this session, always the
+  same way: add an import in one edit and its first use in the next, and the hook
+  deletes the import in between. It is not hypothetical — grep for the symbol after
+  every import-only edit, or write the import and its usage in a single edit.
 
 ## Standing rules from the owner
 
@@ -794,67 +904,289 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
   "status": "amber",
   "updated": "2026-08-17",
   "deadline": null,
-  "people": ["oscar"],
+  "people": [
+    "oscar"
+  ],
   "plans": [
-    { "name": "refactor", "path": "docs/refactor/", "status": "active" }
+    {
+      "name": "refactor",
+      "path": "docs/refactor/",
+      "status": "active"
+    }
   ],
   "phases": [
-    { "name": "Phase 0 - hygiene", "status": "done", "start": null, "end": "2026-08-12", "plan": "refactor",
-      "decisions": [{ "date": "2026-08-12", "text": "D4 keys rotated, ports unified on 8002/8003, LICENSE proprietary" }] },
-    { "name": "Phase 1 - graph schema + seed", "status": "done", "start": null, "end": "2026-08-12", "plan": "refactor",
-      "decisions": [{ "date": "2026-08-12", "text": "setup_schema.py is the DDL source of truth for Aura 2099d44c" }] },
-    { "name": "Phase 2 - backend contracts + redesign", "status": "done", "start": null, "end": "2026-08-13", "plan": "refactor",
+    {
+      "name": "Phase 0 - hygiene",
+      "status": "done",
+      "start": null,
+      "end": "2026-08-12",
+      "plan": "refactor",
       "decisions": [
-        { "date": "2026-08-13", "text": "D10 services/shared as the laiive-shared package, typed SSE protocol with a TS mirror" },
-        { "date": "2026-08-13", "text": "ReAct orchestrator deleted for classifier -> router -> executor -> composer" },
-        { "date": "2026-08-13", "text": "Pusher state is client-carried, no TTL session store" }
-      ] },
-    { "name": "Phase 3 - gateway + auth + ownership", "status": "done", "start": null, "end": "2026-08-13", "plan": "refactor",
+        {
+          "date": "2026-08-12",
+          "text": "D4 keys rotated, ports unified on 8002/8003, LICENSE proprietary"
+        }
+      ]
+    },
+    {
+      "name": "Phase 1 - graph schema + seed",
+      "status": "done",
+      "start": null,
+      "end": "2026-08-12",
+      "plan": "refactor",
       "decisions": [
-        { "date": "2026-08-13", "text": "D7 anonymous chat allowed, role travels in the JWT via a custom access token hook" },
-        { "date": "2026-08-13", "text": "D15 fresh Supabase project pjlcfdyheyubsemwlzzv, conversation logging is request-side only" }
-      ] },
-    { "name": "Phase 4 - frontend, multimodal, walk", "status": "done", "start": null, "end": "2026-08-14", "plan": "refactor",
+        {
+          "date": "2026-08-12",
+          "text": "setup_schema.py is the DDL source of truth for Aura 2099d44c"
+        }
+      ]
+    },
+    {
+      "name": "Phase 2 - backend contracts + redesign",
+      "status": "done",
+      "start": null,
+      "end": "2026-08-13",
+      "plan": "refactor",
       "decisions": [
-        { "date": "2026-08-14", "text": "D1 fresh Vite + React app on the v2 protocol, D9 Leaflet maps" },
-        { "date": "2026-08-14", "text": "A spreadsheet is a longer conversation, not a batch screen - CSV fast lane deleted" },
-        { "date": "2026-08-14", "text": "Multi-event walk cursor lives client-side (option A)" },
-        { "date": "2026-08-14", "text": "Profile data goes direct to Supabase under RLS, not through the gateway" }
-      ] },
-    { "name": "Phase 5 - SEARCH service + scheduling", "status": "active", "start": "2026-08-14", "end": null, "plan": "refactor",
+        {
+          "date": "2026-08-13",
+          "text": "D10 services/shared as the laiive-shared package, typed SSE protocol with a TS mirror"
+        },
+        {
+          "date": "2026-08-13",
+          "text": "ReAct orchestrator deleted for classifier -> router -> executor -> composer"
+        },
+        {
+          "date": "2026-08-13",
+          "text": "Pusher state is client-carried, no TTL session store"
+        }
+      ]
+    },
+    {
+      "name": "Phase 3 - gateway + auth + ownership",
+      "status": "done",
+      "start": null,
+      "end": "2026-08-13",
+      "plan": "refactor",
       "decisions": [
-        { "date": "2026-08-14", "text": "D13 revised: Tavily instead of Brave, it returns cleaned page content" },
-        { "date": "2026-08-14", "text": "Write gate relaxed for admin_search: name + start_at + venue + city only" },
-        { "date": "2026-08-14", "text": "Sweeps stay dry-run, a human approve is required before any graph write" },
-        { "date": "2026-08-14", "text": "D17 Prefect Cloud managed pool, flows are thin HTTP clients of the public gateway" },
-        { "date": "2026-08-14", "text": "54 of 88 swept candidates approved into the graph" },
-        { "date": "2026-08-17", "text": "A managed pool cannot reach a localhost gateway; recommended shape is Prefect Cloud as scheduler and UI only, with flows executing locally via serve() - owner approval pending, nothing implemented" },
-        { "date": "2026-08-17", "text": "Cloudflare quick tunnel rejected: its 100 s origin-silence cap would 524 the 2-6 min synchronous sweep and misattribute the failure to Prefect; ngrok has no such cap" }
-      ] },
-    { "name": "Phase 6 - CI/CD + deploy", "status": "planned", "start": null, "end": null, "plan": "refactor",
-      "decisions": [{ "date": "2026-08-14", "text": "D18 frontend host is Cloudflare Pages, services on Railway/Fly per R2" }] }
+        {
+          "date": "2026-08-13",
+          "text": "D7 anonymous chat allowed, role travels in the JWT via a custom access token hook"
+        },
+        {
+          "date": "2026-08-13",
+          "text": "D15 fresh Supabase project pjlcfdyheyubsemwlzzv, conversation logging is request-side only"
+        }
+      ]
+    },
+    {
+      "name": "Phase 4 - frontend, multimodal, walk",
+      "status": "done",
+      "start": null,
+      "end": "2026-08-14",
+      "plan": "refactor",
+      "decisions": [
+        {
+          "date": "2026-08-14",
+          "text": "D1 fresh Vite + React app on the v2 protocol, D9 Leaflet maps"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "A spreadsheet is a longer conversation, not a batch screen - CSV fast lane deleted"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "Multi-event walk cursor lives client-side (option A)"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "Profile data goes direct to Supabase under RLS, not through the gateway"
+        }
+      ]
+    },
+    {
+      "name": "Phase 5 - SEARCH service + scheduling",
+      "status": "active",
+      "start": "2026-08-14",
+      "end": null,
+      "plan": "refactor",
+      "decisions": [
+        {
+          "date": "2026-08-14",
+          "text": "D13 revised: Tavily instead of Brave, it returns cleaned page content"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "Write gate relaxed for admin_search: name + start_at + venue + city only"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "Sweeps stay dry-run, a human approve is required before any graph write"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "D17 Prefect Cloud managed pool, flows are thin HTTP clients of the public gateway"
+        },
+        {
+          "date": "2026-08-14",
+          "text": "54 of 88 swept candidates approved into the graph"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "A managed pool cannot reach a localhost gateway; recommended shape is Prefect Cloud as scheduler and UI only, with flows executing locally via serve() - owner approval pending, nothing implemented"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "Cloudflare quick tunnel rejected: its 100 s origin-silence cap would 524 the 2-6 min synchronous sweep and misattribute the failure to Prefect; ngrok has no such cap"
+        }
+      ]
+    },
+    {
+      "name": "Phase 6 - CI/CD + deploy",
+      "status": "active",
+      "start": "2026-08-17",
+      "end": null,
+      "plan": "refactor",
+      "decisions": [
+        {
+          "date": "2026-08-14",
+          "text": "D18 frontend host is Cloudflare Pages; services on Railway/Fly per R2"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "CORS between the gateway and the services was rejected as a security control: it is browser-enforced and the gateway is not a browser, so it would change nothing about who can reach 8002/8003"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "D19 (k3s on one Hetzner CX32) was decided and withdrawn the same day after pricing the trade-off; R1 and R2 reinstated - compose now, Railway/Fly at deploy time. The full k8s work is parked on branch experiment/k3s (99c92d4)"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "The gateway-services boundary is a shared INTERNAL_API_KEY the gateway injects and each service verifies, working identically under compose; an unset key is a no-op for local runs"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "Distributed state (gateway rate limit, geocoder cache and 1 req/s gate) goes to one Redis in compose when REDIS_URL is set; unset keeps the old per-process behaviour"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "Images hardened: multi-stage, non-root uid 10001, no dev deps, venv uvicorn, verified read-only rootfs; compose gained Redis, healthchecks and restart policies - first verified compose build since Phase 3"
+        }
+      ]
+    }
   ],
   "blockers": [
-    { "text": "Phase 5b scheduling is unimplemented pending a decision: adopt the local serve() shape (Cloud as scheduler only) or wait for Phase 6 to deploy a public gateway and keep the managed pool", "severity": "high", "owner": "oscar", "since": "2026-08-17" },
-    { "text": "GitHub's fine-grained PAT page is down (No server is currently available), so github-laiive-pat was never minted and any git_clone-based Prefect deploy cannot authenticate - retry in a later session, or use gh auth token as a broader-scoped stand-in", "severity": "medium", "owner": "oscar", "since": "2026-08-17" },
-    { "text": "Google sign-in is wired and enabled but the real click-through has never been exercised", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
-    { "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - moot under the local serve() shape, blocking again if the managed pool is revived at Phase 6", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
-    { "text": "The .claude PostToolUse hook points at the repo's old DIALOGOO path, so every file edit reports a can't-open-file error - harmless but it masks real hook failures", "severity": "low", "owner": "oscar", "since": "2026-08-17" }
+    {
+      "text": "Phase 5b scheduling is unimplemented: the recommended shape is Prefect Cloud as scheduler with flows executing locally via serve(), or a flows container in compose (needs its own image stage since the hardened runtime has no uv)",
+      "severity": "medium",
+      "owner": "oscar",
+      "since": "2026-08-17"
+    },
+    {
+      "text": "GitHub's fine-grained PAT page is down (No server is currently available), so github-laiive-pat was never minted and any git_clone-based Prefect deploy cannot authenticate - retry in a later session, or use gh auth token as a broader-scoped stand-in",
+      "severity": "medium",
+      "owner": "oscar",
+      "since": "2026-08-17"
+    },
+    {
+      "text": "Google sign-in is wired and enabled but the real click-through has never been exercised",
+      "severity": "low",
+      "owner": "oscar",
+      "since": "2026-08-14"
+    },
+    {
+      "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - moot under the local serve() shape, blocking again if the managed pool is revived at Phase 6",
+      "severity": "low",
+      "owner": "oscar",
+      "since": "2026-08-14"
+    },
+    {
+      "text": "The .claude PostToolUse hook points at the repo's old DIALOGOO path, so every file edit reports a can't-open-file error - harmless but it masks real hook failures",
+      "severity": "low",
+      "owner": "oscar",
+      "since": "2026-08-17"
+    }
   ],
   "nextSteps": [
-    { "title": "Decide the scheduling shape, then implement flows/serve.py and prove Cloud-scheduled local execution end to end", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Containerize the flow runner as a compose flows service with restart unless-stopped, which also first-verifies the compose builds", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Mint the fine-grained PAT when GitHub recovers - only needed if the managed git_clone path is revived", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Fix the stale .claude PostToolUse hook path", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Click through Google sign-in once with a real account", "est": 1, "owner": "oscar", "phase": "Phase 4 - frontend, multimodal, walk", "plan": "refactor" },
-    { "title": "Phase 6: CI/CD, Cloudflare Pages frontend, service deploy - includes the 202+poll sweep redesign, since Railway and Fly proxies cut long silent requests too", "est": 5, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" }
+    {
+      "title": "Implement flows/serve.py and prove Cloud-scheduled local execution end to end, then optionally containerize it as a compose flows service",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 5 - SEARCH service + scheduling",
+      "plan": "refactor"
+    },
+    {
+      "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate",
+      "est": 2,
+      "owner": "oscar",
+      "phase": "Phase 5 - SEARCH service + scheduling",
+      "plan": "refactor"
+    },
+    {
+      "title": "Push refactor/foundation and experiment/k3s to origin so ci.yml runs for the first time",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 6 - CI/CD + deploy",
+      "plan": "refactor"
+    },
+    {
+      "title": "Fix the stale .claude PostToolUse hook path",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 5 - SEARCH service + scheduling",
+      "plan": "refactor"
+    },
+    {
+      "title": "Click through Google sign-in once with a real account",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 4 - frontend, multimodal, walk",
+      "plan": "refactor"
+    },
+    {
+      "title": "Phase 6: deploy per reinstated R2 - services to Railway/Fly (the hardened images and internal key carry over), SPA to Cloudflare Pages, includes the 202+poll sweep redesign since PaaS proxies cut long silent requests",
+      "est": 5,
+      "owner": "oscar",
+      "phase": "Phase 6 - CI/CD + deploy",
+      "plan": "refactor"
+    }
   ],
   "sessions": [
-    { "date": "2026-08-13", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
-    { "date": "2026-08-14", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
-    { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
-    { "date": "2026-08-17", "model": "fable-5", "credits": null, "person": "oscar", "hours": null }
+    {
+      "date": "2026-08-13",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-14",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-17",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-17",
+      "model": "fable-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-17",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    }
   ]
 }
 ```

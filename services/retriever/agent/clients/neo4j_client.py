@@ -56,7 +56,14 @@ class Neo4jClient:
                 settings.neo4j_uri,
                 auth=(settings.neo4j_user, settings.neo4j_password),
                 connection_timeout=10,
-                max_connection_pool_size=100,
+                # Per *process*, and the retriever is the one service that runs
+                # several replicas — the cap is a share of Aura's connection
+                # budget, not this pod's appetite. A turn holds a session for one
+                # read out of ~15 s dominated by OpenAI, so hold time is a small
+                # fraction of the 40 threadpool slots. Env-tunable because Aura
+                # Free's real ceiling is undocumented: lower it if load testing
+                # produces ServiceUnavailable or acquisition timeouts.
+                max_connection_pool_size=settings.neo4j_max_pool_size,
                 connection_acquisition_timeout=60,
             )
             logger.debug("Neo4j driver created")

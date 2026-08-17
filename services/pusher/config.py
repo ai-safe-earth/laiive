@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     neo4j_user: str = Field("neo4j", alias="NEO4J_USERNAME")
     neo4j_password: str = Field(..., alias="NEO4J_PASSWORD")
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
+    neo4j_max_pool_size: int = Field(5, alias="PUSHER_NEO4J_MAX_POOL_SIZE")
 
     aura_instanceid: str | None = Field(None, alias="AURA_INSTANCEID")
     aura_instancename: str | None = Field(None, alias="AURA_INSTANCENAME")
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
 
     # Nominatim geocode cache (D12) — path relative to the service CWD.
     geocode_cache_path: str = Field(".geocode_cache.json", alias="GEOCODE_CACHE_PATH")
+    # Set it and the geocode cache and its 1 req/s gate become shared across
+    # replicas; unset keeps the process-local JSON file (see geocode_store.py).
+    redis_url: str = Field("", alias="REDIS_URL")
+    # Shared with the gateway; empty disables the check (see internal_auth.py).
+    internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
 
 try:

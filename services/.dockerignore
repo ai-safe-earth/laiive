@@ -3,5 +3,20 @@
 **/.venv
 **/.pytest_cache
 **/.ruff_cache
+**/.mypy_cache
 gateway/node_modules
 gateway/dist
+
+# Test code and fixtures do not belong in a production image (and `uv sync
+# --no-dev` only removes the dependencies, not these files).
+**/tests
+**/evals
+
+# Runtime droppings from a local run — a stale cache baked into an image would be
+# served to every replica as if it were fresh.
+**/.geocode_cache.json
+**/logs
+
+# Deliberately NOT excluding **/*.md: `uv sync --no-editable` builds the
+# laiive-shared wheel inside the image, and hatchling reads the `readme =
+# "README.md"` its metadata points at. Excluding markdown fails the build.

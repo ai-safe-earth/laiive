@@ -103,13 +103,21 @@ desktop.ini
 analysis/
 out/
 
+# .env backups carry the same secrets as .env itself
+.env.bak*
+
 # not push data files
 data/
 */data/
 
 # cache files
 *_cache
-.claude/
+
+# claude code — track the shared skills and hooks, ignore local state
+# (settings.local.json, worktrees/, and anything else added under .claude/)
+.claude/*
+!.claude/skills/
+!.claude/hooks/
 
 # agent skills (personal tooling)
 .agents/

@@ -204,6 +204,46 @@ describe("identity headers", () => {
     expect(upstream.headers["x-user-id"]).toBeUndefined();
     expect(upstream.headers["x-request-id"]).toBeDefined();
   });
+
+  it("injects the internal key and refuses to forward a client's own", async () => {
+    // The services reject anything without this header, so a client able to set
+    // it would be able to reach them directly — it must be stripped like the
+    // identity headers it protects.
+    // A local instance: the shared `app` is built once in beforeAll and every
+    // other test depends on its config.
+    const keyed = await buildServer(
+      testConfig({
+        supabaseUrl: supabase.url,
+        retrieverUrl: retriever.url,
+        internalApiKey: "real-internal-key", // pragma: allowlist secret
+      }),
+    );
+    try {
+      const res = await keyed.inject({
+        method: "POST",
+        url: "/api/chat",
+        headers: { "x-internal-key": "client-supplied" },
+        payload: { message: "hi" },
+      });
+      expect(res.statusCode).toBe(200);
+      const upstream = JSON.parse(res.body) as SeenRequest;
+      expect(upstream.headers["x-internal-key"]).toBe("real-internal-key");
+    } finally {
+      await keyed.close();
+    }
+  });
+
+  it("sends no internal key when none is configured", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { "x-internal-key": "client-supplied" },
+      payload: { message: "hi" },
+    });
+    expect(res.statusCode).toBe(200);
+    const upstream = JSON.parse(res.body) as SeenRequest;
+    expect(upstream.headers["x-internal-key"]).toBeUndefined();
+  });
 });
 
 describe("cors", () => {

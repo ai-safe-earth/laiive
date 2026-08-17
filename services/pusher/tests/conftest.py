@@ -10,9 +10,17 @@ module-level client gets added to this list or tests hit the real API):
 """
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# The root .env carries a real INTERNAL_API_KEY, and the middleware installs at
+# import time of agent.api — so it must be blanked *before* any test module
+# imports the app, or every request 403s. Process env beats env_file in
+# pydantic-settings. Enforcement itself is covered in shared's
+# test_internal_auth.py.
+os.environ["INTERNAL_API_KEY"] = ""
 
 EXTRACTION_JSON = json.dumps(
     {
@@ -96,6 +104,7 @@ class FakeNeo4jSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
+                    "venue_uid": params["venue_uid"],
                 }
             )
         return FakeNeo4jResult(rows=[])
