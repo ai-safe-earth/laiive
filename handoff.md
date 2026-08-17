@@ -1,7 +1,9 @@
-# HANDOFF — refactor status (updated 2026-08-14, fourth session)
+# HANDOFF — laiive (updated 2026-08-17)
 
-Continuation point for the laiive refactor. Read this first, then
-`04-plan.md` (phases) and `05-decisions.md` (all decisions, D1–D18 + budget).
+The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
+never start a second one). Continuation point for the laiive refactor. Read this
+first, then `docs/refactor/04-plan.md` (phases) and `docs/refactor/05-decisions.md`
+(all decisions, D1–D18 + budget).
 Branch: **`refactor/foundation`** (from `connect-to-ui`), pushed to `origin`
 (ai-safe-earth/laiive) 2026-08-15; `main` on `origin` not updated yet.
 Canonical remote for PRs = `origin` — the remote *named* `laiive` is the
@@ -711,3 +713,71 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
   implementing; explain real trade-offs. Every decision needs owner approval.
 - Conventional Commits (commit-msg hook enforces), lowercase subject.
 - Never read `.history/` or `legacy/`.
+
+<!-- pmctl:handoff v1 -->
+```json
+{
+  "project": "laiive",
+  "org": "ai safe earth",
+  "status": "amber",
+  "updated": "2026-08-17",
+  "deadline": null,
+  "people": ["oscar"],
+  "plans": [
+    { "name": "refactor", "path": "docs/refactor/", "status": "active" }
+  ],
+  "phases": [
+    { "name": "Phase 0 - hygiene", "status": "done", "start": null, "end": "2026-08-12", "plan": "refactor",
+      "decisions": [{ "date": "2026-08-12", "text": "D4 keys rotated, ports unified on 8002/8003, LICENSE proprietary" }] },
+    { "name": "Phase 1 - graph schema + seed", "status": "done", "start": null, "end": "2026-08-12", "plan": "refactor",
+      "decisions": [{ "date": "2026-08-12", "text": "setup_schema.py is the DDL source of truth for Aura 2099d44c" }] },
+    { "name": "Phase 2 - backend contracts + redesign", "status": "done", "start": null, "end": "2026-08-13", "plan": "refactor",
+      "decisions": [
+        { "date": "2026-08-13", "text": "D10 services/shared as the laiive-shared package, typed SSE protocol with a TS mirror" },
+        { "date": "2026-08-13", "text": "ReAct orchestrator deleted for classifier -> router -> executor -> composer" },
+        { "date": "2026-08-13", "text": "Pusher state is client-carried, no TTL session store" }
+      ] },
+    { "name": "Phase 3 - gateway + auth + ownership", "status": "done", "start": null, "end": "2026-08-13", "plan": "refactor",
+      "decisions": [
+        { "date": "2026-08-13", "text": "D7 anonymous chat allowed, role travels in the JWT via a custom access token hook" },
+        { "date": "2026-08-13", "text": "D15 fresh Supabase project pjlcfdyheyubsemwlzzv, conversation logging is request-side only" }
+      ] },
+    { "name": "Phase 4 - frontend, multimodal, walk", "status": "done", "start": null, "end": "2026-08-14", "plan": "refactor",
+      "decisions": [
+        { "date": "2026-08-14", "text": "D1 fresh Vite + React app on the v2 protocol, D9 Leaflet maps" },
+        { "date": "2026-08-14", "text": "A spreadsheet is a longer conversation, not a batch screen - CSV fast lane deleted" },
+        { "date": "2026-08-14", "text": "Multi-event walk cursor lives client-side (option A)" },
+        { "date": "2026-08-14", "text": "Profile data goes direct to Supabase under RLS, not through the gateway" }
+      ] },
+    { "name": "Phase 5 - SEARCH service + scheduling", "status": "active", "start": "2026-08-14", "end": null, "plan": "refactor",
+      "decisions": [
+        { "date": "2026-08-14", "text": "D13 revised: Tavily instead of Brave, it returns cleaned page content" },
+        { "date": "2026-08-14", "text": "Write gate relaxed for admin_search: name + start_at + venue + city only" },
+        { "date": "2026-08-14", "text": "Sweeps stay dry-run, a human approve is required before any graph write" },
+        { "date": "2026-08-14", "text": "D17 Prefect Cloud managed pool, flows are thin HTTP clients of the public gateway" },
+        { "date": "2026-08-14", "text": "54 of 88 swept candidates approved into the graph" }
+      ] },
+    { "name": "Phase 6 - CI/CD + deploy", "status": "planned", "start": null, "end": null, "plan": "refactor",
+      "decisions": [{ "date": "2026-08-14", "text": "D18 frontend host is Cloudflare Pages, services on Railway/Fly per R2" }] }
+  ],
+  "blockers": [
+    { "text": "Prefect Cloud half of Phase 5b needs owner-only steps: push main on origin, cloud login, work pool, secret blocks and a public gateway URL", "severity": "high", "owner": "oscar", "since": "2026-08-14" },
+    { "text": "Open question whether a managed work pool tolerates the 2-6 min synchronous sweep call per city (202+poll redesign sanctioned if not)", "severity": "medium", "owner": "oscar", "since": "2026-08-14" },
+    { "text": "Google sign-in is wired and enabled but the real click-through has never been exercised", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
+    { "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - main is not updated yet", "severity": "medium", "owner": "oscar", "since": "2026-08-14" }
+  ],
+  "nextSteps": [
+    { "title": "Prefect Cloud setup: account, work pool, secret blocks, variables", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Expose a public gateway URL (tunnel until Phase 6 deploys one) and deploy the flows", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Trigger city-sweep-weekly and backfill-nightly once in the Cloud UI", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Click through Google sign-in once with a real account", "est": 1, "owner": "oscar", "phase": "Phase 4 - frontend, multimodal, walk", "plan": "refactor" },
+    { "title": "Phase 6: CI/CD, Cloudflare Pages frontend, service deploy", "est": 5, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" }
+  ],
+  "sessions": [
+    { "date": "2026-08-13", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
+    { "date": "2026-08-14", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
+    { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null }
+  ]
+}
+```
