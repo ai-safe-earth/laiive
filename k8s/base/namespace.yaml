@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: laiive
+  labels:
+    # Lets NetworkPolicies in this namespace name it explicitly rather than
+    # relying on the implicit "same namespace" default.
+    kubernetes.io/metadata.name: laiive

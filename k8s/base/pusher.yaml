@@ -1,0 +1,67 @@
+# The only promoter write path into the graph. Low traffic, high consequence:
+# one replica, no PDB (there is nothing to keep available during a drain), and a
+# rollout that never runs two writers at once.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pusher
+  labels: { app: pusher }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pusher }
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels: { app: pusher }
+    spec:
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: pusher
+          image: ghcr.io/ai-safe-earth/laiive-pusher:main
+          ports:
+            - { name: http, containerPort: 8003 }
+          envFrom:
+            - configMapRef: { name: laiive-config }
+            - secretRef: { name: laiive-env }
+          resources:
+            requests: { cpu: 100m, memory: 300Mi }
+            limits: { cpu: 1000m, memory: 640Mi }
+          startupProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pusher
+  labels: { app: pusher }
+spec:
+  selector: { app: pusher }
+  ports:
+    - { name: http, port: 8003, targetPort: http }

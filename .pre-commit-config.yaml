@@ -8,6 +8,8 @@ repos:
     hooks:
       - id: check-toml
       - id: check-yaml
+        # k8s manifests are multi-document files
+        args: ["--allow-multiple-documents"]
       - id: check-json
         # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
         exclude: "tsconfig.*\\.json$|\\.vscode/"
@@ -34,14 +36,39 @@ repos:
   #######################################################################
   # 3. Static typing
   #######################################################################
+  # One mypy hook per service: retriever, pusher and search each have a top-level
+  # `agent` package, and a single invocation spanning two of them dies on
+  # "Duplicate module named agent" — which only surfaces on commits that touch
+  # several services at once.
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.0
     hooks:
       - id: mypy
-        additional_dependencies: ["types-requests"]   # add stubs your app needs
+        alias: mypy-retriever
+        name: mypy (retriever)
+        additional_dependencies: ["types-requests"]
         args: ["--ignore-missing-imports", "--no-strict-optional"]
-        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
+        files: "^services/retriever/.*\\.py$"
         exclude: "^services/retriever/evals/"   # quarantined eval tooling
+      - id: mypy
+        alias: mypy-pusher
+        name: mypy (pusher)
+        additional_dependencies: ["types-requests"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/pusher/.*\\.py$"
+      - id: mypy
+        alias: mypy-search
+        name: mypy (search)
+        additional_dependencies: ["types-requests"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/search/.*\\.py$"
+      - id: mypy
+        alias: mypy-shared
+        name: mypy (shared)
+        # types-redis: shared lazily imports redis in geocode_store
+        additional_dependencies: ["types-requests", "types-redis"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/shared/.*\\.py$"
 
   #######################################################################
   # 4. Security & supply-chain
@@ -57,6 +84,10 @@ repos:
       - id: detect-secrets
         stages: [pre-commit, pre-push]
         args: ["--baseline", ".secrets.baseline"]
+        # SOPS ciphertext is high-entropy by construction, and the plaintext
+        # secrets.env is gitignored — nothing here can leak, and flagging it every
+        # commit would train the eye to ignore this hook.
+        exclude: "^k8s/overlays/.*/secrets\\.(enc\\.yaml|env)$"
 
   #######################################################################
   # 5. SQL linting for Postgres migrations & seed scripts

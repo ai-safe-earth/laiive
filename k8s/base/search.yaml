@@ -1,0 +1,73 @@
+# Admin-only discovery. A single /sweep call runs for 2-6 minutes and returns one
+# JSON blob, so this workload is shaped entirely around not interrupting it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search
+  labels: { app: search }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: search }
+  # Recreate, not rolling: two sweeps at once would double the Tavily and
+  # OpenAI spend for one city, and there is nothing to keep available meanwhile.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels: { app: search }
+    spec:
+      # Wide enough to let an in-flight sweep finish. The container's
+      # --timeout-graceful-shutdown is 410s, just under this, so uvicorn always
+      # finishes before the kubelet reaches for SIGKILL.
+      terminationGracePeriodSeconds: 420
+      containers:
+        - name: search
+          image: ghcr.io/ai-safe-earth/laiive-search:main
+          ports:
+            - { name: http, containerPort: 8004 }
+          envFrom:
+            - configMapRef: { name: laiive-config }
+            - secretRef: { name: laiive-env }
+          resources:
+            # Holds whole scraped pages in memory while extracting.
+            requests: { cpu: 100m, memory: 300Mi }
+            limits: { cpu: 1000m, memory: 768Mi }
+          startupProbe:
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            # Must be /livez, not anything that queries: a sweep saturates the
+            # threadpool for minutes and a dependency-checking probe could time
+            # out and restart the pod mid-sweep.
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search
+  labels: { app: search }
+spec:
+  selector: { app: search }
+  ports:
+    - { name: http, port: 8004, targetPort: http }

@@ -1,0 +1,43 @@
+# NOT part of the kustomization — this configures k3s's bundled Traefik, which
+# lives in kube-system and is managed by a HelmChart. Copy it onto the node at
+#   /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+# and k3s reconciles it. (Applying it with kubectl works too, but the node path
+# survives a k3s restart.)
+#
+# Two things here are load-bearing, not tuning:
+#
+#  1. externalTrafficPolicy: Local — klipper-lb otherwise SNATs, every request
+#     arrives from the node address, and `trustProxy: 1` in the gateway has
+#     nothing real to trust. Get this wrong and every anonymous user in the world
+#     shares one rate-limit bucket.
+#  2. The timeouts. Defaults vary by Traefik version, so set them explicitly.
+#     idleTimeout (180s by default) is the one that will actually cut a city
+#     sweep: /sweep is a single request that stays silent for 2-6 minutes, and
+#     Prefect Cloud drives it over this very ingress from outside the cluster.
+#     An SSE chat stream is the same shape, slower.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      spec:
+        externalTrafficPolicy: Local
+    ports:
+      websecure:
+        transport:
+          respondingTimeouts:
+            readTimeout: 0
+            writeTimeout: 0
+            idleTimeout: 600s
+      web:
+        transport:
+          respondingTimeouts:
+            readTimeout: 0
+            writeTimeout: 0
+            idleTimeout: 600s
+    additionalArguments:
+      - "--serversTransport.forwardingTimeouts.responseHeaderTimeout=0"
+      - "--serversTransport.forwardingTimeouts.idleConnTimeout=600s"

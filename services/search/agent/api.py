@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
-from laiive_shared import EventDraft
+from laiive_shared import EventDraft, install_internal_auth, register_health
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,16 @@ from agent import discovery, graph, reports
 from config import settings
 
 app = FastAPI(title="laiive search", version="0.1.0")
+
+# /livez and /readyz for the kubelet — the `/health` below stays for humans.
+register_health(
+    app,
+    service="search",
+    ready_check=graph.check_neo4j,
+)
+
+# Defence in depth behind the NetworkPolicy; unset key = no-op.
+install_internal_auth(app, expected=settings.internal_api_key)
 
 
 @app.exception_handler(reports.ReportStoreError)
@@ -84,8 +94,6 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
     report = reports.get_report(report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="No such report")
-    if report["status"] == "approved":
-        raise HTTPException(status_code=409, detail="Report already approved")
 
     candidates = report.get("candidates") or []
     if body.indices is None:
@@ -97,6 +105,13 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         if bad:
             raise HTTPException(status_code=422, detail=f"No such candidates: {bad}")
         selected = [(i, candidates[i]) for i in body.indices]
+
+    # Claim before writing. A read-then-check let two concurrent approves both
+    # pass and write the same candidates twice; the writer's dedup probe would
+    # have caught most of it, but not the wasted geocodes and embeddings.
+    approved_at = datetime.now(UTC).isoformat()
+    if not reports.claim_report(report_id, _as_uuid(x_user_id), approved_at):
+        raise HTTPException(status_code=409, detail="Report already approved")
 
     results = []
     for index, candidate in selected:
@@ -114,21 +129,14 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     created = sum(1 for r in results if r["status"] == "created")
-    # The graph writes above are already committed — a failed report update
-    # must not turn them into a 502 that hides what was written.
+    # The report is already marked approved by the claim above; this only records
+    # what the writes did. The graph writes are committed, so a failure here must
+    # not turn them into a 502 that hides what was written.
     warnings = []
     try:
-        reports.update_report(
-            report_id,
-            {
-                "status": "approved",
-                "approved_by": _as_uuid(x_user_id),
-                "approved_at": datetime.now(UTC).isoformat(),
-                "write_results": results,
-            },
-        )
+        reports.update_report(report_id, {"write_results": results})
     except reports.ReportStoreError as e:
-        logger.error(f"Report {report_id} written but not marked approved: {e}")
+        logger.error(f"Report {report_id} written but results not recorded: {e}")
         warnings.append(f"Events written, but the report update failed: {e}")
     logger.info(
         f"Report {report_id} approved by {x_user_id or 'unknown'}: "

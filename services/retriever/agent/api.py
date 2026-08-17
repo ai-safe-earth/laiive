@@ -1,7 +1,4 @@
-import json
 import uuid
-from datetime import datetime
-from pathlib import Path
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -11,6 +8,8 @@ from laiive_shared import (
     Done,
     Error,
     UnsupportedAudioFormat,
+    install_internal_auth,
+    register_health,
     sse_frame,
     transcribe,
 )
@@ -24,31 +23,27 @@ from .clients.neo4j_client import neo4j_client
 from .pipeline import Pipeline, TurnResult
 from .utils.llm_utils import get_openai_client
 
-LOG_FILE = Path("logs/requests.jsonl")
 
-
-def log_request(
+def log_turn(
+    request_id: str,
     user_message: str,
-    action: str,
-    cypher: str = None,
-    results: list = None,
-    error: str = None,
+    cypher: str | None = None,
+    card_count: int = 0,
+    error: str | None = None,
 ):
-    """Log request/response for evals."""
-    try:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        entry = {
-            "timestamp": datetime.now().isoformat(),
-            "user_message": user_message,
-            "action": action,
-            "cypher": cypher,
-            "result_count": len(results) if results else 0,
-            "error": error,
-        }
-        with open(LOG_FILE, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception as e:
-        logger.warning(f"Failed to log request: {e}")
+    """One structured line per turn, to stdout.
+
+    This used to append to `logs/requests.jsonl`, which is per-replica ephemeral
+    storage and the last thing keeping the container from a read-only root
+    filesystem. The eval-ready request record lives gateway-side in Supabase
+    `conversation_logs` instead.
+    """
+    logger.bind(
+        request_id=request_id,
+        cypher=cypher,
+        card_count=card_count,
+        error=error,
+    ).info("turn: {}", user_message)
 
 
 app = FastAPI(title="laiive retriever API", version="0.3.0")
@@ -57,6 +52,19 @@ app = FastAPI(title="laiive retriever API", version="0.3.0")
 # the service is only reachable through it (compose `expose`s it, `make start-*`
 # binds 127.0.0.1). The SERVICE_CORS_ALLOW_ORIGINS escape hatch existed for the
 # Phase 3 frontend that still called 8002/8003 directly; that frontend is gone.
+
+# /livez and /readyz for the kubelet. Neo4j is the only thing this service cannot
+# serve without; OpenAI deliberately is not checked — see laiive_shared.health.
+register_health(
+    app,
+    service="retriever",
+    ready_check=neo4j_client.verify_connectivity,
+)
+
+# Defence in depth behind the NetworkPolicy: the gateway injects the key, the
+# probes are exempt, and an unset key is a no-op (local runs, compose, tests).
+install_internal_auth(app, expected=settings.internal_api_key)
+
 _pipeline: Pipeline | None = None
 
 
@@ -224,12 +232,12 @@ def chat(request: ChatRequest):
             _history_dicts(request.conversation_history),
             _location_dict(request.location),
         )
-        log_request(
+        log_turn(
+            request_id,
             request.message,
-            "pipeline",
-            result.cyphers[0] if result.cyphers else None,
-            [c.model_dump() for c in result.cards],
-            "; ".join(result.errors) or None,
+            cypher=result.cyphers[0] if result.cyphers else None,
+            card_count=len(result.cards),
+            error="; ".join(result.errors) or None,
         )
         return ChatResponse(
             request_id=request_id,
@@ -291,12 +299,12 @@ def _generate(
         logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
         yield sse_frame(Error(code="internal_error", message="Something went wrong."))
     finally:
-        log_request(
+        log_turn(
+            request_id,
             user_message,
-            "pipeline",
-            result.cyphers[0] if result.cyphers else None,
-            [c.model_dump() for c in result.cards],
-            "; ".join(result.errors) or None,
+            cypher=result.cyphers[0] if result.cyphers else None,
+            card_count=len(result.cards),
+            error="; ".join(result.errors) or None,
         )
     yield sse_frame(Done(request_id=request_id))
 

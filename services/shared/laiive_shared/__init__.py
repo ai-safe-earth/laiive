@@ -1,6 +1,8 @@
 """Shared contracts and graph write path for laiive services."""
 
 from .cards import EventCard, EventDraft, REQUIRED_DRAFT_FIELDS, missing_required
+from .health import LIVENESS_PATH, READINESS_PATH, register_health
+from .internal_auth import install_internal_auth
 from .language import (
     DEFAULT_LANGUAGE,
     DETECTION_RULE,
@@ -33,6 +35,10 @@ __all__ = [
     "EventDraft",
     "REQUIRED_DRAFT_FIELDS",
     "missing_required",
+    "register_health",
+    "install_internal_auth",
+    "LIVENESS_PATH",
+    "READINESS_PATH",
     "MessageDelta",
     "EventsResult",
     "FormExtracted",

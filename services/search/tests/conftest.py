@@ -87,7 +87,10 @@ def mock_reports_http():
         201, [{"id": "00000000-0000-0000-0000-000000000001"}]
     )
     http.get.return_value = http_response(200, [])
-    http.patch.return_value = http_response(204, {})
+    # A non-empty representation = the claim won the race (see reports.claim_report).
+    http.patch.return_value = http_response(
+        200, [{"id": "00000000-0000-0000-0000-000000000001", "status": "approved"}]
+    )
     with patch("agent.reports._http", http):
         yield http
 
@@ -137,6 +140,7 @@ class FakeNeo4jSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
+                    "venue_uid": params["venue_uid"],
                 }
             )
         if "RETURN 1" in query:

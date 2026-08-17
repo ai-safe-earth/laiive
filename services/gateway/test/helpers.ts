@@ -130,6 +130,10 @@ export function testConfig(overrides: Partial<GatewayConfig> & { supabaseUrl: st
     jwtIssuer: `${overrides.supabaseUrl}/auth/v1`,
     jwtAudience: "authenticated",
     corsAllowOrigins: ["http://localhost:8081"],
+    internalApiKey: "",
+    // No Redis in unit tests: the in-memory store is correct for one process.
+    // Cross-replica quota is proved against a real cluster, not here.
+    redisUrl: "",
     rateLimitWindowMs: 60_000,
     rateLimitAnonMax: 1000,
     rateLimitUserMax: 1000,

@@ -1,5 +1,9 @@
 # base / production — the gateway is the only published surface;
-# retriever and pusher are reachable only on the compose network.
+# retriever, pusher and search are reachable only on the compose network.
+#
+# This file is also the local stand-in for the cluster: same images, same
+# probes, same internal-only topology. It is not the deploy target — that is
+# k8s/overlays/prod (D19).
 services:
 
   gateway:
@@ -15,10 +19,24 @@ services:
       RETRIEVER_URL: http://retriever:8002
       PUSHER_URL: http://pusher:8003
       SEARCH_URL: http://search:8004
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+    healthcheck:
+      # /healthz is the liveness endpoint: no dependencies, cheap enough to poll.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
-      - retriever
-      - pusher
-      - search
+      redis:
+        condition: service_started
+      retriever:
+        condition: service_healthy
+      pusher:
+        condition: service_healthy
+      search:
+        condition: service_healthy
 
   pusher:
     container_name: laiive-pusher
@@ -29,6 +47,19 @@ services:
       - "8003"
     env_file:
       - .env
+    environment:
+      # Shares the geocode cache and the 1 req/s Nominatim gate with search.
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+    healthcheck: &python_healthcheck
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8003/livez', timeout=4).status==200 else 1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      redis:
+        condition: service_started
 
   retriever:
     container_name: laiive-retriever
@@ -39,6 +70,10 @@ services:
       - "8002"
     env_file:
       - .env
+    restart: unless-stopped
+    healthcheck:
+      <<: *python_healthcheck
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8002/livez', timeout=4).status==200 else 1)"]
 
   search:
     container_name: laiive-search
@@ -49,3 +84,32 @@ services:
       - "8004"
     env_file:
       - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+    healthcheck:
+      <<: *python_healthcheck
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8004/livez', timeout=4).status==200 else 1)"]
+    depends_on:
+      redis:
+        condition: service_started
+
+  redis:
+    container_name: laiive-redis
+    image: redis:7-alpine
+    # Rate-limit keys carry TTLs and are evictable; geocode hits do not and must
+    # not be evicted — volatile-lru only ever discards keys that have an expiry.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-lru", "--save", "60", "1"]
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  redis-data:

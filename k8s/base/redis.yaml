@@ -1,0 +1,81 @@
+# Two jobs, both of which stop being correct the moment a service has replicas:
+#   - the gateway's rate-limit buckets (per-process store = N x everyone's quota)
+#   - the geocode cache and the 1 req/s Nominatim gate shared by pusher + search
+#
+# Not a cache to lose casually, but not precious either: the geocode entries are
+# regenerable and the rate-limit keys are ephemeral by design.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  labels: { app: redis }
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        # The official image's redis user; needed for the PVC to be writable.
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --maxmemory
+            - 128mb
+            # volatile-lru only evicts keys that carry an expiry: rate-limit keys
+            # have TTLs and are disposable, geocode hits have none and must
+            # survive memory pressure.
+            - --maxmemory-policy
+            - volatile-lru
+            - --save
+            - "60"
+            - "1"
+          ports:
+            - { name: redis, containerPort: 6379 }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 200m, memory: 256Mi }
+          livenessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            periodSeconds: 20
+            timeoutSeconds: 3
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            periodSeconds: 20
+            timeoutSeconds: 3
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # k3s ships local-path as the default StorageClass. On a single node that
+        # is exactly right; on a managed cluster the overlay names a real class.
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels: { app: redis }
+spec:
+  selector: { app: redis }
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }

@@ -96,6 +96,7 @@ class FakeNeo4jSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
+                    "venue_uid": params["venue_uid"],
                 }
             )
         return FakeNeo4jResult(rows=[])

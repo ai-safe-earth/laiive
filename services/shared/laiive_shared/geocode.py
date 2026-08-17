@@ -7,13 +7,12 @@ cities never hit the network at all.
 
 import json
 import logging
-import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
 
+from .geocode_store import GeocodeStore, JsonFileGeocodeStore
 from .normalize import norm
 
 logger = logging.getLogger(__name__)
@@ -38,38 +37,29 @@ class NominatimGeocoder:
         cache_path: Path | str | None = None,
         min_interval_s: float = 1.0,
         timeout_s: float = 10.0,
+        store: GeocodeStore | None = None,
     ):
-        self._min_interval_s = min_interval_s
         self._timeout_s = timeout_s
-        self._last_request_at = 0.0
-        self._lock = threading.Lock()
-        self._cache_path = Path(cache_path) if cache_path else None
-        self._cache: dict[str, dict | None] = {}
-        if self._cache_path and self._cache_path.exists():
-            try:
-                self._cache = json.loads(self._cache_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as e:
-                logger.warning(
-                    "Could not load geocode cache %s: %s", self._cache_path, e
-                )
+        # The cache and the rate gate belong to the store — pass a
+        # RedisGeocodeStore when more than one process geocodes. `cache_path` is
+        # kept so existing call sites and tests read unchanged.
+        self._store: GeocodeStore = store or JsonFileGeocodeStore(
+            cache_path, min_interval_s=min_interval_s
+        )
 
     def geocode(self, query: str) -> GeocodeResult | None:
         """Resolve a free-text place query. Returns None when nothing matches."""
         key = norm(query)
-        if key in self._cache:
-            return self._from_cached(self._cache[key])
+        cached, value = self._store.get(key)
+        if cached:
+            return self._from_cached(value)
 
         raw = self._request(query)
-        self._cache[key] = raw
-        self._persist_cache()
+        self._store.set(key, raw)
         return self._from_cached(raw)
 
     def _request(self, query: str) -> dict | None:
-        with self._lock:
-            wait = self._min_interval_s - (time.monotonic() - self._last_request_at)
-            if wait > 0:
-                time.sleep(wait)
-            self._last_request_at = time.monotonic()
+        self._store.acquire_slot()
         try:
             resp = httpx.get(
                 NOMINATIM_URL,
@@ -102,14 +92,3 @@ class NominatimGeocoder:
         if raw is None:
             return None
         return GeocodeResult(**raw)
-
-    def _persist_cache(self) -> None:
-        if not self._cache_path:
-            return
-        try:
-            self._cache_path.parent.mkdir(parents=True, exist_ok=True)
-            self._cache_path.write_text(
-                json.dumps(self._cache, ensure_ascii=False), encoding="utf-8"
-            )
-        except OSError as e:
-            logger.warning("Could not persist geocode cache: %s", e)

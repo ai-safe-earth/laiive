@@ -1,0 +1,28 @@
+# Replace <tld> with the real domain. Start on letsencrypt-staging (see
+# clusterissuer.yaml), then switch the annotation to letsencrypt-prod.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: laiive-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # No compress middleware anywhere on this route: gzip buffers, and buffering
+    # defeats the `X-Accel-Buffering: no` the services set on their SSE streams.
+    # Traefik does not buffer responses by default — leave it that way.
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: ["api.laiive.<tld>"]
+      secretName: laiive-api-tls  # pragma: allowlist secret — a Secret *name*, not a value
+  rules:
+    - host: api.laiive.<tld>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 8000

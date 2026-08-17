@@ -1,0 +1,56 @@
+# Non-secret configuration, one flat map consumed by every workload via envFrom.
+#
+# This deliberately reproduces the "one root .env read by all services" model
+# (02-architecture.md:184): pydantic-settings and the gateway's dotenv both
+# prefer process env over the file, and `../../.env` does not resolve inside the
+# images anyway. Secrets live in the `laiive-env` Secret, generated from the same
+# root .env by k8s/scripts/env-to-secret.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laiive-config
+data:
+  # ── service discovery (cluster DNS; these exist only in compose today) ──
+  RETRIEVER_URL: "http://retriever:8002"
+  PUSHER_URL: "http://pusher:8003"
+  SEARCH_URL: "http://search:8004"
+
+  # ── graph ──
+  NEO4J_USERNAME: "neo4j"
+  NEO4J_DATABASE: "neo4j"
+  # Per replica. 4 retriever pods x 16 + pusher 5 + search 5 = 74 connections
+  # against one Aura Free instance whose real ceiling is undocumented — lower
+  # this first if load testing produces ServiceUnavailable.
+  NEO4J_MAX_POOL_SIZE: "16"
+  PUSHER_NEO4J_MAX_POOL_SIZE: "5"
+  SEARCH_NEO4J_MAX_POOL_SIZE: "5"
+
+  # ── models (R3: mini-first wherever quality allows) ──
+  CLASSIFIER_MODEL: "gpt-4o-mini"
+  QUERY_BUILDER_MODEL: "gpt-4o"
+  COMPOSER_MODEL: "gpt-4o"
+  EMBEDDING_MODEL: "text-embedding-3-small"
+  ENABLE_MODERATION: "true"
+
+  # ── gateway ──
+  GATEWAY_PORT: "8000"
+  GATEWAY_LOG_LEVEL: "info"
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_ANON_MAX: "10"
+  RATE_LIMIT_USER_MAX: "60"
+  UPLOAD_MAX_BYTES: "10485760"
+  CONVERSATION_LOGGING: "true"
+  # Overridden in the prod overlay with the real Cloudflare Pages origins.
+  CORS_ALLOW_ORIGINS: "http://localhost:8081"
+
+  # ── search ──
+  SEARCH_ENABLED: "true"
+
+  # ── shared coordination ──
+  # Makes the rate-limit bucket and the geocode cache + 1 req/s Nominatim gate
+  # global instead of per-pod. Without it, replicas each get their own.
+  REDIS_URL: "redis://redis:6379/0"
+  # The images run with a read-only root filesystem, so the JSON fallback cache
+  # cannot be written to /app — point it at the /tmp emptyDir. It is only reached
+  # if REDIS_URL is ever unset.
+  GEOCODE_CACHE_PATH: "/tmp/.geocode_cache.json"

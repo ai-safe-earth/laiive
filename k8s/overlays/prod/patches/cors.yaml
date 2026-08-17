@@ -1,0 +1,11 @@
+# The SPA is on Cloudflare Pages (D18), not in the cluster, so the gateway has to
+# allow its origins explicitly. The base default stays http://localhost:8081 so
+# `make start-gateway` keeps working locally.
+#
+# Replace <tld> with the real domain before the first prod apply.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laiive-config
+data:
+  CORS_ALLOW_ORIGINS: "https://laiive.pages.dev,https://laiive.<tld>"

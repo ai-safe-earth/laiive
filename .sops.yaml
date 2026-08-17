@@ -1,0 +1,13 @@
+# SOPS + age, chosen over sealed-secrets for two reasons: the ciphertext is
+# cluster-agnostic (sealed-secrets encrypts against one controller's keypair, so
+# moving to a managed cluster would mean re-sealing everything — exactly the
+# portability D19 is protecting), and there is no controller to run and upgrade
+# on an 8 GB single node.
+#
+# Replace <age-recipient> with the public key of the age identity kept in the
+# password manager and in the SOPS_AGE_KEY GitHub secret.
+creation_rules:
+  - path_regex: k8s/overlays/.*/secrets\.enc\.yaml$
+    age: <age-recipient>
+    # Encrypt values only, so a diff still shows which keys changed.
+    encrypted_regex: ^(data|stringData)$

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: laiive
+
+resources:
+  - ../../base
+  - ingress.yaml
+  - clusterissuer.yaml
+
+# The Secret is generated from the decrypted secrets.env, which never exists on
+# disk outside a deploy run — CI writes it with `sops -d` and deletes it after.
+# See k8s/scripts/env-to-secret.sh and k8s/README.md.
+#
+# generatorOptions leaves the name hash ON deliberately: a changed secret gets a
+# new Secret name, which changes the pod spec, which rolls the pods. Without it a
+# key rotation would sit in the cluster unused until the next unrelated deploy.
+secretGenerator:
+  - name: laiive-env
+    envs:
+      - secrets.env
+
+patches:
+  - path: patches/cors.yaml

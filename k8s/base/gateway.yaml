@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: { app: gateway }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: gateway }
+  strategy:
+    rollingUpdate:
+      # The only public surface: never drop below the current capacity.
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels: { app: gateway }
+    spec:
+      # An SSE stream and a minutes-long sweep proxy are both in flight during a
+      # rollout. index.ts handles SIGTERM with app.close(), which drains them;
+      # this is the window it gets.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: gateway
+          image: ghcr.io/ai-safe-earth/laiive-gateway:main
+          ports:
+            - { name: http, containerPort: 8000 }
+          envFrom:
+            - configMapRef: { name: laiive-config }
+            - secretRef: { name: laiive-env }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            # Checks Redis, the only dependency the gateway holds itself.
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              # Endpoint removal is eventually consistent: keep serving for a
+              # moment after the pod is marked terminating so Traefik stops
+              # routing here first.
+              exec: { command: ["sleep", "5"] }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels: { app: gateway }
+spec:
+  selector: { app: gateway }
+  ports:
+    - { name: http, port: 8000, targetPort: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: gateway }

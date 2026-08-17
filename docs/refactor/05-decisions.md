@@ -31,7 +31,7 @@
 | # | Decision | Choice |
 |---|---|---|
 | D17 | SEARCH scheduling | **Prefect Cloud, managed work pool**; flows are thin HTTP clients of `/api/admin/search/*`; first cut = weekly city sweep + nightly embedding/geocode backfill; sweeps stay **dry-run**, a human approves the batch |
-| D18 | Frontend hosting | **Cloudflare Pages** (Fly.io considered, declined — a static bundle gets nothing from a container runtime); services stay on Railway/Fly per R2 |
+| D18 | Frontend hosting | **Cloudflare Pages** (Fly.io considered, declined — a static bundle gets nothing from a container runtime); services on **k3s** per D19 (was Railway/Fly per R2) |
 
 **D17 trade-off**: managed execution has no private networking, so flows cannot reach
 Neo4j, Tavily or `search:8004` directly — every scheduled run authenticates as an admin
@@ -55,26 +55,70 @@ free (D18), Prefect Cloud free tier (D17 — re-check its managed-execution quot
 Phase 5 lands; the free allowance changes), services on one cheap runtime (~$5–15),
 leaving ~$20–35 for LLM spend — mini-first model policy matters (R3).
 
+## Decided 2026-08-17 (Phase 6 shape)
+
+| # | Decision | Choice |
+|---|---|---|
+| D19 | Service hosting + orchestration | **k3s on one Hetzner CX32** (4 vCPU / 8 GB / 80 GB, Falkenstein, ~€6.80/mo); manifests as **Kustomize base + overlays** so a managed cluster later is an overlay swap, not a rewrite. Redis self-hosted in-cluster. **Supersedes R1 and R2.** |
+
+**D19 reasoning.** Two drivers the PaaS route could not serve:
+
+1. *A real boundary.* "Only the gateway may reach the services" is currently enforced by
+   nothing but network placement — `proxy.ts` injects `x-user-id`/`x-user-role` and the
+   services trust those headers blindly. CORS cannot fix this: it is browser-enforced and
+   the gateway is not a browser. k3s ships a kube-router-backed **NetworkPolicy**
+   controller enabled by default, so a default-deny namespace with an explicit
+   gateway→services allow is a real, CNI-enforced control. A shared internal-key header
+   is the second layer, for when a policy is misapplied or the CNI changes.
+2. *The retriever/pusher asymmetry becomes a deployment fact.* Retriever (hot path,
+   3+ OpenAI calls and 1–5 Neo4j reads per turn, anonymous) gets an HPA; pusher (the only
+   promoter write path) stays at one replica and fails independently.
+
+**D19 trade-off, accepted.** Railway/Fly would have absorbed TLS, ingress timeouts, an
+image registry, secret management, health probes, rollout mechanics, private networking and
+the box itself for ~$15–25/mo, inside budget. k3s converts that into ~10 working days plus a
+standing tax: k3s upgrades on a schedule you own, a disk that fills with container logs, a
+SQLite datastore whose backup is your job, Traefik/cert-manager CRDs that break on upgrade,
+and **one node** — no second AZ, no paid alerting. Bought: the boundary above, portable
+manifests, and the operational skill. Explicitly *not* bought: capacity. HPA 2→4 on one
+4-vCPU box is the same ceiling a Railway slider gives; the CX32 runs out before Kubernetes does.
+
+**D19 boundary.** Budget still holds at $30–50/mo all-in, so Aura stays **Free**, Supabase
+free, no managed Redis and no paid observability (Langfuse for LLM traces, Supabase
+`conversation_logs` for request records, `kubectl logs` for the rest, one free uptime check
+on `/healthz`). The frontend stays on Cloudflare Pages (D18) — it is not in the cluster.
+
+**D19 prerequisite.** Six pieces of per-process state block replicas *anywhere*, not just on
+k8s, and they land before the cluster: the gateway's in-memory rate-limit store (N replicas =
+N× quota) and its missing `trustProxy` (behind an ingress every anonymous user shares one
+bucket); the geocoder's per-process JSON cache and 1 req/s lock (N replicas = N req/s at
+Nominatim, plus a lost-update race on the file); `backfill_embeddings` running a full-graph
+scan inside every write; `/validate-event` doing blocking work on the event loop of the
+critical service; `/health` calling `openai.models.list()`, which is unusable as a liveness
+probe; and the retriever's per-request `requests.jsonl` append. All get a no-Redis fallback so
+local runs and the existing suites are untouched.
+
+## Superseded recommendations
+
+### R1. Docker, not Kubernetes — **superseded by D19 (2026-08-17)**
+Original reasoning, kept for the record: three small stateless services + a gateway, one
+developer, no traffic yet; Kubernetes buys autoscaling, self-healing and org-scale ops at the
+cost of manifests, upgrades and a control plane to babysit — all cost, no benefit at this
+stage. That reasoning was sound on capacity grounds and is **not** what D19 disputes; what it
+missed is that the security boundary the architecture assumes (`02-architecture.md:46`,
+"services bind to the internal network only") has no enforcement mechanism on a PaaS, and
+that NetworkPolicy is the cheapest honest one. The old exit clause held: migration was
+mechanical, the images already existed.
+
+### R2. Deployment platforms — **superseded by D19 (2026-08-17)** for services; D18 stands for the SPA
+Original shortlist: Railway first (~$5–20/mo, Dockerfiles from the repo, private networking,
+per-service env), Fly.io second, "a single Hetzner VPS + compose is the cheapest option but
+makes you the ops team; not worth it solo". D19 takes exactly that VPS bet with eyes open —
+see the D19 trade-off above, which prices the ops time rather than waving it away.
+- **Frontend SPA: Cloudflare Pages** — settled as D18, unchanged.
+- **Data: managed as-is** — Neo4j Aura + Supabase, unchanged.
+
 ## Recommendations awaiting sign-off
-
-### R1. Docker, not Kubernetes
-Three small stateless services + a gateway, one developer, no traffic yet. Kubernetes
-buys autoscaling, self-healing and org-scale ops at the cost of manifests, upgrades,
-and a control plane to babysit — all cost, no benefit at this stage. Docker images +
-compose (dev) + a PaaS runtime (prod) covers everything needed. Revisit K8s only if you
-ever need multi-node scaling or hiring expects it. **Trade-off**: if the product
-explodes, migration to K8s later is real but mechanical (images already exist).
-
-### R2. Deployment platforms
-- **Services (gateway + retriever + pusher + search): Railway** (first choice — deploys
-  Dockerfiles straight from the repo, private networking between services, per-service
-  env, logs; ~$5–20/mo at this scale) or **Fly.io** (second — more control, closer to
-  metal, slightly more ops). A single Hetzner VPS + compose is the cheapest option but
-  makes you the ops team; not worth it solo.
-- **Frontend SPA: Cloudflare Pages** — settled as D18.
-- **Data: managed as-is** — Neo4j Aura + Supabase.
-**Trade-off**: PaaS costs more per compute unit than a VPS; buys back the only truly
-scarce resource here (your time).
 
 ### R3. Models per service — "make it work first"
 Stay **single-provider (OpenAI)** now: one SDK, one key, one failure mode; embeddings

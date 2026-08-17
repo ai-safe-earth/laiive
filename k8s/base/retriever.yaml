@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retriever
+  labels: { app: retriever }
+spec:
+  # The HPA owns this after the first apply; 2 is the floor it starts from.
+  replicas: 2
+  selector:
+    matchLabels: { app: retriever }
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels: { app: retriever }
+    spec:
+      # A chat turn streams for 10-30s. Draining beats truncating.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: retriever
+          image: ghcr.io/ai-safe-earth/laiive-retriever:main
+          ports:
+            - { name: http, containerPort: 8002 }
+          envFrom:
+            - configMapRef: { name: laiive-config }
+            - secretRef: { name: laiive-env }
+          resources:
+            # Per-pod concurrency is capped by anyio's 40 threadpool tokens, not
+            # by CPU — every request path is blocking-in-a-threadpool and >95%
+            # network wait on OpenAI. So requests stay modest and limits are
+            # deliberately oversubscribed.
+            requests: { cpu: 200m, memory: 400Mi }
+            limits: { cpu: 1500m, memory: 768Mi }
+          startupProbe:
+            # Covers import-time client construction.
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            # /livez does no I/O. The deep /health calls OpenAI and Neo4j and
+            # must never be used here: an OpenAI blip would restart healthy pods.
+            httpGet: { path: /livez, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 2
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: retriever
+  labels: { app: retriever }
+spec:
+  selector: { app: retriever }
+  ports:
+    - { name: http, port: 8002, targetPort: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: retriever
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: retriever
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    # Honest caveat: CPU is a poor proxy here. Pods block on OpenAI, so CPU stays
+    # flat while the 40 threadpool slots fill and latency climbs — this will
+    # under-react. It is worth having for the mechanism and for embedding/JSON
+    # spikes, but min-2 is doing most of the work. The real signal is in-flight
+    # requests per pod, which needs KEDA or prometheus-adapter (deferred).
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+  behavior:
+    scaleDown:
+      # Long turns make short windows flap.
+      stabilizationWindowSeconds: 300
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: retriever
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: retriever }

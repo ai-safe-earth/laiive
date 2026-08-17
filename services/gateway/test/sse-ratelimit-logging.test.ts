@@ -95,6 +95,57 @@ describe("rate limits", () => {
     const health = await app.inject({ method: "GET", url: "/healthz" });
     expect(health.statusCode).toBe(200);
   });
+
+  it("buckets anonymous users by the forwarded client IP, not the proxy's", async () => {
+    // Behind an ingress every request arrives from the same proxy address. Without
+    // trustProxy the whole internet would share one anonymous bucket.
+    app = await buildServer(
+      testConfig({
+        supabaseUrl: supabase.url,
+        retrieverUrl: retriever.url,
+        rateLimitAnonMax: 1,
+      }),
+    );
+    await app.ready();
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { "x-forwarded-for": "203.0.113.7" },
+      payload: {},
+    });
+    expect(first.statusCode).toBe(200);
+
+    const sameClient = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { "x-forwarded-for": "203.0.113.7" },
+      payload: {},
+    });
+    expect(sameClient.statusCode).toBe(429);
+
+    const otherClient = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { "x-forwarded-for": "203.0.113.8" },
+      payload: {},
+    });
+    expect(otherClient.statusCode).toBe(200);
+  });
+
+  it("builds with no REDIS_URL and keeps the in-memory store", async () => {
+    // The Redis store is what makes the quota correct across replicas, but a
+    // missing REDIS_URL must never be a startup failure — that is the local and
+    // single-process path.
+    app = await buildServer(
+      testConfig({ supabaseUrl: supabase.url, retrieverUrl: retriever.url, redisUrl: "" }),
+    );
+    await app.ready();
+
+    const ready = await app.inject({ method: "GET", url: "/readyz" });
+    expect(ready.statusCode).toBe(200);
+    expect(JSON.parse(ready.body).status).toBe("ready");
+  });
 });
 
 describe("conversation logging", () => {

@@ -1,0 +1,127 @@
+# Push to main -> images to GHCR -> apply to the k3s node (D19).
+#
+# Reaching the cluster: the node's 6443 is closed to the internet (see the
+# bootstrap runbook), so the runner joins the tailnet instead. That is worth more
+# than the convenience of an open API server on a single-node cluster with no HA.
+#
+# Required repository secrets:
+#   SOPS_AGE_KEY        the age private key that decrypts secrets.enc.yaml
+#   KUBECONFIG_B64      base64 kubeconfig pointing at the node's tailnet address
+#   TS_OAUTH_CLIENT_ID  }  Tailscale OAuth client, scoped to an ephemeral
+#   TS_OAUTH_SECRET     }  auth key with the tag below
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Never two deploys at once against one node.
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # Public packages: the images carry no secrets (everything arrives via envFrom),
+  # and public removes imagePullSecrets and PAT rotation entirely.
+  OWNER: ai-safe-earth
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [gateway, retriever, pusher, search]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./services
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          # An immutable sha tag is what makes `kubectl rollout undo` mean
+          # something; :main is only a human-readable pointer.
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/laiive-${{ matrix.service }}:sha-${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/laiive-${{ matrix.service }}:main
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  apply:
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install sops
+        run: |
+          curl -sSLo /usr/local/bin/sops \
+            https://github.com/getsops/sops/releases/latest/download/sops-v3.9.4.linux.amd64
+          chmod +x /usr/local/bin/sops
+
+      - name: decrypt secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        # The plaintext exists only inside this job's workspace and is never an
+        # artifact. Kustomize's secretGenerator reads it from here.
+        run: sops -d k8s/overlays/prod/secrets.enc.yaml > k8s/overlays/prod/secrets.env
+
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: install kustomize
+        # `kubectl apply -k` embeds kustomize but exposes no `edit` subcommand,
+        # and pinning the tag in-tree is what makes rollout undo work.
+        run: |
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: pin images to this commit
+        working-directory: k8s/overlays/prod
+        run: |
+          for svc in gateway retriever pusher search; do
+            image="$REGISTRY/$OWNER/laiive-$svc"
+            kustomize edit set image "$image=$image:sha-${{ github.sha }}"
+          done
+
+      - name: apply
+        run: kubectl apply -k k8s/overlays/prod
+
+      - name: wait for the rollout
+        run: |
+          for d in gateway retriever pusher search; do
+            kubectl -n laiive rollout status "deploy/$d" --timeout=300s
+          done
+
+      - name: live smoke
+        env:
+          E2E_GATEWAY_URL: https://api.laiive.example   # replace with the real host
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        # 23 assertions against the deployed gateway, provisioning and deleting
+        # its own throwaway users. It already honours E2E_GATEWAY_URL.
+        working-directory: services/gateway
+        run: npm ci && npm run e2e:live
+
+      - name: shred the decrypted secret
+        if: always()
+        run: rm -f k8s/overlays/prod/secrets.env

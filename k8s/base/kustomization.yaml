@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: laiive
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: laiive
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - networkpolicies.yaml
+  - redis.yaml
+  - retriever.yaml
+  - pusher.yaml
+  - search.yaml
+  - gateway.yaml
+
+# Images are pinned to an immutable :sha-<short> tag by CI (`kustomize edit set
+# image`) so `kubectl rollout undo` means something. The :main here is only a
+# readable default for a manual apply.
+images:
+  - name: ghcr.io/ai-safe-earth/laiive-gateway
+    newTag: main
+  - name: ghcr.io/ai-safe-earth/laiive-retriever
+    newTag: main
+  - name: ghcr.io/ai-safe-earth/laiive-pusher
+    newTag: main
+  - name: ghcr.io/ai-safe-earth/laiive-search
+    newTag: main

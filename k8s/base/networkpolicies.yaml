@@ -1,0 +1,124 @@
+# The boundary the architecture has always assumed and never enforced.
+#
+# `proxy.ts` hands the services X-User-Id and X-User-Role as verified facts and
+# they believe them, on the grounds that nothing else can reach them. Until now
+# that was true only by placement. k3s embeds kube-router's NetworkPolicy
+# controller and it is on unless the server was started with
+# --disable-network-policy, so these are enforced by the CNI on the default
+# install — no Calico, no Cilium.
+#
+# CORS cannot do this job: it is a browser convention, and the gateway is not a
+# browser. A direct curl from any pod is what these policies stop.
+#
+# Second layer, independent of all this: laiive_shared.internal_auth makes each
+# service check a shared secret the gateway injects, so a misapplied label here
+# does not silently open the door.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  # Empty selector = every pod in the namespace. Everything below is an additive
+  # allow on top of this.
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  # Without this nothing resolves and every failure looks like something else.
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-to-gateway
+spec:
+  # The gateway is the only workload the outside world may reach, and only
+  # through Traefik.
+  podSelector:
+    matchLabels: { app: gateway }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: traefik }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-to-services
+spec:
+  # This is the rule the whole design rests on: retriever, pusher and search
+  # accept traffic from the gateway pod and from nothing else. Not from another
+  # namespace, not from a debug pod, not from a compromised sidecar.
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [retriever, pusher, search] }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: gateway }
+      ports:
+        - { protocol: TCP, port: 8002 }
+        - { protocol: TCP, port: 8003 }
+        - { protocol: TCP, port: 8004 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: services-to-redis
+spec:
+  podSelector:
+    matchLabels: { app: redis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # The retriever is deliberately absent: it needs neither the rate limiter
+        # nor the geocoder, and least privilege costs nothing here.
+        - podSelector: { matchLabels: { app: gateway } }
+        - podSelector: { matchLabels: { app: pusher } }
+        - podSelector: { matchLabels: { app: search } }
+      ports:
+        - { protocol: TCP, port: 6379 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-internet
+spec:
+  # OpenAI, Neo4j Aura, Supabase, Tavily, Nominatim and Langfuse are all
+  # CDN-fronted with unstable addresses, so egress has to stay open. What must
+  # NOT stay open is east-west traffic: without the `except` blocks below this
+  # rule re-permits pod-to-pod on every port and quietly undoes the three
+  # policies above. That is the classic way a default-deny namespace turns out
+  # not to be one.
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: [gateway, retriever, pusher, search] }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16      # k3s pod CIDR
+              - 10.43.0.0/16      # k3s service CIDR
+              - 169.254.169.254/32  # cloud metadata

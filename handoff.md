@@ -3,7 +3,7 @@
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
 first, then `docs/refactor/04-plan.md` (phases) and `docs/refactor/05-decisions.md`
-(all decisions, D1–D18 + budget).
+(all decisions, D1–D19 + budget).
 Branch: **`refactor/foundation`** (from `connect-to-ui`), pushed to `origin`
 (ai-safe-earth/laiive) 2026-08-15; `main` on `origin` not updated yet.
 Canonical remote for PRs = `origin` — the remote *named* `laiive` is the
@@ -17,16 +17,18 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b, scheduling half — the plan changed.** The managed-pool
-route stalled on three independent walls this session (2026-08-17); the
-recommended shape is now **Prefect Cloud as scheduler + UI only, with the flows
-executing locally**. Nothing was implemented — read *Phase 5b — the scheduling
-rethink* below before touching anything. The local flow run itself is still done
-and green. The 88 swept candidates were reviewed and **54 approved into the graph
-2026-08-14** (see *Phase 5b — approvals*); the writer fix that run produced is
-committed (`7bb7ad0`) in `laiive_shared/neo4j_writer.py`. After scheduling:
-Phase 6 (CI/CD + deploy). The only Phase-4 leftover is the Google click-through
-by the owner.
+**Next up**: **Phase 6 — get the k3s node up.** The owner reversed R1 and chose
+Kubernetes (**D19**: k3s on one Hetzner CX32); phases A, B, D, E and G of that
+plan are **done, uncommitted, and verified as far as they can be without a
+cluster** — read *Phase 6 — D19* below. What is left needs resources this machine
+does not have: the Hetzner box, DNS, and four GitHub secrets. Phase 5b scheduling
+is still unimplemented and is now *behind* Phase 6 in usefulness, because the
+compose `flows` service it wants is a natural fit for the cluster (see
+*Phase 5b — the scheduling rethink*). The only Phase-4 leftover is the Google
+click-through by the owner.
+
+**Nothing in this session's work is committed.** It is a large, coherent diff
+across 45 tracked files plus a new `k8s/` tree — review it before committing.
 
 ## Done
 
@@ -711,6 +713,128 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
 - **Phase 6 frontend host = Cloudflare Pages** (D18). Fly.io was considered and
   declined for a static SPA; services still go to Railway/Fly per R2.
 
+### Phase 6 — D19: k3s on one Hetzner CX32 (2026-08-17, uncommitted)
+
+The owner asked for CORS between the gateway and the services "for security".
+CORS cannot do that — it is browser-enforced and the gateway is not a browser, so
+adding it would have changed nothing about who can call 8002/8003. That question
+opened the real one: the services trust `X-User-Id`/`X-User-Role` blindly on the
+grounds that nothing else can reach them, and until now that rested entirely on
+network placement. The owner then chose **Kubernetes** over the recorded R1/R2
+(PaaS) shortlist, on a **Hetzner CX32** (~EUR 6.80/mo; AWS/GCP are 3–7x for the
+same box and neither free tier fits k3s + four services), with the **$30–50/mo
+budget holding**, so Aura stays Free and Redis is self-hosted in-cluster.
+D19 in `05-decisions.md` records this, with R1 and R2 moved to a superseded section.
+
+**The honest trade-off, accepted in advance**: a PaaS would have absorbed eight of
+the ten work items (TLS, ingress timeouts, registry, secrets, probes, rollouts,
+private networking, the box) for $15–25/mo. k3s buys the CNI-enforced boundary,
+portable manifests and the skill, and costs weekends. It explicitly does **not**
+buy capacity — HPA 2→4 on one 4-vCPU box is the same ceiling a Railway slider
+gives, and the CX32 runs out before Kubernetes does.
+
+**Phase A — the six things that block replicas anywhere** (done; every one keeps a
+no-Redis fallback so local runs and the suites are untouched):
+
+- **Rate limit → Redis** + **`trustProxy: 1`** (`gateway/src/server.ts`). These are
+  one fix, not two: the in-memory store gave N replicas N× everyone's quota, and
+  without `trustProxy` every anonymous user behind an ingress shares *one* bucket —
+  fixing only the store would have made that bug globally consistent and globally
+  wrong. `skipOnError: true` so a Redis outage costs quota enforcement, not uptime.
+  **Proven both directions** with two gateway containers on one Redis: with it, 3
+  of 6 requests pass; without it, 3 pass *per replica*.
+- **Geocoder → shared store** (new `laiive_shared/geocode_store.py`). The 1 req/s
+  Nominatim gate was a per-process `threading.Lock`, so two pods meant 2 req/s and
+  a lost-update race on the JSON cache file. Now a `GeocodeStore` protocol with
+  `JsonFileGeocodeStore` (unchanged behaviour, still the default) and
+  `RedisGeocodeStore` (`SET NX PX` gate, shared cache, and a **7-day TTL on misses**
+  — a transient 503 used to be cached as "this place does not exist" forever).
+- **`backfill_embeddings(uids=...)`** — it ran a full-graph scan for un-embedded
+  nodes *inside every write*, so publishing one event cost more as the graph grew
+  and two writers duplicated each other's OpenAI spend. Now scoped to the ≤6 nodes
+  the write created; the unbounded sweep has one owner, the nightly flow.
+- **`/validate-event` off the event loop** — it was `async def` calling blocking
+  Neo4j + two ≥1s geocodes directly, stalling the whole process on the one service
+  that writes. The test for it was **vacuous at first** (it timed a probe *after*
+  the loop had already unblocked); rewritten to measure event-loop stall directly,
+  it fails with "the event loop stalled for 0.30s" when the fix is reverted.
+- **Probes split** (new `laiive_shared/health.py`): `/livez` does no I/O, `/readyz`
+  checks Neo4j with successes cached 20s and failures never cached. The retriever's
+  `/health` calls `openai.models.list()` — as a liveness probe across replicas that
+  was tens of paid calls a minute and an OpenAI blip would have restarted healthy
+  pods. Deep `/health` kept for humans.
+- **`requests.jsonl` deleted** — per-pod ephemeral storage, and the last thing
+  keeping the containers off a read-only root filesystem. The eval record already
+  lands gateway-side in Supabase `conversation_logs`.
+- Also: Neo4j pools budgeted (retriever 100→16 via `NEO4J_MAX_POOL_SIZE`, writers 5
+  each — Aura Free's real ceiling is undocumented, hence the env knob), the search
+  approve made atomic via a PostgREST compare-and-set (`claim_report`, claims
+  *before* writing), and a **SIGTERM handler on the gateway**, without which
+  `terminationGracePeriodSeconds` was decorative and every rollout truncated
+  in-flight SSE.
+
+**Phase B — images** (done, and the **first verified compose build since Phase 3**):
+multi-stage, `python:3.13-slim` runtime with no uv, uid 10001, `--no-dev
+--no-editable`, venv uvicorn directly (`uv run` re-resolves and breaks under a
+read-only rootfs), graceful-shutdown windows under each pod's grace period. Moved
+the retriever's `pytest` out of *main* dependencies (so `--no-dev` actually drops
+it) and removed `numpy` — unused in the source and the pinned version is yanked.
+All four images build; verified uid 10001, no `/shared` leak, no test deps, and all
+three serving `/livez` + `/readyz` **read-only-rootfs**. Compose gained Redis,
+healthchecks, `restart: unless-stopped` and `service_healthy` gates; the whole
+stack reaches healthy. Two traps worth remembering: excluding `**/*.md` from the
+build context **fails the build**, because `--no-editable` builds the
+`laiive-shared` wheel and hatchling reads the `README.md` its metadata names; and
+the dev override now needs `target: build`, because the runtime stage has no uv for
+those `sleep infinity` shells to use.
+
+**Phases D + E — `k8s/` and the boundary** (done; both overlays verified with
+`kubectl kustomize`, nothing applied because there is no cluster yet). Kustomize
+base + prod/local overlays, sized so the worst case is ~3.7 GB of 8 GB — the
+headroom is the point, since a node with none OOMs during a rollout when N+1 of
+everything runs. Gateway 2, retriever 2 with an HPA to 4, pusher 1, search 1 with
+`Recreate` and a 420s grace, Redis on a 1Gi local-path PVC. One process per pod and
+no `--workers`: every retriever path blocks in the 40-slot threadpool on network
+wait, so workers would multiply memory for a bottleneck that is not CPU.
+
+The boundary is two independent layers: six **NetworkPolicies** (default-deny, then
+Traefik→gateway, gateway→services, gateway/pusher/search→Redis, DNS, and egress to
+the internet **with the pod and service CIDRs excepted** — without that `except` the
+egress rule silently re-permits all east-west traffic and the namespace is not
+default-deny at all), plus a **shared internal key**
+(`laiive_shared/internal_auth.py`, `hmac.compare_digest`, probes exempt, no-op when
+unset) that the gateway injects and strips any client copy of. k3s enforces
+NetworkPolicy on a default install via kube-router — **never start the server with
+`--disable-network-policy`**.
+
+**Honest caveat on the HPA**: CPU is a poor signal here. Pods block on OpenAI, so
+CPU stays flat while the threadpool fills and latency climbs — it will under-react.
+It is worth having for the mechanism; `minReplicas: 2` does most of the work. The
+real signal is in-flight requests per pod, which needs KEDA or prometheus-adapter.
+
+**Phase G — CI** (written and YAML-validated, never run): `ci.yml` (python matrix
+with ruff+pytest, node matrix, a job that kustomize-builds the manifests, and
+buildx for all four images) and `deploy.yml` (GHCR sha tags, sops decrypt,
+**Tailscale** so the node's 6443 stays closed to the internet, `kustomize edit set
+image`, apply, rollout status, then the existing `e2e-live.mjs` as a free 23-assertion
+smoke). Neither can fire yet: `main` is not pushed.
+
+**Suites after all of it**: shared 67, retriever 103, pusher 67, search 32,
+gateway 23 — all green. A real anonymous chat was smoked end-to-end through the
+gateway (status → events.result → progressive `message.delta`), and the new
+`log_turn` line replaced the file write.
+
+**What is left, and why it is not done**: the Hetzner box does not exist (Phase C
+is a runbook in the plan and `k8s/README.md`), DNS and the real hostname are the
+owner's (`<tld>` is a literal placeholder in `overlays/prod/ingress.yaml` and
+`patches/cors.yaml`), `deploy.yml` needs `SOPS_AGE_KEY`, `KUBECONFIG_B64` and the
+two Tailscale secrets, `.sops.yaml` needs the age recipient, and the load test and
+NetworkPolicy verification (commands in `k8s/README.md`) need a cluster. Also note
+`env-to-secret.sh` **appended a generated `INTERNAL_API_KEY` to the root `.env`** —
+the gateway and all three services must see the same value.
+
+Full plan with per-phase effort: `C:\Users\OAV\.claude\plans\maybe-we-should-redefine-magical-pebble.md`.
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -778,6 +902,27 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
 - Background dev servers survive their launcher: stopping the wrapped
   `npm run dev` / `uv run uvicorn` task left `node` and `python` still holding
   :8000 and :8004. Kill by PID from `Get-NetTCPConnection` after stopping a task.
+- **`uv run uvicorn …` now fails** with `Failed to canonicalize script path` on this
+  machine. Use `uv run --no-sync python -m uvicorn …` with a separate `uv sync`.
+  The `make start-*` targets still use the broken form.
+- **Other projects squat the stack's ports.** An `A02_VaiVia` uvicorn holds :8000
+  and a `laiive-global-workspace` container holds :8002/:8003. Everything is
+  env-overridable, so shift rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`,
+  `PUSHER_URL`, `CORS_ALLOW_ORIGINS` on the gateway and inline `VITE_API_URL` for
+  Vite (Vite prioritises inline `VITE_*` over `.env` files).
+- **`npm run dev -- --port 8081` silently loses the flags** in PowerShell — Vite
+  starts on 5173 and treats `8081` as a root directory. Call `npx vite --port 8081
+  --strictPort` instead.
+- The shared venv had `laiive-shared` installed from the repo's **old DIALOGOO
+  path**, which made pytest tracebacks cite files that no longer exist. `uv sync`
+  in `services/shared` fixed it; suspect this first if a traceback names a path
+  outside this repo.
+- Docker Desktop's loopback: `127.0.0.1:<published>` sometimes refuses while
+  `localhost:<published>` works. Use `localhost` for published container ports.
+- The **ruff `--fix` pre-commit hook bit four more times** this session, always the
+  same way: add an import in one edit and its first use in the next, and the hook
+  deletes the import in between. It is not hypothetical — grep for the symbol after
+  every import-only edit, or write the import and its usage in a single edit.
 
 ## Standing rules from the owner
 
@@ -831,18 +976,36 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
         { "date": "2026-08-17", "text": "A managed pool cannot reach a localhost gateway; recommended shape is Prefect Cloud as scheduler and UI only, with flows executing locally via serve() - owner approval pending, nothing implemented" },
         { "date": "2026-08-17", "text": "Cloudflare quick tunnel rejected: its 100 s origin-silence cap would 524 the 2-6 min synchronous sweep and misattribute the failure to Prefect; ngrok has no such cap" }
       ] },
-    { "name": "Phase 6 - CI/CD + deploy", "status": "planned", "start": null, "end": null, "plan": "refactor",
-      "decisions": [{ "date": "2026-08-14", "text": "D18 frontend host is Cloudflare Pages, services on Railway/Fly per R2" }] }
+    { "name": "Phase 6 - CI/CD + deploy", "status": "active", "start": "2026-08-17", "end": null, "plan": "refactor",
+      "decisions": [
+        { "date": "2026-08-14", "text": "D18 frontend host is Cloudflare Pages; services were Railway/Fly per R2, superseded by D19" },
+        { "date": "2026-08-17", "text": "CORS between the gateway and the services was rejected as a security control: it is browser-enforced and the gateway is not a browser, so it would change nothing about who can reach 8002/8003" },
+        { "date": "2026-08-17", "text": "D19 services run on k3s on one Hetzner CX32, manifests as Kustomize base plus overlays so a managed cluster later is an overlay swap; reverses R1 and R2" },
+        { "date": "2026-08-17", "text": "Budget holds at 30-50 USD per month, so Aura stays Free tier and Redis is self-hosted in-cluster rather than managed" },
+        { "date": "2026-08-17", "text": "The service boundary is two independent layers: a default-deny NetworkPolicy set enforced by k3s kube-router, plus a shared internal-key header the gateway injects and each service verifies" },
+        { "date": "2026-08-17", "text": "Distributed state goes to one in-cluster Redis for both the gateway rate limiter and the geocoder cache and 1 req/s gate; Aura Free must not carry coordination writes" },
+        { "date": "2026-08-17", "text": "One uvicorn process per pod, scale by replica and never --workers: request paths block in the 40-slot threadpool on network wait, so the bottleneck is not CPU" },
+        { "date": "2026-08-17", "text": "Secrets are SOPS plus age rather than sealed-secrets, because the ciphertext is cluster-agnostic and there is no controller to run on an 8 GB single node" },
+        { "date": "2026-08-17", "text": "CI reaches the cluster over Tailscale so the node's 6443 stays closed to the internet; GHCR packages are public so there are no pull secrets to rotate" }
+      ] }
   ],
   "blockers": [
-    { "text": "Phase 5b scheduling is unimplemented pending a decision: adopt the local serve() shape (Cloud as scheduler only) or wait for Phase 6 to deploy a public gateway and keep the managed pool", "severity": "high", "owner": "oscar", "since": "2026-08-17" },
+    { "text": "The Hetzner CX32 does not exist yet, so nothing from D19 has been applied to a cluster: the NetworkPolicy enforcement, the HPA behaviour and the Aura connection-pool budget are all unverified until a node exists", "severity": "high", "owner": "oscar", "since": "2026-08-17" },
+    { "text": "Phase 6 deploy needs four repository secrets (SOPS_AGE_KEY, KUBECONFIG_B64, TS_OAUTH_CLIENT_ID, TS_OAUTH_SECRET), an age recipient in .sops.yaml, and the real hostname in place of the literal <tld> placeholder in overlays/prod/ingress.yaml and patches/cors.yaml", "severity": "high", "owner": "oscar", "since": "2026-08-17" },
+    { "text": "This session's work is uncommitted: 45 modified tracked files plus a new k8s/ tree, .sops.yaml and three new shared modules. All suites are green but nothing is reviewed or committed", "severity": "medium", "owner": "oscar", "since": "2026-08-17" },
+    { "text": "Phase 5b scheduling is unimplemented pending a decision: adopt the local serve() shape (Cloud as scheduler only) or wait for the k3s deploy and run the flows as a workload in the cluster, which the D19 shape now makes the natural answer", "severity": "medium", "owner": "oscar", "since": "2026-08-17" },
     { "text": "GitHub's fine-grained PAT page is down (No server is currently available), so github-laiive-pat was never minted and any git_clone-based Prefect deploy cannot authenticate - retry in a later session, or use gh auth token as a broader-scoped stand-in", "severity": "medium", "owner": "oscar", "since": "2026-08-17" },
     { "text": "Google sign-in is wired and enabled but the real click-through has never been exercised", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
     { "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - moot under the local serve() shape, blocking again if the managed pool is revived at Phase 6", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
     { "text": "The .claude PostToolUse hook points at the repo's old DIALOGOO path, so every file edit reports a can't-open-file error - harmless but it masks real hook failures", "severity": "low", "owner": "oscar", "since": "2026-08-17" }
   ],
   "nextSteps": [
-    { "title": "Decide the scheduling shape, then implement flows/serve.py and prove Cloud-scheduled local execution end to end", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Review and commit the D19 work: phases A, B, D, E and G are done and green but uncommitted", "est": 1, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" },
+    { "title": "Provision the Hetzner CX32 and bootstrap k3s per the runbook: cloud firewall with 6443 closed, swapoff, pinned k3s without --disable-network-policy, cert-manager, Tailscale, SQLite backup timer plus snapshots, journald cap, uptime check", "est": 1, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" },
+    { "title": "Apply k8s/overlays/prod behind a temporary nip.io host and verify both boundary layers fail closed independently, per the commands in k8s/README.md", "est": 1, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" },
+    { "title": "Ingress and TLS: put traefik-config.yaml on the node, issue on letsencrypt-staging then flip to prod, and cut over VITE_API_URL, CORS_ALLOW_ORIGINS and the Prefect laiive_gateway_url variable together", "est": 1, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" },
+    { "title": "Wire the deploy secrets, let ci.yml and deploy.yml run for the first time, then load test the HPA and tune NEO4J_MAX_POOL_SIZE against Aura Free", "est": 1, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" },
+    { "title": "Decide the scheduling shape, now that a cluster makes running the flows as an in-cluster workload the natural answer instead of a local serve() process", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
     { "title": "Containerize the flow runner as a compose flows service with restart unless-stopped, which also first-verifies the compose builds", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
     { "title": "Mint the fine-grained PAT when GitHub recovers - only needed if the managed git_clone path is revived", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
     { "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
@@ -854,7 +1017,8 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
     { "date": "2026-08-13", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
     { "date": "2026-08-14", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
     { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
-    { "date": "2026-08-17", "model": "fable-5", "credits": null, "person": "oscar", "hours": null }
+    { "date": "2026-08-17", "model": "fable-5", "credits": null, "person": "oscar", "hours": null },
+    { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null }
   ]
 }
 ```

@@ -1,0 +1,100 @@
+# Every merge is tested and every image builds (04-plan Phase 6).
+# `pre-commit.yml` stays separate: it is cheap, independent, and formats.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each service is its own uv project — there is no root pyproject.
+        service: [shared, retriever, pusher, search]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/${{ matrix.service }}/uv.lock
+      - name: sync
+        working-directory: services/${{ matrix.service }}
+        run: uv sync --locked
+      - name: ruff
+        working-directory: services/${{ matrix.service }}
+        run: uv run ruff check .
+      - name: pytest
+        working-directory: services/${{ matrix.service }}
+        # Integration tests need a live Aura and real keys; they are deselected
+        # here and run by hand (see the verify-retriever skill).
+        run: uv run pytest -q -m "not integration"
+
+  node:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { dir: services/gateway, test: true }
+          - { dir: frontend, test: false }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      - working-directory: ${{ matrix.dir }}
+        run: npm ci
+      - name: typecheck
+        working-directory: ${{ matrix.dir }}
+        # The frontend's typecheck runs both tsconfig projects; a bare
+        # `tsc --noEmit` at its root is a silent no-op with project references.
+        run: npm run typecheck
+      - name: test
+        if: matrix.test
+        working-directory: ${{ matrix.dir }}
+        run: npm test
+      - name: build
+        working-directory: ${{ matrix.dir }}
+        run: npm run build
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: kustomize build
+        # A manifest that does not build is a deploy that fails after the images
+        # are already pushed. Cheap to catch here.
+        run: |
+          printf 'PLACEHOLDER=1\n' > k8s/overlays/local/secrets.env
+          kubectl kustomize k8s/base    > /dev/null
+          kubectl kustomize k8s/overlays/local > /dev/null
+
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, retriever, pusher, search]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build
+        uses: docker/build-push-action@v6
+        with:
+          # Context is services/ for all four: the Python images COPY shared/
+          # alongside their own directory.
+          context: ./services
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

@@ -1,5 +1,23 @@
 # development
+#
+# The three Python services here are idle `sleep infinity` shells you exec into,
+# not running APIs. Two consequences of the hardened images (D19 phase B):
+#   - they build the `build` stage, because the runtime stage has no uv;
+#   - their healthchecks are disabled, since nothing is listening — and the
+#     gateway's `depends_on` conditions are relaxed to match, or `up-dev` waits
+#     forever for a service that will never report healthy.
 services:
+  gateway:
+    depends_on:
+      redis:
+        condition: service_started
+      retriever:
+        condition: service_started
+      pusher:
+        condition: service_started
+      search:
+        condition: service_started
+
   global-workspace:
     container_name: global-workspace
     build:
@@ -26,6 +44,9 @@ services:
     build:
       context: ./services
       dockerfile: pusher/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
     volumes:
       - ./services/pusher:/app:cached
       - ./services/shared:/shared:cached
@@ -48,6 +69,9 @@ services:
     build:
       context: ./services
       dockerfile: retriever/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
     volumes:
       - ./services/retriever:/app:cached
       - ./services/shared:/shared:cached
@@ -70,6 +94,9 @@ services:
     build:
       context: ./services
       dockerfile: search/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
     volumes:
       - ./services/search:/app:cached
       - ./services/shared:/shared:cached

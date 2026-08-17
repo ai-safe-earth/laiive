@@ -4,27 +4,35 @@ import type { GatewayConfig } from "./config.js";
 import { requireRole } from "./auth.js";
 
 /**
- * The services trust identity headers blindly (they are unreachable except
- * through the gateway), so client-sent copies are dropped before the
- * gateway's own values go on.
+ * The services trust identity headers because they are unreachable except
+ * through the gateway — and, when INTERNAL_API_KEY is set, because they check.
+ * Client-sent copies of everything the gateway asserts are dropped first;
+ * `x-internal-key` belongs in that strip-list precisely because it is what
+ * protects the rest.
  */
-const replyOptions: NonNullable<FastifyHttpProxyOptions["replyOptions"]> = {
+const replyOptionsFor = (
+  config: GatewayConfig,
+): NonNullable<FastifyHttpProxyOptions["replyOptions"]> => ({
   rewriteRequestHeaders: (request, headers) => {
     const out = { ...headers };
     delete out["x-user-id"];
     delete out["x-user-role"];
     delete out["x-request-id"];
+    delete out["x-internal-key"];
     delete out.authorization;
     out["x-request-id"] = String(request.id);
+    if (config.internalApiKey) out["x-internal-key"] = config.internalApiKey;
     if (request.user) {
       out["x-user-id"] = request.user.id;
       out["x-user-role"] = request.user.role;
     }
     return out;
   },
-};
+});
 
 export function registerProxies(app: FastifyInstance, config: GatewayConfig): void {
+  const replyOptions = replyOptionsFor(config);
+
   // Chat proxies parse the JSON body (proxyPayloads: false) so conversation
   // logging can capture it; everything else streams bodies through untouched
   // (audio/file uploads must not be buffered or parsed here).

@@ -103,13 +103,27 @@ desktop.ini
 analysis/
 out/
 
+# .env backups carry the same secrets as .env itself
+.env.bak*
+
+# k8s secrets — only the SOPS-encrypted secrets.enc.yaml is ever committed.
+# secrets.env is the decrypted form the deploy job writes and deletes.
+k8s/overlays/*/secrets.env
+k8s/**/*.dec.yaml
+age.key
+
 # not push data files
 data/
 */data/
 
 # cache files
 *_cache
-.claude/
+
+# claude code — track the shared skills and hooks, ignore local state
+# (settings.local.json, worktrees/, and anything else added under .claude/)
+.claude/*
+!.claude/skills/
+!.claude/hooks/
 
 # agent skills (personal tooling)
 .agents/
