@@ -17,45 +17,16 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b, Prefect Cloud half** — the local flow run is done
-and green (see *Phase 5b* below). Owner steps, in order (two gotchas:
-`prefect.yaml` git-clones **`main` of `ai-safe-earth/laiive`** at run time
-but only `refactor/foundation` is pushed (see step 1); and a managed pool
-cannot reach a localhost gateway, so the manual test run needs a tunnel or
-the Phase 6 deploy):
-
-1. Push the code Prefect will clone: `refactor/foundation` is pushed to
-   `origin` (2026-08-15). For a pre-merge test, set
-   `branch: refactor/foundation` in `prefect.yaml` locally before
-   `prefect deploy` — no commit needed, the pull step is baked into the
-   deployment at deploy time (revert the local edit after). Or merge/push
-   `main` on `origin` and deploy as-is.
-2. Prefect Cloud account + workspace at app.prefect.cloud (free tier is
-   fine), then `cd services/search && uv sync --group flows &&
-   uv run prefect cloud login` (interactive — browser auth).
-3. `uv run prefect work-pool create laiive-managed --type prefect:managed`.
-4. In the Cloud UI: Secret blocks `supabase-admin-email`,
-   `supabase-admin-password` (the already-provisioned service account),
-   `github-laiive-pat` (fine-grained PAT, Contents read-only, only this
-   repo); Variables `laiive_supabase_url` (project URL in root `.env`),
-   `laiive_supabase_publishable_key`, and `laiive_gateway_url` (step 5).
-5. Public gateway URL: until Phase 6 deploys one, tunnel the local stack —
-   `cloudflared tunnel --url http://localhost:8000` (or ngrok) with
-   gateway :8000 + search :8004 running and `SEARCH_ENABLED=true` — and put
-   the tunnel URL in `laiive_gateway_url`.
-6. From the repo root: `uv run --project services/search prefect deploy --all`.
-7. Cloud UI → Deployments → `city-sweep-weekly` → Run. This answers the
-   open question whether a managed pool tolerates the 2–6 min synchronous
-   sweep call per city (04-plan sanctions the 202+poll redesign if not).
-   Trigger `backfill-nightly` once too.
-8. Deploying activates the cron schedules (Mon 06:00 sweep, 04:30 backfill
-   Europe/Madrid) — pause them in the UI if weekly runs shouldn't start
-   yet, and remember new sweeps still need a human approve. ~~88 candidates
-pending review~~ — reviewed and **54 approved into the graph 2026-08-14**
-(see *Phase 5b — approvals*); the writer fix that run produced is
-committed (`7bb7ad0`) in `laiive_shared/neo4j_writer.py`. After that: Phase 6
-(CI/CD + deploy). The only Phase-4 leftover is the Google click-through by
-the owner.
+**Next up**: **Phase 5b, scheduling half — the plan changed.** The managed-pool
+route stalled on three independent walls this session (2026-08-17); the
+recommended shape is now **Prefect Cloud as scheduler + UI only, with the flows
+executing locally**. Nothing was implemented — read *Phase 5b — the scheduling
+rethink* below before touching anything. The local flow run itself is still done
+and green. The 88 swept candidates were reviewed and **54 approved into the graph
+2026-08-14** (see *Phase 5b — approvals*); the writer fix that run produced is
+committed (`7bb7ad0`) in `laiive_shared/neo4j_writer.py`. After scheduling:
+Phase 6 (CI/CD + deploy). The only Phase-4 leftover is the Google click-through
+by the owner.
 
 ## Done
 
@@ -607,6 +578,80 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   wants a type gate. Also: Ticketmaster's joke venue "Shakira Stadium" is
   now a Venue node (real venue: Iberdrola Music) — approve has no edit path.
 
+#### Phase 5b — the scheduling rethink (2026-08-17, nothing implemented)
+
+**The insight**: only a *managed* work pool needs a public gateway URL. It runs
+in Prefect's own container, which has no route to this machine. **Every other
+Prefect execution mode is outbound-only** — the machine polls Prefect Cloud over
+HTTPS, Cloud never connects in. Same direction of travel as a tunnel, but it is
+the intended design instead of plumbing.
+
+**Recommended shape (owner approval pending)**: Prefect Cloud becomes scheduler
++ UI + run history, and the flows execute here against `127.0.0.1:8000`, exactly
+like the local run that already passed green.
+
+- **Mechanism**: Prefect 3's `serve()`. One script (`services/search/flows/serve.py`,
+  ~15 lines) registers both deployments with their cron schedules in Cloud and
+  runs a long-lived local process that executes them. No work pool, no worker,
+  no `prefect.yaml`, no git_clone, no PAT, no tunnel, no image.
+  The conventional alternative is a `process` work pool plus
+  `prefect worker start` — same outbound-only property, two more moving parts,
+  no benefit here.
+- **Serious packaging**: add a `flows` service to `docker-compose.yml` beside
+  gateway/retriever/pusher/search with `restart: unless-stopped` and
+  `GATEWAY_URL: http://gateway:8000` (compose DNS — no host ports, no
+  `host.docker.internal`). Then `docker compose up -d` is the whole system and
+  sweeps fire Mon 06:00 Madrid unattended. Two snags: `services/search/Dockerfile`
+  deliberately syncs `--no-group flows` to stay slim, so the flows container needs
+  its own stage or Dockerfile; and it needs `PREFECT_API_KEY` + `PREFECT_API_URL`
+  in root `.env` (mint a key in the Cloud UI). This step is also the **first real
+  verification of the compose builds**, still unverified since Phase 3.
+- **What it deletes**: the tunnel, `github-laiive-pat`, the "`main` is not pushed"
+  problem, and the open question about a managed pool tolerating a 2–6 min
+  synchronous call. The `laiive-managed` work pool created this session becomes
+  unused (harmless; delete it or leave it).
+- **The one genuine tradeoff**: scheduled runs fire only while this machine is
+  awake with the stack up. Missed crons show as Late in the Cloud UI and get
+  triggered by hand. Phase 6's deployed gateway can move execution to a managed
+  pool later with no code change — `prefect.yaml` stays in the repo, dormant and
+  unchanged (`branch: main`, git_clone, managed pool).
+- **Suggested order**: (1) write `flows/serve.py`, run it on the host against
+  the dev servers, trigger `city-sweep-weekly` from the Cloud UI to prove
+  Cloud-schedules-plus-local-execution end to end; (2) then containerize as the
+  compose `flows` service.
+
+**Why the managed route stalled — three independent walls:**
+
+1. **No private networking.** A managed pool cannot reach a localhost gateway,
+   so it needs a public URL, which does not exist until Phase 6 deploys one —
+   hence a tunnel.
+2. **A Cloudflare quick tunnel would have failed the test uninformatively.**
+   Cloudflare's edge returns 524 after 100 s of origin silence. `/sweep` is a
+   plain `def` returning one JSON blob with nothing streamed
+   (`services/search/agent/api.py:44`), sweeps take 2–6 min per city, and the
+   flow allows 900 s (`SWEEP_TIMEOUT`, task `timeout_seconds=1200`). The run
+   would die at 100 s on *Cloudflare*, not on Prefect, and the 524 would look
+   like the managed-pool timeout question answering itself in the negative.
+   ngrok has no such cap and would have been the correct tunnel. Note for
+   Phase 6: Railway and Fly proxies cut long silent requests the same way, so
+   the 202+poll redesign that 04-plan sanctions is probably required in
+   production regardless of how scheduling lands.
+3. **GitHub's fine-grained PAT page was down** — "No server is currently
+   available to service your request" — so `github-laiive-pat` was never minted
+   and `git_clone` could not authenticate. Retry in a later session.
+
+**Prefect Cloud state created this session — do not redo:**
+
+- Logged in; workspace `oscar-av/default`.
+- Work pool `laiive-managed` (`prefect:managed`), id `0f6bf8bf`.
+- Secret blocks `supabase-admin-email`, `supabase-admin-password`.
+- Variables `laiive_supabase_url`, `laiive_supabase_publishable_key`.
+- All four seeded from root `.env` values.
+- **Not set**: Secret block `github-laiive-pat`, Variable `laiive_gateway_url`.
+  Under the local-`serve()` shape `laiive_gateway_url` can simply be
+  `http://127.0.0.1:8000`, or omitted entirely since `flows/auth.py` resolves
+  env first and root `.env` already has `GATEWAY_URL`.
+
 #### Phase 5b — original design notes
 
 - **`services/search/flows/`** (D17, thin HTTP clients of the public
@@ -706,6 +751,33 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
   and its first use in the next leaves the file broken with a `NameError` that
   only surfaces at test time. Add the import and the usage in the same write, or
   re-check the import block afterwards.
+- **The `.claude` PostToolUse hook path is stale** and fails on every single
+  edit: it runs
+  `python C:/Users/OAV/MAIN/DS_ML_AI/DIALOGOO/laiive/.claude/hooks/ruff_on_edit.py`,
+  a path from the repo's old location, so each Edit reports
+  `can't open file … [Errno 2]`. Edits still land (the hook runs after), but the
+  noise hides real failures — fix the path to this repo's `.claude/hooks/`.
+- **The `prefect` CLI crashes on Windows while printing.** `work-pool create`
+  raised `UnicodeEncodeError: 'charmap' codec` from `rich`'s cp1252 console
+  writer *after* creating the pool — the command succeeded, only the output
+  died. Prefix Prefect (and any rich-using) commands with `PYTHONIOENCODING=utf-8`.
+- `uv run` inside `services/search` warns that
+  `VIRTUAL_ENV=…\laiive\.venv` does not match the project env `.venv` — harmless,
+  it ignores the outer one.
+- **Gateway health is `/healthz`**, not `/health` (which 404s) —
+  `services/gateway/src/server.ts:72`. The Python services use `/health`.
+- `winget` is not on PATH in this shell, and the permission classifier blocks
+  `Invoke-WebRequest` of an `.exe`, so **Claude cannot install cloudflared** —
+  the owner installs it if a tunnel is ever needed again.
+- The classifier also blocks piping `gh auth token` into a Prefect Secret block.
+  Useful fallback while GitHub's PAT page is down: `gh` is logged in as
+  `OscarArroyoVega` with `repo` scope and can read `ai-safe-earth/laiive`, so
+  `gh auth token` works as a stand-in for the fine-grained PAT — the owner runs
+  it. It is much broader scope (every repo he can reach), so swap in the real
+  fine-grained PAT once GitHub recovers.
+- Background dev servers survive their launcher: stopping the wrapped
+  `npm run dev` / `uv run uvicorn` task left `node` and `python` still holding
+  :8000 and :8004. Kill by PID from `Get-NetTCPConnection` after stopping a task.
 
 ## Standing rules from the owner
 
@@ -755,29 +827,34 @@ New decisions for those phases (D17/D18 in `05-decisions.md`, work items in
         { "date": "2026-08-14", "text": "Write gate relaxed for admin_search: name + start_at + venue + city only" },
         { "date": "2026-08-14", "text": "Sweeps stay dry-run, a human approve is required before any graph write" },
         { "date": "2026-08-14", "text": "D17 Prefect Cloud managed pool, flows are thin HTTP clients of the public gateway" },
-        { "date": "2026-08-14", "text": "54 of 88 swept candidates approved into the graph" }
+        { "date": "2026-08-14", "text": "54 of 88 swept candidates approved into the graph" },
+        { "date": "2026-08-17", "text": "A managed pool cannot reach a localhost gateway; recommended shape is Prefect Cloud as scheduler and UI only, with flows executing locally via serve() - owner approval pending, nothing implemented" },
+        { "date": "2026-08-17", "text": "Cloudflare quick tunnel rejected: its 100 s origin-silence cap would 524 the 2-6 min synchronous sweep and misattribute the failure to Prefect; ngrok has no such cap" }
       ] },
     { "name": "Phase 6 - CI/CD + deploy", "status": "planned", "start": null, "end": null, "plan": "refactor",
       "decisions": [{ "date": "2026-08-14", "text": "D18 frontend host is Cloudflare Pages, services on Railway/Fly per R2" }] }
   ],
   "blockers": [
-    { "text": "Prefect Cloud half of Phase 5b needs owner-only steps: push main on origin, cloud login, work pool, secret blocks and a public gateway URL", "severity": "high", "owner": "oscar", "since": "2026-08-14" },
-    { "text": "Open question whether a managed work pool tolerates the 2-6 min synchronous sweep call per city (202+poll redesign sanctioned if not)", "severity": "medium", "owner": "oscar", "since": "2026-08-14" },
+    { "text": "Phase 5b scheduling is unimplemented pending a decision: adopt the local serve() shape (Cloud as scheduler only) or wait for Phase 6 to deploy a public gateway and keep the managed pool", "severity": "high", "owner": "oscar", "since": "2026-08-17" },
+    { "text": "GitHub's fine-grained PAT page is down (No server is currently available), so github-laiive-pat was never minted and any git_clone-based Prefect deploy cannot authenticate - retry in a later session, or use gh auth token as a broader-scoped stand-in", "severity": "medium", "owner": "oscar", "since": "2026-08-17" },
     { "text": "Google sign-in is wired and enabled but the real click-through has never been exercised", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
-    { "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - main is not updated yet", "severity": "medium", "owner": "oscar", "since": "2026-08-14" }
+    { "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time, but only refactor/foundation is pushed - moot under the local serve() shape, blocking again if the managed pool is revived at Phase 6", "severity": "low", "owner": "oscar", "since": "2026-08-14" },
+    { "text": "The .claude PostToolUse hook points at the repo's old DIALOGOO path, so every file edit reports a can't-open-file error - harmless but it masks real hook failures", "severity": "low", "owner": "oscar", "since": "2026-08-17" }
   ],
   "nextSteps": [
-    { "title": "Prefect Cloud setup: account, work pool, secret blocks, variables", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Expose a public gateway URL (tunnel until Phase 6 deploys one) and deploy the flows", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
-    { "title": "Trigger city-sweep-weekly and backfill-nightly once in the Cloud UI", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Decide the scheduling shape, then implement flows/serve.py and prove Cloud-scheduled local execution end to end", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Containerize the flow runner as a compose flows service with restart unless-stopped, which also first-verifies the compose builds", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Mint the fine-grained PAT when GitHub recovers - only needed if the managed git_clone path is revived", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
     { "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate", "est": 2, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
+    { "title": "Fix the stale .claude PostToolUse hook path", "est": 1, "owner": "oscar", "phase": "Phase 5 - SEARCH service + scheduling", "plan": "refactor" },
     { "title": "Click through Google sign-in once with a real account", "est": 1, "owner": "oscar", "phase": "Phase 4 - frontend, multimodal, walk", "plan": "refactor" },
-    { "title": "Phase 6: CI/CD, Cloudflare Pages frontend, service deploy", "est": 5, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" }
+    { "title": "Phase 6: CI/CD, Cloudflare Pages frontend, service deploy - includes the 202+poll sweep redesign, since Railway and Fly proxies cut long silent requests too", "est": 5, "owner": "oscar", "phase": "Phase 6 - CI/CD + deploy", "plan": "refactor" }
   ],
   "sessions": [
     { "date": "2026-08-13", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
     { "date": "2026-08-14", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
-    { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null }
+    { "date": "2026-08-17", "model": "opus-5", "credits": null, "person": "oscar", "hours": null },
+    { "date": "2026-08-17", "model": "fable-5", "credits": null, "person": "oscar", "hours": null }
   ]
 }
 ```
