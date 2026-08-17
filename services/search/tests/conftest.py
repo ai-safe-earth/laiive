@@ -11,9 +11,15 @@ module-level client gets added to this list or tests hit the real API):
 """
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# The root .env carries a real INTERNAL_API_KEY and the middleware installs at
+# import time of agent.api — blank it before any test module imports the app.
+# Enforcement itself is covered in shared's test_internal_auth.py.
+os.environ["INTERNAL_API_KEY"] = ""
 
 EXTRACTION_JSON = json.dumps(
     {
