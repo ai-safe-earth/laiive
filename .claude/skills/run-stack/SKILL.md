@@ -100,6 +100,10 @@ installed here** — use npm, despite `frontend/package.json` history.
 - `make start-retriever` / `start-pusher` / `start-gateway` / `start-search` exist and use the
   same ports, but they `cd` in a shell whose CWD doesn't persist reliably here — prefer the
   explicit `Set-Location` form above.
+- **Direct curls to the services 403** when `INTERNAL_API_KEY` is set in the root `.env` (it is):
+  every route except `/livez`, `/readyz`, `/health` and `/` requires the `X-Internal-Key` header
+  the gateway injects. That is the boundary working, not a bug — smoke-test through the gateway,
+  or send the header from `.env` when a direct call is genuinely needed.
 
 ## Port conflicts
 
