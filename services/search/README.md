@@ -23,20 +23,39 @@ Tests: `uv run pytest`.
 Supabase admin service account (password grant per run) and never reach this
 service or the graph directly. `city_sweep` (weekly, one task per city,
 markdown artifact as the review surface — sweeps stay dry-run) and `backfill`
-(nightly). Schedules live in the root `prefect.yaml`; deploy with
-`prefect deploy --all` from the repo root.
+(nightly).
+
+**Scheduling runs via `flows/serve.py`**, not `prefect deploy` — the scheduling
+rethink (handoff.md, 2026-08-17): a managed work pool has no private networking
+and needed a public gateway URL plus a `github-laiive-pat` Secret block, neither
+of which exist pre-deploy. `serve()` registers both deployments' cron schedules
+with Prefect Cloud and then blocks in this process, executing runs locally
+against whatever `GATEWAY_URL` resolves to. No work pool, no worker, no PAT, no
+image. The root `prefect.yaml` (`git_clone` + managed pool) stays in the repo,
+dormant, for when Phase 6 deploys a public gateway and that path is worth
+reviving.
 
 Setup, in order:
 
 1. Provision the service account (writes to Supabase — owner runs it):
    `uv run --env-file ../../.env python scripts/create_admin_user.py --email <email>`
-2. Prefect Cloud: create a managed work pool `laiive-managed`; Secret blocks
-   `supabase-admin-email`, `supabase-admin-password`, `github-laiive-pat`
-   (read-only PAT for the repo clone); Variables `laiive_gateway_url`,
-   `laiive_supabase_url`, `laiive_supabase_publishable_key`.
-3. `prefect deploy --all`.
+2. Either set env vars directly (`GATEWAY_URL`, `SUPABASE_ADMIN_EMAIL`,
+   `SUPABASE_ADMIN_PASSWORD`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` — root
+   `.env` already has all of these), or put the non-secret ones in Prefect
+   Variables (`laiive_gateway_url`, `laiive_supabase_url`,
+   `laiive_supabase_publishable_key`) and the credentials in Secret blocks
+   (`supabase-admin-email`, `supabase-admin-password`) — env wins when both are
+   present.
+3. `uv run --group flows python flows/serve.py`, with the gateway
+   (`SEARCH_ENABLED=true`) and this service running. Long-lived process; run it
+   under whatever keeps a process alive on your box (systemd, a compose
+   `restart: unless-stopped` service, `pm2`, ...).
 
-Local dry run without Prefect Cloud (env beats blocks/variables):
-`uv run --env-file ../../.env` with `GATEWAY_URL`, `SUPABASE_ADMIN_EMAIL`,
-`SUPABASE_ADMIN_PASSWORD` set, then `python flows/city_sweep.py` against the
-live local stack (gateway with `SEARCH_ENABLED=true`).
+**Verified live 2026-08-17**: `serve()` registered `city-sweep-weekly` and
+`backfill-nightly` in Prefect Cloud; `prefect deployment run
+'backfill/backfill-nightly'` from a second shell created a Cloud flow run that
+the local `serve()` process picked up, executed against the local gateway, and
+completed in ~7s — the whole point of the rethink, proven end to end.
+
+Ad hoc local run without touching schedules: `uv run --env-file ../../.env`
+with the same env vars, then `python flows/city_sweep.py` directly.

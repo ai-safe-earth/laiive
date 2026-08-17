@@ -5,7 +5,9 @@ never start a second one). Continuation point for the laiive refactor. Read this
 first, then `docs/refactor/04-plan.md` (phases) and `docs/refactor/05-decisions.md`
 (all decisions, D1–D19 + budget).
 Branch: **`refactor/foundation`** (from `connect-to-ui`), pushed to `origin`
-(ai-safe-earth/laiive) 2026-08-15; `main` on `origin` not updated yet.
+(ai-safe-earth/laiive) 2026-08-15, updated 2026-08-17 (`e100195`); `main` on
+`origin` not updated yet. The k3s detour lives on **`experiment/k3s`**
+(`99c92d4`, `12d85d7`), also pushed — see *Phase 6* below before reviving it.
 Canonical remote for PRs = `origin` — the remote *named* `laiive` is the
 personal fork, do not push there.
 
@@ -17,17 +19,20 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 5b scheduling, then Phase 6 on compose + PaaS.** The k3s
-detour (D19) was **withdrawn the same day it was decided** — the owner chose
-simple: compose stays the shape, gateway the only published surface, Railway/Fly
-at deploy time per the reinstated R1/R2. The full k3s work is parked on branch
-**`experiment/k3s`** (`99c92d4`); everything substrate-independent from that
-session **survived and is committed on this branch** — read *Phase 6 — the k3s
-detour and what survived* below before touching the gateway, the geocoder, the
-writer, or any Dockerfile, because all of them changed. Scheduling: search is a
-compose service and Prefect triggers sweeps through the gateway — the local
-`serve()` shape from *Phase 5b — the scheduling rethink*, or a `flows` container
-in compose. The only Phase-4 leftover is the Google click-through by the owner.
+**Next up**: **Phase 6 on compose + PaaS — Phase 5b scheduling is done.**
+The k3s detour (D19) was **withdrawn the same day it was decided** — the owner
+chose simple: compose stays the shape, gateway the only published surface,
+Railway/Fly at deploy time per the reinstated R1/R2. The full k3s work is
+parked on branch **`experiment/k3s`** (`99c92d4`, `12d85d7`); everything
+substrate-independent from that session **survived and is committed on
+`refactor/foundation`** — read *Phase 6 — the k3s detour and what survived*
+below before touching the gateway, the geocoder, the writer, or any Dockerfile,
+because all of them changed. **Scheduling is implemented and verified live**:
+`services/search/flows/serve.py` registers both cron deployments in Prefect
+Cloud and executes them locally against the gateway — see *Phase 5b — the
+scheduling rethink*. Only remaining scheduling work is optional packaging (a
+compose `flows` service). The only Phase-4 leftover is the Google click-through
+by the owner.
 
 ## Done
 
@@ -579,7 +584,7 @@ the pusher refines only `drafts[cursor]`, and it advances on publish.
   wants a type gate. Also: Ticketmaster's joke venue "Shakira Stadium" is
   now a Venue node (real venue: Iberdrola Music) — approve has no edit path.
 
-#### Phase 5b — the scheduling rethink (2026-08-17, nothing implemented)
+#### Phase 5b — the scheduling rethink, implemented and verified live (2026-08-17)
 
 **The insight**: only a *managed* work pool needs a public gateway URL. It runs
 in Prefect's own container, which has no route to this machine. **Every other
@@ -587,42 +592,44 @@ Prefect execution mode is outbound-only** — the machine polls Prefect Cloud ov
 HTTPS, Cloud never connects in. Same direction of travel as a tunnel, but it is
 the intended design instead of plumbing.
 
-**Recommended shape (owner approval pending)**: Prefect Cloud becomes scheduler
-+ UI + run history, and the flows execute here against `127.0.0.1:8000`, exactly
-like the local run that already passed green.
+**Shape (implemented)**: Prefect Cloud is scheduler + UI + run history; the flows
+execute on this machine against whatever `GATEWAY_URL` resolves to.
 
-- **Mechanism**: Prefect 3's `serve()`. One script (`services/search/flows/serve.py`,
-  ~15 lines) registers both deployments with their cron schedules in Cloud and
-  runs a long-lived local process that executes them. No work pool, no worker,
-  no `prefect.yaml`, no git_clone, no PAT, no tunnel, no image.
-  The conventional alternative is a `process` work pool plus
-  `prefect worker start` — same outbound-only property, two more moving parts,
-  no benefit here.
-- **Serious packaging**: add a `flows` service to `docker-compose.yml` beside
-  gateway/retriever/pusher/search with `restart: unless-stopped` and
-  `GATEWAY_URL: http://gateway:8000` (compose DNS — no host ports, no
-  `host.docker.internal`). Then `docker compose up -d` is the whole system and
-  sweeps fire Mon 06:00 Madrid unattended. Two snags: `services/search/Dockerfile`
-  deliberately syncs `--no-group flows` to stay slim, so the flows container needs
-  its own stage or Dockerfile (note: since the image hardening, the runtime stage
-  has no uv — a flows image would build from the `build` stage or its own
-  Dockerfile); and it needs `PREFECT_API_KEY` + `PREFECT_API_URL` in root `.env`
-  (mint a key in the Cloud UI). The compose builds themselves are **verified now**
-  (2026-08-17, the k3s-detour session) — all four images build and the stack
-  reaches healthy.
+- **`services/search/flows/serve.py`** (~25 lines, committed): Prefect 3's
+  `serve()`. Registers `city-sweep-weekly` (`Cron("0 6 * * 1",
+  timezone="Europe/Madrid")`) and `backfill-nightly` (`Cron("30 4 * * *",
+  timezone="Europe/Madrid")`) — same cron strings as `prefect.yaml` — and blocks,
+  executing runs in-process. No work pool, no worker, no git_clone, no PAT, no
+  tunnel, no image. One API trap: `Flow.to_deployment()` takes no `timezone=`
+  kwarg alongside `cron=` — the timezone has to travel on a
+  `prefect.schedules.Cron(...)` object passed as `schedule=`.
+- **Verified live, end to end**: with the local gateway (port 8100 this session,
+  see *Environment gotchas*) and search running, `uv run --group flows python
+  flows/serve.py` registered both deployments in Cloud
+  (`oscar-av/default` workspace) and started polling. From a second shell,
+  `prefect deployment run 'backfill/backfill-nightly'` created a Cloud flow run;
+  the local `serve()` process picked it up, downloaded the flow code, ran
+  `run_backfill` against the gateway, and finished `Completed()` — **~7 seconds,
+  Cloud-scheduled, locally-executed, exactly the shape the rethink proposed.**
+  Full output is in `services/search/README.md`.
 - **What it deletes**: the tunnel, `github-laiive-pat`, the "`main` is not pushed"
   problem, and the open question about a managed pool tolerating a 2–6 min
-  synchronous call. The `laiive-managed` work pool created this session becomes
-  unused (harmless; delete it or leave it).
-- **The one genuine tradeoff**: scheduled runs fire only while this machine is
-  awake with the stack up. Missed crons show as Late in the Cloud UI and get
-  triggered by hand. Phase 6's deployed gateway can move execution to a managed
-  pool later with no code change — `prefect.yaml` stays in the repo, dormant and
-  unchanged (`branch: main`, git_clone, managed pool).
-- **Suggested order**: (1) write `flows/serve.py`, run it on the host against
-  the dev servers, trigger `city-sweep-weekly` from the Cloud UI to prove
-  Cloud-schedules-plus-local-execution end to end; (2) then containerize as the
-  compose `flows` service.
+  synchronous call.
+- **The one genuine tradeoff, unchanged**: scheduled runs fire only while this
+  machine is awake with the stack up. Missed crons show as Late in the Cloud UI
+  and get triggered by hand. `prefect.yaml` stays in the repo, dormant and
+  unchanged, for when Phase 6 deploys a public gateway and the managed-pool path
+  is worth reviving.
+- **Not done, deliberately deferred**: containerizing `serve.py` as a compose
+  `flows` service (`restart: unless-stopped`, `GATEWAY_URL: http://gateway:8000`
+  via compose DNS). Two snags noted for whoever picks this up: `services/search/Dockerfile`
+  syncs `--no-group flows` to stay slim, so a flows image needs its own stage or
+  Dockerfile — and since the image hardening this session, the runtime stage has
+  no `uv`, so it would build from the `build` stage; and it needs
+  `PREFECT_API_KEY` + `PREFECT_API_URL` in root `.env` (mint a key in the Cloud
+  UI). Running `serve.py` under any process supervisor (systemd, `pm2`, a plain
+  `nohup`) is enough for now — proven correctness matters more than packaging
+  before there's a schedule to keep.
 
 **Why the managed route stalled — three independent walls:**
 
@@ -840,12 +847,13 @@ retriever 103, pusher 67, search 32, gateway 23):
   and its first use in the next leaves the file broken with a `NameError` that
   only surfaces at test time. Add the import and the usage in the same write, or
   re-check the import block afterwards.
-- **The `.claude` PostToolUse hook path is stale** and fails on every single
-  edit: it runs
-  `python C:/Users/OAV/MAIN/DS_ML_AI/DIALOGOO/laiive/.claude/hooks/ruff_on_edit.py`,
-  a path from the repo's old location, so each Edit reports
-  `can't open file … [Errno 2]`. Edits still land (the hook runs after), but the
-  noise hides real failures — fix the path to this repo's `.claude/hooks/`.
+- ~~The `.claude` PostToolUse hook path is stale~~ **false alarm, closed
+  2026-08-17**: `.claude/settings.local.json` already uses
+  `$CLAUDE_PROJECT_DIR/.claude/hooks/ruff_on_edit.py`, not an absolute path. The
+  stale absolute path lived only in a leftover git worktree at the old
+  `DIALOGOO` location (`git worktree list` marked it `prunable`); removed with
+  `git worktree remove --force`. If this resurfaces, check `git worktree list`
+  for another orphan before touching the hook config.
 - **The `prefect` CLI crashes on Windows while printing.** `work-pool create`
   raised `UnicodeEncodeError: 'charmap' codec` from `rich`'s cp1252 console
   writer *after* creating the pool — the command succeeded, only the output
@@ -1006,9 +1014,9 @@ retriever 103, pusher 67, search 32, gateway 23):
     },
     {
       "name": "Phase 5 - SEARCH service + scheduling",
-      "status": "active",
+      "status": "done",
       "start": "2026-08-14",
-      "end": null,
+      "end": "2026-08-17",
       "plan": "refactor",
       "decisions": [
         {
@@ -1038,6 +1046,10 @@ retriever 103, pusher 67, search 32, gateway 23):
         {
           "date": "2026-08-17",
           "text": "Cloudflare quick tunnel rejected: its 100 s origin-silence cap would 524 the 2-6 min synchronous sweep and misattribute the failure to Prefect; ngrok has no such cap"
+        },
+        {
+          "date": "2026-08-17",
+          "text": "Scheduling implemented as flows/serve.py (Prefect 3 serve()): both cron deployments registered in Prefect Cloud, executed locally against the gateway - verified live end to end, a Cloud-triggered backfill run completed in ~7s"
         }
       ]
     },
@@ -1077,14 +1089,8 @@ retriever 103, pusher 67, search 32, gateway 23):
   ],
   "blockers": [
     {
-      "text": "Phase 5b scheduling is unimplemented: the recommended shape is Prefect Cloud as scheduler with flows executing locally via serve(), or a flows container in compose (needs its own image stage since the hardened runtime has no uv)",
-      "severity": "medium",
-      "owner": "oscar",
-      "since": "2026-08-17"
-    },
-    {
-      "text": "GitHub's fine-grained PAT page is down (No server is currently available), so github-laiive-pat was never minted and any git_clone-based Prefect deploy cannot authenticate - retry in a later session, or use gh auth token as a broader-scoped stand-in",
-      "severity": "medium",
+      "text": "GitHub's fine-grained PAT page was down when github-laiive-pat was needed for the prefect.yaml managed-pool path; moot now that scheduling runs via flows/serve.py, relevant again only if the managed pool is revived at Phase 6",
+      "severity": "low",
       "owner": "oscar",
       "since": "2026-08-17"
     },
@@ -1099,17 +1105,11 @@ retriever 103, pusher 67, search 32, gateway 23):
       "severity": "low",
       "owner": "oscar",
       "since": "2026-08-14"
-    },
-    {
-      "text": "The .claude PostToolUse hook points at the repo's old DIALOGOO path, so every file edit reports a can't-open-file error - harmless but it masks real hook failures",
-      "severity": "low",
-      "owner": "oscar",
-      "since": "2026-08-17"
     }
   ],
   "nextSteps": [
     {
-      "title": "Implement flows/serve.py and prove Cloud-scheduled local execution end to end, then optionally containerize it as a compose flows service",
+      "title": "Optional: containerize flows/serve.py as a compose flows service (needs its own Dockerfile stage since the hardened search runtime has no uv, plus PREFECT_API_KEY/PREFECT_API_URL in root .env)",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
@@ -1118,20 +1118,6 @@ retriever 103, pusher 67, search 32, gateway 23):
     {
       "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate",
       "est": 2,
-      "owner": "oscar",
-      "phase": "Phase 5 - SEARCH service + scheduling",
-      "plan": "refactor"
-    },
-    {
-      "title": "Push refactor/foundation and experiment/k3s to origin so ci.yml runs for the first time",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 6 - CI/CD + deploy",
-      "plan": "refactor"
-    },
-    {
-      "title": "Fix the stale .claude PostToolUse hook path",
-      "est": 1,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
       "plan": "refactor"
