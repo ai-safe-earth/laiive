@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from laiive_shared import EventCard
 from laiive_shared.geocode import CENTROID_COLLAPSE_M
-from laiive_shared.normalize import norm
+from laiive_shared.normalize import genre_slug, norm
 from loguru import logger
 
 from config import settings
@@ -60,11 +60,18 @@ def _constraint_clauses(c: Constraints) -> tuple[list[str], dict]:
         )
         params["artist_norm"] = norm(c.artist)
     if c.genre:
+        # Extraction emits a composite slug whenever the page names more than
+        # one style, and an exact match makes those invisible: 'pop-rock' is on
+        # four artists and four events, and answers neither "rock" nor "pop".
+        # A slug's hyphen-separated parts are genres in their own right, so the
+        # asked genre matches a slug that is it, or contains it as a part.
+        genre_match = "(g.slug = $genre OR $genre IN split(g.slug, '-'))"
         where.append(
-            "(EXISTS { MATCH (e)-[:HAS_GENRE]->(:Genre {slug: $genre}) } OR "
-            "EXISTS { MATCH (:Genre {slug: $genre})<-[:HAS_GENRE]-(:Artist)-[:PERFORMS_AT]->(e) })"
+            f"(EXISTS {{ MATCH (e)-[:HAS_GENRE]->(g:Genre) WHERE {genre_match} }} OR "
+            f"EXISTS {{ MATCH (g:Genre)<-[:HAS_GENRE]-(:Artist)-[:PERFORMS_AT]->(e) "
+            f"WHERE {genre_match} }})"
         )
-        params["genre"] = c.genre
+        params["genre"] = genre_slug(c.genre)
     if c.date_from:
         where.append("e.start_at >= datetime($date_from)")
         params["date_from"] = c.date_from
