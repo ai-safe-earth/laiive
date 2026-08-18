@@ -969,6 +969,31 @@ rejected the cached bad hit, no address on the node, Tavily returned
 Result **1.08 km** from centre, `precision='venue'`, and **zero venues remain
 beyond the guard**.
 
+**Sweep quality, measured** (the Phase 5 follow-up list, finally checked
+against data rather than assumed):
+
+- **A missing price was rendering as "free"** - the worst thing found this
+  session, fixed in `7a0ff62`. **48 of 57** discovered events carried
+  `price_min = 0`, which the card shows as *free*: Billy Corgan at the Palacio
+  Vistalegre, CA7RIEL at the Palau Sant Jordi, Diljit Dosanjh at the Uber
+  Arena, The Weeknd at the Metropolitano. **34 of them link to a ticket shop.**
+  Two causes: `entry_to_draft` mapped an empty string to `0.0` (it sat in the
+  same tuple as "free" and "gratis"), and the extraction prompt offered "0 for
+  free events" while saying nothing about no price at all. Same shape as the
+  midnight start and the centroid pin - a default rendered as a fact.
+  **Owner**: `scripts/clear_default_prices.py --write`.
+- **Date poisoning: not found.** The heaviest day holds 5 events across 5
+  different venues (a Friday), and admin_search dates run 2026-08-14 to
+  2027-05-15, which is what tour announcements look like. No evidence a
+  listing page dumped one date onto many events.
+- **Non-music events: none.** A name scan for theatre, comedy, expo, cinema,
+  circus, ballet, market and workshop words returns nothing. The type gate can
+  wait until a sweep actually pulls one in.
+- All three maintenance scripts now open a **read-only session unless
+  `--write`** was passed, so a dry run cannot write rather than promising not
+  to. It also routes around the Aura free tier dropping its WRITE server while
+  paused, which failed `clear_default_prices`'s first dry run.
+
 **Still open**, in rough priority order:
 
 1. **Named-place search is not built.** "techno in Kreuzberg" still returns
@@ -1636,6 +1661,18 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "An Outcome carries a retrieval note to the composer when the match was approximate. Five samples each way: neither overstated, but without the note the composer drops the neighbourhood and answers about the city instead, so the note buys an answer that addresses the question rather than preventing a lie"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "48 of 57 discovered events were shown as free because entry_to_draft mapped an empty price string to 0.0 and the extraction prompt never said what to do when no price is stated. 34 of them sell tickets. Fixed at both ends; the existing rows are cleared by scripts/clear_default_prices.py rather than guessed at, since a stated 'gratis' and a defaulted empty string are indistinguishable now"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Sweep-quality list checked against data: no date poisoning (the heaviest day is 5 events at 5 venues, dates run to 2027-05 as tour announcements do) and no non-music events (name scan for theatre/comedy/expo/cinema/circus/ballet/market returns nothing). The type gate can wait for a sweep that actually pulls one in"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Maintenance scripts open a read-only Neo4j session unless --write is passed, so a dry run is enforced rather than promised - and it connects while the Aura free tier has dropped its WRITE server, which broke a dry run"
         }
       ]
     }
@@ -1675,6 +1712,13 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
       "plan": "refactor"
     },
     {
+      "title": "Run scripts/clear_default_prices.py --write from services/search: 48 discovered events currently display 'free', 34 of them while selling tickets. One Aura write",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
       "title": "Run scripts/flag_dateless_events.py --write from services/search: marks the 30 existing admin_search events whose midnight start was a parser default, so their cards stop printing 00:00. One Aura write",
       "est": 1,
       "owner": "oscar",
@@ -1698,13 +1742,6 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
     {
       "title": "Optional: containerize flows/serve.py as a compose flows service (needs its own Dockerfile stage since the hardened search runtime has no uv, plus PREFECT_API_KEY/PREFECT_API_URL in root .env)",
       "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 5 - SEARCH service + scheduling",
-      "plan": "refactor"
-    },
-    {
-      "title": "Sweep-quality follow-ups: listing-page date poisoning, cross-source dedup, fabricated price_min, non-music type gate",
-      "est": 2,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
       "plan": "refactor"
