@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     location_max_radius_km: float = 30.0
     location_min_events: int = 5
     location_radius_steps: list[float] = [5.0, 10.0, 15.0, 20.0, 30.0]
+    # A venue whose pin is only its city's centroid is "somewhere in this city",
+    # not "here". It stays findable but sorts behind anything actually located,
+    # by adding this to its sort key only — the distance_km on the card stays
+    # the true one. See laiive_shared.geocode / v.geocode_precision.
+    location_centroid_penalty_km: float = 5.0
 
 
 try:

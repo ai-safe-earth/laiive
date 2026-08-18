@@ -175,3 +175,49 @@ class TestExecutorDispatch:
         )
         assert neo4j.execute_read.call_count == 1
         assert neo4j.execute_read.call_args[0][1]["radius_m"] == 3000.0
+
+
+class TestGeocodePrecisionRanking:
+    """Nearby search has to distrust the pins the repair sweep flagged.
+
+    A 'suspect' location is one the backfill measured as being outside its own
+    city — worse than no location, because it places the event confidently
+    somewhere it is not. A 'city_centroid' one only means "somewhere in this
+    city", so it stays findable but sorts behind anything actually located.
+    """
+
+    def build(self):
+        return build_nearby_query(
+            Constraints(near_me=True), lat=52.52, lng=13.405, radius_km=5.0
+        )
+
+    def test_suspect_locations_are_excluded(self):
+        cypher, _ = self.build()
+        assert "coalesce(v.geocode_precision, 'venue') <> 'suspect'" in cypher
+
+    def test_rows_predating_the_flag_are_still_trusted(self):
+        """A NULL precision is legacy data, not a known-bad pin."""
+        cypher, _ = self.build()
+        assert "coalesce(v.geocode_precision, 'venue')" in cypher
+
+    def test_centroid_pins_are_penalised_in_the_sort_only(self):
+        from config import settings
+
+        cypher, params = self.build()
+        assert (
+            "ORDER BY distance_m + CASE WHEN v.geocode_precision = 'city_centroid'"
+            in cypher
+        )
+        assert params["centroid_penalty_m"] == (
+            settings.location_centroid_penalty_km * 1000
+        )
+        # the distance the card reports stays the true one
+        assert ", distance_m" in cypher
+
+    def test_template_and_vector_paths_are_untouched(self):
+        """Only nearby ranks on location, so only nearby pays for the check."""
+        for cypher, _ in (
+            build_template_query(Constraints(city="Berlin")),
+            build_vector_query(Constraints(free_text="loud")),
+        ):
+            assert "geocode_precision" not in cypher

@@ -97,11 +97,19 @@ def build_nearby_query(
     where, params = _constraint_clauses(c)
     where.insert(0, "e.status = 'scheduled'")
     where.insert(0, "v.location IS NOT NULL")
+    # A pin the repair sweep flagged as being in the wrong metro area is worse
+    # than no pin: it would place the event confidently somewhere it is not.
+    # Rows written before the flag existed are NULL and stay trusted.
+    where.insert(1, "coalesce(v.geocode_precision, 'venue') <> 'suspect'")
     where.append(
         "point.distance(v.location, point({latitude: $lat, longitude: $lng})) <= $radius_m"
     )
     params.update(
-        lat=lat, lng=lng, radius_m=radius_km * 1000, limit=settings.max_results_limit
+        lat=lat,
+        lng=lng,
+        radius_m=radius_km * 1000,
+        centroid_penalty_m=settings.location_centroid_penalty_km * 1000,
+        limit=settings.max_results_limit,
     )
     cypher = (
         "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
@@ -114,7 +122,10 @@ def build_nearby_query(
             ),
             extra_return=", distance_m",
         )
-        + "ORDER BY distance_m ASC LIMIT $limit"
+        + "ORDER BY distance_m + CASE WHEN v.geocode_precision = 'city_centroid'\n"
+        "                             THEN $centroid_penalty_m ELSE 0 END ASC,\n"
+        "         distance_m ASC\n"
+        "LIMIT $limit"
     )
     return cypher, params
 
