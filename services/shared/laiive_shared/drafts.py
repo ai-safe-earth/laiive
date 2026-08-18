@@ -48,7 +48,13 @@ def entry_to_draft(entry: dict) -> EventDraft | None:
         value = data.get(price_key)
         if isinstance(value, str):
             cleaned = value.lower().strip().replace(",", ".")
-            if cleaned in ("free", "gratis", "0", ""):
+            if not cleaned:
+                # An empty string is a field the page did not fill in. Reading
+                # it as free put "free" on the card for 48 of 57 discovered
+                # events, including stadium shows with a ticket link.
+                data.pop(price_key)
+                continue
+            if cleaned in ("free", "gratis", "gratuit", "entrada libre", "0"):
                 data[price_key] = 0.0
             else:
                 try:

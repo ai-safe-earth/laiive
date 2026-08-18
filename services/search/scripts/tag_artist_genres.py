@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agent import genre_lookup
 from agent.graph import _driver
 from config import settings
+from neo4j import READ_ACCESS, WRITE_ACCESS
 from laiive_shared.neo4j_writer import tag_artist_genres
 
 UNTAGGED = """
@@ -34,10 +35,22 @@ ORDER BY events DESC, name
 """
 
 
+def open_session(write: bool):
+    """A dry run gets a read-only session, so "dry" is enforced, not promised.
+
+    It also routes around the Aura free tier, which drops its WRITE server
+    while paused: a read-only session connects when a write one cannot.
+    """
+    return _driver.session(
+        database=settings.neo4j_database,
+        default_access_mode=WRITE_ACCESS if write else READ_ACCESS,
+    )
+
+
 def main() -> int:
     write = "--write" in sys.argv[1:]
 
-    with _driver.session(database=settings.neo4j_database) as session:
+    with open_session(write) as session:
         artists = [dict(r) for r in session.run(UNTAGGED)]
         if not artists:
             print("Every artist already carries a genre.")

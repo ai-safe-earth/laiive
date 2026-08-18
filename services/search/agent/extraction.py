@@ -35,7 +35,8 @@ each entry carries ONLY the fields you can actually identify:
   "address": string,         // street address if stated
   "city": string,
   "venue_type": "club" | "bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",  // only when the page says so — omit rather than guessing "other"
-  "price_min": number,       // 0 for free events
+  "price_min": number,       // OMIT unless a price is stated. 0 means the page
+                             // says free/gratis, never "no price found"
   "price_max": number,       // only when a range is stated
   "price_currency": string,  // ISO code (EUR, USD...) only when stated or implied by symbol
   "description": string,     // short description in the page's own words
@@ -47,6 +48,8 @@ Rules:
 - Skip past events, undated events, and anything that is not live music.
 - One entry per event. Omit any field that is not present. NEVER invent data.
 - Numbers for prices — no currency symbols.
+- A missing price is not a free event. Leave price_min out entirely unless the
+  page states an amount or says the entry is free.
 - JSON only. No explanation, no markdown fences.
 
 Page text:
