@@ -83,10 +83,7 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 
 ## Handoff file (read by the project tracker)
 
-One handoff per repository: `handoff.md` at the root. Never start a second one. When work happens
-inside a plan folder (`docs/refactor/`), keep writing to the root handoff and list the folder under
-"plans" so the paths stay findable. Non-code progress (branding, strategy) goes to
-`product-status.md`, not the handoff.
-
-Update it at the end of every working session — invoke the `handoff` skill
-(`.claude/skills/handoff/SKILL.md`) for the machine block the tracker parses and its rules.
+Read `handoff.md` once, at the start of a session, before the first plan or code change. Do not
+re-read it later in the same session — the conversation is the fresher source. Re-read only after
+a `/clear`, a `/compact`, or if I say the repo moved outside this session. If it conflicts with
+the repo, trust the repo and say so.
