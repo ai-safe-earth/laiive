@@ -1,4 +1,4 @@
-# HANDOFF — laiive (updated 2026-08-18, third session)
+# HANDOFF — laiive (updated 2026-08-18, fourth session)
 
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
@@ -27,7 +27,11 @@ The one repo-side gate is migration `20260818000010` (owner pushes it before the
 new search service runs against Supabase). Older context below.
 Phase 5b scheduling is done. The **third session of 2026-08-18 was geocoding
 quality**, six commits on `refactor/foundation` (`e48f102`..`3eb5935`), all
-suites green - see *Geocoding and location quality* below.
+suites green - see *Geocoding and location quality* below. The **fourth
+session** closed three of that session's four open items and found a fifth
+problem while smoking them live - five commits (`ef9c3ff`..`9cce367`), see
+*Named-place search and pin quality* below. The one geocoding item still open
+is the repair-sweep drain, which is an Aura write and needs the owner.
 The k3s detour (D19) was **withdrawn the same day it was decided** — the owner
 chose simple: compose stays the shape, gateway the only published surface,
 Railway/Fly at deploy time per the reinstated R1/R2. The full k3s work is
@@ -996,6 +1000,105 @@ secrets. `.gitignore` gained `!.claude/settings.json` so it survives a clone;
 `settings.local.json` stays ignored. **These rules load at startup, so they were
 not active in the session that wrote them and have not been verified enforcing.**
 
+## Named-place search and pin quality (2026-08-18, fourth session)
+
+Continuation of the geocoding session. Items 1, 3 and 4 of its open list are
+done; item 2 (drain the repair sweep) is the owner's, and item 5 (the
+`.claude/settings.json` deny rules) is still unverified.
+
+**The decision that was re-opened** was the relaxed write gate for discovery
+(`missing_required(draft, source)`, owner call 2026-08-14). It stands - under
+promoter rules discovery writes nothing, which is not a trade worth making -
+but re-reading it surfaced a cost the handoff had filed as a nit. "admin_search
+events carry no genre" is not a nit: `executor.py`'s genre predicate is a hard
+AND over `HAS_GENRE` from the event or its artists, and a swept event has
+neither, so **every genre-pinned query silently excludes every discovered
+event**. The classifier turns any named genre into `genre`, so that is the most
+common query shape in the product. Recommended fix, **not implemented, owner's
+call**: infer genre at approve time in the search service (a human is already
+in the loop, one mini call per approved event), or make the genre filter fall
+back to unfiltered-plus-rank on zero rows the way the named-place leg now does.
+The framing worth keeping: the gate answers "may this be written", and nothing
+answers "is this good enough to show" - which is exactly the split
+`geocode_precision` already solved for locations.
+
+**What landed** (five commits, `ef9c3ff`..`9cce367`):
+
+- **Router gap closed** (`ef9c3ff`). A shared location with no city named and
+  no "near me" phrasing fell to TEMPLATE, which has no city predicate, so the
+  answer mixed every city in the graph. Now routes to NEARBY - but only for
+  browse-shaped asks: `city`, `country_code`, `artist` and `venue` all win over
+  the location, because "when does Klangfeld play?" must not be cut to a 25 km
+  circle. Cost: NEARBY only matches located venues, so an un-geocoded venue
+  drops out of these answers.
+- **Named-place search built** (`ec3e917`, `503cc3a`). `GeocodeResult` keeps
+  Nominatim's `boundingbox`, and `_from_cached` now filters unknown keys - the
+  old straight splat would have raised TypeError the first time a process read
+  an entry written by a build with one more field. The retriever runs TEMPLATE
+  first and only geocodes on zero rows, so the happy path pays nothing.
+  `named_place_max_diagonal_km = 60` refuses region-sized boxes (Catalonia
+  measures 369 km across; Berlin's municipality is ~50, so a missing city still
+  resolves). The classifier is told a sub-city place goes in `city` with its
+  parent ("Kreuzberg, Berlin").
+- **Boxes are padded to a 2 km minimum span** (`9cce367`). Measured across the
+  bake-off's 22 places: **7 resolve to a point** - every landmark plus
+  Lavapiés, Poblenou and Barceloneta come back as a 10 m box, because OSM
+  answers with the square that carries the name. 2 km is the median real
+  neighbourhood from the same run. The cost is named and real: a 2 km square
+  around Barceloneta's plaza reaches the Palau de la Música, in the next
+  barrio.
+- **`geocode_precision` on the EventCard** (`630db0b`), TS mirror and drift
+  guard included. A `city_centroid` pin opens the map zoomed out with a circle
+  instead of a marker, says so in one line, and sends "open in Google Maps" to
+  the venue name rather than to coordinates known to be roughly right. A
+  `suspect` pin loses its coordinates in `rows_to_cards` - nearby already
+  refuses to match one, but template and vector have no location predicate, so
+  that is the layer where the guarantee has to hold.
+
+**What the live smoke found** (read-only against Aura, and the reason this
+session has a fifth commit): **eight Barcelona venues share one identical
+pin** - Razzmatazz, Palau Sant Jordi, Sant Jordi Club, Marula, Queen's, Ocaña,
+La Nau, Estadi Olímpic - and that pin is exactly Nominatim's answer for
+`"barcelona"`. Every one of those lookups missed and fell back to the city.
+Madrid has six more sitting on its centroid. **No existing check sees them**:
+the 25 km guard passes (the city centre is near the city), `geocode_precision`
+is NULL on all of them (34 of 35 venues predate the flag), and the graph-side
+distance test misses the Barcelona eight because `c.location` is **888 m** from
+what the geocoder returns for the same name today.
+
+So two guards were added, neither depending on the flag:
+
+- The **repair sweep** compares the venue answer with the city answer it
+  already holds and stamps `city_centroid` instead of `venue` when they
+  coincide. Without this, draining the backlog would mark all eight *verified*
+  and stop the sweep ever revisiting them - worse than leaving them unstamped.
+- The **bbox leg** excludes a pin shared with another venue in the same city
+  (scoped to the bound `c`, so it reads one city's venues, not the label).
+  Two venues cannot share a doorway.
+
+Verified live after the fix: "Kreuzberg, Berlin" returns Columbia Theater and
+Uber Arena; "Malasaña, Madrid" returns Sala El Sol only (the Metropolitano
+stadium, which sits on Madrid's centroid, is correctly gone); "Poblenou,
+Barcelona" returns Razzmatazz once padded; "Catalonia" is refused as too big.
+
+**Still open**, in rough priority order:
+
+1. **Drain the repair sweep** - `run_backfill(max_venues=100)`, an Aura write,
+   owner's to approve. Now safe to run: it can no longer bless a collapsed pin.
+   Expect the Barcelona eight and the Madrid six to come back stamped
+   `city_centroid` unless Tavily finds them a street address.
+2. **Genre on admin_search events** - see the re-opened decision above. This is
+   the largest remaining retrieval gap and it is a data gap, not a query one.
+3. **Duplicate events in the graph**: the smoke showed "The Weeknd" three times
+   at the same venue and "Estadi Olímpic" / "Estadi Olímpic Lluis Companys" as
+   two Venue nodes. Cross-source dedup was already on the sweep-quality list;
+   this is evidence it is real.
+4. **The composer is not told a card matched by box rather than by city**, so
+   it will happily phrase a padded-box hit as "in Barceloneta". Only matters
+   once padding is common.
+5. Confirm the `.claude/settings.json` deny rules enforce after a restart
+   (carried over, still unverified).
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -1354,6 +1457,34 @@ not active in the session that wrote them and have not been verified enforcing.*
         {
           "date": "2026-08-18",
           "text": ".claudeignore is read by nothing (anthropics/claude-code#56997); .claude/settings.json permissions.deny is the working mechanism, negated in .gitignore so it survives a clone. Not yet verified enforcing - settings load at startup"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "The relaxed admin_search write gate was re-opened and stands, but the missing genre on swept events is not a nit: the genre predicate is a hard AND over HAS_GENRE, so every genre-pinned query silently excludes every discovered event. Fix recommended (infer genre at approve, or fall back on zero rows), not implemented, owner's call"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Router: a shared location becomes a filter only for browse-shaped asks. city, country_code, artist and venue win over it, since an artist question must not be cut to a 25 km circle"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Named-place search runs TEMPLATE first and geocodes to a bbox only on zero rows, so the happy path pays nothing. 60 km diagonal ceiling refuses region-sized boxes (Catalonia is 369 km, Berlin ~50)"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Place boxes are padded to a 2 km minimum span: 7 of the 22 measured places resolve to a point, since OSM answers with the square that carries the name. Cost accepted: a padded box reaches into the next barrio"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "_from_cached filters unknown keys before hydrating GeocodeResult, so adding a cached field can no longer TypeError a process reading an entry a newer build wrote"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "geocode_precision travels on the EventCard; a suspect pin loses its coordinates in rows_to_cards, because template and vector have no location predicate and that is the layer where the guarantee has to hold"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Found live: eight Barcelona venues share one pin, which is Nominatim's answer for 'barcelona', and six Madrid venues sit on its centroid. The 25 km guard, the precision flag and the c.location distance test all miss them (c.location is 888 m from the geocoder's current answer). Guards added at both ends: the sweep stamps city_centroid when the venue answer equals the city answer, and the bbox leg excludes a pin shared by two venues in the same city"
         }
       ]
     }
@@ -1386,28 +1517,28 @@ not active in the session that wrote them and have not been verified enforcing.*
   ],
   "nextSteps": [
     {
-      "title": "Named-place search: 'techno in Kreuzberg' returns nothing today. Run TEMPLATE first and geocode to a bbox only on zero rows; add bbox to GeocodeResult and make _from_cached filter unknown keys first, or an old process reading a new shared-cache entry raises TypeError",
+      "title": "Drain the repair sweep: run_backfill(max_venues=100) against Aura (owner write). Now safe - it can no longer stamp a collapsed pin as 'venue'. Expect the Barcelona eight and Madrid six back as city_centroid unless Tavily finds them a street address",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Genre on admin_search events: swept events have no genre and no artists, so the executor's HAS_GENRE predicate excludes them from every genre-pinned query. Infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Cross-source dedup: the live smoke showed one event three times and 'Estadi Olimpic' / 'Estadi Olimpic Lluis Companys' as two Venue nodes",
       "est": 2,
       "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
+      "phase": "Phase 5 - SEARCH service + scheduling",
       "plan": "refactor"
     },
     {
-      "title": "Drain the repair sweep: run_backfill(max_venues=100) stamps the 34 remaining venues, ~10 of which will reach the Tavily resolver",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Router gap: a shared location with no place named and no 'near me' phrasing falls to TEMPLATE with no city filter, returning events from every city. Default to NEARBY in router.py when a location is present",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Surface geocode_precision on the EventCard so a city-centroid pin stops rendering as a confident Leaflet marker (touches services/shared/ts/protocol.ts and its drift guard)",
+      "title": "Tell the composer when a card matched by bounding box rather than by city, so a padded-box hit is not phrased as 'in Barceloneta'",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
@@ -1509,6 +1640,13 @@ not active in the session that wrote them and have not been verified enforcing.*
     {
       "date": "2026-08-18",
       "model": "fable-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-18",
+      "model": "opus-5",
       "credits": null,
       "person": "oscar",
       "hours": null
