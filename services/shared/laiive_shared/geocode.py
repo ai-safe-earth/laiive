@@ -9,7 +9,7 @@ import json
 import logging
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import httpx
@@ -48,6 +48,17 @@ class GeocodeResult:
     lng: float
     country_code: str  # ISO-3166-1 alpha-2, lowercased by Nominatim; stored upper
     display_name: str
+    # (south, north, west, east) in degrees, Nominatim's own order. Present for
+    # areas (a neighbourhood, a district); a house number or a POI has one too
+    # but it is a few metres across. None for cache entries written before this
+    # field existed, and for providers that return no extent.
+    bbox: tuple[float, float, float, float] | None = None
+
+    def bbox_diagonal_km(self) -> float | None:
+        if self.bbox is None:
+            return None
+        south, north, west, east = self.bbox
+        return haversine_km(south, west, north, east)
 
 
 class NominatimGeocoder:
@@ -204,15 +215,29 @@ class NominatimGeocoder:
         if not hits:
             return None
         hit = hits[0]
+        box = hit.get("boundingbox")
         return {
             "lat": float(hit["lat"]),
             "lng": float(hit["lon"]),
             "country_code": (hit.get("address", {}).get("country_code") or "").upper(),
             "display_name": hit.get("display_name", ""),
+            "bbox": [float(x) for x in box] if box and len(box) == 4 else None,
         }
 
     @staticmethod
     def _from_cached(raw: dict | None) -> GeocodeResult | None:
+        """Hydrate a cache entry, tolerating fields this version does not know.
+
+        The cache outlives the code that wrote it — the Redis store is shared
+        between services that deploy separately, and the JSON files predate
+        several fields. Splatting raw straight in would raise TypeError the
+        first time an older process read an entry a newer one wrote, so unknown
+        keys are dropped and absent ones fall back to their defaults.
+        """
         if raw is None:
             return None
-        return GeocodeResult(**raw)
+        known = {f.name for f in fields(GeocodeResult)}
+        kwargs = {k: v for k, v in raw.items() if k in known}
+        if isinstance(kwargs.get("bbox"), list):
+            kwargs["bbox"] = tuple(kwargs["bbox"])
+        return GeocodeResult(**kwargs)
