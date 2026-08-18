@@ -65,6 +65,18 @@ class Settings(BaseSettings):
     # by adding this to its sort key only — the distance_km on the card stays
     # the true one. See laiive_shared.geocode / v.geocode_precision.
     location_centroid_penalty_km: float = 5.0
+    # A named place that is not a City node ("Kreuzberg") is resolved to a
+    # bounding box. Neighbourhoods measure 2.8 km across the diagonal at the
+    # median and 6.5 km at p90 (services/search/scripts/geocode_bakeoff.py, 22
+    # places, 100% resolved). This ceiling is not about them: it is where a
+    # "place" stops being one, so a region or a country cannot quietly become a
+    # box containing the entire graph. Berlin's own municipality is ~50 km.
+    named_place_max_diagonal_km: float = 60.0
+
+    # Only read when the named-place fallback geocodes; the geocoder is shared
+    # with the writers so a venue looked up there is already cached here.
+    geocode_cache_path: str = Field(".geocode_cache.json", alias="GEOCODE_CACHE_PATH")
+    redis_url: str = Field("", alias="REDIS_URL")
 
 
 try:

@@ -130,6 +130,41 @@ def build_nearby_query(
     return cypher, params
 
 
+def build_bbox_query(
+    c: Constraints, bbox: tuple[float, float, float, float]
+) -> tuple[str, dict]:
+    """Events inside a geographic box — the named-place leg.
+
+    The city predicate is dropped because the box replaces it: "Kreuzberg" is
+    not a City node and never will be, so matching it by name is what returned
+    nothing in the first place.
+
+    City-centroid pins are excluded rather than merely ranked down (as NEARBY
+    does). A centroid sits inside the bbox of whichever central district
+    contains it, so keeping them would put every un-located venue in Berlin
+    inside Mitte — a confident wrong answer, not an imprecise one.
+    """
+    south, north, west, east = bbox
+    where, params = _constraint_clauses(c.model_copy(update={"city": None}))
+    where.insert(0, "e.status = 'scheduled'")
+    where.insert(0, "v.location IS NOT NULL")
+    where.insert(1, "coalesce(v.geocode_precision, 'venue') = 'venue'")
+    where.append("v.location.latitude >= $south AND v.location.latitude <= $north")
+    where.append("v.location.longitude >= $west AND v.location.longitude <= $east")
+    params.update(
+        south=south, north=north, west=west, east=east, limit=settings.max_results_limit
+    )
+    cypher = (
+        "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
+        "WHERE "
+        + "\n  AND ".join(where)
+        + "\n"
+        + STANDARD_RETURN.format(extra_with="", extra_return="")
+        + "ORDER BY start_at LIMIT $limit"
+    )
+    return cypher, params
+
+
 def build_vector_query(c: Constraints) -> tuple[str, dict]:
     where, params = _constraint_clauses(c)
     where.insert(0, "e.status = 'scheduled'")
@@ -235,24 +270,28 @@ class Outcome:
 
 
 class Executor:
-    def __init__(self, neo4j_client, embed_fn, query_builder):
+    def __init__(self, neo4j_client, embed_fn, query_builder, geocoder=None):
         """
         Args:
             neo4j_client: read-access client with execute_read(cypher, params).
             embed_fn: text → embedding vector (for the vector leg).
             query_builder: LLM Cypher generator for the long tail.
+            geocoder: resolves a named place to a bounding box when the city
+                template finds nothing. Omitted → the fallback never runs.
         """
         self.neo4j = neo4j_client
         self.embed = embed_fn
         self.query_builder = query_builder
+        self.geocoder = geocoder
 
     def execute(self, plan: ExecutionPlan, location: dict | None = None) -> Outcome:
         try:
             if plan.kind == PlanKind.TEMPLATE:
                 cypher, params = build_template_query(plan.constraints)
-                return Outcome(
-                    rows_to_cards(self.neo4j.execute_read(cypher, params)), cypher
-                )
+                rows = self.neo4j.execute_read(cypher, params)
+                if not rows and (found := self._execute_named_place(plan.constraints)):
+                    return found
+                return Outcome(rows_to_cards(rows), cypher)
 
             if plan.kind == PlanKind.NEARBY:
                 return self._execute_nearby(plan.constraints, location)
@@ -270,6 +309,42 @@ class Executor:
         except Exception as e:
             logger.error(f"Execution failed for {plan.kind}: {e}")
             return Outcome(error=str(e))
+
+    def _execute_named_place(self, c: Constraints) -> Outcome | None:
+        """Second chance for a place that is not a City node.
+
+        The classifier puts every named place in `city`, so "techno in
+        Kreuzberg" asks for a City whose name is Kreuzberg and gets nothing.
+        Geocoding it yields a bounding box, and the box is a filter the graph
+        can answer. This runs only after the template returned zero rows, so
+        the common case — a real city with events — pays nothing for it.
+
+        Returns None when the fallback does not apply or finds nothing, leaving
+        the caller's empty result (and its cypher) as the answer.
+        """
+        if self.geocoder is None or not c.city:
+            return None
+        place = self.geocoder.geocode(c.city)
+        if place is None or place.bbox is None:
+            return None
+        diagonal = place.bbox_diagonal_km()
+        if diagonal is None or diagonal > settings.named_place_max_diagonal_km:
+            # A region or a country resolves to a box big enough to contain the
+            # whole graph, at which point "in X" has stopped filtering anything.
+            logger.info(
+                f"Named-place fallback skipped for {c.city!r}: "
+                f"{place.display_name!r} spans {diagonal:.0f} km"
+            )
+            return None
+        cypher, params = build_bbox_query(c, place.bbox)
+        rows = self.neo4j.execute_read(cypher, params)
+        if not rows:
+            return None
+        logger.info(
+            f"Named-place fallback matched {c.city!r} to {place.display_name!r} "
+            f"({diagonal:.1f} km across): {len(rows)} events"
+        )
+        return Outcome(rows_to_cards(rows), cypher)
 
     def _execute_nearby(self, c: Constraints, location: dict | None) -> Outcome:
         if not location:

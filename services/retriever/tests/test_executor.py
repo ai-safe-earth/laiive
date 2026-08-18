@@ -5,6 +5,7 @@ from unittest.mock import Mock
 from agent.classifier import Constraints
 from agent.executor import (
     Executor,
+    build_bbox_query,
     build_nearby_query,
     build_template_query,
     build_vector_query,
@@ -12,6 +13,7 @@ from agent.executor import (
     rows_to_cards,
 )
 from agent.router import ExecutionPlan, PlanKind
+from laiive_shared.geocode import GeocodeResult
 
 STANDARD_ROW = {
     "uid": "e1",
@@ -221,3 +223,130 @@ class TestGeocodePrecisionRanking:
             build_vector_query(Constraints(free_text="loud")),
         ):
             assert "geocode_precision" not in cypher
+
+
+class TestNamedPlaceFallback:
+    """A named place that is not a City node: "techno in Kreuzberg".
+
+    The classifier has nowhere else to put a place name, so it arrives as
+    `city` and matches no City node. Rather than answer nothing, the place is
+    geocoded to a bounding box — but only after the ordinary template returned
+    zero rows, so a real city with events never pays for the extra lookup.
+    """
+
+    KREUZBERG = GeocodeResult(
+        lat=52.4979,
+        lng=13.4184,
+        country_code="DE",
+        display_name="Friedrichshain-Kreuzberg, Berlin",
+        bbox=(52.4823, 52.5170, 13.3823, 13.4657),
+    )
+    CATALONIA = GeocodeResult(
+        lat=41.8,
+        lng=1.5,
+        country_code="ES",
+        display_name="Catalunya, España",
+        bbox=(40.5, 42.9, 0.15, 3.33),
+    )
+
+    def executor(self, rows, geocoder=None):
+        neo4j = Mock()
+        neo4j.execute_read.side_effect = rows
+        ex = Executor(neo4j, embed_fn=Mock(), query_builder=Mock(), geocoder=geocoder)
+        return ex, neo4j
+
+    def run(self, ex, city="Kreuzberg", **kwargs):
+        return ex.execute(
+            ExecutionPlan(PlanKind.TEMPLATE, Constraints(city=city, **kwargs))
+        )
+
+    def test_zero_rows_for_a_place_are_retried_as_a_bbox(self):
+        geocoder = Mock()
+        geocoder.geocode.return_value = self.KREUZBERG
+        ex, neo4j = self.executor([[], [STANDARD_ROW]], geocoder)
+        outcome = self.run(ex)
+        assert [c.name for c in outcome.cards] == ["Klangfeld Nacht"]
+        geocoder.geocode.assert_called_once_with("Kreuzberg")
+        params = neo4j.execute_read.call_args[0][1]
+        assert (params["south"], params["north"]) == (52.4823, 52.5170)
+        assert (params["west"], params["east"]) == (13.3823, 13.4657)
+
+    def test_a_city_that_has_events_never_geocodes(self):
+        """The happy path must stay free — this is the whole design constraint."""
+        geocoder = Mock()
+        ex, _ = self.executor([[STANDARD_ROW]], geocoder)
+        outcome = self.run(ex, city="Berlin")
+        assert len(outcome.cards) == 1
+        geocoder.geocode.assert_not_called()
+
+    def test_other_constraints_survive_the_retry(self):
+        geocoder = Mock()
+        geocoder.geocode.return_value = self.KREUZBERG
+        ex, neo4j = self.executor([[], [STANDARD_ROW]], geocoder)
+        self.run(ex, genre="techno")
+        cypher, params = neo4j.execute_read.call_args[0]
+        assert params["genre"] == "techno"
+        assert "c.name_norm = $city_norm" not in cypher  # the box replaced it
+        assert "city_norm" not in params
+
+    def test_a_region_sized_box_is_refused(self):
+        """ "in Catalonia" would box in the whole graph and filter nothing."""
+        geocoder = Mock()
+        geocoder.geocode.return_value = self.CATALONIA
+        ex, neo4j = self.executor([[]], geocoder)
+        outcome = self.run(ex, city="Catalonia")
+        assert outcome.cards == []
+        assert neo4j.execute_read.call_count == 1  # never retried
+
+    def test_a_place_with_no_box_is_refused(self):
+        geocoder = Mock()
+        geocoder.geocode.return_value = GeocodeResult(1.0, 2.0, "DE", "somewhere")
+        ex, neo4j = self.executor([[]], geocoder)
+        assert self.run(ex).cards == []
+        assert neo4j.execute_read.call_count == 1
+
+    def test_an_unresolvable_place_keeps_the_empty_answer(self):
+        geocoder = Mock()
+        geocoder.geocode.return_value = None
+        ex, _ = self.executor([[]], geocoder)
+        outcome = self.run(ex, city="Nowheresville")
+        assert outcome.cards == [] and outcome.error is None
+        assert "c.name_norm = $city_norm" in outcome.cypher  # the template's
+
+    def test_a_box_with_no_events_keeps_the_empty_answer(self):
+        geocoder = Mock()
+        geocoder.geocode.return_value = self.KREUZBERG
+        ex, _ = self.executor([[], []], geocoder)
+        outcome = self.run(ex)
+        assert outcome.cards == []
+        assert "c.name_norm = $city_norm" in outcome.cypher
+
+    def test_without_a_geocoder_nothing_changes(self):
+        ex, neo4j = self.executor([[]])
+        assert self.run(ex).cards == []
+        assert neo4j.execute_read.call_count == 1
+
+
+class TestBboxQuery:
+    def build(self, **kwargs):
+        return build_bbox_query(
+            Constraints(city="Kreuzberg", **kwargs), (52.48, 52.51, 13.38, 13.46)
+        )
+
+    def test_only_venue_precision_pins_are_inside_a_neighbourhood(self):
+        """A centroid pin sits in whichever central district contains it.
+
+        Ranking it down (what nearby does) is not enough here: "in Mitte" would
+        list every un-located venue in Berlin, which is a wrong answer rather
+        than an imprecise one.
+        """
+        cypher, _ = self.build()
+        assert "coalesce(v.geocode_precision, 'venue') = 'venue'" in cypher
+        assert "v.location IS NOT NULL" in cypher
+
+    def test_the_box_is_a_filter_not_a_ranking(self):
+        cypher, params = self.build()
+        assert "v.location.latitude >= $south" in cypher
+        assert "v.location.longitude <= $east" in cypher
+        assert "ORDER BY start_at" in cypher  # date order, as the template
+        assert params["south"] == 52.48 and params["east"] == 13.46

@@ -630,6 +630,15 @@ wheels = [
 ]
 
 [[package]]
+name = "redis"
+version = "8.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618 },
+]
+
+[[package]]
 name = "requests"
 version = "2.32.5"
 source = { registry = "https://pypi.org/simple" }
@@ -659,6 +668,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "python-dateutil" },
     { name = "python-multipart" },
+    { name = "redis" },
     { name = "requests" },
     { name = "tenacity" },
     { name = "uvicorn" },
@@ -683,6 +693,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "redis", specifier = ">=5.0" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "uvicorn", specifier = ">=0.40.0" },

@@ -8,6 +8,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from laiive_shared import EventCard, EventsResult, MessageDelta, Status
+from laiive_shared.geocode import NominatimGeocoder
+from laiive_shared.geocode_store import RedisGeocodeStore
 from loguru import logger
 
 from config import settings
@@ -48,7 +50,21 @@ class Pipeline:
         self.composer = Composer(self.client)
         self.safety = SafetyGuardTool(self.client)
         self.query_builder = QueryBuilderTool(neo4j_client=neo4j_client)
-        self.executor = Executor(neo4j_client, self._embed, self.query_builder)
+        # Read-only use: the named-place fallback resolves a neighbourhood to a
+        # bounding box. Same store as the writers, so it mostly answers from
+        # cache and shares their one-request-per-second gate rather than adding
+        # a second one.
+        self.executor = Executor(
+            neo4j_client,
+            self._embed,
+            self.query_builder,
+            geocoder=NominatimGeocoder(
+                cache_path=settings.geocode_cache_path,
+                store=RedisGeocodeStore(settings.redis_url)
+                if settings.redis_url
+                else None,
+            ),
+        )
 
     def _embed(self, text: str) -> list[float]:
         response = embedding_with_retry(

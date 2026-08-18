@@ -36,7 +36,7 @@ Read the conversation and the latest user message, then return ONE JSON object:
 Constraints object (every field optional, omit or null when not constrained):
 {{
   "query_text": string,        // this atomic ask, in the user's words
-  "city": string,              // city name, e.g. "Madrid"
+  "city": string,              // where, at city scale or smaller, e.g. "Madrid"
   "country_code": string,      // ISO-3166-1 alpha-2 when a COUNTRY is asked, e.g. "ES"
   "genre": string,             // genre slug: lowercase, hyphenated, e.g. "indie-rock"
   "artist": string,
@@ -65,6 +65,11 @@ Rules:
 - Cities carry their LOCAL name, never the exonym the user happened to use:
   "Barcellona"/"Barcelone" → "Barcelona", "Londres" → "London", "Múnich" →
   "München". The graph matches city names exactly, so an exonym finds nothing.
+- A place SMALLER than a city — a neighbourhood, barrio, district or a landmark
+  ("Kreuzberg", "Malasaña", "El Raval", "near Sagrada Família") — goes in `city`
+  too; it is still the answer to "where". Keep the parent city with it when the
+  user gave one ("Kreuzberg, Berlin"), because the same neighbourhood name
+  exists in several countries. Never leave a place in `free_text`.
 - A music genre named anywhere in the ask ALWAYS becomes `genre`, as a slug,
   however terse the phrasing: "jazz in Madrid" is genre "jazz" + city "Madrid".
   Never drop it, and never leave it in `free_text` alone — `free_text` is for
