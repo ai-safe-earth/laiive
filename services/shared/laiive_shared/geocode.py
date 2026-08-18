@@ -38,6 +38,12 @@ VENUE_MAX_KM = 25.0
 # Sant Jordi, which are kilometres apart in reality.
 CENTROID_COLLAPSE_M = 100.0
 
+# An answer inside VENUE_MAX_KM but beyond this is not rejected — it may be a
+# genuinely out-of-town venue — but it stops being good enough to win by being
+# first. The number is the same distribution VENUE_MAX_KM came from: every
+# correct answer in the cached corpus sat within 12.5 km of its city centroid.
+VENUE_OUTLIER_KM = 12.5
+
 # (venue, city) -> street address, or None. Injected by the caller so this
 # module stays free of search/LLM clients; see services/search/agent/address_lookup.py.
 AddressResolver = Callable[[str, str | None], str | None]
@@ -115,11 +121,22 @@ class NominatimGeocoder:
         madrid"), and a full street string over-specifies what is really a POI
         lookup. The same venues resolve as "venue, city".
 
-        Forms are tried most-likely first and the first plausible answer wins.
-        `near` — normally the already-geocoded city — rejects an answer that
-        landed in the wrong metro area entirely, which is worse than no answer:
-        a miss falls back to the city centroid and warns, while a wrong hit is
-        written to the graph silently.
+        Forms are tried most-likely first and the first *unremarkable* answer
+        wins. `near` — normally the already-geocoded city — rejects an answer
+        that landed in the wrong metro area entirely, which is worse than no
+        answer: a miss falls back to the city centroid and warns, while a wrong
+        hit is written to the graph silently.
+
+        An answer that is inside the guard but still unusually far from the
+        city does not win outright; the remaining forms are asked for a second
+        opinion and the nearest plausible answer takes it. Measured on the
+        repaired graph: Sant Jordi Club resolved by name to a point 17.7 km
+        out, which the 25 km guard let through, while its address — the correct
+        Montjuïc one — resolves 3.1 km out, right beside the Palau Sant Jordi
+        it shares a wall with. Preferring the address outright is not the fix:
+        Sala El Sol goes 0.3 km by name and 25 km by address, and two other
+        venues have no address answer at all. What marks the bad case is that
+        the forms disagree and the winner was merely first.
 
         `address_resolver` is the last resort: given a venue and city it returns
         a street address from somewhere outside OSM. Small independent venues
@@ -136,15 +153,41 @@ class NominatimGeocoder:
             ", ".join(p for p in (venue, address, city) if p),
         ]
         seen: set[str] = set()
-        for query in forms:
+        outliers: list[tuple[float, GeocodeResult]] = []
+
+        def consider(query: str) -> GeocodeResult | None:
+            """A form's answer, unless it is far enough out to want a second one."""
             result = self._try_form(query, seen, near, max_km)
-            if result is not None:
+            if result is None or near is None:
+                return result
+            off_km = haversine_km(result.lat, result.lng, near.lat, near.lng)
+            if off_km <= VENUE_OUTLIER_KM:
+                return result
+            outliers.append((off_km, result))
+            return None
+
+        for query in forms:
+            if (result := consider(query)) is not None:
                 return result
 
         if address_resolver is not None:
             found = self._resolved_address(venue, city, address_resolver)
-            if found:
-                return self._try_form(self._with_city(found, city), seen, near, max_km)
+            if found and (result := consider(self._with_city(found, city))) is not None:
+                return result
+
+        if outliers:
+            # Every form that answered landed unusually far out. They are all
+            # still inside the guard, so one of them is probably a real
+            # out-of-town venue — take the nearest and let the caller see it.
+            off_km, result = min(outliers, key=lambda pair: pair[0])
+            logger.info(
+                "Every answer for %r is far from %s; taking the nearest at %.1f km (%r)",
+                venue,
+                city,
+                off_km,
+                result.display_name,
+            )
+            return result
         return None
 
     @staticmethod
