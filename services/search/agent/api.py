@@ -3,14 +3,19 @@
 
 Sweeps are dry-run and persist a report; approve replays from the stored
 report through the shared writer with source='admin_search'. Endpoints are
-plain `def` — Starlette runs them in a threadpool, so the minutes-long sweep
-never starves the event loop (the Phase-3 SSE lesson, applied here).
+plain `def` — Starlette runs them in a threadpool, so blocking work never
+starves the event loop (the Phase-3 SSE lesson, applied here).
+
+Sweep and backfill answer 202 with a report id and finish in a background
+task; callers poll GET /reports/{id} until the status leaves 'running'.
+The synchronous shape died with Phase 6: PaaS proxies cut a silent 2–6 min
+response long before the sweep returns.
 """
 
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from laiive_shared import EventDraft, install_internal_auth, register_health
 from loguru import logger
@@ -51,22 +56,38 @@ class SweepRequest(BaseModel):
     max_pages: int | None = Field(None, ge=1, le=25)
 
 
-@app.post("/sweep")
-def sweep(body: SweepRequest):
-    """Dry-run discovery for one city; persists a report, writes nothing."""
-    result = discovery.sweep_city(body.city.strip(), body.max_pages)
-    report = reports.create_report(
-        result.city,
-        [c.model_dump() for c in result.candidates],
-        result.stats,
-    )
-    logger.info(f"Sweep of {result.city}: {result.stats}")
-    return {
-        "report_id": report["id"],
-        "city": result.city,
-        "stats": result.stats,
-        "candidates": result.candidates,
-    }
+@app.post("/sweep", status_code=202)
+def sweep(body: SweepRequest, background: BackgroundTasks):
+    """Dry-run discovery for one city; 202 now, results land on the report."""
+    city = body.city.strip()
+    report = reports.create_report(city, [], {}, status="running")
+    background.add_task(_run_sweep, report["id"], city, body.max_pages)
+    return {"report_id": report["id"], "city": city, "status": "running"}
+
+
+def _run_sweep(report_id: str, city: str, max_pages: int | None) -> None:
+    # Plain def — BackgroundTasks runs it in the threadpool after the 202.
+    try:
+        result = discovery.sweep_city(city, max_pages)
+        reports.update_report(
+            report_id,
+            {
+                "status": "dry_run",
+                "candidates": [c.model_dump() for c in result.candidates],
+                "stats": result.stats,
+            },
+        )
+        logger.info(f"Sweep of {result.city}: {result.stats}")
+    except Exception as e:  # noqa: BLE001 — a running report must never stay running
+        logger.exception(f"Sweep of {city} failed")
+        _mark_failed(report_id, e)
+
+
+def _mark_failed(report_id: str, exc: Exception) -> None:
+    try:
+        reports.update_report(report_id, {"status": "failed", "error": str(exc)[:2000]})
+    except reports.ReportStoreError as e:
+        logger.error(f"Report {report_id} failed and could not be marked: {e}")
 
 
 @app.get("/reports")
@@ -111,7 +132,13 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
     # have caught most of it, but not the wasted geocodes and embeddings.
     approved_at = datetime.now(UTC).isoformat()
     if not reports.claim_report(report_id, _as_uuid(x_user_id), approved_at):
-        raise HTTPException(status_code=409, detail="Report already approved")
+        # The CAS matches only dry_run, so say what state actually blocked it.
+        current = reports.get_report(report_id)
+        status = (current or {}).get("status") or "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Report is not approvable (status: {status})",
+        )
 
     results = []
     for index, candidate in selected:
@@ -162,8 +189,23 @@ class BackfillRequest(BaseModel):
     max_venues: int = Field(25, ge=1, le=200)
 
 
-@app.post("/backfill")
-def backfill(body: BackfillRequest | None = None):
+@app.post("/backfill", status_code=202)
+def backfill(background: BackgroundTasks, body: BackfillRequest | None = None):
     """Fill missing embeddings and venue locations; bounded and idempotent."""
-    result = graph.run_backfill((body or BackfillRequest()).max_venues)
-    return result
+    report = reports.create_report(None, [], {}, status="running", kind="backfill")
+    background.add_task(
+        _run_backfill, report["id"], (body or BackfillRequest()).max_venues
+    )
+    return {"report_id": report["id"], "status": "running"}
+
+
+def _run_backfill(report_id: str, max_venues: int) -> None:
+    try:
+        result = graph.run_backfill(max_venues)
+        reports.update_report(
+            report_id, {"status": "done", "stats": result.model_dump()}
+        )
+        logger.info(f"Backfill: {result}")
+    except Exception as e:  # noqa: BLE001 — a running report must never stay running
+        logger.exception("Backfill failed")
+        _mark_failed(report_id, e)

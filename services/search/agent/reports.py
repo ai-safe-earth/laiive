@@ -27,13 +27,20 @@ class ReportStoreError(RuntimeError):
     """Supabase refused or failed — the caller turns this into a 502."""
 
 
-def create_report(city: str, candidates: list[dict], stats: dict) -> dict:
+def create_report(
+    city: str | None,
+    candidates: list[dict],
+    stats: dict,
+    status: str = "dry_run",
+    kind: str = "sweep",
+) -> dict:
     response = _http.post(
         _url(),
         headers=_headers(Prefer="return=representation"),
         json={
             "city": city,
-            "status": "dry_run",
+            "status": status,
+            "kind": kind,
             "candidates": candidates,
             "stats": stats,
         },
@@ -63,7 +70,7 @@ def list_reports(limit: int = 20) -> list[dict]:
         _url(),
         headers=_headers(),
         params={
-            "select": "id,city,status,stats,created_at,approved_at,approved_by",
+            "select": "id,city,status,kind,error,stats,created_at,approved_at,approved_by",
             "order": "created_at.desc",
             "limit": str(limit),
         },

@@ -51,15 +51,39 @@ def test_health():
     assert response.json()["neo4j"] == "ok"
 
 
-def test_sweep_persists_report_and_writes_nothing(mock_reports_http, mock_neo4j):
+def test_sweep_202_then_results_land_on_the_report(mock_reports_http, mock_neo4j):
+    """202 immediately; the background worker patches the report to dry_run.
+
+    TestClient runs BackgroundTasks before returning, so the terminal patch
+    is assertable in the same call.
+    """
     response = client.post("/sweep", json={"city": "Berlin"})
-    assert response.status_code == 200
+    assert response.status_code == 202
     body = response.json()
     assert body["report_id"] == REPORT_ID
-    assert body["stats"]["candidates"] == 1
-    assert mock_reports_http.post.called
+    assert body["status"] == "running"
+    create_payload = mock_reports_http.post.call_args.kwargs["json"]
+    assert create_payload["status"] == "running"
+    terminal = mock_reports_http.patch.call_args.kwargs["json"]
+    assert terminal["status"] == "dry_run"
+    assert terminal["stats"]["candidates"] == 1
+    assert len(terminal["candidates"]) == 1
     writes = [q for q, _ in mock_neo4j.fake_session.queries if "CREATE" in q]
     assert writes == []
+
+
+def test_sweep_worker_failure_marks_the_report_failed(mock_reports_http, monkeypatch):
+    from agent import discovery
+
+    def boom(city, max_pages):
+        raise RuntimeError("tavily down")
+
+    monkeypatch.setattr(discovery, "sweep_city", boom)
+    response = client.post("/sweep", json={"city": "Berlin"})
+    assert response.status_code == 202
+    terminal = mock_reports_http.patch.call_args.kwargs["json"]
+    assert terminal["status"] == "failed"
+    assert "tavily down" in terminal["error"]
 
 
 def test_sweep_validates_city():
@@ -91,7 +115,22 @@ def test_approve_already_approved_409(mock_reports_http, mock_neo4j):
     mock_reports_http.patch.return_value = http_response(200, [])
     response = client.post(f"/reports/{REPORT_ID}/approve", json={})
     assert response.status_code == 409
+    assert "approved" in response.json()["detail"]
     # and nothing was written
+    assert [
+        q for q, _ in mock_neo4j.fake_session.queries if "CREATE (e:Event" in q
+    ] == []
+
+
+def test_approve_of_running_report_409_with_reason(mock_reports_http, mock_neo4j):
+    """A running (or failed) report loses the CAS — the 409 says why."""
+    mock_reports_http.get.return_value = http_response(
+        200, [stored_report(status="running", candidates=[])]
+    )
+    mock_reports_http.patch.return_value = http_response(200, [])
+    response = client.post(f"/reports/{REPORT_ID}/approve", json={})
+    assert response.status_code == 409
+    assert "running" in response.json()["detail"]
     assert [
         q for q, _ in mock_neo4j.fake_session.queries if "CREATE (e:Event" in q
     ] == []
@@ -159,12 +198,17 @@ def test_report_store_failure_is_502(mock_reports_http):
     assert response.status_code == 502
 
 
-def test_backfill_reports_counts(mock_neo4j):
+def test_backfill_202_then_done_with_stats(mock_reports_http, mock_neo4j):
     response = client.post("/backfill", json={"max_venues": 5})
-    assert response.status_code == 200
-    body = response.json()
-    assert body["embedded"] == 0
-    assert body["venues_geocoded"] == 0
+    assert response.status_code == 202
+    assert response.json()["status"] == "running"
+    create_payload = mock_reports_http.post.call_args.kwargs["json"]
+    assert create_payload["kind"] == "backfill"
+    assert create_payload["city"] is None
+    terminal = mock_reports_http.patch.call_args.kwargs["json"]
+    assert terminal["status"] == "done"
+    assert terminal["stats"]["embedded"] == 0
+    assert terminal["stats"]["venues_geocoded"] == 0
 
 
 @pytest.fixture
@@ -186,7 +230,11 @@ def mock_neo4j_with_orphan_venue(mock_neo4j):
     return mock_neo4j
 
 
-def test_backfill_geocodes_venues(mock_neo4j_with_orphan_venue, mock_geocoder):
+def test_backfill_geocodes_venues(
+    mock_neo4j_with_orphan_venue, mock_geocoder, mock_reports_http
+):
     response = client.post("/backfill", json={"max_venues": 5})
-    assert response.json()["venues_geocoded"] == 1
+    assert response.status_code == 202
+    terminal = mock_reports_http.patch.call_args.kwargs["json"]
+    assert terminal["stats"]["venues_geocoded"] == 1
     mock_geocoder.geocode.assert_called_with("Lost Venue, Berlin")
