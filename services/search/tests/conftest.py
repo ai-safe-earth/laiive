@@ -123,14 +123,20 @@ def mock_geocoder():
     from laiive_shared.geocode import GeocodeResult
 
     geocoder = MagicMock()
-    result = GeocodeResult(
+    city = GeocodeResult(
         lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
     )
     # Both are stubbed: the write path and the backfill geocode the city with
     # geocode() and the venue with geocode_venue(). A MagicMock left to
     # autospec geocode_venue returns a mock whose .lat flows into the Cypher.
-    geocoder.geocode.return_value = result
-    geocoder.geocode_venue.return_value = result
+    # The venue answer is deliberately a different point from the city: when
+    # the two coincide the backfill treats it as a centroid fallback, which is
+    # its own case and has its own test.
+    venue = GeocodeResult(
+        lat=52.5111, lng=13.4433, country_code="DE", display_name="Berghain, Berlin"
+    )
+    geocoder.geocode.return_value = city
+    geocoder.geocode_venue.return_value = venue
     with patch("agent.graph._geocoder", geocoder):
         yield geocoder
 

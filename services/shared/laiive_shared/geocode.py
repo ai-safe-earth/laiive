@@ -30,6 +30,14 @@ USER_AGENT = "laiive/0.2 (event platform; contact: arroscar@gmail.com)"
 # observed headroom while still rejecting all of them.
 VENUE_MAX_KM = 25.0
 
+# A venue answer this close to the city's own geocode is not a venue answer:
+# the provider fell back to the city and the pin means "somewhere in here".
+# It is the bake-off's centroid-collapse metric, reused as a runtime rule.
+# Measured on the live graph: eight Barcelona venues shared one pin, which was
+# exactly Nominatim's answer for "barcelona" — including Razzmatazz and Palau
+# Sant Jordi, which are kilometres apart in reality.
+CENTROID_COLLAPSE_M = 100.0
+
 # (venue, city) -> street address, or None. Injected by the caller so this
 # module stays free of search/LLM clients; see services/search/agent/address_lookup.py.
 AddressResolver = Callable[[str, str | None], str | None]

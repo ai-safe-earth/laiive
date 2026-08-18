@@ -9,6 +9,7 @@ from agent.executor import (
     build_nearby_query,
     build_template_query,
     build_vector_query,
+    pad_bbox,
     flexible_rows_to_cards,
     rows_to_cards,
 )
@@ -378,3 +379,53 @@ class TestPrecisionOnTheCard:
         card = rows_to_cards([STANDARD_ROW])[0]
         assert card.geocode_precision is None
         assert (card.lat, card.lng) == (52.5111, 13.4433)
+
+
+class TestBboxPadding:
+    """Nominatim answers a place with whatever object carries the name.
+
+    For seven of the 22 places measured that is a square, a street or a
+    building, not the district: Lavapiés, Poblenou and Barceloneta all come
+    back as a 10 m box. Unpadded, those match only a venue standing on the
+    exact same coordinate — which is to say, never.
+    """
+
+    POINT = (41.3874, 41.3874, 2.1900, 2.1900)  # Poblenou, as OSM answers it
+
+    def test_a_point_becomes_the_smallest_plausible_place(self):
+        south, north, west, east = pad_bbox(self.POINT)
+        assert round((north - south) * 111.32, 1) == 2.0
+        # Longitude degrees are shorter this far north, so the pad is wider.
+        assert (east - west) > (north - south)
+
+    def test_a_real_neighbourhood_is_left_alone(self):
+        kreuzberg = (52.4823, 52.5170, 13.3823, 13.4657)
+        assert pad_bbox(kreuzberg) == kreuzberg
+
+    def test_padding_is_centred(self):
+        south, north, west, east = pad_bbox(self.POINT)
+        assert round((south + north) / 2, 6) == 41.3874
+        assert round((west + east) / 2, 6) == 2.1900
+
+
+class TestCollapsedPinsInsideABox:
+    """The flag cannot carry this on its own — 34 of 35 venues predate it."""
+
+    def test_a_pin_on_the_city_centre_is_not_an_address(self):
+        cypher, params = build_bbox_query(
+            Constraints(city="Malasaña"), (40.41, 40.43, -3.71, -3.69)
+        )
+        assert "point.distance(v.location, c.location) > $centroid_collapse_m" in cypher
+        assert params["centroid_collapse_m"] == 100.0
+
+    def test_a_pin_two_venues_share_is_not_an_address(self):
+        """Eight Barcelona venues sat on one point 888 m from c.location.
+
+        Far enough that the centre test missed it, so the second rule is
+        geometric in a different way: two venues cannot share a doorway.
+        """
+        cypher, _ = build_bbox_query(
+            Constraints(city="Gòtic"), (41.37, 41.39, 2.16, 2.19)
+        )
+        assert "NOT EXISTS { MATCH (other:Venue)-[:LOCATED_IN]->(c)" in cypher
+        assert "other.location = v.location AND other.uid <> v.uid" in cypher

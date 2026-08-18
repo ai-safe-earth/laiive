@@ -8,7 +8,12 @@ probes and the backfill selects. Tests patch _openai / _driver / _geocoder
 
 from laiive_shared import EventDraft
 from laiive_shared.embedding_text import event_text
-from laiive_shared.geocode import VENUE_MAX_KM, NominatimGeocoder
+from laiive_shared.geocode import (
+    CENTROID_COLLAPSE_M,
+    VENUE_MAX_KM,
+    NominatimGeocoder,
+    haversine_km,
+)
 from laiive_shared.geocode_store import RedisGeocodeStore
 from laiive_shared.neo4j_writer import (
     WriteResult,
@@ -181,11 +186,12 @@ def run_backfill(max_venues: int = 25) -> BackfillResult:
         for row in rows:
             # Same form-and-plausibility rules as the write path; the city
             # lookup collapses to one cache key across every venue in it.
+            city_point = _geocoder.geocode(row["city"])
             geo = _geocoder.geocode_venue(
                 row["name"],
                 row["address"],
                 row["city"],
-                near=_geocoder.geocode(row["city"]),
+                near=city_point,
                 address_resolver=address_lookup.resolve_address,
             )
             if geo is None:
@@ -207,18 +213,33 @@ def run_backfill(max_venues: int = 25) -> BackfillResult:
                     result.venues_flagged += 1
                 result.warnings.append(f"Could not geocode venue {row['name']!r}")
                 continue
+            # An answer that lands on the city's own geocode is the provider
+            # falling back to the city, not an address — stamping it 'venue'
+            # would bless a pin that means "somewhere in Barcelona" as if it
+            # were a doorway. Eight Barcelona venues in the live graph share
+            # exactly that point. Comparing against the geocoder's own answer
+            # rather than c.location matters: the two differ by 888 m there,
+            # which is enough for the graph-side distance check to miss it.
+            collapsed = city_point is not None and (
+                haversine_km(geo.lat, geo.lng, city_point.lat, city_point.lng) * 1000
+                < CENTROID_COLLAPSE_M
+            )
             session.run(
                 """
                 MATCH (v:Venue {uid: $uid})
                 SET v.location = point({latitude: $lat, longitude: $lng}),
-                    v.geocode_precision = 'venue',
+                    v.geocode_precision = $precision,
                     v.geocode_checked_at = datetime()
                 """,
                 uid=row["uid"],
                 lat=geo.lat,
                 lng=geo.lng,
+                precision="city_centroid" if collapsed else "venue",
             )
-            result.venues_geocoded += 1
+            if collapsed:
+                result.venues_flagged += 1
+            else:
+                result.venues_geocoded += 1
     return result
 
 

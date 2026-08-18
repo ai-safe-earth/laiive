@@ -10,9 +10,11 @@ here — the frontend never parses prose.
 """
 
 import json
+import math
 from dataclasses import dataclass, field
 
 from laiive_shared import EventCard
+from laiive_shared.geocode import CENTROID_COLLAPSE_M
 from laiive_shared.normalize import norm
 from loguru import logger
 
@@ -131,6 +133,34 @@ def build_nearby_query(
     return cypher, params
 
 
+# Nominatim answers a place with whatever object carries the name, and for a
+# third of the neighbourhoods measured that is the central square rather than
+# the district: Lavapiés, Poblenou and Barceloneta all come back as a 10 m box,
+# and every landmark (Sagrada Família, Puerta del Sol, Alexanderplatz, Parc
+# Güell) is a building or a plaza. Unpadded, those queries can only ever match
+# a venue at the exact same coordinate. The floor is the median real
+# neighbourhood in the same measurement — 2.8 km diagonal, i.e. a 2 km square —
+# so a point-shaped answer is treated as the smallest plausible place.
+NAMED_PLACE_MIN_SPAN_KM = 2.0
+KM_PER_DEGREE_LAT = 111.32
+
+
+def pad_bbox(
+    bbox: tuple[float, float, float, float],
+    min_span_km: float = NAMED_PLACE_MIN_SPAN_KM,
+) -> tuple[float, float, float, float]:
+    """Grow a box that is smaller than min_span_km on either axis, around its centre."""
+    south, north, west, east = bbox
+    km_per_degree_lng = KM_PER_DEGREE_LAT * math.cos(math.radians((south + north) / 2))
+    if (north - south) * KM_PER_DEGREE_LAT < min_span_km:
+        pad = (min_span_km / KM_PER_DEGREE_LAT - (north - south)) / 2
+        south, north = south - pad, north + pad
+    if km_per_degree_lng > 0 and (east - west) * km_per_degree_lng < min_span_km:
+        pad = (min_span_km / km_per_degree_lng - (east - west)) / 2
+        west, east = west - pad, east + pad
+    return (south, north, west, east)
+
+
 def build_bbox_query(
     c: Constraints, bbox: tuple[float, float, float, float]
 ) -> tuple[str, dict]:
@@ -144,16 +174,43 @@ def build_bbox_query(
     does). A centroid sits inside the bbox of whichever central district
     contains it, so keeping them would put every un-located venue in Berlin
     inside Mitte — a confident wrong answer, not an imprecise one.
+
+    That exclusion cannot rely on the flag alone. Measured against the live
+    graph, all six venues sitting on Madrid's centroid are unstamped, and
+    trusting NULL the way nearby does put the Metropolitano stadium in
+    Malasaña. So the geometry is checked twice, neither test needing the flag:
+
+    - a pin on its own city's stored centre is a fallback; and
+    - a pin shared with another venue in the same city is a fallback too,
+      whatever it happens to coincide with. This is the one that generalises:
+      eight Barcelona venues sat on Nominatim's answer for "barcelona", which
+      is 888 m from the City node's own location, so the centre test alone did
+      not see them. Two venues cannot share a doorway.
     """
     south, north, west, east = bbox
     where, params = _constraint_clauses(c.model_copy(update={"city": None}))
     where.insert(0, "e.status = 'scheduled'")
     where.insert(0, "v.location IS NOT NULL")
     where.insert(1, "coalesce(v.geocode_precision, 'venue') = 'venue'")
+    where.append(
+        "(c.location IS NULL OR "
+        "point.distance(v.location, c.location) > $centroid_collapse_m)"
+    )
+    # Scoped to the bound city, so this reads one city's venues rather than
+    # scanning the label.
+    where.append(
+        "NOT EXISTS { MATCH (other:Venue)-[:LOCATED_IN]->(c) "
+        "WHERE other.location = v.location AND other.uid <> v.uid }"
+    )
     where.append("v.location.latitude >= $south AND v.location.latitude <= $north")
     where.append("v.location.longitude >= $west AND v.location.longitude <= $east")
     params.update(
-        south=south, north=north, west=west, east=east, limit=settings.max_results_limit
+        south=south,
+        north=north,
+        west=west,
+        east=east,
+        centroid_collapse_m=CENTROID_COLLAPSE_M,
+        limit=settings.max_results_limit,
     )
     cypher = (
         "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
@@ -344,7 +401,7 @@ class Executor:
                 f"{place.display_name!r} spans {diagonal:.0f} km"
             )
             return None
-        cypher, params = build_bbox_query(c, place.bbox)
+        cypher, params = build_bbox_query(c, pad_bbox(place.bbox))
         rows = self.neo4j.execute_read(cypher, params)
         if not rows:
             return None

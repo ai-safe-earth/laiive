@@ -248,3 +248,33 @@ def test_backfill_geocodes_venues(
         near=mock_geocoder.geocode.return_value,
         address_resolver=address_lookup.resolve_address,
     )
+    written = [
+        params
+        for query, params in mock_neo4j_with_orphan_venue.fake_session.queries
+        if "SET v.location" in query
+    ]
+    assert written and written[0]["precision"] == "venue"
+
+
+def test_backfill_marks_a_city_centroid_answer_as_one(
+    mock_neo4j_with_orphan_venue, mock_geocoder, mock_reports_http
+):
+    """The provider answering with the city itself is not an address.
+
+    Measured on the live graph: eight Barcelona venues share one pin, and that
+    pin is exactly Nominatim's answer for "barcelona". Stamping those 'venue'
+    would mark them verified and stop the repair sweep ever revisiting them.
+    """
+    mock_geocoder.geocode_venue.return_value = mock_geocoder.geocode.return_value
+
+    assert client.post("/backfill", json={"max_venues": 5}).status_code == 202
+
+    terminal = mock_reports_http.patch.call_args.kwargs["json"]
+    assert terminal["stats"]["venues_geocoded"] == 0
+    assert terminal["stats"]["venues_flagged"] == 1
+    written = [
+        params
+        for query, params in mock_neo4j_with_orphan_venue.fake_session.queries
+        if "SET v.location" in query
+    ]
+    assert written and written[0]["precision"] == "city_centroid"
