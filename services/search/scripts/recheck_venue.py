@@ -13,6 +13,11 @@ Writes to Aura. Run it deliberately, not on a schedule.
 """
 
 import sys
+from pathlib import Path
+
+# Scripts run from the service root ("uv run python scripts/x.py"), where only
+# scripts/ is on sys.path -- so the service's own packages have to be added.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.graph import _driver, run_backfill
 from config import settings

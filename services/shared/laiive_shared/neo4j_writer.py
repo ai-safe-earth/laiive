@@ -289,6 +289,43 @@ def write_event(
     )
 
 
+def tag_artist_genres(session, tags: dict[str, str]) -> int:
+    """Attach a genre to artists that have none. Returns how many were tagged.
+
+    Lives here rather than in a script because this module is the only path
+    that writes to the graph, and because the Genre MERGE has to agree with the
+    one in write_event -- same slug key, same title-cased name on create, or a
+    second node appears for the genre that already exists.
+
+    Only ever adds: an artist that already carries a genre is left alone, so a
+    re-run is a no-op and a human correction is never overwritten by a model.
+    """
+    if not tags:
+        return 0
+    rows = [
+        {
+            "name_norm": norm(name),
+            "genre": genre_slug(genre),
+            "name": genre.strip().title(),
+        }
+        for name, genre in tags.items()
+        if name and genre
+    ]
+    record = session.run(
+        """
+        UNWIND $rows AS row
+        MATCH (a:Artist {name_norm: row.name_norm})
+        WHERE NOT EXISTS { (a)-[:HAS_GENRE]->(:Genre) }
+        MERGE (g:Genre {slug: row.genre})
+          ON CREATE SET g.name = row.name
+        MERGE (a)-[:HAS_GENRE]->(g)
+        RETURN count(DISTINCT a) AS tagged
+        """,
+        rows=rows,
+    ).single()
+    return record["tagged"] if record else 0
+
+
 def backfill_embeddings(
     session,
     embed_texts: EmbedFn,

@@ -75,6 +75,22 @@ def mock_address_lookup():
 
 
 @pytest.fixture(autouse=True)
+def mock_genre_lookup():
+    """Autouse: genre_lookup holds a module-level OpenAI client of its own.
+
+    Recognises nothing by default, so a test that does not care about genres
+    never depends on what a model would have said.
+    """
+    client = MagicMock()
+    reply = MagicMock()
+    reply.choices = [MagicMock()]
+    reply.choices[0].message.content = '{"artists": []}'
+    client.chat.completions.create.return_value = reply
+    with patch("agent.genre_lookup._client", client):
+        yield client
+
+
+@pytest.fixture(autouse=True)
 def mock_tavily():
     http = MagicMock()
     http.post.return_value = http_response(payload=TAVILY_PAYLOAD)

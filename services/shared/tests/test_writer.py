@@ -1,6 +1,6 @@
 from laiive_shared.cards import EventDraft
 from laiive_shared.geocode import GeocodeResult, NominatimGeocoder
-from laiive_shared.neo4j_writer import parse_start_at, write_event
+from laiive_shared.neo4j_writer import parse_start_at, tag_artist_genres, write_event
 
 
 class FakeResult:
@@ -35,6 +35,8 @@ class FakeSession:
                     "city": params["city"],
                 }
             )
+        if "MERGE (a)-[:HAS_GENRE]->(g)" in query:
+            return FakeResult(single={"tagged": len(params["rows"])})
         return FakeResult(rows=[])  # backfill selects — nothing to embed
 
 
@@ -355,3 +357,32 @@ def test_address_resolver_failure_falls_back_to_the_city_centroid():
     )
     assert result.status == "created"
     assert any("city centroid" in w for w in result.warnings)
+
+
+class TestTagArtistGenres:
+    """Tagging an artist reaches every event they play, past and future."""
+
+    def test_untagged_artists_are_tagged(self):
+        session = FakeSession()
+        tagged = tag_artist_genres(
+            session, {"Placebo": "Alternative Rock", "Yandel": "reggaeton"}
+        )
+        assert tagged == 2
+        rows = session.queries[-1][1]["rows"]
+        assert {r["genre"] for r in rows} == {"alternative-rock", "reggaeton"}
+        # The Genre MERGE has to match write_event's, or the same genre ends up
+        # as two nodes: same slug key, same title-cased name on create.
+        assert {r["name"] for r in rows} == {"Alternative Rock", "Reggaeton"}
+
+    def test_an_artist_that_already_has_a_genre_is_left_alone(self):
+        """A human correction must survive a re-run of the tagging script."""
+        session = FakeSession()
+        tag_artist_genres(session, {"Klangfeld": "pop"})
+        assert (
+            "WHERE NOT EXISTS { (a)-[:HAS_GENRE]->(:Genre) }" in session.queries[-1][0]
+        )
+
+    def test_nothing_to_tag_is_not_a_query(self):
+        session = FakeSession()
+        assert tag_artist_genres(session, {}) == 0
+        assert session.queries == []
