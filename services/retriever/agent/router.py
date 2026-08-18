@@ -41,6 +41,23 @@ def route(classification: Classification, has_location: bool) -> list[ExecutionP
                 plans.append(ExecutionPlan(PlanKind.NEARBY, c))
         elif c.free_text:
             plans.append(ExecutionPlan(PlanKind.VECTOR, c))
+        elif _implicitly_nearby(c, has_location):
+            plans.append(ExecutionPlan(PlanKind.NEARBY, c))
         elif not c.is_empty():
             plans.append(ExecutionPlan(PlanKind.TEMPLATE, c))
     return plans
+
+
+def _implicitly_nearby(c: Constraints, has_location: bool) -> bool:
+    """A shared location is a filter when nothing else says where.
+
+    "techno on friday" with a location and no place named used to fall to
+    TEMPLATE, which has no city predicate — the answer mixed in every city in
+    the graph. It is not a filter when the ask names *what* rather than where:
+    "when does Klangfeld play?" must not be silently cut to a 25 km circle.
+    """
+    if not has_location:
+        return False
+    if c.city or c.country_code or c.artist or c.venue:
+        return False
+    return not c.is_empty()
