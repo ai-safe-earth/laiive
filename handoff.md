@@ -1187,9 +1187,14 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
 5. **`Shakira Stadium` is not a venue.** It sits 9.5 km from Madrid's centre
    with no address, and the name is almost certainly a listing-page artefact.
    Extraction quality, not geocoding.
-6. **The composer is not told a card matched by box rather than by city**, so
-   it will happily phrase a padded-box hit as "in Barceloneta". Only matters
-   once padding is common.
+6. **The composer now knows when a match was approximate** (`44b6dce`): an
+   `Outcome` carries an optional note, the pipeline collects them, the
+   composer reflects one in a clause. Measured five samples each way, and the
+   result was not the predicted one - *neither* version overstated. Without
+   the note the composer quietly drops the neighbourhood and answers about
+   Barcelona (true, and a worse answer, since Barceloneta is what was asked);
+   with it, "around Barceloneta". So it buys an answer that addresses the
+   question honestly rather than preventing a lie the model was not telling.
 7. Confirm the `.claude/settings.json` deny rules enforce after a restart
    (carried over, still unverified).
 
@@ -1627,6 +1632,10 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "Correction: there are no duplicate events - zero share a name and a day, and 'The Weeknd three times' was a real three-night run misread from a truncated smoke listing. The real duplication is four near-duplicate Venue nodes within 162 m of each other, two of which are a room inside a building and must not be merged"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "An Outcome carries a retrieval note to the composer when the match was approximate. Five samples each way: neither overstated, but without the note the composer drops the neighbourhood and answers about the city instead, so the note buys an answer that addresses the question rather than preventing a lie"
         }
       ]
     }
@@ -1674,13 +1683,6 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
     },
     {
       "title": "Genre on admin_search events: swept events have no genre and no artists, so the executor's HAS_GENRE predicate excludes them from every genre-pinned query. Infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Tell the composer when a card matched by bounding box rather than by city, so a padded-box hit is not phrased as 'in Barceloneta'",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
