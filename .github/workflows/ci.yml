@@ -14,6 +14,10 @@ concurrency:
 jobs:
   python:
     runs-on: ubuntu-latest
+    # Match the python:3.13-slim images. Without a pin uv grabs the newest
+    # interpreter (3.14 today), where langfuse's pydantic-v1 shim breaks.
+    env:
+      UV_PYTHON: "3.13"
     strategy:
       fail-fast: false
       matrix:
