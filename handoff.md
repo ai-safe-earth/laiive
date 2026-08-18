@@ -1,4 +1,4 @@
-# HANDOFF — laiive (updated 2026-08-17)
+# HANDOFF — laiive (updated 2026-08-18)
 
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
@@ -807,6 +807,43 @@ retriever 103, pusher 67, search 32, gateway 23):
   builds the laiive-shared wheel and hatchling requires the `README.md` its
   metadata names.
 
+### Phase 6 — CI green + repo hygiene (2026-08-18, commits `cdfdc23`…`4285fcc`)
+
+**The `ci` workflow is green for the first time since it was added.** It had never
+passed; each fix exposed the next latent failure, four in total:
+
+1. **`frontend/src/lib/cn.ts` was never in git** — the root `.gitignore`'s
+   unanchored `lib/` (python packaging template) swallowed `frontend/src/lib`,
+   so every fresh clone failed typecheck/build on nine `@/lib/cn` imports.
+   Anchored to `/lib/`+`/lib64/`, file committed. Watch for this shape: an
+   unanchored template pattern can silently untrack frontend dirs (`build/`,
+   `dist/` are also unanchored but currently harmless).
+2. **ruff had nothing to spawn** — it lived only in pre-commit's isolated hook
+   env; `uv run ruff check .` died in all four python jobs. `ruff==0.4.9`
+   (pinned to the ruff-pre-commit rev) now sits in each service's dev group.
+3. **pytest died at collection with SystemExit** — no `.env` in CI and every
+   config exits loudly on missing keys. The pytest step now carries dummy env
+   values (the unit suites mock every client). Verified locally by hiding the
+   root `.env`: shared 67, retriever 103, pusher 67, search 32, all green.
+4. **The runner picked Python 3.14** (`.python-version` is gitignored, so uv
+   grabs the newest) and langfuse's pydantic-v1 shim raises ConfigError there.
+   Python jobs pinned via job-level `UV_PYTHON: "3.13"` to match the
+   `python:3.13-slim` images.
+
+**Repo hygiene, same session**: `product-status.md` committed (the tracker
+reads it); `supabase/.temp/` gitignored; the plaintext Aura creds file moved
+out of the repo to `..\laiive-data\Neo4j-2099d44c-Created-2026-08-13.txt`
+(`.env` carries the live values). **CLAUDE.md rewritten** — it still described
+the pre-refactor world (ReAct orchestrator, bun, the three-way port table,
+Makefile targets deleted months ago); it now matches the gateway-fronted stack
+and points here for the moving picture. **Makefile pruned**: dead
+`test-formatting`/`test-unit`/`test-coverage` (pytest-cov was never installed)
+replaced with per-service targets mirroring CI; `start-*` switched to the
+`uv run --no-sync python -m uvicorn` form that works on this machine. Note:
+`uv run pytest` also hits the canonicalize bug here — `uv run --no-sync
+python -m pytest` is the reliable form. Left on disk, gitignored, deletable
+whenever: `desktop.ini`, `.env.bak.1786991886`, `.history/`.
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -910,7 +947,7 @@ retriever 103, pusher 67, search 32, gateway 23):
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-17",
+  "updated": "2026-08-18",
   "deadline": null,
   "people": [
     "oscar"
@@ -1083,6 +1120,14 @@ retriever 103, pusher 67, search 32, gateway 23):
         {
           "date": "2026-08-17",
           "text": "Images hardened: multi-stage, non-root uid 10001, no dev deps, venv uvicorn, verified read-only rootfs; compose gained Redis, healthchecks and restart policies - first verified compose build since Phase 3"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "CI green for the first time: gitignore lib/ anchored so frontend/src/lib/cn.ts is tracked, ruff==0.4.9 pinned in every dev group, dummy env keys on the pytest step, python jobs pinned to 3.13 via UV_PYTHON"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Repo hygiene: product-status.md tracked, supabase/.temp ignored, Aura creds file moved to ../laiive-data, CLAUDE.md rewritten to the post-refactor stack, Makefile pruned to CI-mirroring targets"
         }
       ]
     }
@@ -1169,6 +1214,13 @@ retriever 103, pusher 67, search 32, gateway 23):
     {
       "date": "2026-08-17",
       "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-18",
+      "model": "fable-5",
       "credits": null,
       "person": "oscar",
       "hours": null
