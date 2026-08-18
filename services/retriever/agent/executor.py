@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from laiive_shared import EventCard
 from laiive_shared.geocode import CENTROID_COLLAPSE_M
-from laiive_shared.normalize import genre_slug, norm
+from laiive_shared.normalize import genre_family, norm
 from loguru import logger
 
 from config import settings
@@ -59,19 +59,35 @@ def _constraint_clauses(c: Constraints) -> tuple[list[str], dict]:
             "WHERE pa.name_norm CONTAINS $artist_norm }"
         )
         params["artist_norm"] = norm(c.artist)
-    if c.genre:
+    # An empty family means the word was not a genre ("various", "live"). The
+    # clause is dropped rather than left to match nothing: a junk constraint
+    # should stop filtering, not empty the answer.
+    if c.genre and (genres := genre_family(c.genre)):
         # Extraction emits a composite slug whenever the page names more than
         # one style, and an exact match makes those invisible: 'pop-rock' is on
         # four artists and four events, and answers neither "rock" nor "pop".
         # A slug's hyphen-separated parts are genres in their own right, so the
-        # asked genre matches a slug that is it, or contains it as a part.
-        genre_match = "(g.slug = $genre OR $genre IN split(g.slug, '-'))"
+        # asked genre matches a slug that is it or contains it as a whole part.
+        # The family covers the spellings already in the graph: collapsing
+        # aliases on write only ever helps rows written after it, and
+        # 'electronica' is on two artists today.
+        #
+        # Matching on hyphen boundaries rather than on split() parts, because a
+        # variant can itself be several parts: 'r-b' has to reach
+        # 'r-b-pop-new-wave', which split() never offers as one element. The
+        # boundaries are what keep it honest — "rap" must not match 'trap'.
+        genre_match = (
+            "ANY(asked IN $genres WHERE g.slug = asked "
+            "OR g.slug STARTS WITH asked + '-' "
+            "OR g.slug ENDS WITH '-' + asked "
+            "OR g.slug CONTAINS '-' + asked + '-')"
+        )
         where.append(
             f"(EXISTS {{ MATCH (e)-[:HAS_GENRE]->(g:Genre) WHERE {genre_match} }} OR "
             f"EXISTS {{ MATCH (g:Genre)<-[:HAS_GENRE]-(:Artist)-[:PERFORMS_AT]->(e) "
             f"WHERE {genre_match} }})"
         )
-        params["genre"] = genre_slug(c.genre)
+        params["genres"] = genres
     if c.date_from:
         where.append("e.start_at >= datetime($date_from)")
         params["date_from"] = c.date_from

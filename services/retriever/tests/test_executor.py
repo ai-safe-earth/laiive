@@ -43,7 +43,7 @@ class TestTemplateQuery:
         assert "c.name_norm = $city_norm" in cypher
         assert params["city_norm"] == "cafe city"  # normalized
         assert "HAS_GENRE" in cypher
-        assert params["genre"] == "jazz"
+        assert params["genres"] == ["jazz"]
         assert "e.status = 'scheduled'" in cypher
         assert "e.start_at >= datetime()" in cypher  # upcoming by default
 
@@ -292,7 +292,7 @@ class TestNamedPlaceFallback:
         ex, neo4j = self.executor([[], [STANDARD_ROW]], geocoder)
         self.run(ex, genre="techno")
         cypher, params = neo4j.execute_read.call_args[0]
-        assert params["genre"] == "techno"
+        assert params["genres"] == ["techno"]
         assert "c.name_norm = $city_norm" not in cypher  # the box replaced it
         assert "city_norm" not in params
 
@@ -429,3 +429,42 @@ class TestCollapsedPinsInsideABox:
         )
         assert "NOT EXISTS { MATCH (other:Venue)-[:LOCATED_IN]->(c)" in cypher
         assert "other.location = v.location AND other.uid <> v.uid" in cypher
+
+
+class TestGenreSpellings:
+    """One genre, several spellings, and words that are not genres at all."""
+
+    def test_a_query_reaches_the_spelling_already_in_the_graph(self):
+        """'electronica' is on two artists; canonicalising writes cannot help them."""
+        _, params = build_template_query(Constraints(genre="Electronic"))
+        assert params["genres"] == ["edm", "electro", "electronic", "electronica"]
+
+    def test_asking_by_the_variant_finds_the_canonical_too(self):
+        _, params = build_template_query(Constraints(genre="electronica"))
+        assert "electronic" in params["genres"]
+
+    def test_a_non_genre_filters_nothing(self):
+        """'various' is a tag nobody can query for — it must not become one."""
+        cypher, params = build_template_query(Constraints(genre="various"))
+        assert "HAS_GENRE" not in cypher
+        assert "genres" not in params
+
+
+class TestGenreBoundaries:
+    """A genre matches whole parts of a slug, never a substring of a word."""
+
+    def build(self, genre):
+        cypher, params = build_template_query(Constraints(genre=genre))
+        return cypher, params["genres"]
+
+    def test_a_multi_part_variant_reaches_a_composite_slug(self):
+        """'r-b' has to reach 'r-b-pop-new-wave', which split() never offers."""
+        cypher, genres = self.build("R&B")
+        assert "r-b" in genres
+        assert "g.slug STARTS WITH asked + '-'" in cypher
+
+    def test_the_boundaries_are_what_stop_a_substring_match(self):
+        """ "rap" must not answer 'trap' — different genre, shared letters."""
+        cypher, _ = self.build("rap")
+        assert "g.slug ENDS WITH '-' + asked" in cypher
+        assert "g.slug CONTAINS asked" not in cypher  # never the bare form
