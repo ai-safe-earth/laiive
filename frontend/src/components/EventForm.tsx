@@ -8,7 +8,7 @@ import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 /** Fields the graph write refuses without (laiive_shared.REQUIRED_DRAFT_FIELDS). */
-const REQUIRED = ["artists", "start_at", "venue", "city", "price_min"] as const;
+const REQUIRED = ["artists", "start_at", "venue", "address", "city", "price_min"] as const;
 
 const FIELDS: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
   { key: "name" },

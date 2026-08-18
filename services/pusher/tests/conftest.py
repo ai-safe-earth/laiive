@@ -27,6 +27,7 @@ EXTRACTION_JSON = json.dumps(
         "artists": ["Test Artist"],
         "start_at": "2026-04-01T21:00:00",
         "venue": "Test Venue",
+        "address": "Kantstrasse 12a",
         "city": "Berlin",
         "price_min": 15,
     }
@@ -66,9 +67,14 @@ def mock_geocoder():
     from laiive_shared.geocode import GeocodeResult
 
     geocoder = MagicMock()
-    geocoder.geocode.return_value = GeocodeResult(
+    result = GeocodeResult(
         lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
     )
+    # Both are stubbed: the writer geocodes the city with geocode() and the
+    # venue with geocode_venue(). A MagicMock left to autospec geocode_venue
+    # returns a mock whose .lat flows straight into the Cypher params.
+    geocoder.geocode.return_value = result
+    geocoder.geocode_venue.return_value = result
     with patch("agent.graph._geocoder", geocoder):
         yield geocoder
 

@@ -65,6 +65,7 @@ _FIELD_LABELS = {
     "artists": "the artist(s)",
     "start_at": "the date and time",
     "venue": "the venue",
+    "address": "the street address",
     "city": "the city",
     "price_min": "the ticket price",
 }

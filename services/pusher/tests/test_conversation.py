@@ -30,6 +30,7 @@ COMPLETE = {
     "artists": ["Test Artist"],
     "start_at": "2026-04-01T21:00:00",
     "venue": "Test Venue",
+    "address": "Kantstrasse 12a",
     "city": "Berlin",
     "price_min": 15,
 }
@@ -110,7 +111,7 @@ class TestProcessTurn:
         set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
         turn = process_turn([{"role": "user", "content": "gig by X in Berlin"}])
         assert turn.show_form is False
-        assert set(turn.missing[0]) == {"start_at", "venue", "price_min"}
+        assert set(turn.missing[0]) == {"start_at", "venue", "address", "price_min"}
 
     def test_second_round_always_shows_form_even_if_incomplete(self, mock_openai):
         set_extraction(mock_openai, {"artists": ["X"], "city": "Berlin"})
@@ -184,7 +185,7 @@ class TestWalk:
         assert turn.show_form is True  # no set-wide round: the intro is the ask
         assert len(turn.drafts) == 2
         assert turn.missing[0] == []
-        assert set(turn.missing[1]) == {"start_at", "venue", "price_min"}
+        assert set(turn.missing[1]) == {"start_at", "venue", "address", "price_min"}
 
     def test_a_single_event_never_walks(self, mock_openai):
         turn = process_turn([{"role": "user", "content": "full event info"}])

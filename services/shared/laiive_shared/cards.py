@@ -47,8 +47,17 @@ class EventDraft(BaseModel):
 
 # Fields a draft must have before it can be written to the graph.
 # name is derived from artists when absent; price 0 means free, so price_min
-# counts as present when it is not None.
-REQUIRED_DRAFT_FIELDS = ("artists", "start_at", "venue", "city", "price_min")
+# counts as present when it is not None. address is required because a venue
+# name alone geocodes badly -- the promoter knows the street, and asking costs
+# one conversational turn against a permanently wrong pin.
+REQUIRED_DRAFT_FIELDS = (
+    "artists",
+    "start_at",
+    "venue",
+    "address",
+    "city",
+    "price_min",
+)
 
 # Internet listings rarely state the lineup or the price, so discovery only
 # demands what a consumer card cannot do without — and a name, since there

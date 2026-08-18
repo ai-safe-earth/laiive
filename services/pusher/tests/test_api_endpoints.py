@@ -266,6 +266,7 @@ class TestValidateEventDraft:
         "artists": ["Ana Beck Quartet"],
         "start_at": "2026-09-01T20:00:00",
         "venue": "Quasimodo",
+        "address": "Kantstrasse 12a",
         "city": "Berlin",
         "price_min": 22,
         "price_max": 28,
