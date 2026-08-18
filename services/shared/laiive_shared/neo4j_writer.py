@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from .cards import EventDraft, missing_required
 from .embedding_text import artist_text, event_text, venue_text
-from .geocode import NominatimGeocoder
+from .geocode import AddressResolver, NominatimGeocoder
 from .normalize import genre_slug, norm
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ def write_event(
     embed_texts: EmbedFn | None = None,
     embedding_model: str = "",
     geocoder: NominatimGeocoder | None = None,
+    address_resolver: AddressResolver | None = None,
 ) -> WriteResult:
     """Write one event (plus its artists/venue/city/genre) to the graph.
 
@@ -85,6 +86,8 @@ def write_event(
         embed_texts: batch embedding call; embeddings are skipped when None.
         embedding_model: recorded on nodes alongside the vectors.
         geocoder: venue/city geocoding; skipped (with a warning) when None.
+        address_resolver: last-resort (venue, city) -> street address, for the
+            venues OSM has no named POI for. Skipped when None.
     """
     missing = missing_required(draft, source)
     if missing:
@@ -126,16 +129,28 @@ def write_event(
             message="An event with the same name, date, and venue already exists.",
         )
 
-    # ── Geocode venue and city (D12) ─────────────────────────────────────────
+    # ── Geocode city, then venue (D12) ───────────────────────────────────────
+    # City first: it doubles as the plausibility reference for the venue, so a
+    # same-name venue in another province is rejected rather than written.
     venue_geo = city_geo = None
+    # Recorded on the node so the nightly repair sweep can find the pins that
+    # are only approximately right. A centroid fallback is not NULL, so without
+    # this flag it is indistinguishable from a real venue location.
+    precision = None
     if geocoder is not None:
-        venue_query = ", ".join(
-            p for p in (draft.venue, draft.address, draft.city) if p
-        )
-        venue_geo = geocoder.geocode(venue_query)
         city_geo = geocoder.geocode(draft.city)
-        if venue_geo is None and city_geo is not None:
+        venue_geo = geocoder.geocode_venue(
+            draft.venue,
+            draft.address,
+            draft.city,
+            near=city_geo,
+            address_resolver=address_resolver,
+        )
+        if venue_geo is not None:
+            precision = "venue"
+        elif city_geo is not None:
             venue_geo = city_geo  # fall back to the city centroid
+            precision = "city_centroid"
             warnings.append("Venue could not be geocoded; using city centroid.")
     if venue_geo is None:
         warnings.append(
@@ -170,6 +185,7 @@ def write_event(
                           v.venue_type = $venue_type, v.address = $address,
                           v.location = CASE WHEN $venue_lat IS NULL THEN NULL
                               ELSE point({latitude: $venue_lat, longitude: $venue_lng}) END,
+                          v.geocode_precision = $geocode_precision,
                           v.source = $source, v.owner_id = $owner_id,
                           v.created_at = datetime()
 
@@ -219,6 +235,7 @@ def write_event(
             address=draft.address,
             venue_lat=venue_geo.lat if venue_geo else None,
             venue_lng=venue_geo.lng if venue_geo else None,
+            geocode_precision=precision,
             event_uid=event_uid,
             name=name,
             name_norm=norm(name),
