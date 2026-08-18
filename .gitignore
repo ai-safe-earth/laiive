@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -122,6 +122,9 @@ data/
 # agent skills (personal tooling)
 .agents/
 skills-lock.json
+
+# supabase cli scratch
+supabase/.temp/
 
 # neo4j files
 Neo4j-*
