@@ -1081,25 +1081,66 @@ Uber Arena; "Malasaña, Madrid" returns Sala El Sol only (the Metropolitano
 stadium, which sits on Madrid's centroid, is correctly gone); "Poblenou,
 Barcelona" returns Razzmatazz once padded; "Catalonia" is refused as too big.
 
+**The drain ran** (owner, same session): `run_backfill(max_venues=100)` →
+`venues_geocoded=27, venues_flagged=0, warnings=[]`. Tavily resolved addresses
+for nine venues that OSM has no POI for (Sonnenraum, Globe Berlin, Frannz Club,
+Vistalegre Arena, Sala Mon Live, Shakira Stadium, Marula, La Nau). **All 35
+venues are now stamped `venue`; the collapse is gone** - the Barcelona eight
+have eight distinct, plausible pins, and the Madrid six moved off the centroid.
+`Queen's` needed the guard: its name form landed 42 km out in Vilanova and was
+rejected, and the Tavily address resolved it instead.
+
+**The drain then exposed the next layer.** `Sant Jordi Club` came back **17.7
+km** from Barcelona - inside the 25 km guard, so accepted and stamped `venue` -
+while the correct Montjuïc address the graph already held resolves **3.1 km**
+out, beside the Palau Sant Jordi it shares a wall with. The name form was tried
+first, was merely plausible, and nothing asked the address form. Preferring the
+address instead is *not* the fix, and the corpus says so: `Sala El Sol` is 0.3
+km by name and **25 km** by address, and two venues have no address answer at
+all. Fixed in `3f4ffd1`: an answer beyond `VENUE_OUTLIER_KM` (12.5 km, the same
+distribution `VENUE_MAX_KM` was cut from) no longer ends the search; the
+remaining forms and the resolver are still tried and the nearest plausible
+answer wins. **Replayed dry against all 35 venues: exactly one moves** (Sant
+Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
+
 **Still open**, in rough priority order:
 
-1. **Drain the repair sweep** - `run_backfill(max_venues=100)`, an Aura write,
-   owner's to approve. Now safe to run: it can no longer bless a collapsed pin.
-   Expect the Barcelona eight and the Madrid six to come back stamped
-   `city_centroid` unless Tavily finds them a street address.
+1. **Re-run the sweep for `Sant Jordi Club`** so the fix reaches the graph. It
+   is stamped `venue` and checked today, so the selector will not pick it up:
+   `uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"` from
+   `services/search`. One Aura write.
 2. **Genre on admin_search events** - see the re-opened decision above. This is
    the largest remaining retrieval gap and it is a data gap, not a query one.
 3. **Duplicate events in the graph**: the smoke showed "The Weeknd" three times
    at the same venue and "Estadi Olímpic" / "Estadi Olímpic Lluis Companys" as
    two Venue nodes. Cross-source dedup was already on the sweep-quality list;
-   this is evidence it is real.
-4. **The composer is not told a card matched by box rather than by city**, so
+   this is evidence it is real. Related: `Razzmatazz` and `Sala Razzmatazz 1`
+   now share a pin *correctly* (a room inside the club), which the bbox leg's
+   shared-pin rule reads as a collapse and drops from named-place results. The
+   rule earns its keep while pins are unverified; once dedup exists, prefer
+   modelling the room as part of the venue.
+4. **`Shakira Stadium` is not a venue.** It sits 9.5 km from Madrid's centre
+   with no address, and the name is almost certainly a listing-page artefact.
+   Extraction quality, not geocoding.
+5. **The composer is not told a card matched by box rather than by city**, so
    it will happily phrase a padded-box hit as "in Barceloneta". Only matters
    once padding is common.
-5. Confirm the `.claude/settings.json` deny rules enforce after a restart
+6. Confirm the `.claude/settings.json` deny rules enforce after a restart
    (carried over, still unverified).
 
 ## Environment gotchas (this machine)
+
+**Re-checking one venue after a geocoder fix.** The repair sweep only selects
+venues that are unstamped, non-`venue`, or last checked over 7 days ago, so the
+pin a fix would correct is exactly the one the selector no longer offers.
+`services/search/scripts/recheck_venue.py` clears the stamp and re-runs the
+sweep (an Aura write):
+
+```
+cd services/search
+uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
+```
+
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
   EnterpriseDB → run Vite with `--port 8081`.
@@ -1485,6 +1526,14 @@ Barcelona" returns Razzmatazz once padded; "Catalonia" is refused as too big.
         {
           "date": "2026-08-18",
           "text": "Found live: eight Barcelona venues share one pin, which is Nominatim's answer for 'barcelona', and six Madrid venues sit on its centroid. The 25 km guard, the precision flag and the c.location distance test all miss them (c.location is 888 m from the geocoder's current answer). Guards added at both ends: the sweep stamps city_centroid when the venue answer equals the city answer, and the bbox leg excludes a pin shared by two venues in the same city"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Repair sweep drained: run_backfill(max_venues=100) geocoded 27 venues, nine of them via the Tavily address resolver. All 35 venues now stamped 'venue' and the shared-pin collapse is gone - the Barcelona eight have eight distinct pins"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "The drain exposed that a merely-plausible answer wins by being tried first: Sant Jordi Club landed 17.7 km out by name while its stored address resolves 3.1 km out. Preferring the address is not the fix (Sala El Sol is 0.3 km by name, 25 km by address). An answer beyond VENUE_OUTLIER_KM=12.5 no longer ends the search; the nearest plausible form wins. Dry replay over all 35 venues moves exactly one"
         }
       ]
     }
@@ -1517,7 +1566,7 @@ Barcelona" returns Razzmatazz once padded; "Catalonia" is refused as too big.
   ],
   "nextSteps": [
     {
-      "title": "Drain the repair sweep: run_backfill(max_venues=100) against Aura (owner write). Now safe - it can no longer stamp a collapsed pin as 'venue'. Expect the Barcelona eight and Madrid six back as city_centroid unless Tavily finds them a street address",
+      "title": "Re-run the repair sweep for Sant Jordi Club so the outlier fix reaches the graph: services/search/scripts/recheck_venue.py 'Sant Jordi Club' (clears the stamp the selector would otherwise skip). One Aura write",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
@@ -1591,6 +1640,13 @@ Barcelona" returns Razzmatazz once padded; "Catalonia" is refused as too big.
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 6 - CI/CD + deploy",
+      "plan": "refactor"
+    },
+    {
+      "title": "'Shakira Stadium' is a listing-page artefact, not a venue: 9.5 km from Madrid's centre, no address. Extraction quality, not geocoding",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 5 - SEARCH service + scheduling",
       "plan": "refactor"
     }
   ],
