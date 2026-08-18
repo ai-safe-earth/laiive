@@ -1109,8 +1109,24 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
    is stamped `venue` and checked today, so the selector will not pick it up:
    `uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"` from
    `services/search`. One Aura write.
-2. **Genre on admin_search events** - see the re-opened decision above. This is
-   the largest remaining retrieval gap and it is a data gap, not a query one.
+2. **Genre: the earlier claim was wrong, and the real gap is smaller.**
+   Measured on the live graph: **43 of 57** discovered events are already
+   reachable by a genre query and 39 carry their own tag, so extraction has
+   been filling `genre` for a while. "admin_search events carry no genre" was
+   true of the Phase 5a sweep only. What was actually broken:
+   - **Composite slugs did not answer for their parts** (`28ddaf5`). Extraction
+     emits what the page says, so `pop-rock` (4 artists, 4 events) answered
+     neither "rock" nor "pop". The predicate now matches a slug that is the
+     asked genre or contains it as a hyphen-separated part: "rock" goes 7 → 10
+     events, nothing else moves.
+   - **13 of 43 artists carry no genre**, hiding 14 events. Fixed by tagging
+     the *artist*, which reaches every event they play, now and later
+     (`27fd414`): `scripts/tag_artist_genres.py`, dry by default. The model
+     named 12 of 13 on the live backlog and declined the one it did not know.
+     **Not yet written to Aura** - the run is the owner's.
+   Left alone deliberately: `electronic` vs `electronica` (2 artists) and
+   `rnb` vs `r-b-pop-new-wave` need a stem alias, not a token split, and
+   `various` and `ukrainian` are not genres at all.
 3. **Duplicate events in the graph**: the smoke showed "The Weeknd" three times
    at the same venue and "Estadi Olímpic" / "Estadi Olímpic Lluis Companys" as
    two Venue nodes. Cross-source dedup was already on the sweep-quality list;
@@ -1534,6 +1550,18 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "The drain exposed that a merely-plausible answer wins by being tried first: Sant Jordi Club landed 17.7 km out by name while its stored address resolves 3.1 km out. Preferring the address is not the fix (Sala El Sol is 0.3 km by name, 25 km by address). An answer beyond VENUE_OUTLIER_KM=12.5 no longer ends the search; the nearest plausible form wins. Dry replay over all 35 venues moves exactly one"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Correction: 43 of 57 admin_search events are already reachable by a genre query and 39 carry their own tag. 'admin_search events carry no genre' was true of the Phase 5a sweep only, and the earlier reading of it as the largest retrieval gap was wrong"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "The genre predicate now matches a slug that is the asked genre or contains it as a hyphen-separated part, because extraction emits what the page says: 'pop-rock' answered neither 'rock' nor 'pop'. Measured: 'rock' 7 -> 10 events, nothing else changes"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "The remaining genre gap is 13 untagged artists hiding 14 events, fixed by tagging the artist rather than the event so it reaches their future events too. genre_lookup asks one batched LLM call with abstention as the safe answer; the write goes through laiive_shared.tag_artist_genres so the Genre MERGE matches write_event's. Owner runs scripts/tag_artist_genres.py --write"
         }
       ]
     }
@@ -1567,6 +1595,13 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
   "nextSteps": [
     {
       "title": "Re-run the repair sweep for Sant Jordi Club so the outlier fix reaches the graph: services/search/scripts/recheck_venue.py 'Sant Jordi Club' (clears the stamp the selector would otherwise skip). One Aura write",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Run scripts/tag_artist_genres.py --write from services/search: 12 of 13 untagged artists get a genre, making 12 hidden events answerable by genre queries. Dry run reviewed; one Aura write",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
@@ -1647,6 +1682,13 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
+      "plan": "refactor"
+    },
+    {
+      "title": "Genre vocabulary: 'electronic' vs 'electronica' and 'rnb' vs 'r-b-pop-new-wave' need a stem alias (the token split does not catch them); 'various' and 'ukrainian' are not genres and should not have been written",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
       "plan": "refactor"
     }
   ],
