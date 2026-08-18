@@ -10,15 +10,29 @@ import "leaflet/dist/leaflet.css";
  * that honest (one map instance, removed on unmount) without a wrapper library
  * whose context has to be kept in step with React versions.
  */
-export function EventMap({ lat, lng, label }: { lat: number; lng: number; label: string }) {
+export function EventMap({
+  lat,
+  lng,
+  label,
+  approximate = false,
+}: {
+  lat: number;
+  lng: number;
+  label: string;
+  approximate?: boolean;
+}) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!container.current) return;
 
+    // An approximate pin is the city centroid, not the venue. Opening at street
+    // zoom would draw a 14 px dot on a specific corner and assert something the
+    // graph does not know; the wider view and the circle below say "in this
+    // city, somewhere" instead.
     const map = L.map(container.current, {
       center: [lat, lng],
-      zoom: 15,
+      zoom: approximate ? 12 : 15,
       scrollWheelZoom: false,
       attributionControl: true,
     });
@@ -37,7 +51,17 @@ export function EventMap({ lat, lng, label }: { lat: number; lng: number; label:
       iconSize: [14, 14],
       iconAnchor: [7, 7],
     });
-    L.marker([lat, lng], { icon, title: label }).addTo(map);
+    if (approximate) {
+      L.circle([lat, lng], {
+        radius: 2000,
+        color: "hsl(325 100% 57%)",
+        weight: 1,
+        fillColor: "hsl(325 100% 57%)",
+        fillOpacity: 0.12,
+      }).addTo(map);
+    } else {
+      L.marker([lat, lng], { icon, title: label }).addTo(map);
+    }
 
     // The card animates open around us; Leaflet needs a nudge once it settled.
     const settle = window.setTimeout(() => map.invalidateSize(), 50);
@@ -46,7 +70,7 @@ export function EventMap({ lat, lng, label }: { lat: number; lng: number; label:
       window.clearTimeout(settle);
       map.remove();
     };
-  }, [lat, lng, label]);
+  }, [lat, lng, label, approximate]);
 
   return (
     <div

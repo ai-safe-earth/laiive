@@ -39,7 +39,14 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   const price = formatPrice(card, t.cards.free);
   const hasCoordinates =
     typeof card.lat === "number" && typeof card.lng === "number";
+  // The pin is the city's centre, not the venue's door. Say so, and send the
+  // "open in Maps" link to the venue's name instead of to coordinates we know
+  // are only approximately right.
+  const approximate = card.geocode_precision === "city_centroid";
   const place = [card.venue, card.city].filter(Boolean).join(", ");
+  const mapsQuery = approximate
+    ? encodeURIComponent(place || card.name)
+    : `${card.lat},${card.lng}`;
 
   return (
     <article className="rounded-lg border border-border/50 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4">
@@ -79,9 +86,17 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
 
       {showMap && hasCoordinates && (
         <div className="space-y-1 pt-3">
-          <EventMap lat={card.lat as number} lng={card.lng as number} label={place || card.name} />
+          <EventMap
+            lat={card.lat as number}
+            lng={card.lng as number}
+            label={place || card.name}
+            approximate={approximate}
+          />
+          {approximate && (
+            <p className="text-xs text-muted-foreground">{t.cards.approximate}</p>
+          )}
           <a
-            href={`https://www.google.com/maps/search/?api=1&query=${card.lat},${card.lng}`}
+            href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"

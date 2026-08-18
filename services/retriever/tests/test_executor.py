@@ -216,13 +216,19 @@ class TestGeocodePrecisionRanking:
         # the distance the card reports stays the true one
         assert ", distance_m" in cypher
 
-    def test_template_and_vector_paths_are_untouched(self):
-        """Only nearby ranks on location, so only nearby pays for the check."""
+    def test_template_and_vector_paths_neither_filter_nor_rank_on_it(self):
+        """Only nearby ranks on location, so only nearby pays for the check.
+
+        Both still *return* the flag — every card says how much its pin is
+        worth — but neither hides a row or reorders one because of it.
+        """
         for cypher, _ in (
             build_template_query(Constraints(city="Berlin")),
             build_vector_query(Constraints(free_text="loud")),
         ):
-            assert "geocode_precision" not in cypher
+            assert "v.geocode_precision AS geocode_precision" in cypher
+            assert "coalesce(v.geocode_precision" not in cypher
+            assert "CASE WHEN v.geocode_precision" not in cypher
 
 
 class TestNamedPlaceFallback:
@@ -350,3 +356,25 @@ class TestBboxQuery:
         assert "v.location.longitude <= $east" in cypher
         assert "ORDER BY start_at" in cypher  # date order, as the template
         assert params["south"] == 52.48 and params["east"] == 13.46
+
+
+class TestPrecisionOnTheCard:
+    """The card has to say how much its pin is worth, or the map overstates it."""
+
+    def test_precision_travels_to_the_card(self):
+        row = {**STANDARD_ROW, "geocode_precision": "city_centroid"}
+        card = rows_to_cards([row])[0]
+        assert card.geocode_precision == "city_centroid"
+        assert (card.lat, card.lng) == (52.5111, 13.4433)  # still plotted
+
+    def test_a_suspect_pin_loses_its_coordinates(self):
+        """Known-wrong is not the same as imprecise: it is not drawn at all."""
+        row = {**STANDARD_ROW, "geocode_precision": "suspect"}
+        card = rows_to_cards([row])[0]
+        assert card.lat is None and card.lng is None
+        assert card.name == "Klangfeld Nacht"  # the event itself survives
+
+    def test_legacy_rows_stay_trusted(self):
+        card = rows_to_cards([STANDARD_ROW])[0]
+        assert card.geocode_precision is None
+        assert (card.lat, card.lng) == (52.5111, 13.4433)

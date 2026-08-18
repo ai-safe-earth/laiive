@@ -30,6 +30,7 @@ RETURN e.uid AS uid, e.name AS name, e.description AS description,
        e.ticket_url AS ticket_url, e.source AS source,
        v.name AS venue, v.venue_type AS venue_type, c.name AS city,
        v.location.latitude AS lat, v.location.longitude AS lng,
+       v.geocode_precision AS geocode_precision,
        collect(DISTINCT art.name) AS artists{extra_return}
 """
 
@@ -190,6 +191,12 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
     cards = []
     for row in rows:
         distance_m = row.get("distance_m")
+        # A pin the repair sweep flagged as being in the wrong metro area is
+        # not sent at all. Nearby already refuses to match on one, but the
+        # template and vector legs have no location predicate, so this is where
+        # the guarantee has to hold: the card keeps its event and loses its map.
+        precision = row.get("geocode_precision")
+        suspect = precision == "suspect"
         cards.append(
             EventCard(
                 uid=row.get("uid") or "",
@@ -204,8 +211,9 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 price_currency=row.get("price_currency"),
                 description=row.get("description"),
                 ticket_url=row.get("ticket_url"),
-                lat=row.get("lat"),
-                lng=row.get("lng"),
+                lat=None if suspect else row.get("lat"),
+                lng=None if suspect else row.get("lng"),
+                geocode_precision=precision,
                 source=row.get("source") or "unknown",
                 distance_km=round(distance_m / 1000, 2)
                 if distance_m is not None

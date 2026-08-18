@@ -25,6 +25,12 @@ class EventCard(BaseModel):
     lng: float | None = None
     source: str = "pro_submission"  # pro_submission | admin_search | seed
     distance_km: float | None = None
+    # How much the lat/lng above is worth: 'venue' is the venue itself,
+    # 'city_centroid' only means "somewhere in this city". None is a row written
+    # before the flag existed. A pin the repair sweep flagged as 'suspect' never
+    # reaches a card at all -- its coordinates are dropped, since a known-wrong
+    # pin drawn on a map is a confident lie. See laiive_shared.geocode.
+    geocode_precision: str | None = None
 
 
 class EventDraft(BaseModel):

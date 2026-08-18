@@ -108,6 +108,7 @@ export interface Translations {
     map: string;
     hideMap: string;
     openMaps: string;
+    approximate: string;
     tickets: string;
     web: string;
     webTitle: string;
@@ -233,6 +234,7 @@ export const translations: Record<Language, Translations> = {
       map: "map",
       hideMap: "hide map",
       openMaps: "open in Google Maps",
+      approximate: "Approximate — the exact address of this venue is not known yet.",
       tickets: "tickets",
       web: "web",
       webTitle: "Found on the internet, not submitted by the promoter",
@@ -356,6 +358,7 @@ export const translations: Record<Language, Translations> = {
       map: "mapa",
       hideMap: "ocultar mapa",
       openMaps: "abrir en Google Maps",
+      approximate: "Aproximado — todavía no se conoce la dirección exacta de este local.",
       tickets: "entradas",
       web: "web",
       webTitle: "Encontrado en internet, no enviado por el promotor",
@@ -479,6 +482,7 @@ export const translations: Record<Language, Translations> = {
       map: "mappa",
       hideMap: "nascondi mappa",
       openMaps: "apri in Google Maps",
+      approximate: "Approssimativo — l'indirizzo esatto di questo locale non è ancora noto.",
       tickets: "biglietti",
       web: "web",
       webTitle: "Trovato su internet, non inviato dal promoter",
@@ -602,6 +606,7 @@ export const translations: Record<Language, Translations> = {
       map: "mapa",
       hideMap: "amaga el mapa",
       openMaps: "obre a Google Maps",
+      approximate: "Aproximat — encara no es coneix l'adreça exacta d'aquesta sala.",
       tickets: "entrades",
       web: "web",
       webTitle: "Trobat a internet, no enviat pel promotor",
