@@ -10,23 +10,30 @@ from prefect.artifacts import create_markdown_artifact
 
 try:
     from flows.auth import gateway_url, get_admin_jwt
+    from flows.polling import wait_for_report
 except ImportError:  # loaded with flows/ itself on sys.path
     from auth import gateway_url, get_admin_jwt  # type: ignore[no-redef]
+    from polling import wait_for_report  # type: ignore[no-redef]
 
-BACKFILL_TIMEOUT = 600.0
+REQUEST_TIMEOUT = 60.0
+BACKFILL_DEADLINE = 600.0
 
 
 @task(retries=2, retry_delay_seconds=120, timeout_seconds=900)
 def run_backfill(max_venues: int) -> dict:
+    gateway = gateway_url()
+    jwt = get_admin_jwt()
     response = httpx.post(
-        f"{gateway_url()}/api/admin/search/backfill",
+        f"{gateway}/api/admin/search/backfill",
         json={"max_venues": max_venues},
-        headers={"Authorization": f"Bearer {get_admin_jwt()}"},
-        timeout=BACKFILL_TIMEOUT,
+        headers={"Authorization": f"Bearer {jwt}"},
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
-    result: dict = response.json()
-    return result
+    report = wait_for_report(
+        gateway, response.json()["report_id"], jwt, deadline=BACKFILL_DEADLINE
+    )
+    return report.get("stats") or {}
 
 
 @flow(name="backfill")

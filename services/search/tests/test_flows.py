@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from flows import auth, backfill, city_sweep
+from flows import auth, backfill, city_sweep, polling
 
 
 @pytest.fixture(autouse=True)
@@ -58,25 +58,41 @@ class TestAuth:
 
 
 class TestSweepTask:
-    def test_posts_through_gateway_with_jwt(self, monkeypatch):
+    def test_posts_then_polls_the_report(self, monkeypatch):
         monkeypatch.setattr(city_sweep, "get_admin_jwt", lambda: "jwt-2")
         post = MagicMock(
-            return_value=http_response(payload={"report_id": "r1", "city": "Madrid"})
+            return_value=http_response(
+                202, payload={"report_id": "r1", "city": "Madrid", "status": "running"}
+            )
         )
         monkeypatch.setattr(city_sweep.httpx, "post", post)
+        poll = MagicMock(
+            return_value={
+                "id": "r1",
+                "city": "Madrid",
+                "status": "dry_run",
+                "stats": {"candidates": 2},
+                "candidates": [{"dedup_status": "new"}, {"dedup_status": "exists"}],
+            }
+        )
+        monkeypatch.setattr(city_sweep, "wait_for_report", poll)
 
         result = city_sweep.sweep_city.fn("Madrid", max_pages=3)
 
         assert result["report_id"] == "r1"
+        assert result["stats"] == {"candidates": 2}
+        assert len(result["candidates"]) == 2
         call = post.call_args
         assert call.args[0] == "http://gw.test:8000/api/admin/search/sweep"
         assert call.kwargs["json"] == {"city": "Madrid", "max_pages": 3}
         assert call.kwargs["headers"]["Authorization"] == "Bearer jwt-2"
+        assert poll.call_args.args == ("http://gw.test:8000", "r1", "jwt-2")
 
     def test_max_pages_omitted_when_none(self, monkeypatch):
         monkeypatch.setattr(city_sweep, "get_admin_jwt", lambda: "jwt")
-        post = MagicMock(return_value=http_response(payload={}))
+        post = MagicMock(return_value=http_response(202, payload={"report_id": "r"}))
         monkeypatch.setattr(city_sweep.httpx, "post", post)
+        monkeypatch.setattr(city_sweep, "wait_for_report", MagicMock(return_value={}))
         city_sweep.sweep_city.fn("Berlin")
         assert post.call_args.kwargs["json"] == {"city": "Berlin"}
 
@@ -136,10 +152,14 @@ class TestRenderReport:
 
 
 class TestBackfillTask:
-    def test_posts_bound(self, monkeypatch):
+    def test_posts_then_polls_for_stats(self, monkeypatch):
         monkeypatch.setattr(backfill, "get_admin_jwt", lambda: "jwt-3")
-        post = MagicMock(return_value=http_response(payload={"embedded": 4}))
+        post = MagicMock(return_value=http_response(202, payload={"report_id": "r9"}))
         monkeypatch.setattr(backfill.httpx, "post", post)
+        poll = MagicMock(
+            return_value={"id": "r9", "status": "done", "stats": {"embedded": 4}}
+        )
+        monkeypatch.setattr(backfill, "wait_for_report", poll)
 
         result = backfill.run_backfill.fn(50)
 
@@ -148,3 +168,43 @@ class TestBackfillTask:
         assert call.args[0] == "http://gw.test:8000/api/admin/search/backfill"
         assert call.kwargs["json"] == {"max_venues": 50}
         assert call.kwargs["headers"]["Authorization"] == "Bearer jwt-3"
+        assert poll.call_args.kwargs["deadline"] == backfill.BACKFILL_DEADLINE
+
+
+class TestWaitForReport:
+    def _get_sequence(self, monkeypatch, payloads):
+        responses = [http_response(payload=p) for p in payloads]
+        get = MagicMock(side_effect=responses)
+        monkeypatch.setattr(polling.httpx, "get", get)
+        monkeypatch.setattr(polling.time, "sleep", MagicMock())
+        return get
+
+    def test_polls_until_terminal(self, monkeypatch):
+        get = self._get_sequence(
+            monkeypatch,
+            [
+                {"id": "r1", "status": "running"},
+                {"id": "r1", "status": "running"},
+                {"id": "r1", "status": "dry_run", "candidates": []},
+            ],
+        )
+        report = polling.wait_for_report("http://gw.test:8000", "r1", "jwt")
+        assert report["status"] == "dry_run"
+        assert get.call_count == 3
+        assert (
+            get.call_args.args[0] == "http://gw.test:8000/api/admin/search/reports/r1"
+        )
+
+    def test_failed_report_raises_with_error(self, monkeypatch):
+        self._get_sequence(
+            monkeypatch, [{"id": "r1", "status": "failed", "error": "tavily down"}]
+        )
+        with pytest.raises(RuntimeError, match="tavily down"):
+            polling.wait_for_report("http://gw.test:8000", "r1", "jwt")
+
+    def test_deadline_raises(self, monkeypatch):
+        self._get_sequence(monkeypatch, [{"id": "r1", "status": "running"}] * 3)
+        with pytest.raises(TimeoutError, match="still 'running'"):
+            polling.wait_for_report(
+                "http://gw.test:8000", "r1", "jwt", interval=10.0, deadline=15.0
+            )

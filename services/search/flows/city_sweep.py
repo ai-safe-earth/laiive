@@ -13,33 +13,42 @@ from prefect.artifacts import create_markdown_artifact
 # parent ends up on sys.path depends on how the file was loaded.
 try:
     from flows.auth import gateway_url, get_admin_jwt
+    from flows.polling import wait_for_report
 except ImportError:
     from auth import gateway_url, get_admin_jwt  # type: ignore[no-redef]
+    from polling import wait_for_report  # type: ignore[no-redef]
 
 DEFAULT_CITIES = ["Madrid", "Barcelona", "Berlin"]
 
-# A live sweep ran ~100 s for 4 pages; 10 pages with the gpt-4o fallback can
-# take several minutes. If managed-pool-to-gateway timeouts ever bite, the
-# sanctioned fix is 202 + polling GET /reports/{id}, not a longer wait.
-SWEEP_TIMEOUT = 900.0
+# /sweep answers 202 in well under a minute; the sweep itself (2-6 min live)
+# runs in the service's background and lands on the report we then poll.
+REQUEST_TIMEOUT = 60.0
 
 
-@task(retries=2, retry_delay_seconds=120, timeout_seconds=1200)
+@task(retries=2, retry_delay_seconds=120, timeout_seconds=1800)
 def sweep_city(city: str, max_pages: int | None = None) -> dict:
     # The JWT is minted inside the task so it is never a task parameter
     # (Prefect surfaces those in the UI) and so a retry gets a fresh one.
+    gateway = gateway_url()
+    jwt = get_admin_jwt()
     body: dict = {"city": city}
     if max_pages is not None:
         body["max_pages"] = max_pages
     response = httpx.post(
-        f"{gateway_url()}/api/admin/search/sweep",
+        f"{gateway}/api/admin/search/sweep",
         json=body,
-        headers={"Authorization": f"Bearer {get_admin_jwt()}"},
-        timeout=SWEEP_TIMEOUT,
+        headers={"Authorization": f"Bearer {jwt}"},
+        timeout=REQUEST_TIMEOUT,
     )
     response.raise_for_status()
-    result: dict = response.json()
-    return result
+    report_id: str = response.json()["report_id"]
+    report = wait_for_report(gateway, report_id, jwt)
+    return {
+        "city": report.get("city") or city,
+        "report_id": report_id,
+        "stats": report.get("stats") or {},
+        "candidates": report.get("candidates") or [],
+    }
 
 
 def render_report(results: list[dict], failures: dict[str, str]) -> str:
