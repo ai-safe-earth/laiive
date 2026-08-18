@@ -4,6 +4,7 @@ Module-level clients that must be patched here (any NEW module with its own
 module-level client gets added to this list or tests hit the real API):
   agent.tavily._http       — Tavily search
   agent.extraction._client — OpenAI extraction
+  agent.address_lookup._client — OpenAI venue-address lookup
   agent.reports._http      — Supabase PostgREST
   agent.graph._openai      — embeddings
   agent.graph._driver      — Neo4j driver
@@ -58,6 +59,22 @@ def http_response(status_code=200, payload=None, text=""):
 
 
 @pytest.fixture(autouse=True)
+def mock_address_lookup():
+    """No OpenAI call from the venue-address fallback.
+
+    Returns no address by default, so the geocode path under test is the
+    ordinary one; a test that wants the fallback sets the reply itself.
+    """
+    client = MagicMock()
+    reply = MagicMock()
+    reply.choices = [MagicMock()]
+    reply.choices[0].message.content = '{"address": null}'
+    client.chat.completions.create.return_value = reply
+    with patch("agent.address_lookup._client", client):
+        yield client
+
+
+@pytest.fixture(autouse=True)
 def mock_tavily():
     http = MagicMock()
     http.post.return_value = http_response(payload=TAVILY_PAYLOAD)
@@ -106,9 +123,14 @@ def mock_geocoder():
     from laiive_shared.geocode import GeocodeResult
 
     geocoder = MagicMock()
-    geocoder.geocode.return_value = GeocodeResult(
+    result = GeocodeResult(
         lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
     )
+    # Both are stubbed: the write path and the backfill geocode the city with
+    # geocode() and the venue with geocode_venue(). A MagicMock left to
+    # autospec geocode_venue returns a mock whose .lat flows into the Cypher.
+    geocoder.geocode.return_value = result
+    geocoder.geocode_venue.return_value = result
     with patch("agent.graph._geocoder", geocoder):
         yield geocoder
 

@@ -8,7 +8,7 @@ probes and the backfill selects. Tests patch _openai / _driver / _geocoder
 
 from laiive_shared import EventDraft
 from laiive_shared.embedding_text import event_text
-from laiive_shared.geocode import NominatimGeocoder
+from laiive_shared.geocode import VENUE_MAX_KM, NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
 from laiive_shared.neo4j_writer import (
     WriteResult,
@@ -21,6 +21,7 @@ from neo4j import GraphDatabase
 from openai import OpenAI
 from pydantic import BaseModel
 
+from agent import address_lookup
 from config import settings
 
 _openai = OpenAI(api_key=settings.openai_api_key)
@@ -53,6 +54,7 @@ def write_event(draft: EventDraft) -> WriteResult:
             embed_texts=_embed_texts,
             embedding_model=settings.embedding_model,
             geocoder=_geocoder,
+            address_resolver=address_lookup.resolve_address,
         )
 
 
@@ -119,14 +121,27 @@ def similar_event(draft: EventDraft) -> GraphMatch | None:
 class BackfillResult(BaseModel):
     embedded: int = 0
     venues_geocoded: int = 0
+    venues_flagged: int = 0
     warnings: list[str] = []
 
 
+# A venue that re-geocodes to nothing would be re-selected every night and
+# starve the LIMIT, so a failed attempt is stamped and not retried for a week
+# -- the same window Redis uses for a cached miss.
+GEOCODE_RETRY_DAYS = 7
+
+
 def run_backfill(max_venues: int = 25) -> BackfillResult:
-    """Fill missing embeddings and venue locations. Bounded and idempotent.
+    """Fill missing embeddings and repair venue locations. Bounded, idempotent.
 
     Geocoding is Nominatim at 1 req/s (D12), so the venue pass is capped per
     run — the nightly schedule drains any backlog a few venues at a time.
+
+    "Repair", not just "fill": a venue is also selected when its pin is only
+    the city centroid, when it predates the geocode_precision flag, or when it
+    sits further than VENUE_MAX_KM from its own city — the last case catches
+    the answers a geocoder returned confidently and wrongly, which are not NULL
+    and were therefore invisible to this sweep before.
     """
     result = BackfillResult()
     with _driver.session(database=settings.neo4j_database) as session:
@@ -138,26 +153,66 @@ def run_backfill(max_venues: int = 25) -> BackfillResult:
             session.run(
                 """
                 MATCH (v:Venue)-[:LOCATED_IN]->(c:City)
-                WHERE v.location IS NULL
+                WHERE (
+                        v.location IS NULL
+                        OR v.geocode_precision IS NULL
+                        OR v.geocode_precision <> 'venue'
+                        OR (c.location IS NOT NULL
+                            AND point.distance(v.location, c.location) > $max_m)
+                      )
+                  AND (v.geocode_checked_at IS NULL
+                       OR v.geocode_checked_at
+                          < datetime() - duration({days: $retry_days}))
                 RETURN v.uid AS uid, v.name AS name, v.address AS address,
-                       c.name AS city
+                       c.name AS city,
+                       (v.location IS NOT NULL AND c.location IS NOT NULL
+                        AND point.distance(v.location, c.location) > $max_m)
+                           AS misplaced
+                // A pin known to be in the wrong metro area is actively
+                // misleading; an unstamped legacy one is merely unverified.
+                ORDER BY misplaced DESC
                 LIMIT $limit
                 """,
                 limit=max_venues,
+                max_m=VENUE_MAX_KM * 1000,
+                retry_days=GEOCODE_RETRY_DAYS,
             )
         )
         for row in rows:
-            query = ", ".join(
-                p for p in (row["name"], row["address"], row["city"]) if p
+            # Same form-and-plausibility rules as the write path; the city
+            # lookup collapses to one cache key across every venue in it.
+            geo = _geocoder.geocode_venue(
+                row["name"],
+                row["address"],
+                row["city"],
+                near=_geocoder.geocode(row["city"]),
+                address_resolver=address_lookup.resolve_address,
             )
-            geo = _geocoder.geocode(query)
             if geo is None:
+                # Stamp the attempt either way, so one unresolvable venue does
+                # not occupy a slot in every future run. A pin already known to
+                # be in the wrong metro area is marked, so it is visible to a
+                # human and can be ranked down rather than silently trusted.
+                session.run(
+                    """
+                    MATCH (v:Venue {uid: $uid})
+                    SET v.geocode_checked_at = datetime(),
+                        v.geocode_precision = CASE WHEN $misplaced THEN 'suspect'
+                                                   ELSE v.geocode_precision END
+                    """,
+                    uid=row["uid"],
+                    misplaced=row["misplaced"],
+                )
+                if row["misplaced"]:
+                    result.venues_flagged += 1
                 result.warnings.append(f"Could not geocode venue {row['name']!r}")
                 continue
             session.run(
                 """
                 MATCH (v:Venue {uid: $uid})
-                SET v.location = point({latitude: $lat, longitude: $lng})
+                SET v.location = point({latitude: $lat, longitude: $lng}),
+                    v.geocode_precision = 'venue',
+                    v.geocode_checked_at = datetime()
                 """,
                 uid=row["uid"],
                 lat=geo.lat,

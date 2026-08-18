@@ -237,4 +237,14 @@ def test_backfill_geocodes_venues(
     assert response.status_code == 202
     terminal = mock_reports_http.patch.call_args.kwargs["json"]
     assert terminal["stats"]["venues_geocoded"] == 1
-    mock_geocoder.geocode.assert_called_with("Lost Venue, Berlin")
+    # The venue goes through geocode_venue (short form first, then the full
+    # address), with the city as the plausibility reference.
+    from agent import address_lookup
+
+    mock_geocoder.geocode_venue.assert_called_once_with(
+        "Lost Venue",
+        None,
+        "Berlin",
+        near=mock_geocoder.geocode.return_value,
+        address_resolver=address_lookup.resolve_address,
+    )
