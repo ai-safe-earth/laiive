@@ -1,4 +1,4 @@
-# HANDOFF — laiive (updated 2026-08-18)
+# HANDOFF — laiive (updated 2026-08-18, second session)
 
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
@@ -19,7 +19,13 @@ Nothing is deployed yet. To run the stack locally: gateway :8000, retriever
 :8002, pusher :8003, frontend :8081 (see *Environment gotchas* — stale
 servers from earlier sessions are a recurring time sink).
 
-**Next up**: **Phase 6 on compose + PaaS — Phase 5b scheduling is done.**
+**Next up**: **the live deploy, owner-driven, per root `DEPLOY.md`** — all the
+deploy-prep code landed 2026-08-18 (second session, see *Phase 6 — deploy-prep*):
+202+poll sweep/backfill, Fly configs (`deploy/fly/`, owner chose **Fly.io** over
+Railway), Pages `_redirects`, `.example.env` completed, gateway eslint in CI.
+The one repo-side gate is migration `20260818000010` (owner pushes it before the
+new search service runs against Supabase). Older context below.
+Phase 5b scheduling is done.
 The k3s detour (D19) was **withdrawn the same day it was decided** — the owner
 chose simple: compose stays the shape, gateway the only published surface,
 Railway/Fly at deploy time per the reinstated R1/R2. The full k3s work is
@@ -844,6 +850,56 @@ replaced with per-service targets mirroring CI; `start-*` switched to the
 python -m pytest` is the reliable form. Left on disk, gitignored, deletable
 whenever: `desktop.ini`, `.env.bak.1786991886`, `.history/`.
 
+### Phase 6 — deploy-prep, Fly.io + Cloudflare Pages (2026-08-18 second session, commits `dbb1632`…)
+
+Owner chose **deploy-prep code only** this session (no accounts yet) and **Fly.io**
+over Railway (R2's second option). Everything lands inert; the live deploy is a
+mechanical owner session following root **`DEPLOY.md`**.
+
+- **202+poll is in** (the centerpiece — Fly's proxy cuts silent responses at
+  ~60 s, and sweeps run 2–6 min): `/sweep` and `/backfill` create a `running`
+  report row, answer **202** with its id, and finish in a FastAPI
+  `BackgroundTasks` plain-`def` worker (threadpool; TestClient runs it
+  synchronously so the terminal patch is assertable in the same call). Success
+  → `dry_run` (sweep) / `done` (backfill, new `kind` column); any exception →
+  `failed` + `error`. The approve CAS still matches only `dry_run`, so
+  running/failed reports are unapprovable with zero new checks; a lost CAS now
+  re-reads and 409s with the actual status. **Migration `20260818000010`**
+  (new statuses, `error`/`kind` columns, nullable city) must be pushed by the
+  owner **before** the new search code runs against Supabase — the old check
+  constraint rejects `running`.
+- **Flows poll**: `flows/polling.py` (`wait_for_report`, 15 s interval, 1500 s
+  deadline — 600 s for backfill); tasks post with a 60 s timeout and poll
+  through the gateway. `failed` raises with the recorded error. Cities stay
+  sequential.
+- **Fly configs** in `deploy/fly/*.toml` + `make fly-deploy-*`: gateway is the
+  only public app (`http_service`, `/healthz` check, autostop **off** — SSE and
+  background sweeps must not race it); retriever/pusher/search/redis are
+  6PN-private with `/livez` checks. The three Python images now bind
+  `--host ::` (6PN is IPv6-only; dual-stack, compose 127.0.0.1 healthchecks
+  unaffected — verify on the next compose run). No `$PORT` plumbing: Fly's
+  `internal_port` targets whatever the app binds. Redis stays self-hosted
+  (`volatile-lru` is load-bearing for the geocode cache; Upstash can't pin it).
+  Search `kill_timeout` is Fly's 300 s cap, under the image's 410 s window —
+  accepted, documented in the toml and DEPLOY.md.
+- **Pages readiness**: `frontend/public/_redirects` (`/* /index.html 200`,
+  verified in `dist/` after build). Pages settings (root dir `frontend`, build
+  `npm run build`, output `dist`, the three build-time `VITE_*` vars) are in
+  DEPLOY.md — no wrangler.toml needed.
+- **`.example.env` finally documents the deploy keys**: `INTERNAL_API_KEY`,
+  `REDIS_URL`, `GATEWAY_URL`/`GATEWAY_HOST`, `UPLOAD_MAX_BYTES`, `PREFECT_*`,
+  `SUPABASE_ADMIN_*`, `SEARCH_ENABLED`.
+- **Gateway eslint** (flat config mirroring the frontend minus React plugins)
+  wired as a `lint` step in the CI node matrix; first run found nothing.
+- **Deliberately deferred**: CI deploy workflow (untestable without secrets —
+  Make targets + runbook instead); approve stays synchronous (small human
+  batches; give it 202+poll when it bites).
+- Suites after: shared 67, retriever 103, pusher 67, **search 37**, gateway 23
+  + lint, frontend build clean. The ruff pre-commit hook ate a
+  momentarily-unused import **twice more** (`BackgroundTasks`, `polling`) —
+  the same-edit rule stands. detect-secrets flags comment lines shaped
+  `Secrets: see X` — reword rather than pragma.
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -1128,6 +1184,22 @@ whenever: `desktop.ini`, `.env.bak.1786991886`, `.history/`.
         {
           "date": "2026-08-18",
           "text": "Repo hygiene: product-status.md tracked, supabase/.temp ignored, Aura creds file moved to ../laiive-data, CLAUDE.md rewritten to the post-refactor stack, Makefile pruned to CI-mirroring targets"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Owner chose Fly.io over Railway (R2 second option) for the service deploy; deploy-prep landed code-only with no accounts: deploy/fly tomls, make fly-deploy targets, DEPLOY.md runbook"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "202+poll implemented: sweep and backfill answer 202 with a running report row and finish in a BackgroundTasks worker; flows poll GET /reports/{id}; approve CAS unchanged so running/failed reports stay unapprovable. Migration 20260818000010 must be pushed before the new search code runs"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Python images bind :: for Fly 6PN (IPv6-only); no $PORT plumbing since internal_port targets the bound port; redis stays self-hosted because volatile-lru is load-bearing for the geocode cache"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Gateway eslint added and the CI node matrix lints both dirs; CI deploy workflow deferred as untestable without secrets"
         }
       ]
     }
@@ -1175,8 +1247,22 @@ whenever: `desktop.ini`, `.env.bak.1786991886`, `.history/`.
       "plan": "refactor"
     },
     {
-      "title": "Phase 6: deploy per reinstated R2 - services to Railway/Fly (the hardened images and internal key carry over), SPA to Cloudflare Pages, includes the 202+poll sweep redesign since PaaS proxies cut long silent requests",
-      "est": 5,
+      "title": "Push migration 20260818000010 (search_reports lifecycle) - required before the new search code runs against Supabase",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 6 - CI/CD + deploy",
+      "plan": "refactor"
+    },
+    {
+      "title": "Owner deploy session per root DEPLOY.md: fly apps + secrets + deploy order, Pages project, CORS/redirect stitching, smoke checklist (202+poll prep is done)",
+      "est": 2,
+      "owner": "oscar",
+      "phase": "Phase 6 - CI/CD + deploy",
+      "plan": "refactor"
+    },
+    {
+      "title": "Local 202+poll smoke against the live stack once the migration is pushed (compose up also verifies the --host :: healthchecks)",
+      "est": 1,
       "owner": "oscar",
       "phase": "Phase 6 - CI/CD + deploy",
       "plan": "refactor"
@@ -1214,6 +1300,13 @@ whenever: `desktop.ini`, `.env.bak.1786991886`, `.history/`.
     {
       "date": "2026-08-17",
       "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-18",
+      "model": "fable-5",
       "credits": null,
       "person": "oscar",
       "hours": null
