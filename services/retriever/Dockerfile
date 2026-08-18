@@ -30,6 +30,6 @@ EXPOSE 8002
 # uvicorn needs to drain gracefully. Graceful shutdown is set just under the
 # pod's terminationGracePeriodSeconds so uvicorn always finishes first.
 CMD ["/app/.venv/bin/uvicorn", "agent.api:app", \
-     "--host", "0.0.0.0", "--port", "8002", \
+     "--host", "::", "--port", "8002", \
      "--proxy-headers", "--forwarded-allow-ips", "*", \
      "--timeout-graceful-shutdown", "110"]

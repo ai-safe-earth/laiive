@@ -1,0 +1,24 @@
+# laiive pusher — private (no [http_service]): reachable only over Fly's 6PN
+# as laiive-pusher.internal:8003, which with INTERNAL_API_KEY is the same
+# boundary compose draws with expose-only ports.
+# Deploy: make fly-deploy-pusher. See DEPLOY.md for the secrets list.
+app = "laiive-pusher"
+primary_region = "mad"
+kill_timeout = 120
+
+[checks]
+  [checks.livez]
+    type = "http"
+    port = 8003
+    path = "/livez"
+    interval = "20s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[env]
+  # Shares the geocode cache and the 1 req/s Nominatim gate with search.
+  REDIS_URL = "redis://laiive-redis.internal:6379/0"

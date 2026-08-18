@@ -28,6 +28,6 @@ EXPOSE 8004
 # A sweep runs for minutes, so this graceful window is much wider than the other
 # services' — it must sit just under the pod's terminationGracePeriodSeconds (420).
 CMD ["/app/.venv/bin/uvicorn", "agent.api:app", \
-     "--host", "0.0.0.0", "--port", "8004", \
+     "--host", "::", "--port", "8004", \
      "--proxy-headers", "--forwarded-allow-ips", "*", \
      "--timeout-graceful-shutdown", "410"]

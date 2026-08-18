@@ -1,0 +1,24 @@
+# laiive search — private, admin-only through the gateway. kill_timeout is
+# Fly's 300s cap, under the image's 410s graceful window: a deploy mid-sweep
+# can kill the background sweep, which is acceptable — the report stays
+# 'running'/'failed' and is never approvable; the flow's poll reports it.
+# Deploy: make fly-deploy-search. See DEPLOY.md for the secrets list.
+app = "laiive-search"
+primary_region = "mad"
+kill_timeout = 300
+
+[env]
+  REDIS_URL = "redis://laiive-redis.internal:6379/0"
+
+[checks]
+  [checks.livez]
+    type = "http"
+    port = 8004
+    path = "/livez"
+    interval = "20s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

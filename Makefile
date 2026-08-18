@@ -65,3 +65,21 @@ test-all:
 	make test-pusher
 	make test-search
 	make test-gateway
+
+# --------------- deploy (Fly.io, see DEPLOY.md) ---------------------------------------------------
+# The build context must be services/ (the Dockerfiles COPY shared/ + the service);
+# the redis app deploys from a stock image, so any context works.
+fly-deploy-gateway:
+	flyctl deploy services --config deploy/fly/gateway.toml --dockerfile services/gateway/Dockerfile
+
+fly-deploy-retriever:
+	flyctl deploy services --config deploy/fly/retriever.toml --dockerfile services/retriever/Dockerfile
+
+fly-deploy-pusher:
+	flyctl deploy services --config deploy/fly/pusher.toml --dockerfile services/pusher/Dockerfile
+
+fly-deploy-search:
+	flyctl deploy services --config deploy/fly/search.toml --dockerfile services/search/Dockerfile
+
+fly-deploy-redis:
+	flyctl deploy . --config deploy/fly/redis.toml
