@@ -981,7 +981,10 @@ against data rather than assumed):
   same tuple as "free" and "gratis"), and the extraction prompt offered "0 for
   free events" while saying nothing about no price at all. Same shape as the
   midnight start and the centroid pin - a default rendered as a fact.
-  **Owner**: `scripts/clear_default_prices.py --write`.
+  **Run and verified**: 48 → **0** events claiming to be free, 55 of 57 now
+  carrying no price at all. This is the one lossy change of the session - a
+  night that really was free has lost that fact until a sweep re-reads its
+  page.
 - **Date poisoning: not found.** The heaviest day holds 5 events across 5
   different venues (a Friday), and admin_search dates run 2026-08-14 to
   2027-05-15, which is what tour announcements look like. No evidence a
@@ -1130,10 +1133,8 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
 
 **Still open**, in rough priority order:
 
-1. **Re-run the sweep for `Sant Jordi Club`** so the fix reaches the graph. It
-   is stamped `venue` and checked today, so the selector will not pick it up:
-   `uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"` from
-   `services/search`. One Aura write.
+1. ~~Re-run the sweep for `Sant Jordi Club`~~ **done**: 17.7 km → **3.1 km**,
+   on Passeig Olímpic beside the Palau Sant Jordi it shares a wall with.
 2. **Genre: the earlier claim was wrong, and the real gap is smaller.**
    Measured on the live graph: **43 of 57** discovered events are already
    reachable by a genre query and 39 carry their own tag, so extraction has
@@ -1205,8 +1206,8 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
    (once parsed, a defaulted midnight and a real one are identical),
    extraction is asked for a bare `YYYY-MM-DD` when no time is stated, and
    `start_time_known` travels to the card where `formatWhen` drops the hour.
-   **Owner**: `uv run --no-sync python scripts/flag_dateless_events.py --write`
-   from `services/search` marks the 30 existing rows. Its rule is a judgement
+   **Run and verified**: all 30 marked date-only, none left unflagged. Its
+   rule is a judgement
    (admin_search + exactly midnight = date-only) and can be wrong for a real
    late set; all 12 seed events carry a real time and none is midnight.
 5. **`Shakira Stadium` is not a venue.** It sits 9.5 km from Madrid's centre
@@ -1222,6 +1223,13 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
    question honestly rather than preventing a lie the model was not telling.
 7. Confirm the `.claude/settings.json` deny rules enforce after a restart
    (carried over, still unverified).
+
+
+**A multi-line `!` block may only run its first line.** Three `--write` scripts
+were invoked twice from the owner's shell and the graph did not move; the same
+commands ran first try from the agent's shell against the same instance, which
+was serving writes throughout. Unexplained, but worth knowing before the deploy
+session, where every step is a command the owner runs. Run them one per line.
 
 ## Environment gotchas (this machine)
 
@@ -1673,6 +1681,10 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "Maintenance scripts open a read-only Neo4j session unless --write is passed, so a dry run is enforced rather than promised - and it connects while the Aura free tier has dropped its WRITE server, which broke a dry run"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "All three repair writes ran and were verified against the graph: 48 fake 'free' prices cleared (0 remain), 30 fabricated midnights marked date-only, Sant Jordi Club moved 17.7 km -> 3.1 km. Clearing the prices is the session's one lossy change - a genuinely free night has lost that fact until a sweep re-reads its page"
         }
       ]
     }
@@ -1704,27 +1716,6 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
     }
   ],
   "nextSteps": [
-    {
-      "title": "Re-run the repair sweep for Sant Jordi Club so the outlier fix reaches the graph: services/search/scripts/recheck_venue.py 'Sant Jordi Club' (clears the stamp the selector would otherwise skip). One Aura write",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Run scripts/clear_default_prices.py --write from services/search: 48 discovered events currently display 'free', 34 of them while selling tickets. One Aura write",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Run scripts/flag_dateless_events.py --write from services/search: marks the 30 existing admin_search events whose midnight start was a parser default, so their cards stop printing 00:00. One Aura write",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
     {
       "title": "Genre on admin_search events: swept events have no genre and no artists, so the executor's HAS_GENRE predicate excludes them from every genre-pinned query. Infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows",
       "est": 1,
@@ -1835,6 +1826,13 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
     {
       "date": "2026-08-18",
       "model": "fable-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-18",
+      "model": "opus-5",
       "credits": null,
       "person": "oscar",
       "hours": null
