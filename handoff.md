@@ -1156,21 +1156,41 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
    Left in the graph: the `various` and `ukrainian` nodes already written, one
    event each. Nothing queries them and cleaning them is an Aura write for no
    retrieval gain.
-3. **Duplicate events in the graph**: the smoke showed "The Weeknd" three times
-   at the same venue and "Estadi Olímpic" / "Estadi Olímpic Lluis Companys" as
-   two Venue nodes. Cross-source dedup was already on the sweep-quality list;
-   this is evidence it is real. Related: `Razzmatazz` and `Sala Razzmatazz 1`
+3. **Duplicate events: checked, and there are none.** Zero events share a name
+   and a calendar day, so the writer's dedup probe is doing its job. The "The
+   Weeknd three times" noted above was a misreading of a truncated smoke
+   listing: it is a genuine three-night Metropolitano run plus the Barcelona
+   date, one of them titled with the tour name. What *is* real is **four
+   near-duplicate Venue nodes**, each pair within 162 m: `Palacio Vistalegre` /
+   `Palacio Vistalegre Arena` (64 m), `Estadi Olímpic` / `Estadi Olímpic Lluis
+   Companys` (162 m), `Razzmatazz` / `Sala Razzmatazz 1` (0 m), `Kulturbrauerei`
+   / `Frannz Club (Kulturbrauerei)` (23 m). **Do not auto-merge**: the first two
+   pairs are one venue under two names, the last two are a room inside a
+   building, and collapsing those loses real information. Detection is cheap
+   (name containment within a city, plus distance); the decision is a human's. Related: `Razzmatazz` and `Sala Razzmatazz 1`
    now share a pin *correctly* (a room inside the club), which the bbox leg's
    shared-pin rule reads as a collapse and drops from named-place results. The
    rule earns its keep while pins are unverified; once dedup exists, prefer
    modelling the room as part of the venue.
-4. **`Shakira Stadium` is not a venue.** It sits 9.5 km from Madrid's centre
+4. **Date-only listings claimed a midnight start** - fixed (`9587498`), but
+   the backfill is unrun. 30 of 57 discovered events sat at exactly 00:00:00
+   because the page gave a day and nothing else, and the card printed "00:00"
+   as the start time: a reader would arrive twenty hours early. Same treatment
+   as the wrong pin - `has_explicit_time` decides from the listing *text*
+   (once parsed, a defaulted midnight and a real one are identical),
+   extraction is asked for a bare `YYYY-MM-DD` when no time is stated, and
+   `start_time_known` travels to the card where `formatWhen` drops the hour.
+   **Owner**: `uv run --no-sync python scripts/flag_dateless_events.py --write`
+   from `services/search` marks the 30 existing rows. Its rule is a judgement
+   (admin_search + exactly midnight = date-only) and can be wrong for a real
+   late set; all 12 seed events carry a real time and none is midnight.
+5. **`Shakira Stadium` is not a venue.** It sits 9.5 km from Madrid's centre
    with no address, and the name is almost certainly a listing-page artefact.
    Extraction quality, not geocoding.
-5. **The composer is not told a card matched by box rather than by city**, so
+6. **The composer is not told a card matched by box rather than by city**, so
    it will happily phrase a padded-box hit as "in Barceloneta". Only matters
    once padding is common.
-6. Confirm the `.claude/settings.json` deny rules enforce after a restart
+7. Confirm the `.claude/settings.json` deny rules enforce after a restart
    (carried over, still unverified).
 
 ## Environment gotchas (this machine)
@@ -1599,6 +1619,14 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "Genre vocabulary: genre_slug collapses a short alias list ('electronica'->'electronic', 'r-b'->'rnb') and rejects non-genres ('various', 'live'); genre_family expands a query to every spelling already stored. Matching is on hyphen boundaries rather than split() parts so a multi-part variant reaches a composite slug while 'rap' still does not answer 'trap'. Live: rnb 0 -> 4 events, electronic 4 -> 7"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "30 of 57 discovered events showed a fabricated 00:00 start: the page gave a day, the parser defaulted the rest, and the card printed the default as a fact. start_time_known is decided from the listing text (a parsed midnight cannot be told from a defaulted one), extraction now emits a bare date when no time is stated, and formatWhen drops the hour"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Correction: there are no duplicate events - zero share a name and a day, and 'The Weeknd three times' was a real three-night run misread from a truncated smoke listing. The real duplication is four near-duplicate Venue nodes within 162 m of each other, two of which are a room inside a building and must not be merged"
         }
       ]
     }
@@ -1638,17 +1666,17 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
       "plan": "refactor"
     },
     {
-      "title": "Genre on admin_search events: swept events have no genre and no artists, so the executor's HAS_GENRE predicate excludes them from every genre-pinned query. Infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows",
+      "title": "Run scripts/flag_dateless_events.py --write from services/search: marks the 30 existing admin_search events whose midnight start was a parser default, so their cards stop printing 00:00. One Aura write",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
       "plan": "refactor"
     },
     {
-      "title": "Cross-source dedup: the live smoke showed one event three times and 'Estadi Olimpic' / 'Estadi Olimpic Lluis Companys' as two Venue nodes",
-      "est": 2,
+      "title": "Genre on admin_search events: swept events have no genre and no artists, so the executor's HAS_GENRE predicate excludes them from every genre-pinned query. Infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows",
+      "est": 1,
       "owner": "oscar",
-      "phase": "Phase 5 - SEARCH service + scheduling",
+      "phase": "Phase 7 - geocoding and location quality",
       "plan": "refactor"
     },
     {
@@ -1710,6 +1738,13 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
     {
       "title": "'Shakira Stadium' is a listing-page artefact, not a venue: 9.5 km from Madrid's centre, no address. Extraction quality, not geocoding",
       "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 5 - SEARCH service + scheduling",
+      "plan": "refactor"
+    },
+    {
+      "title": "Venue near-duplicates: four pairs within 162 m (Palacio Vistalegre/Arena, Estadi Olimpic/Lluis Companys, Razzmatazz/Sala Razzmatazz 1, Kulturbrauerei/Frannz Club). Detect by name containment within a city plus distance, but never auto-merge - two of the four are a room inside a building",
+      "est": 2,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
       "plan": "refactor"
