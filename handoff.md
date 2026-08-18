@@ -1117,13 +1117,22 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
    - **Composite slugs did not answer for their parts** (`28ddaf5`). Extraction
      emits what the page says, so `pop-rock` (4 artists, 4 events) answered
      neither "rock" nor "pop". The predicate now matches a slug that is the
-     asked genre or contains it as a hyphen-separated part: "rock" goes 7 → 10
-     events, nothing else moves.
+     asked genre or contains it as a hyphen-separated part: **"rock" goes 7 →
+     18 events and "pop" 16 → 23**; techno, jazz, rap, electronic and
+     indie-rock are unchanged. (The commit message says 7 → 10 and "pop
+     unchanged" - both were measured through `max_results_limit = 10`, which
+     caps every template answer at ten rows. **Any recall measurement has to
+     strip `LIMIT $limit` first**, or two different numbers both read as 10.)
    - **13 of 43 artists carry no genre**, hiding 14 events. Fixed by tagging
      the *artist*, which reaches every event they play, now and later
      (`27fd414`): `scripts/tag_artist_genres.py`, dry by default. The model
      named 12 of 13 on the live backlog and declined the one it did not know.
-     **Not yet written to Aura** - the run is the owner's.
+     **Run by the owner**: 12 tagged, and reachability went **43 → 55 of 57**.
+     The only two left are the artist the model declined ("The Swingin'
+     Hermlins") and "Music Bank Barcelona", which has no artist at all. No
+     duplicate Genre node appeared - Two Feet joined the existing `electronic`
+     rather than creating a second one, which is what routing the write
+     through `laiive_shared` was for.
    Left alone deliberately: `electronic` vs `electronica` (2 artists) and
    `rnb` vs `r-b-pop-new-wave` need a stem alias, not a token split, and
    `various` and `ukrainian` are not genres at all.
@@ -1562,6 +1571,10 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "The remaining genre gap is 13 untagged artists hiding 14 events, fixed by tagging the artist rather than the event so it reaches their future events too. genre_lookup asks one batched LLM call with abstention as the safe answer; the write goes through laiive_shared.tag_artist_genres so the Genre MERGE matches write_event's. Owner runs scripts/tag_artist_genres.py --write"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Artist tagging run: 12 artists tagged, genre reachability 43 -> 55 of 57 events, no duplicate Genre nodes. Corrected measurement: the token split takes 'rock' 7 -> 18 and 'pop' 16 -> 23, not 7 -> 10 with pop unchanged - the first pass was measured through max_results_limit=10, which caps every template answer at ten rows"
         }
       ]
     }
@@ -1595,13 +1608,6 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
   "nextSteps": [
     {
       "title": "Re-run the repair sweep for Sant Jordi Club so the outlier fix reaches the graph: services/search/scripts/recheck_venue.py 'Sant Jordi Club' (clears the stamp the selector would otherwise skip). One Aura write",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
-      "plan": "refactor"
-    },
-    {
-      "title": "Run scripts/tag_artist_genres.py --write from services/search: 12 of 13 untagged artists get a genre, making 12 hidden events answerable by genre queries. Dry run reviewed; one Aura write",
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 7 - geocoding and location quality",
