@@ -1133,9 +1133,29 @@ Jordi Club, 18.1 → 3.0 km), nothing else shifts by 200 m.
      duplicate Genre node appeared - Two Feet joined the existing `electronic`
      rather than creating a second one, which is what routing the write
      through `laiive_shared` was for.
-   Left alone deliberately: `electronic` vs `electronica` (2 artists) and
-   `rnb` vs `r-b-pop-new-wave` need a stem alias, not a token split, and
-   `various` and `ukrainian` are not genres at all.
+   - **Two spellings, two nodes** (`bd9643a`). `electronica` sat beside
+     `electronic` and `rnb` beside `r-b-pop-new-wave`, so which word a person
+     typed decided what they found - structural, not a one-off, since the
+     source pages are Spanish and Catalan as often as English. `genre_slug`
+     collapses a short alias list on write; `genre_family` gives the query
+     side every spelling already stored, because canonicalising on write only
+     helps rows written after it. Live: **"rnb" 0 → 4** events, **"electronic"
+     4 → 7**, both spellings equal.
+   - Matching is on **hyphen boundaries**, not `split()` parts: a variant can
+     itself be several parts (`r-b` must reach `r-b-pop-new-wave`). The
+     boundary is the honesty condition - "rap" must not answer 'trap', and on
+     live data it does not (rap 1, trap 1, reggae 2, reggaeton 1, each to
+     itself).
+   - **Non-genres slug to empty**: `various`, `live`, `music`, `other`. A tag
+     nobody can query for passes the has-a-genre test while telling a reader
+     nothing. The executor drops the clause rather than matching nothing, so a
+     junk constraint stops filtering instead of emptying the answer ("various"
+     returns all 59 upcoming events, not zero). Regional labels (`flamenco`,
+     `punjabi`) are deliberately kept - more scene than style, still
+     informative.
+   Left in the graph: the `various` and `ukrainian` nodes already written, one
+   event each. Nothing queries them and cleaning them is an Aura write for no
+   retrieval gain.
 3. **Duplicate events in the graph**: the smoke showed "The Weeknd" three times
    at the same venue and "Estadi Olímpic" / "Estadi Olímpic Lluis Companys" as
    two Venue nodes. Cross-source dedup was already on the sweep-quality list;
@@ -1575,6 +1595,10 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
         {
           "date": "2026-08-18",
           "text": "Artist tagging run: 12 artists tagged, genre reachability 43 -> 55 of 57 events, no duplicate Genre nodes. Corrected measurement: the token split takes 'rock' 7 -> 18 and 'pop' 16 -> 23, not 7 -> 10 with pop unchanged - the first pass was measured through max_results_limit=10, which caps every template answer at ten rows"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Genre vocabulary: genre_slug collapses a short alias list ('electronica'->'electronic', 'r-b'->'rnb') and rejects non-genres ('various', 'live'); genre_family expands a query to every spelling already stored. Matching is on hyphen boundaries rather than split() parts so a multi-part variant reaches a composite slug while 'rap' still does not answer 'trap'. Live: rnb 0 -> 4 events, electronic 4 -> 7"
         }
       ]
     }
@@ -1688,13 +1712,6 @@ uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"
       "est": 1,
       "owner": "oscar",
       "phase": "Phase 5 - SEARCH service + scheduling",
-      "plan": "refactor"
-    },
-    {
-      "title": "Genre vocabulary: 'electronic' vs 'electronica' and 'rnb' vs 'r-b-pop-new-wave' need a stem alias (the token split does not catch them); 'various' and 'ukrainian' are not genres and should not have been written",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 7 - geocoding and location quality",
       "plan": "refactor"
     }
   ],
