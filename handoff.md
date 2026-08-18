@@ -1,4 +1,4 @@
-# HANDOFF — laiive (updated 2026-08-18, second session)
+# HANDOFF — laiive (updated 2026-08-18, third session)
 
 The single handoff for this repository (moved here from `docs/refactor/HANDOFF.md`;
 never start a second one). Continuation point for the laiive refactor. Read this
@@ -25,7 +25,9 @@ deploy-prep code landed 2026-08-18 (second session, see *Phase 6 — deploy-prep
 Railway), Pages `_redirects`, `.example.env` completed, gateway eslint in CI.
 The one repo-side gate is migration `20260818000010` (owner pushes it before the
 new search service runs against Supabase). Older context below.
-Phase 5b scheduling is done.
+Phase 5b scheduling is done. The **third session of 2026-08-18 was geocoding
+quality**, six commits on `refactor/foundation` (`e48f102`..`3eb5935`), all
+suites green - see *Geocoding and location quality* below.
 The k3s detour (D19) was **withdrawn the same day it was decided** — the owner
 chose simple: compose stays the shape, gateway the only published surface,
 Railway/Fly at deploy time per the reinstated R1/R2. The full k3s work is
@@ -900,6 +902,100 @@ mechanical owner session following root **`DEPLOY.md`**.
   the same-edit rule stands. detect-secrets flags comment lines shaped
   `Secrets: see X` — reword rather than pragma.
 
+## Geocoding and location quality (2026-08-18, third session)
+
+Started as "find alternatives to Nominatim" and ended somewhere better: the
+provider was mostly not the problem. `services/search/scripts/geocode_bakeoff.py`
+is kept as a regression harness - it replays the real corpus (both
+`.geocode_cache.json` files plus 22 neighbourhoods and landmarks) against
+Nominatim, Photon, LocationIQ and Geoapify and **scores** each answer rather
+than just counting hits.
+
+**What the measurements said.** The query form the writer built,
+`", ".join(venue, address, city)`, resolved **0 of 9** venues. The same venues
+as `"venue, city"` resolved 8 of 9. The address already ends with the city, so
+appending it produced `"...28009 madrid, spain, madrid"`. Photon scored better
+on names (78% vs 62% short-form) but produced twice as many confidently wrong
+answers, including a Barcelona venue placed in the Philippines. Raw hit rate is
+a misleading metric: neither provider has a confidence score, and a wrong hit is
+worse than a miss because a miss warns and falls back to the city centroid while
+a wrong hit is written silently.
+
+**Two Nominatim-only alternatives were measured and rejected**: structured
+`amenity`/`city` params tied the short form exactly (8/9), ran 1.8x slower and
+were worse on neighbourhoods (86% vs 100%); `limit=5` + nearest-plausible added
+no recall, only converting wrongs into misses, which the guard already does.
+
+**Google and Mapbox are not available to us**, contrary to D12's "Google if it
+underperforms": Google caps lat/lng caching at 30 days and its indefinite
+exception requires the cache be isolated per end user, which a shared events
+graph cannot satisfy. Mapbox standard needs the pricier Permanent tier.
+
+**What landed** (six commits, `e48f102`..`3eb5935`):
+
+- `geocode_venue()` tries `"venue, city"` then the address then the old join,
+  and takes the first *plausible* answer. `VENUE_MAX_KM = 25.0` is measured, not
+  guessed: every correct answer in the corpus sat within 12.5 km of its city
+  centroid and every answer beyond that was wrong. The city is geocoded first so
+  it can serve as the reference.
+- `address` is now required for **promoter** submissions only.
+  `ADMIN_SEARCH_REQUIRED_FIELDS` deliberately excludes it - only ~26% of swept
+  listings state an address, so requiring it there would reject most of
+  discovery. A test pins the asymmetry.
+- `services/search/agent/address_lookup.py` closes that gap without a second
+  geocoder: Tavily finds the street address, Nominatim geocodes it. Injected as
+  a callable so the pusher never needs Tavily. Cached in the geocode store, so a
+  venue costs at most one search plus one extraction ever.
+- `v.geocode_precision` (`venue` | `city_centroid` | `suspect`) and
+  `v.geocode_checked_at`. The backfill is now a **repair sweep**: it also selects
+  centroid fallbacks, rows predating the flag, and anything beyond
+  `VENUE_MAX_KM` from its city, worst first. It previously selected only
+  `WHERE v.location IS NULL`, which by construction could never see a wrong
+  location. A failed attempt is stamped and not retried for 7 days so one
+  unresolvable venue cannot starve the LIMIT.
+- Nearby search excludes `suspect` pins and penalises `city_centroid` ones in
+  the sort key only - the `distance_km` on the card stays truthful. NULL
+  precision is legacy data and stays trusted.
+
+**Verified live against Aura.** `Oasys` in Barcelona was pinned in Almeria,
+**627.5 km** away - predicted from the cache before the graph was reachable, then
+confirmed. One `run_backfill(max_venues=1)` traced the whole new chain: guard
+rejected the cached bad hit, no address on the node, Tavily returned
+`Passatge de Sant Antoni Abat 2, 08015 Barcelona`, Nominatim geocoded it.
+Result **1.08 km** from centre, `precision='venue'`, and **zero venues remain
+beyond the guard**.
+
+**Still open**, in rough priority order:
+
+1. **Named-place search is not built.** "techno in Kreuzberg" still returns
+   nothing: a named place goes to `c.name_norm = $city_norm`, exact match, and
+   there is no Neighbourhood node. The bake-off already measured what it needs -
+   Nominatim hits 100% on neighbourhoods with a bbox every time, median diagonal
+   2.8 km. Designed shape: run TEMPLATE first and geocode to a bbox only when it
+   returns zero rows, so the happy path pays nothing. Note `GeocodeResult`
+   currently discards Nominatim's `boundingbox`; adding it needs
+   `_from_cached` to filter unknown keys first, or an old process reading a new
+   cache entry raises TypeError.
+2. **34 of 35 venues are unstamped.** One `run_backfill(max_venues=100)` drains
+   them; expect ~10 to reach the Tavily resolver.
+3. **Router gap** (found, not fixed): with a location shared, no place named and
+   phrasing that is not "near me", `route()` falls to TEMPLATE with no city
+   filter, so the answer contains events from every city in the graph. The fix
+   is in `router.py` - default to NEARBY when a location is present and no place
+   is named.
+4. **Centroid pins render as confident markers** on the Leaflet card. Needs
+   `geocode_precision` on the EventCard, so `services/shared/ts/protocol.ts` and
+   its drift guard change too.
+
+Also this session: `.claude/settings.json` now carries 30 `permissions.deny`
+Read rules. `.claudeignore` is read by nothing (anthropics/claude-code#56997).
+The two entries that matter are `.claude/worktrees/handoff-5b-cloud/`, a
+complete second checkout that was returning duplicate hits on every symbol
+search, and `.history/`, which holds ~20 timestamped `.env` snapshots with live
+secrets. `.gitignore` gained `!.claude/settings.json` so it survives a clone;
+`settings.local.json` stays ignored. **These rules load at startup, so they were
+not active in the session that wrote them and have not been verified enforcing.**
+
 ## Environment gotchas (this machine)
 
 - Windows; `bun` NOT installed — use npm/node. Port 8080 taken by
@@ -989,6 +1085,19 @@ mechanical owner session following root **`DEPLOY.md`**.
   same way: add an import in one edit and its first use in the next, and the hook
   deletes the import in between. It is not hypothetical — grep for the symbol after
   every import-only edit, or write the import and its usage in a single edit.
+- `uv run pytest` fails with "Failed to canonicalize script path" exactly like
+  `uv run uvicorn` does. **Use `uv run --no-sync python -m pytest -q`.**
+- `ruff-format` runs as a pre-commit hook and rewrites staged files, which aborts
+  the commit. Re-`git add` the same paths and commit again; it passes the second
+  time.
+- **DNS on this machine flaps.** `getaddrinfo` failed intermittently for the Aura
+  host, `docs.claude.com` and `operations.osmfoundation.org` in one session,
+  while a tight probe loop resolved 10/10. It killed three `run_backfill` runs at
+  driver-construction time. Pre-warm with `socket.gethostbyname` and retry in
+  process - the sweep is idempotent by uid, so retrying is safe.
+- The **Aura free instance auto-pauses**. While paused its DNS record disappears
+  entirely; while resuming, reads route to a follower but writes fail with
+  "No write service currently available". Neither is a code fault.
 
 ## Standing rules from the owner
 
@@ -1202,6 +1311,51 @@ mechanical owner session following root **`DEPLOY.md`**.
           "text": "Gateway eslint added and the CI node matrix lints both dirs; CI deploy workflow deferred as untestable without secrets"
         }
       ]
+    },
+    {
+      "name": "Phase 7 - geocoding and location quality",
+      "status": "active",
+      "start": "2026-08-18",
+      "end": null,
+      "plan": "refactor",
+      "decisions": [
+        {
+          "date": "2026-08-18",
+          "text": "Nominatim kept, Photon rejected. Measured on the real corpus: the writer's joined query form resolved 0 of 9 venues and 'venue, city' resolved 8 of 9, so the query string was the bug, not the provider"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "A wrong hit is worse than a miss: a miss warns and falls back to the city centroid, a wrong hit is written silently. VENUE_MAX_KM = 25 km rejects answers outside the stated city, measured from the distribution (every correct answer within 12.5 km, everything beyond wrong)"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Two Nominatim-only alternatives measured and rejected: structured amenity/city params tie the short form at 8/9 but run 1.8x slower and are worse on neighbourhoods; limit=5 nearest-plausible adds no recall over the guard"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "D12 revised: Google is not actually available as the fallback. It caps lat/lng caching at 30 days and its indefinite exception requires per-end-user isolation, which a shared events graph cannot satisfy; Mapbox standard has the same problem"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "address is required for promoter submissions but deliberately not for admin_search - only ~26% of swept listings state one, so requiring it there would reject most of discovery"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "The coverage gap is missing address data, not missing geocoding, so it is closed with a Tavily address resolver in the search service rather than a second geocoding provider; injected as a callable so the pusher never needs Tavily"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "v.geocode_precision and v.geocode_checked_at added; the backfill became a repair sweep that can finally see wrong locations (the old WHERE v.location IS NULL could not, since a wrong pin is not null). Failed attempts are stamped and skipped for 7 days so one unresolvable venue cannot starve the LIMIT"
+        },
+        {
+          "date": "2026-08-18",
+          "text": "Verified live: Oasys was pinned 627.5 km from Barcelona in Almeria; one repair run moved it to 1.08 km via the Tavily resolver, and zero venues now sit beyond the guard"
+        },
+        {
+          "date": "2026-08-18",
+          "text": ".claudeignore is read by nothing (anthropics/claude-code#56997); .claude/settings.json permissions.deny is the working mechanism, negated in .gitignore so it survives a clone. Not yet verified enforcing - settings load at startup"
+        }
+      ]
     }
   ],
   "blockers": [
@@ -1222,9 +1376,50 @@ mechanical owner session following root **`DEPLOY.md`**.
       "severity": "low",
       "owner": "oscar",
       "since": "2026-08-14"
+    },
+    {
+      "text": "The Aura free instance auto-pauses and its DNS record disappears while paused; on resume reads work but writes fail with 'No write service currently available'. Cost three aborted repair runs before it settled",
+      "severity": "low",
+      "owner": "oscar",
+      "since": "2026-08-18"
     }
   ],
   "nextSteps": [
+    {
+      "title": "Named-place search: 'techno in Kreuzberg' returns nothing today. Run TEMPLATE first and geocode to a bbox only on zero rows; add bbox to GeocodeResult and make _from_cached filter unknown keys first, or an old process reading a new shared-cache entry raises TypeError",
+      "est": 2,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Drain the repair sweep: run_backfill(max_venues=100) stamps the 34 remaining venues, ~10 of which will reach the Tavily resolver",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Router gap: a shared location with no place named and no 'near me' phrasing falls to TEMPLATE with no city filter, returning events from every city. Default to NEARBY in router.py when a location is present",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Surface geocode_precision on the EventCard so a city-centroid pin stops rendering as a confident Leaflet marker (touches services/shared/ts/protocol.ts and its drift guard)",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
+    {
+      "title": "Confirm the new .claude/settings.json deny rules actually enforce after a restart; if .history/ is still readable, fall back to a PreToolUse hook",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Phase 7 - geocoding and location quality",
+      "plan": "refactor"
+    },
     {
       "title": "Optional: containerize flows/serve.py as a compose flows service (needs its own Dockerfile stage since the hardened search runtime has no uv, plus PREFECT_API_KEY/PREFECT_API_URL in root .env)",
       "est": 1,
@@ -1314,6 +1509,13 @@ mechanical owner session following root **`DEPLOY.md`**.
     {
       "date": "2026-08-18",
       "model": "fable-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-18",
+      "model": "opus-5",
       "credits": null,
       "person": "oscar",
       "hours": null
