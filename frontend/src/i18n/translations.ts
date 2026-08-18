@@ -112,6 +112,11 @@ export interface Translations {
     tickets: string;
     web: string;
     webTitle: string;
+    webAria: string;
+    webMissing: string;
+    fieldTime: string;
+    fieldPrice: string;
+    fieldLocation: string;
   };
   menu: {
     account: string;
@@ -237,7 +242,13 @@ export const translations: Record<Language, Translations> = {
       approximate: "Approximate — the exact address of this venue is not known yet.",
       tickets: "tickets",
       web: "web",
-      webTitle: "Found on the internet, not submitted by the promoter",
+      webAria: "What does “web” mean?",
+      webTitle:
+        "We found this listing with our own web search. The promoter has not confirmed it, so anything the page did not state is left blank rather than guessed.",
+      webMissing: "Not stated on the page",
+      fieldTime: "start time",
+      fieldPrice: "price",
+      fieldLocation: "exact address",
     },
     menu: {
       account: "account",
@@ -361,7 +372,13 @@ export const translations: Record<Language, Translations> = {
       approximate: "Aproximado — todavía no se conoce la dirección exacta de este local.",
       tickets: "entradas",
       web: "web",
-      webTitle: "Encontrado en internet, no enviado por el promotor",
+      webAria: "¿Qué significa “web”?",
+      webTitle:
+        "Encontramos este anuncio con nuestra propia búsqueda web. El promotor no lo ha confirmado, así que lo que la página no decía se deja en blanco en vez de inventarlo.",
+      webMissing: "La página no lo indicaba",
+      fieldTime: "hora de inicio",
+      fieldPrice: "precio",
+      fieldLocation: "dirección exacta",
     },
     menu: {
       account: "cuenta",
@@ -485,7 +502,13 @@ export const translations: Record<Language, Translations> = {
       approximate: "Approssimativo — l'indirizzo esatto di questo locale non è ancora noto.",
       tickets: "biglietti",
       web: "web",
-      webTitle: "Trovato su internet, non inviato dal promoter",
+      webAria: "Cosa significa “web”?",
+      webTitle:
+        "Abbiamo trovato questo annuncio con la nostra ricerca sul web. Il promoter non lo ha confermato, quindi ciò che la pagina non diceva resta vuoto invece di essere inventato.",
+      webMissing: "Non indicato sulla pagina",
+      fieldTime: "orario di inizio",
+      fieldPrice: "prezzo",
+      fieldLocation: "indirizzo esatto",
     },
     menu: {
       account: "account",
@@ -609,7 +632,13 @@ export const translations: Record<Language, Translations> = {
       approximate: "Aproximat — encara no es coneix l'adreça exacta d'aquesta sala.",
       tickets: "entrades",
       web: "web",
-      webTitle: "Trobat a internet, no enviat pel promotor",
+      webAria: "Què vol dir “web”?",
+      webTitle:
+        "Hem trobat aquest anunci amb la nostra cerca web. El promotor no l'ha confirmat, així que allò que la pàgina no deia es deixa en blanc en lloc d'inventar-ho.",
+      webMissing: "La pàgina no ho indicava",
+      fieldTime: "hora d'inici",
+      fieldPrice: "preu",
+      fieldLocation: "adreça exacta",
     },
     menu: {
       account: "compte",

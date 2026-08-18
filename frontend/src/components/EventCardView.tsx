@@ -1,5 +1,5 @@
 import type { EventCard } from "@shared/protocol";
-import { ExternalLink, MapPin, Ticket } from "lucide-react";
+import { ExternalLink, Info, MapPin, Ticket } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
@@ -40,6 +40,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [showProvenance, setShowProvenance] = useState(false);
 
   // Rows written before the flag existed have no value and keep the old
   // behaviour, which was right for every seed event.
@@ -52,6 +53,16 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   // are only approximately right.
   const approximate = card.geocode_precision === "city_centroid";
   const place = [card.venue, card.city].filter(Boolean).join(", ");
+  // Swept from a listing page rather than submitted by whoever is putting the
+  // night on. Seed rows are ours and pro_submission rows came from a promoter.
+  const fromSearch = card.source !== "seed" && card.source !== "pro_submission";
+  // What this card is actually missing, read off the card — never a guess about
+  // why. An empty list is normal: a swept listing can be complete.
+  const notStated = [
+    card.start_time_known === false && t.cards.fieldTime,
+    card.price_min === null || card.price_min === undefined ? t.cards.fieldPrice : null,
+    card.geocode_precision === "city_centroid" && t.cards.fieldLocation,
+  ].filter(Boolean) as string[];
   const mapsQuery = approximate
     ? encodeURIComponent(place || card.name)
     : `${card.lat},${card.lng}`;
@@ -67,15 +78,28 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             <p className="truncate text-sm text-muted-foreground">{card.artists.join(", ")}</p>
           )}
         </div>
-        {card.source !== "seed" && card.source !== "pro_submission" && (
-          <span
-            className="shrink-0 rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
-            title={t.cards.webTitle}
+        {fromSearch && (
+          <button
+            type="button"
+            onClick={() => setShowProvenance(!showProvenance)}
+            aria-expanded={showProvenance}
+            aria-label={t.cards.webAria}
+            // A title attribute is a hover, and a phone has no hover — the
+            // explanation has to be reachable by tapping.
+            className="flex shrink-0 items-center gap-1 rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-primary"
           >
             {t.cards.web}
-          </span>
+            <Info className="h-3 w-3" />
+          </button>
         )}
       </header>
+
+      {showProvenance && (
+        <p className="pt-2 text-xs leading-relaxed text-muted-foreground">
+          {t.cards.webTitle}
+          {notStated.length > 0 && ` ${t.cards.webMissing}: ${notStated.join(", ")}.`}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 text-sm">
         {place && <span className="text-muted-foreground">{place}</span>}
