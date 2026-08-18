@@ -73,6 +73,9 @@ jobs:
         # The frontend's typecheck runs both tsconfig projects; a bare
         # `tsc --noEmit` at its root is a silent no-op with project references.
         run: npm run typecheck
+      - name: lint
+        working-directory: ${{ matrix.dir }}
+        run: npm run lint
       - name: test
         if: matrix.test
         working-directory: ${{ matrix.dir }}
