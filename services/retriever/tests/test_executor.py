@@ -468,3 +468,22 @@ class TestGenreBoundaries:
         cypher, _ = self.build("rap")
         assert "g.slug ENDS WITH '-' + asked" in cypher
         assert "g.slug CONTAINS asked" not in cypher  # never the bare form
+
+
+class TestStartTimeOnTheCard:
+    def test_a_date_only_event_says_so(self):
+        card = rows_to_cards([{**STANDARD_ROW, "start_time_known": False}])[0]
+        assert card.start_time_known is False
+        assert card.start_at == "2026-08-15T23:00:00+00:00"  # the value is unchanged
+
+    def test_legacy_rows_keep_their_time(self):
+        """No flag means the old behaviour, which was right for every seed row."""
+        assert rows_to_cards([STANDARD_ROW])[0].start_time_known is None
+
+    def test_the_flag_is_returned_by_every_template_path(self):
+        for cypher, _ in (
+            build_template_query(Constraints(city="Berlin")),
+            build_nearby_query(Constraints(near_me=True), 52.5, 13.4, 5.0),
+            build_vector_query(Constraints(free_text="loud")),
+        ):
+            assert "e.start_time_known AS start_time_known" in cypher

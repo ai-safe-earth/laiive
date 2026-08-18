@@ -29,7 +29,8 @@ each entry carries ONLY the fields you can actually identify:
 {{
   "name": string,            // event title if stated (do NOT invent one)
   "artists": [string, ...],  // performing artists/bands/DJs
-  "start_at": "YYYY-MM-DDTHH:MM:SS",  // resolve relative dates using today's date
+  "start_at": "YYYY-MM-DDTHH:MM:SS", // resolve relative dates using today's date;
+                                     // "YYYY-MM-DD" when no time is stated
   "venue": string,
   "address": string,         // street address if stated
   "city": string,

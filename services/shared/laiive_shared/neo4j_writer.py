@@ -10,6 +10,7 @@ module owns no API clients — that keeps test patching in one place per service
 """
 
 import logging
+import re
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -46,6 +47,21 @@ class WriteResult(BaseModel):
     missing: list[str] = []
     warnings: list[str] = []
     message: str = ""
+
+
+def has_explicit_time(raw: str) -> bool:
+    """Whether the listing actually stated a time, or only a date.
+
+    A page that says "29 August" and nothing else parses to midnight, and
+    midnight then reads as a fact: 30 of 57 discovered events display a 00:00
+    start they never claimed. Rather than guess, the caller records this and
+    the card shows a date with no time.
+
+    Detected from the text, not from the parsed value, because a real midnight
+    gig ("2026-08-29T00:00") is indistinguishable from a defaulted one once it
+    is a datetime.
+    """
+    return bool(raw) and bool(re.search(r"\d{1,2}[:.]\d{2}", raw))
 
 
 def parse_start_at(raw: str) -> datetime | None:
@@ -192,6 +208,7 @@ def write_event(
             CREATE (e:Event {
                 uid: $event_uid, name: $name, name_norm: $name_norm,
                 description: $description, start_at: datetime($start_at),
+                start_time_known: $start_time_known,
                 price_min: $price_min, price_max: $price_max,
                 price_currency: $price_currency, ticket_url: $ticket_url,
                 status: 'scheduled', source: $source, owner_id: $owner_id,
@@ -241,6 +258,9 @@ def write_event(
             name_norm=norm(name),
             description=draft.description or "",
             start_at=start_at.isoformat(),
+            # A listing that gave only a date parses to midnight, and midnight
+            # then reads as a stated fact on the card. Record which it was.
+            start_time_known=has_explicit_time(draft.start_at or ""),
             price_min=draft.price_min,
             price_max=draft.price_max
             if draft.price_max is not None

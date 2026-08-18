@@ -25,6 +25,9 @@ class EventCard(BaseModel):
     lng: float | None = None
     source: str = "pro_submission"  # pro_submission | admin_search | seed
     distance_km: float | None = None
+    # False when the listing gave a date and no time, so start_at's 00:00 is a
+    # default rather than a claim. None is a row written before the flag.
+    start_time_known: bool | None = None
     # How much the lat/lng above is worth: 'venue' is the venue itself,
     # 'city_centroid' only means "somewhere in this city". None is a row written
     # before the flag existed. A pin the repair sweep flagged as 'suspect' never

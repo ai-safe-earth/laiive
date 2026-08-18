@@ -1,6 +1,11 @@
 from laiive_shared.cards import EventDraft
 from laiive_shared.geocode import GeocodeResult, NominatimGeocoder
-from laiive_shared.neo4j_writer import parse_start_at, tag_artist_genres, write_event
+from laiive_shared.neo4j_writer import (
+    has_explicit_time,
+    parse_start_at,
+    tag_artist_genres,
+    write_event,
+)
 
 
 class FakeResult:
@@ -386,3 +391,39 @@ class TestTagArtistGenres:
         session = FakeSession()
         assert tag_artist_genres(session, {}) == 0
         assert session.queries == []
+
+
+class TestStartTimeKnown:
+    """A date-only listing must not claim the concert starts at midnight.
+
+    30 of 57 discovered events sat at exactly 00:00 because the page gave a
+    day and nothing else, and the card printed it as a start time.
+    """
+
+    def test_a_stated_time_is_recorded_as_known(self):
+        for raw in ("2026-08-29T20:00:00", "2026-08-29 20:00", "29/08/2026 21.30"):
+            assert has_explicit_time(raw) is True
+
+    def test_a_date_alone_is_not_a_time(self):
+        for raw in ("2026-08-29", "29/08/2026", ""):
+            assert has_explicit_time(raw) is False
+
+    def test_the_flag_is_read_from_the_text_not_the_datetime(self):
+        """Once parsed, a defaulted midnight and a real one look identical."""
+        assert has_explicit_time("2026-08-29T00:00:00") is True
+        assert has_explicit_time("2026-08-29") is False
+
+    def test_the_written_event_carries_it(self):
+        session = FakeSession()
+        draft = EventDraft(
+            name="Date-only listing",
+            artists=["Klangfeld"],
+            start_at="2026-08-29",
+            venue="Berghain",
+            address="Am Wriezener Bahnhof",
+            city="Berlin",
+            price_min=0,
+        )
+        write_event(session, draft, source="admin_search")
+        create = next(p for q, p in session.queries if "CREATE (e:Event" in q)
+        assert create["start_time_known"] is False

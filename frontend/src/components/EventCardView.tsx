@@ -6,16 +6,22 @@ import { cn } from "@/lib/cn";
 import { EventMap } from "./EventMap";
 
 /** "sáb 15 nov, 21:00" in the user's language, or null when the date is absent. */
-function formatWhen(startAt: string | null | undefined, language: string): string | null {
+function formatWhen(
+  startAt: string | null | undefined,
+  language: string,
+  timeKnown: boolean,
+): string | null {
   if (!startAt) return null;
   const date = new Date(startAt);
   if (Number.isNaN(date.getTime())) return startAt;
+  // A listing that gave only a date parses to midnight upstream. Printing
+  // "00:00" would turn that default into a claim about when the doors open.
+  const time = timeKnown ? ({ hour: "2-digit", minute: "2-digit" } as const) : {};
   return new Intl.DateTimeFormat(language, {
     weekday: "short",
     day: "numeric",
     month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+    ...time,
   }).format(date);
 }
 
@@ -35,7 +41,9 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   const [expanded, setExpanded] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
-  const when = formatWhen(card.start_at, language);
+  // Rows written before the flag existed have no value and keep the old
+  // behaviour, which was right for every seed event.
+  const when = formatWhen(card.start_at, language, card.start_time_known !== false);
   const price = formatPrice(card, t.cards.free);
   const hasCoordinates =
     typeof card.lat === "number" && typeof card.lng === "number";

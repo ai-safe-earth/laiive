@@ -27,7 +27,8 @@ STANDARD_RETURN = """
 WITH DISTINCT e, v, c{extra_with}
 OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
 RETURN e.uid AS uid, e.name AS name, e.description AS description,
-       toString(e.start_at) AS start_at, e.price_min AS price_min,
+       toString(e.start_at) AS start_at, e.start_time_known AS start_time_known,
+       e.price_min AS price_min,
        e.price_max AS price_max, e.price_currency AS price_currency,
        e.ticket_url AS ticket_url, e.source AS source,
        v.name AS venue, v.venue_type AS venue_type, c.name AS city,
@@ -286,6 +287,7 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 venue_type=row.get("venue_type"),
                 city=row.get("city"),
                 start_at=row.get("start_at"),
+                start_time_known=row.get("start_time_known"),
                 price_min=row.get("price_min"),
                 price_max=row.get("price_max"),
                 price_currency=row.get("price_currency"),

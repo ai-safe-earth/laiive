@@ -34,6 +34,9 @@ export interface EventCard {
   lng?: number | null;
   source: string;
   distance_km?: number | null;
+  // false when the listing gave a date and no time: start_at's 00:00 is a
+  // default, so the card must show the day without an hour.
+  start_time_known?: boolean | null;
   // 'venue' | 'city_centroid' | null -- how precisely lat/lng locates the
   // event. A centroid means "somewhere in this city", so the map must not
   // draw it as a street address.
