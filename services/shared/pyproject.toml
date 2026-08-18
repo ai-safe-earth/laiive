@@ -16,6 +16,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    # pinned to .pre-commit-config.yaml's ruff-pre-commit rev so CI and hooks agree
+    "ruff==0.4.9",
 ]
 
 [build-system]

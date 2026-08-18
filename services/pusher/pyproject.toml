@@ -24,6 +24,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-timeout>=2.3",
+    # pinned to .pre-commit-config.yaml's ruff-pre-commit rev so CI and hooks agree
+    "ruff==0.4.9",
 ]
 
 [tool.pytest.ini_options]

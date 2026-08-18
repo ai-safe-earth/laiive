@@ -26,6 +26,8 @@ dev = [
     # it into the production image.
     "pytest>=9.0.2",
     "pytest-timeout>=2.4.0",
+    # pinned to .pre-commit-config.yaml's ruff-pre-commit rev so CI and hooks agree
+    "ruff==0.4.9",
 ]
 
 [tool.pytest.ini_options]
