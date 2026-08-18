@@ -31,6 +31,7 @@ class TurnResult:
     cards: list[EventCard] = field(default_factory=list)
     classification: Classification | None = None
     cyphers: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     unsafe: bool = False
 
@@ -104,6 +105,8 @@ class Pipeline:
                     outcome = self.executor.execute(plan, location)
                     if outcome.cypher:
                         result.cyphers.append(outcome.cypher)
+                    if outcome.note:
+                        result.notes.append(outcome.note)
                     if outcome.error:
                         result.errors.append(outcome.error)
                         logger.warning(f"Sub-query failed: {outcome.error}")
@@ -122,6 +125,7 @@ class Pipeline:
             result.classification,
             result.cards,
             unsafe=result.unsafe,
+            notes=result.notes,
         ):
             result.text += delta
             yield MessageDelta(text=delta)

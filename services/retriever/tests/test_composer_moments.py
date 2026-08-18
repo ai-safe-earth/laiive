@@ -114,3 +114,34 @@ class TestComposeStream:
         composer = Composer(client=client)
         deltas = list(composer.compose_stream("hi", None, classification(), []))
         assert len(deltas) == 1  # one graceful fallback message, no raise
+
+
+class TestRetrievalNotes(TestComposeStream):
+    """What the search could not quite answer has to reach the words.
+
+    The named-place leg pads a bounding box to a 2 km minimum, and a
+    neighbourhood has no hard edge anyway, so "events in Barceloneta" is a
+    claim the retrieval cannot actually make.
+    """
+
+    def test_a_note_reaches_the_prompt(self):
+        _, call = self._compose(notes=["'Kreuzberg' is not a city in the graph"])
+        context = call["messages"][-1]["content"]
+        assert "Retrieval notes: 'Kreuzberg' is not a city in the graph" in context
+
+    def test_several_notes_are_joined(self):
+        _, call = self._compose(notes=["first thing", "second thing"])
+        assert (
+            "Retrieval notes: first thing; second thing"
+            in call["messages"][-1]["content"]
+        )
+
+    def test_no_note_says_none_rather_than_nothing(self):
+        """An empty value reads to the model as a truncated prompt."""
+        _, call = self._compose()
+        assert "Retrieval notes: none" in call["messages"][-1]["content"]
+
+    def test_the_prompt_tells_it_what_to_do_with_one(self):
+        from agent.composer import COMPOSER_SYSTEM_PROMPT
+
+        assert "around Kreuzberg" in COMPOSER_SYSTEM_PROMPT

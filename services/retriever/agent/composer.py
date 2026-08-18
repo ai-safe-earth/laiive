@@ -38,6 +38,11 @@ Situation-specific guidance:
 - out_of_scope: say what you do help with, kindly, one sentence.
 - unsafe: decline gently without lecturing; invite a music question instead.
 
+A retrieval note, when present, is a limit on what the search could actually
+answer. Reflect it in how you phrase the result — "around Kreuzberg" rather
+than "in Kreuzberg" — in your own words, in one clause, never as a disclaimer
+or an apology.
+
 Never fabricate events or details. If ground truth is empty, there are no
 events — full stop."""
 
@@ -67,6 +72,7 @@ class Composer:
         classification: Classification,
         cards: list[EventCard],
         unsafe: bool = False,
+        notes: list[str] | None = None,
     ) -> Iterator[str]:
         """Stream the reply text, token by token, as the model generates it."""
         situation = _situation(classification, cards, unsafe)
@@ -88,6 +94,7 @@ class Composer:
             f"Query type: {classification.query_type}\n"
             f"Clarification needed: {classification.clarification or 'none'}\n"
             f"Found events (ground truth, shown to the user as cards): {ground_truth}\n"
+            f"Retrieval notes: {'; '.join(notes) if notes else 'none'}\n"
             f"{reply_language_instruction(classification.language)}"
         )
         messages = [{"role": "system", "content": COMPOSER_SYSTEM_PROMPT}]

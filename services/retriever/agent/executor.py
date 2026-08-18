@@ -357,6 +357,9 @@ class Outcome:
     cards: list[EventCard] = field(default_factory=list)
     cypher: str | None = None
     error: str | None = None
+    # How the rows were found, when that is not what the user literally asked
+    # for. Reaches the composer so it does not overstate the match.
+    note: str | None = None
 
 
 class Executor:
@@ -434,7 +437,18 @@ class Executor:
             f"Named-place fallback matched {c.city!r} to {place.display_name!r} "
             f"({diagonal:.1f} km across): {len(rows)} events"
         )
-        return Outcome(rows_to_cards(rows), cypher)
+        # The box is padded to a minimum span and a neighbourhood has no hard
+        # edge anyway, so some of these are near the place rather than in it.
+        # The composer is told, because "events in Barceloneta" is a claim the
+        # retrieval cannot actually make.
+        return Outcome(
+            rows_to_cards(rows),
+            cypher,
+            note=(
+                f"{c.city!r} is not a city in the graph; these were found in the "
+                f"area around it, so some may be just outside it"
+            ),
+        )
 
     def _execute_nearby(self, c: Constraints, location: dict | None) -> Outcome:
         if not location:
