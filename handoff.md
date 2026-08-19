@@ -36,19 +36,17 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
 
 ## Open
 
-- Newly swept events arrive with no genre, so a genre-pinned query excludes them. 55 of 57
-  existing events are reachable after the artist tagging; infer at approve, or fall back on
-  zero rows.
-- Four venue near-duplicate pairs within 162 m. Never auto-merge — two are a room inside a
-  building.
-- "Shakira Stadium" is a listing-page artefact, not a venue: extraction quality, not geocoding.
+- Google sign-in shows the Supabase project id rather than laiive. Brand verification in
+  Google Cloud Console is the free fix; a Supabase custom domain is the paid one, and it
+  moves the JWT issuer with it — `DEPLOY.md` §5b.
+- Migration `20260819000011` (organizations) is applied and nothing writes to those tables
+  yet: org creation is a screen. Build order in `docs/roadmap/02-ownership.md`.
 - Confirm the `.claude/settings.json` deny rules enforce after a restart; if `.history/` is
   still readable, fall back to a PreToolUse hook.
-- Optional: containerize `flows/serve.py` as a compose service (needs its own Dockerfile stage,
-  plus `PREFECT_API_KEY`/`PREFECT_API_URL` in the root `.env`).
-- Two rulesets now guard `main`: `main is production` (2026-08-19, PR + all 11 checks) and
-  `main_protection` (2025-10-13, PR only). The old one is redundant — it was narrowed off
-  `~DEFAULT_BRANCH` and given the same admin bypass, and can be deleted whenever you like.
+- `main_protection` (2025-10-13) is redundant with `main is production` and can be deleted.
+- Ingestion-quality items — untagged swept genres, four venue near-duplicates within 162 m,
+  the "Shakira Stadium" listing artefact — are tracked in `docs/roadmap/01-program.md` §7.
+- Research behind the decisions, with access dates, is in `docs/references.md`.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -290,6 +288,14 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-19",
           "text": "flyctl secrets set replaces a key rather than appending, so setting CORS_ALLOW_ORIGINS twice locked out the production origin and left only the preview. Every origin has to go in one comma-separated value, and the check that catches it is a preflight, not the command output"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Ownership becomes organizations with members and roles, self-declared claims, and no restriction on listing at someone else's venue - so ownership governs who may EDIT a record, never who may create one. Migration 20260819000011 applied; nothing writes to the tables until org creation exists as a screen, which is deliberate because that is exactly how the unused public.ownerships table happened. Research with access dates in docs/references.md"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The artists field in the pro event form could not be typed into: it split on commas and trimmed on every keystroke, so a space was deleted as it was typed and a comma vanished with it. It held exactly one single-word artist while the label asked for commas. Replaced with one input per artist plus an add button"
         },
         {
           "date": "2026-08-19",

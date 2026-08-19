@@ -108,6 +108,41 @@ Pages project → connect the GitHub repo:
    public gateway — set `GATEWAY_URL=https://laiive-gateway.fly.dev` in
    the root `.env`. (Containerizing serve.py stays optional, see handoff.)
 
+## 5b. Auth branding (the Google consent screen)
+
+Signing in with Google shows "continue to **pjlcfdyheyubsemwlzzv.supabase.co**",
+because Google displays the root domain of the *callback* URL — which belongs to
+Supabase, not to laiive. Supabase's own docs call this out: it "does not inspire
+trust and can make your application more susceptible to successful phishing
+attempts". Two fixes, and they are not equivalent.
+
+**Free, do this first — brand verification.** Google Cloud Console → APIs &
+Services → OAuth consent screen → Branding: app name `laiive`, the lips logo,
+a support email, and `laiive.com` under authorized domains. Submit for
+verification; it is reviewed by a human and takes a few business days. Result:
+the name and logo replace the project id.
+
+**Paid, later — a Supabase custom domain.** `auth.laiive.com` as the project's
+domain, so the callback itself is laiive-branded. It is an add-on on a paid
+plan (Pro $25/mo + $10/mo for the domain), which is most of the $30–50/mo
+budget guardrail spent on cosmetics — worth revisiting when there is a paid
+plan for other reasons. DNS: a CNAME to the project domain plus a TXT at
+`_acme-challenge.auth.laiive.com`.
+
+If that day comes, three things move together or sign-in breaks:
+
+1. Register **both** callback URLs with Google before activating, per Supabase's
+   docs — the old `<ref>.supabase.co/auth/v1/callback` and the new one.
+2. `VITE_SUPABASE_URL` in Cloudflare Pages, and a rebuild.
+3. **The gateway's JWT verification.** `services/gateway/src/config.ts` derives
+   both the JWKS URL and the expected issuer from `SUPABASE_URL`
+   (`${supabaseUrl}/auth/v1`). Tokens minted by the custom domain carry the new
+   issuer, so every request 401s until `SUPABASE_URL` moves too — and tokens
+   issued just before the switch carry the old one. `SUPABASE_JWKS_URL` and
+   `SUPABASE_JWT_ISSUER` exist as explicit overrides for exactly this window.
+
+Sources and access dates: `docs/references.md`.
+
 ## 6. Smoke checklist
 
 - `curl https://laiive-gateway.fly.dev/healthz` → 200
