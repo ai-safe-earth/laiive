@@ -58,6 +58,11 @@ export interface Translations {
     save: string;
     promoter: string;
     promoterNote: string;
+    /** Same section, shown to an account that is not a promoter yet. */
+    becomePromoter: string;
+    becomePromoterNote: string;
+    becomePromoterCta: string;
+    becamePromoter: string;
     organisation: string;
     organisationPlaceholder: string;
     website: string;
@@ -73,7 +78,7 @@ export interface Translations {
   };
   pro: {
     needsPro: string;
-    contactUs: string;
+    becomeProLink: string;
     signInLink: string;
     emptyTitle: string;
     emptyHint: string;
@@ -185,7 +190,11 @@ export const translations: Record<Language, Translations> = {
       languageNote: "Saved to your account — the assistant still answers in whatever language you write in.",
       save: "save",
       promoter: "promoter",
-      promoterNote: "What you run. Submitted events are linked to you regardless; this is context, not a permission.",
+      promoterNote: "What you run. Submitted events are linked to you regardless.",
+      becomePromoter: "publish your own nights",
+      becomePromoterNote: "Tell us what you run and this becomes a promoter account — publishing opens straight away.",
+      becomePromoterCta: "become a promoter",
+      becamePromoter: "you're a promoter now — publishing is open",
       organisation: "organisation",
       organisationPlaceholder: "venue, label, collective…",
       website: "website",
@@ -201,7 +210,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Publishing events needs a promoter account.",
-      contactUs: "your account is not a pro account yet →",
+      becomeProLink: "set up your promoter details and publish →",
       signInLink: "sign in →",
       emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
       emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
@@ -328,7 +337,11 @@ export const translations: Record<Language, Translations> = {
       languageNote: "Se guarda en tu cuenta — el asistente sigue respondiendo en el idioma en que escribas.",
       save: "guardar",
       promoter: "promotor",
-      promoterNote: "Lo que gestionas. Los eventos enviados se vinculan a ti igualmente; esto es contexto, no un permiso.",
+      promoterNote: "Lo que gestionas. Los eventos enviados se vinculan a ti igualmente.",
+      becomePromoter: "publica tus propias noches",
+      becomePromoterNote: "Cuéntanos qué gestionas y esta cuenta pasa a ser de promotor — podrás publicar al momento.",
+      becomePromoterCta: "hazte promotor",
+      becamePromoter: "ya eres promotor — puedes publicar",
       organisation: "organización",
       organisationPlaceholder: "sala, sello, colectivo…",
       website: "web",
@@ -344,7 +357,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
-      contactUs: "tu cuenta todavía no es una cuenta pro →",
+      becomeProLink: "configura tus datos de promotor y publica →",
       signInLink: "inicia sesión →",
       emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
       emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
@@ -471,7 +484,11 @@ export const translations: Record<Language, Translations> = {
       languageNote: "Salvato nel tuo account — l'assistente risponde comunque nella lingua in cui scrivi.",
       save: "salva",
       promoter: "promoter",
-      promoterNote: "Ciò che gestisci. Gli eventi inviati sono comunque collegati a te; questo è contesto, non un permesso.",
+      promoterNote: "Ciò che gestisci. Gli eventi inviati sono comunque collegati a te.",
+      becomePromoter: "pubblica le tue serate",
+      becomePromoterNote: "Dicci cosa gestisci e questo account diventa da promoter — potrai pubblicare subito.",
+      becomePromoterCta: "diventa promoter",
+      becamePromoter: "ora sei un promoter — puoi pubblicare",
       organisation: "organizzazione",
       organisationPlaceholder: "locale, etichetta, collettivo…",
       website: "sito web",
@@ -487,7 +504,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
-      contactUs: "il tuo account non è ancora un account pro →",
+      becomeProLink: "inserisci i tuoi dati da promoter e pubblica →",
       signInLink: "accedi →",
       emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
       emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
@@ -614,7 +631,11 @@ export const translations: Record<Language, Translations> = {
       languageNote: "Es desa al teu compte — l'assistent segueix responent en l'idioma en què escriguis.",
       save: "desa",
       promoter: "promotor",
-      promoterNote: "El que gestiones. Els esdeveniments enviats es vinculen a tu igualment; això és context, no un permís.",
+      promoterNote: "El que gestiones. Els esdeveniments enviats es vinculen a tu igualment.",
+      becomePromoter: "publica les teves nits",
+      becomePromoterNote: "Digues-nos què gestiones i aquest compte passa a ser de promotor — podràs publicar de seguida.",
+      becomePromoterCta: "fes-te promotor",
+      becamePromoter: "ja ets promotor — pots publicar",
       organisation: "organització",
       organisationPlaceholder: "sala, segell, col·lectiu…",
       website: "web",
@@ -630,7 +651,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
-      contactUs: "el teu compte encara no és un compte pro →",
+      becomeProLink: "configura les teves dades de promotor i publica →",
       signInLink: "inicia sessió →",
       emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
       emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",

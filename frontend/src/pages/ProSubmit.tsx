@@ -95,7 +95,7 @@ export default function ProSubmit() {
           to={user ? "/account" : "/auth?kind=pro"}
           className="text-[13.5px] text-pro-accent transition-opacity hover:opacity-80"
         >
-          {user ? t.pro.contactUs : t.pro.signInLink}
+          {user ? t.pro.becomeProLink : t.pro.signInLink}
         </Link>
       </div>
     );
