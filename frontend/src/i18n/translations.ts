@@ -17,8 +17,6 @@ export type DraftFieldKey =
 
 export interface Translations {
   chat: {
-    welcome: string;
-    promoterLink: string;
     placeholder: string;
     statusReading: string;
     statusSearching: string;
@@ -46,6 +44,8 @@ export interface Translations {
     checkInbox: string;
     failed: string;
     googleFailed: string;
+    proInvite: string;
+    proCta: string;
   };
   account: {
     back: string;
@@ -122,10 +122,20 @@ export interface Translations {
     fieldLocation: string;
   };
   menu: {
+    saved: string;
     account: string;
+    settings: string;
+    pro: string;
     signOut: string;
     signIn: string;
     aria: string;
+  };
+  voice: {
+    speak: string;
+    stop: string;
+    denied: string;
+    nothing: string;
+    failed: string;
   };
   notFound: {
     back: string;
@@ -135,9 +145,7 @@ export interface Translations {
 export const translations: Record<Language, Translations> = {
   en: {
     chat: {
-      welcome: "Hey! 👋 I'm here to help you discover amazing live music events near you. What are you in the mood for today?",
-      promoterLink: "promoter/musician →",
-      placeholder: "Tell me what you're looking for...",
+      placeholder: "ask",
       statusReading: "reading your question…",
       statusSearching: "searching the graph…",
       statusWriting: "writing…",
@@ -164,6 +172,8 @@ export const translations: Record<Language, Translations> = {
       checkInbox: "Check your inbox to confirm the address, then sign in.",
       failed: "Authentication failed",
       googleFailed: "Google sign-in failed",
+      proInvite: "promoter, musician, venue owner?",
+      proCta: "sign up as a pro — free, and your nights go straight on laiive →",
     },
     account: {
       back: "back",
@@ -191,7 +201,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Publishing events needs a promoter account.",
-      contactUs: "signed in without pro access — contact us",
+      contactUs: "your account is not a pro account yet →",
       signInLink: "sign in →",
       emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
       emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
@@ -204,8 +214,8 @@ export const translations: Record<Language, Translations> = {
       publishedMarker: (name, k, n) => `Published "${name}" (event ${k} of ${n}).`,
       walkComplete: (n) =>
         n > 1
-          ? `All ${n} events are live on laiive. 🎉 Send another listing whenever you're ready.`
-          : `Your event is live on laiive. 🎉 Send another listing whenever you're ready.`,
+          ? `All ${n} events are live on laiive. Send another listing whenever you're ready.`
+          : `Your event is live on laiive. Send another listing whenever you're ready.`,
       alreadyExists: "That event is already on laiive.",
       publishFailed: "Could not publish",
       eventOf: (k, n) => `event ${k} of ${n}`,
@@ -260,7 +270,17 @@ export const translations: Record<Language, Translations> = {
       account: "account",
       signOut: "sign out",
       signIn: "sign in",
+      settings: "settings",
+      pro: "laiive pro",
+      saved: "saved",
       aria: "Account menu",
+    },
+    voice: {
+      speak: "Speak instead of typing",
+      stop: "Stop and transcribe",
+      denied: "Microphone permission denied",
+      nothing: "Nothing came through — say it again",
+      failed: "Transcription failed",
     },
     notFound: {
       back: "back to the chat →",
@@ -268,9 +288,7 @@ export const translations: Record<Language, Translations> = {
   },
   es: {
     chat: {
-      welcome: "¡Hola! 👋 Estoy aquí para ayudarte a descubrir increíbles eventos de música en vivo cerca de ti. ¿Qué te apetece hoy?",
-      promoterLink: "promotor/músico →",
-      placeholder: "Dime qué estás buscando...",
+      placeholder: "pregunta",
       statusReading: "leyendo tu pregunta…",
       statusSearching: "buscando en el grafo…",
       statusWriting: "escribiendo…",
@@ -297,6 +315,8 @@ export const translations: Record<Language, Translations> = {
       checkInbox: "Revisa tu correo para confirmar la dirección y luego inicia sesión.",
       failed: "No se pudo iniciar sesión",
       googleFailed: "No se pudo iniciar sesión con Google",
+      proInvite: "¿promotor, músico, dueño de una sala?",
+      proCta: "regístrate como pro — gratis, y tus noches entran directas en laiive →",
     },
     account: {
       back: "atrás",
@@ -324,7 +344,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
-      contactUs: "sesión iniciada sin acceso pro — contáctanos",
+      contactUs: "tu cuenta todavía no es una cuenta pro →",
       signInLink: "inicia sesión →",
       emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
       emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
@@ -337,8 +357,8 @@ export const translations: Record<Language, Translations> = {
       publishedMarker: (name, k, n) => `He publicado "${name}" (evento ${k} de ${n}).`,
       walkComplete: (n) =>
         n > 1
-          ? `Los ${n} eventos ya están en laiive. 🎉 Envía otro listado cuando quieras.`
-          : `Tu evento ya está en laiive. 🎉 Envía otro listado cuando quieras.`,
+          ? `Los ${n} eventos ya están en laiive. Envía otro listado cuando quieras.`
+          : `Tu evento ya está en laiive. Envía otro listado cuando quieras.`,
       alreadyExists: "Ese evento ya está en laiive.",
       publishFailed: "No se pudo publicar",
       eventOf: (k, n) => `evento ${k} de ${n}`,
@@ -393,7 +413,17 @@ export const translations: Record<Language, Translations> = {
       account: "cuenta",
       signOut: "cerrar sesión",
       signIn: "inicia sesión",
+      settings: "ajustes",
+      pro: "laiive pro",
+      saved: "guardados",
       aria: "Menú de cuenta",
+    },
+    voice: {
+      speak: "Habla en vez de escribir",
+      stop: "Para y transcribe",
+      denied: "Sin permiso de micrófono",
+      nothing: "No llegó nada — dilo otra vez",
+      failed: "No se pudo transcribir",
     },
     notFound: {
       back: "volver al chat →",
@@ -401,9 +431,7 @@ export const translations: Record<Language, Translations> = {
   },
   it: {
     chat: {
-      welcome: "Ciao! 👋 Sono qui per aiutarti a scoprire fantastici eventi di musica dal vivo vicino a te. Cosa ti va oggi?",
-      promoterLink: "promoter/musicista →",
-      placeholder: "Dimmi cosa stai cercando...",
+      placeholder: "chiedi",
       statusReading: "leggo la tua domanda…",
       statusSearching: "cerco nel grafo…",
       statusWriting: "scrivo…",
@@ -430,6 +458,8 @@ export const translations: Record<Language, Translations> = {
       checkInbox: "Controlla la tua casella per confermare l'indirizzo, poi accedi.",
       failed: "Autenticazione non riuscita",
       googleFailed: "Accesso con Google non riuscito",
+      proInvite: "promoter, musicista, gestore di un locale?",
+      proCta: "registrati come pro — gratis, e le tue serate entrano dritte su laiive →",
     },
     account: {
       back: "indietro",
@@ -457,7 +487,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
-      contactUs: "accesso senza permessi pro — contattaci",
+      contactUs: "il tuo account non è ancora un account pro →",
       signInLink: "accedi →",
       emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
       emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
@@ -470,8 +500,8 @@ export const translations: Record<Language, Translations> = {
       publishedMarker: (name, k, n) => `Ho pubblicato "${name}" (evento ${k} di ${n}).`,
       walkComplete: (n) =>
         n > 1
-          ? `Tutti e ${n} gli eventi sono online su laiive. 🎉 Invia un altro elenco quando vuoi.`
-          : `Il tuo evento è online su laiive. 🎉 Invia un altro elenco quando vuoi.`,
+          ? `Tutti e ${n} gli eventi sono online su laiive. Invia un altro elenco quando vuoi.`
+          : `Il tuo evento è online su laiive. Invia un altro elenco quando vuoi.`,
       alreadyExists: "Quell'evento è già su laiive.",
       publishFailed: "Impossibile pubblicare",
       eventOf: (k, n) => `evento ${k} di ${n}`,
@@ -526,7 +556,17 @@ export const translations: Record<Language, Translations> = {
       account: "account",
       signOut: "esci",
       signIn: "accedi",
+      settings: "impostazioni",
+      pro: "laiive pro",
+      saved: "salvati",
       aria: "Menu account",
+    },
+    voice: {
+      speak: "Parla invece di scrivere",
+      stop: "Ferma e trascrivi",
+      denied: "Permesso microfono negato",
+      nothing: "Non è arrivato nulla — dillo di nuovo",
+      failed: "Trascrizione non riuscita",
     },
     notFound: {
       back: "torna alla chat →",
@@ -534,9 +574,7 @@ export const translations: Record<Language, Translations> = {
   },
   ca: {
     chat: {
-      welcome: "Hola! 👋 Estic aquí per ajudar-te a descobrir increïbles esdeveniments de música en directe a prop teu. Què t'agradaria avui?",
-      promoterLink: "promotor/músic →",
-      placeholder: "Digues-me què estàs buscant...",
+      placeholder: "pregunta",
       statusReading: "llegint la teva pregunta…",
       statusSearching: "cercant al graf…",
       statusWriting: "escrivint…",
@@ -563,6 +601,8 @@ export const translations: Record<Language, Translations> = {
       checkInbox: "Revisa el correu per confirmar l'adreça i després inicia sessió.",
       failed: "No s'ha pogut iniciar la sessió",
       googleFailed: "No s'ha pogut iniciar la sessió amb Google",
+      proInvite: "promotor, músic, propietari d'una sala?",
+      proCta: "registra't com a pro — gratis, i les teves nits entren directes a laiive →",
     },
     account: {
       back: "enrere",
@@ -590,7 +630,7 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
-      contactUs: "sessió iniciada sense accés pro — contacta'ns",
+      contactUs: "el teu compte encara no és un compte pro →",
       signInLink: "inicia sessió →",
       emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
       emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",
@@ -603,8 +643,8 @@ export const translations: Record<Language, Translations> = {
       publishedMarker: (name, k, n) => `He publicat "${name}" (esdeveniment ${k} de ${n}).`,
       walkComplete: (n) =>
         n > 1
-          ? `Els ${n} esdeveniments ja són a laiive. 🎉 Envia un altre llistat quan vulguis.`
-          : `El teu esdeveniment ja és a laiive. 🎉 Envia un altre llistat quan vulguis.`,
+          ? `Els ${n} esdeveniments ja són a laiive. Envia un altre llistat quan vulguis.`
+          : `El teu esdeveniment ja és a laiive. Envia un altre llistat quan vulguis.`,
       alreadyExists: "Aquest esdeveniment ja és a laiive.",
       publishFailed: "No s'ha pogut publicar",
       eventOf: (k, n) => `esdeveniment ${k} de ${n}`,
@@ -659,7 +699,17 @@ export const translations: Record<Language, Translations> = {
       account: "compte",
       signOut: "tanca la sessió",
       signIn: "inicia sessió",
+      settings: "configuració",
+      pro: "laiive pro",
+      saved: "desats",
       aria: "Menú del compte",
+    },
+    voice: {
+      speak: "Parla en lloc d'escriure",
+      stop: "Atura i transcriu",
+      denied: "Sense permís de micròfon",
+      nothing: "No ha arribat res — digues-ho una altra vegada",
+      failed: "No s'ha pogut transcriure",
     },
     notFound: {
       back: "torna al xat →",

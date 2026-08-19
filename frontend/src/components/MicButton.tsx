@@ -1,24 +1,31 @@
-import { Loader2, Mic, Square } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
+import { useState } from "react";
 import { useRecorder } from "@/audio/useRecorder";
-import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/Icon";
+import { Button, type ButtonProps } from "@/components/ui/Button";
+import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 /**
  * Record → transcribe → hand the text back. The caller decides what the
  * transcript means: in consumer chat it becomes the message, in the pro flow it
  * becomes another line of the conversation the extractor reads.
+ *
+ * Amber is the mic's colour on the consumer side; on pro the composer icons are
+ * warm-neutral and never accent-filled, so the variant is the caller's call.
  */
 export function MicButton({
   onTranscript,
   transcribe,
   disabled,
+  variant = "amber",
 }: {
   onTranscript: (text: string) => void;
   transcribe: (recording: Blob) => Promise<string>;
   disabled?: boolean;
+  variant?: ButtonProps["variant"];
 }) {
+  const { t } = useTranslation();
   const { isRecording, start, stop } = useRecorder();
   const [busy, setBusy] = useState(false);
 
@@ -29,7 +36,7 @@ export function MicButton({
       try {
         await start();
       } catch {
-        toast.error("Microphone permission denied");
+        toast.error(t.voice.denied);
       }
       return;
     }
@@ -38,9 +45,9 @@ export function MicButton({
     try {
       const text = await transcribe(await stop());
       if (text.trim()) onTranscript(text.trim());
-      else toast.error("Nothing came through — try again");
+      else toast.error(t.voice.nothing);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Transcription failed");
+      toast.error(error instanceof Error ? error.message : t.voice.failed);
     } finally {
       setBusy(false);
     }
@@ -48,21 +55,16 @@ export function MicButton({
 
   return (
     <Button
-      variant="ghost"
+      variant={variant}
       size="icon"
       onClick={() => void toggle()}
       disabled={disabled || busy}
-      aria-label={isRecording ? "Stop recording" : "Record a message"}
-      title={isRecording ? "Stop and transcribe" : "Speak instead of typing"}
-      className={cn(isRecording && "text-destructive animate-pulse")}
+      aria-label={isRecording ? t.voice.stop : t.voice.speak}
+      // No spinner glyph in the set: recording and transcribing both read as
+      // the mic breathing, which is the only state the user can act on anyway.
+      className={cn((isRecording || busy) && "animate-pulse")}
     >
-      {busy ? (
-        <Loader2 className="h-5 w-5 animate-spin" />
-      ) : isRecording ? (
-        <Square className="h-4 w-4" />
-      ) : (
-        <Mic className="h-5 w-5" />
-      )}
+      <Icon name="mic" />
     </Button>
   );
 }

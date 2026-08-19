@@ -1,5 +1,4 @@
 import type { EventDraft, WalkState } from "@shared/protocol";
-import { Loader2, Paperclip, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -8,6 +7,8 @@ import { ApiError } from "@/api/client";
 import { ingestFile } from "@/api/ingest";
 import { saveEvent, streamSubmission } from "@/api/push";
 import { EventForm } from "@/components/EventForm";
+import { Icon } from "@/components/Icon";
+import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
 import { MicButton } from "@/components/MicButton";
 import { UserMenu } from "@/components/UserMenu";
@@ -15,7 +16,6 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
 import { useTranslation } from "@/i18n/useTranslation";
-import { cn } from "@/lib/cn";
 
 const ACCEPTED =
   "image/*,audio/*,.pdf,.docx,.txt,.md,.csv";
@@ -41,6 +41,15 @@ function loadSession(): StoredSession | null {
   } catch {
     return null;
   }
+}
+
+/** The PRO badge — cyan, mono, the promoter side's one mark of identity. */
+function ProBadge() {
+  return (
+    <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
+      pro
+    </span>
+  );
 }
 
 export default function ProSubmit() {
@@ -76,12 +85,16 @@ export default function ProSubmit() {
   if (isLoading) return null;
   if (!user || (role !== "pro" && role !== "admin")) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-pro-bg p-6 text-center">
-        <p className="font-montserrat text-lg font-bold text-accent">laiive pro</p>
-        <p className="max-w-sm font-ibm-plex text-sm text-muted-foreground">
-          {t.pro.needsPro}
-        </p>
-        <Link to="/auth" className="text-sm text-accent hover:underline">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        <span className="flex items-center gap-2.5">
+          <Mark size={30} />
+          <ProBadge />
+        </span>
+        <p className="max-w-sm text-[15px] leading-[1.5] text-foreground">{t.pro.needsPro}</p>
+        <Link
+          to={user ? "/account" : "/auth?kind=pro"}
+          className="text-[13.5px] text-pro-accent transition-opacity hover:opacity-80"
+        >
           {user ? t.pro.contactUs : t.pro.signInLink}
         </Link>
       </div>
@@ -212,62 +225,57 @@ export default function ProSubmit() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
-      <header className="border-b border-pro-border bg-pro-elevated p-3 sm:p-4">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+      <header className="flex-shrink-0 border-b border-rule px-4 pb-2 pt-3 sm:px-6">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <div className="flex items-end gap-1">
-            <span className="pb-0.5 text-xl sm:text-2xl">🫦</span>
-            <Link to="/" className="font-montserrat text-lg font-bold text-accent sm:text-xl">
-              laiive
-            </Link>
-            <span className="mb-1 ml-0.5 rounded bg-accent/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
-              pro
-            </span>
-          </div>
+          <Link to="/" className="flex items-center gap-2.5">
+            <Mark size={27} />
+            <ProBadge />
+          </Link>
           <UserMenu />
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
-        <div className="mx-auto max-w-3xl space-y-3">
+      {/* The conversation is flat on the page — no chat panel, no bubbles for
+          what laiive says. Only the promoter's own lines are pills. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {messages.length === 0 && !draft && (
-            <div className="space-y-2 pt-8 text-center font-ibm-plex text-muted-foreground">
-              <p>{t.pro.emptyTitle}</p>
-              <p className="text-xs">{t.pro.emptyHint}</p>
+            <div className="flex flex-col gap-1.5 pt-6">
+              <p className="text-[15px] leading-[1.5] text-foreground">{t.pro.emptyTitle}</p>
+              <p className="font-mono text-[11px] text-pro-dim">{t.pro.emptyHint}</p>
             </div>
           )}
 
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
-            >
-              <div
-                className={cn(
-                  "max-w-[92%] whitespace-pre-wrap rounded-2xl border px-4 py-3 font-ibm-plex text-base sm:max-w-[85%]",
-                  message.role === "user"
-                    ? "border-pro-border bg-pro-card text-foreground"
-                    : "border-pro-border bg-pro-elevated text-card-foreground",
-                )}
+          {messages.map((message, index) =>
+            message.role === "user" ? (
+              <p
+                key={index}
+                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-[14.5px] leading-[1.5] text-white"
               >
-                <Markdown text={message.content} />
-              </div>
-            </div>
-          ))}
+                {message.content}
+              </p>
+            ) : (
+              <Markdown
+                key={index}
+                text={message.content}
+                className="max-w-[84%] whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground"
+              />
+            ),
+          )}
 
           {status && (
-            <div className="flex items-center gap-2 rounded-2xl border border-pro-border bg-pro-elevated px-4 py-3 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-accent" />
+            <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
               {status}
-            </div>
+            </span>
           )}
 
           {draft && (
-            <div className="space-y-1">
+            <div className="flex flex-col gap-2">
               {walk && (
-                <p className="font-ibm-plex text-xs font-bold uppercase tracking-wider text-accent">
+                <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
                   {t.pro.eventOf(walk.cursor + 1, walk.total)}
-                </p>
+                </span>
               )}
               <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
             </div>
@@ -276,8 +284,9 @@ export default function ProSubmit() {
         </div>
       </div>
 
-      <div className="flex-shrink-0 border-t border-pro-border bg-pro-elevated p-3 pb-[env(safe-area-inset-bottom,12px)] sm:p-4">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 sm:gap-3">
+      {/* Composer icons are warm-neutral here, never accent-filled. */}
+      <div className="flex-shrink-0 border-t border-rule px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
           <input
             ref={fileInput}
             type="file"
@@ -290,17 +299,18 @@ export default function ProSubmit() {
             }}
           />
           <Button
-            variant="ghost"
+            variant="neutral"
             size="icon"
             onClick={() => fileInput.current?.click()}
             disabled={busy}
             aria-label={t.pro.attach}
             title={t.pro.attach}
           >
-            <Paperclip className="h-5 w-5" />
+            <Icon name="attach" />
           </Button>
 
           <MicButton
+            variant="neutral"
             transcribe={async (recording) => {
               const file = new File([recording], "recording.webm", { type: "audio/webm" });
               const { text } = await ingestFile(file);
@@ -315,17 +325,17 @@ export default function ProSubmit() {
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && send(input)}
             placeholder={t.pro.placeholder}
-            className="focus-visible:ring-accent"
+            className="focus-visible:ring-pro-accent"
           />
 
           <Button
-            variant="accent"
+            variant="neutral"
             size="icon"
             onClick={() => send(input)}
             disabled={busy || !input.trim()}
             aria-label={t.pro.send}
           >
-            {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            <Icon name="send" className="h-[18px] w-[18px]" />
           </Button>
         </div>
       </div>
