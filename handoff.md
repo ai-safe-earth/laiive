@@ -14,10 +14,11 @@ surface), retriever :8002, pusher :8003, search :8004, frontend :8081. CI green 
 
 ## Next up
 
-The live deploy, owner-run, per root `DEPLOY.md`. Migration `20260818000010` is pushed and
-`make fly-secrets-check` passes, so the sequence is: `flyctl auth login` → apps + redis volume
-(§1) → `make fly-secrets` (§2) → deploy in order (§3) → Pages project (§4) → CORS, Supabase
-redirect URLs and `GATEWAY_URL` (§5) → smoke checklist (§6).
+The live deploy, per root `DEPLOY.md`. §0 is done — migration `20260818000010` is pushed and
+`make fly-secrets-check` passes — and the whole stack was verified locally in the deployed
+shape (chat, SSE, 202+poll sweep). **Blocked only on `flyctl auth login`**, then: apps + redis
+volume (§1) → `make fly-secrets` (§2) → deploy in order (§3) → Pages project (§4) → CORS,
+Supabase redirect URLs and `GATEWAY_URL` (§5) → smoke checklist (§6).
 
 Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
 React) → evals + observability → multi-provider model routing → retrieval accuracy →
@@ -246,6 +247,14 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-18",
           "text": "Gateway eslint added and the CI node matrix lints both dirs; CI deploy workflow deferred as untestable without secrets"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The images could not talk to anything under compose and it took booting the stack to see it. A '::' bind is not dual-stack - asyncio sets IPV6_V6ONLY - so 127.0.0.1 was refused inside the container: every healthcheck failed forever, the gateway never started, and once the checks were fixed it got ECONNREFUSED from the services on the IPv4 compose network. Bind is now BIND_HOST defaulting to 0.0.0.0, exactly like the gateway's GATEWAY_HOST, with '::' set in the fly tomls where 6PN requires it"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Local 202+poll smoke passed against the real deployed shape: five containers healthy, /api/chat returned three Barcelona events, /api/chat/stream streamed 21 real deltas and answered 'hola' in Spanish, and the admin sweep returned 202 in 2.9s then polled running -> dry_run in 28s with 3 candidates - which also proves migration 20260818000010 is live"
         }
       ]
     },
@@ -484,13 +493,6 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     {
       "title": "Owner deploy session per root DEPLOY.md: flyctl auth login, apps + redis volume, make fly-secrets, deploy in order, Pages project, CORS/redirect stitching, smoke checklist. Migration 20260818000010 is pushed and the secrets check passes",
       "est": 2,
-      "owner": "oscar",
-      "phase": "Phase 6 - CI/CD + deploy",
-      "plan": "refactor"
-    },
-    {
-      "title": "Local 202+poll smoke against the live stack once the migration is pushed (compose up also verifies the --host :: healthchecks)",
-      "est": 1,
       "owner": "oscar",
       "phase": "Phase 6 - CI/CD + deploy",
       "plan": "refactor"
