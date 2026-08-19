@@ -24,9 +24,8 @@ USER 10001
 
 EXPOSE 8003
 
-# See the retriever Dockerfile for why this is the venv's uvicorn and not `uv run`,
-# and why the bind address is BIND_HOST rather than a hardcoded "::".
-CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn agent.api:app \
-     --host ${BIND_HOST:-0.0.0.0} --port 8003 \
-     --proxy-headers --forwarded-allow-ips '*' \
-     --timeout-graceful-shutdown 110"]
+# See the retriever Dockerfile for why this is the venv's own interpreter rather
+# than `uv run`, and why the listener comes from laiive_shared.serve.
+CMD ["/app/.venv/bin/python", "-m", "laiive_shared.serve", "agent.api:app", "8003", \
+     "--proxy-headers", "--forwarded-allow-ips", "*", \
+     "--timeout-graceful-shutdown", "110"]

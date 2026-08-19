@@ -3,7 +3,7 @@
 # Secrets (fly secrets set): SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY,
 # SUPABASE_SERVICE_ROLE_KEY, INTERNAL_API_KEY, CORS_ALLOW_ORIGINS — see DEPLOY.md.
 app = "laiive-gateway"
-primary_region = "mad"
+primary_region = "fra"
 kill_timeout = 30
 
 [env]

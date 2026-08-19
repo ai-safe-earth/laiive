@@ -3,7 +3,7 @@
 # boundary compose draws with expose-only ports.
 # Deploy: make fly-deploy-pusher. See DEPLOY.md for the secrets list.
 app = "laiive-pusher"
-primary_region = "mad"
+primary_region = "fra"
 kill_timeout = 120
 
 [checks]
@@ -22,5 +22,3 @@ kill_timeout = 120
 [env]
   # Shares the geocode cache and the 1 req/s Nominatim gate with search.
   REDIS_URL = "redis://laiive-redis.internal:6379/0"
-  # 6PN is IPv6-only; the image defaults to 0.0.0.0 for compose. See the Dockerfile.
-  BIND_HOST = "::"

@@ -4,7 +4,7 @@
 # Private only (6PN). Volume: fly volumes create redis_data --size 1.
 # Auth: 6PN is org-private; add --requirepass via secrets if the org is shared.
 app = "laiive-redis"
-primary_region = "mad"
+primary_region = "fra"
 
 [build]
   image = "redis:7-alpine"

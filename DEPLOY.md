@@ -28,7 +28,7 @@ flyctl apps create laiive-retriever
 flyctl apps create laiive-pusher
 flyctl apps create laiive-search
 flyctl apps create laiive-redis
-flyctl volumes create redis_data --app laiive-redis --region mad --size 1
+flyctl volumes create redis_data --app laiive-redis --region fra --size 1
 ```
 
 Names are load-bearing: the tomls and the gateway's `.internal` URLs use
