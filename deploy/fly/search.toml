@@ -4,7 +4,7 @@
 # 'running'/'failed' and is never approvable; the flow's poll reports it.
 # Deploy: make fly-deploy-search. See DEPLOY.md for the secrets list.
 app = "laiive-search"
-primary_region = "mad"
+primary_region = "fra"
 kill_timeout = 300
 
 [env]

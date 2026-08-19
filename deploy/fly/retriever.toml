@@ -3,7 +3,7 @@
 # boundary compose draws with expose-only ports.
 # Deploy: make fly-deploy-retriever. See DEPLOY.md for the secrets list.
 app = "laiive-retriever"
-primary_region = "mad"
+primary_region = "fra"
 kill_timeout = 120
 
 [env]
