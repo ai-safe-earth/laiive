@@ -4,10 +4,15 @@ The refactor described in this folder is **closed as of 2026-08-19**. Phases 0�
 and verified live; Phase 6 delivered CI, hardened images, the internal-key boundary, the
 compose topology and the deploy configs, and hands the live deploy itself to `DEPLOY.md`.
 
-`refactor/foundation` (147 commits) was merged into `main`, which had not moved since the
-pre-refactor tree. That tree is preserved on branch **`legacy/pre-refactor`** and tag
-**`legacy-main-2026-08-19`** — nothing was rewritten or dropped to make the merge work
-(`main` was a strict ancestor, so the merge carried no conflicts).
+`refactor/foundation` was merged into `main` through PR #29. The pre-refactor tree is
+preserved on branch **`legacy/pre-refactor`** and tag **`pre-refactor-main`**, both at
+`542952f`. Nothing was rewritten or dropped to make the merge work.
+
+`main` was not the untouched ancestor it looked like: it carried six commits the branch had
+never seen, one of them a real change (`5a0a97c`, the owner's README revision from March).
+`origin/main` was merged into the branch first and the README resolved by hand — the owner's
+newer marketing copy, the branch's technical sections. The tag `legacy-main-2026-08-19` was
+cut before this was noticed and points six commits short of the real tip; delete it.
 
 The k3s detour (D19) was decided and withdrawn on the same day; the work is parked on branch
 `experiment/k3s` and is not part of the closed refactor.

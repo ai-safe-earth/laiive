@@ -79,7 +79,7 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 - Branches: `<type>/<kebab-desc>` (`feature/…`, `fix/…`), cut from `main`, one per phase, PR to
   `origin/main`. **`main` is the trunk again** since the refactor merged (2026-08-19).
   Two branches are archives, never build on them: `legacy/pre-refactor` (the pre-refactor tree,
-  also tag `legacy-main-2026-08-19`) and `experiment/k3s` (the withdrawn D19 detour).
+  also tag `pre-refactor-main`) and `experiment/k3s` (the withdrawn D19 detour).
 - Two GitHub remotes — `origin` → `ai-safe-earth/laiive` (canonical, PRs here), `laiive` →
   `OscarArroyoVega/laiive` (personal fork — don't push there).
 - Never read or edit anything under `.history/` — VSCode local-history junk holding stale copies
