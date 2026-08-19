@@ -5,9 +5,12 @@ State only. Rules and machine gotchas: root `CLAUDE.md`. Refactor history: `docs
 
 ## Where things stand
 
-The refactor is closed and merged (PR #29). `main` is the trunk — cut `<type>/<kebab-desc>`
-branches from it, one per phase, PR to `origin`. Two archives, never build on them:
-`legacy/pre-refactor` (tag `pre-refactor-main`) and `experiment/k3s`.
+The refactor is closed and merged (PR #29). **`main` is production, `develop` is the trunk and
+the default branch** — work branches are cut from `develop` and PR into it; `main` takes a
+release PR only and is protected (PR, 11 green checks, no force-push, admin bypass on).
+Ship with `make release` (`cz bump` → version, `CHANGELOG.md`, tag); model in `CONTRIBUTING.md`.
+Two archives, never build on them: `legacy/pre-refactor` (tag `pre-refactor-main`) and
+`experiment/k3s`.
 
 **The services are live**: https://laiive-gateway.fly.dev, five Fly apps in `fra`, checks
 passing, retriever/pusher/search with zero public IPs. Verified there: chat, real SSE
@@ -278,6 +281,18 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-19",
           "text": "Deployed live: five apps in fra, checks passing, retriever/pusher/search with zero public IPs. Verified on https://laiive-gateway.fly.dev - healthz 200, /api/chat returned three Barcelona events, /api/chat/stream streamed 23 deltas through the Fly proxy, admin sweep 202 in 3.5s to dry_run with 2 candidates. Sections 4 and 5 (Pages, CORS, Supabase redirect URLs, GATEWAY_URL) still need the owner's accounts"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Branching model chosen by the owner: main is production, develop is the trunk and the GitHub default. Work branches cut from develop and PR into it; main takes a release PR only. GitFlow's release and hotfix branches are not adopted - a hotfix is a branch off main merged back into develop the same day. The argument that carried it is Cloudflare Pages: production builds from main, so develop is what keeps every merge from shipping the frontend, and it gets a preview URL for free"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Classic branch protection is unavailable to this repo ('Branch protection has been disabled on this repository' on a free org, public repo), so protection is a repository ruleset instead: PR required with 0 approvals, all 11 status checks, no force-push, no deletion, admin bypass on per the owner. develop gets a lighter ruleset - no deletion, no force-push, direct pushes still allowed"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Releases are semver tags plus a generated CHANGELOG: .cz.toml gains version 0.1.0, update_changelog_on_bump and major_version_zero, and make release runs cz bump through uvx. --yes is not optional on this machine - prompt_toolkit raises NoConsoleScreenBufferError under Git Bash. CI push triggers narrowed to main and develop, since a work branch is already covered by its PR and both were running"
         }
       ]
     },

@@ -76,8 +76,12 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 
 - Conventional Commits, lowercase subject, enforced by a commitizen `commit-msg` hook.
   `CONTRIBUTING.md` wants a body explaining *why* plus a `Refs: #123` trailer.
-- Branches: `<type>/<kebab-desc>` (`feature/…`, `fix/…`), cut from `main`, one per phase, PR to
-  `origin/main`. **`main` is the trunk again** since the refactor merged (2026-08-19).
+- **`main` is production, `develop` is the trunk** — full model in `CONTRIBUTING.md`. Cut
+  `<type>/<kebab-desc>` branches from `develop` and PR into `develop`; `main` only ever receives
+  a release PR from `develop`, and is protected (PR required, every check green, no force-push).
+  Merge commits, never squash — the commit bodies are the reasoning.
+  Shipping: release PR → `make release` (`cz bump` tags and writes `CHANGELOG.md`) → deploy →
+  merge `main` back into `develop` so the tag is not stranded.
   Two branches are archives, never build on them: `legacy/pre-refactor` (the pre-refactor tree,
   also tag `pre-refactor-main`) and `experiment/k3s` (the withdrawn D19 detour).
 - Two GitHub remotes — `origin` → `ai-safe-earth/laiive` (canonical, PRs here), `laiive` →
@@ -123,6 +127,8 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
 - The ruff `--fix` pre-commit hook **deletes an import the moment it is momentarily unused**.
   It has bitten six times. Write the import and its first use in the same edit.
 - `ruff-format` rewrites staged files and aborts the commit; re-`git add` and commit again.
+- `cz bump` without `--yes` dies under Git Bash with `NoConsoleScreenBufferError` —
+  prompt_toolkit wants a real Windows console. The `make release` target passes it.
 
 **Network and data**
 
