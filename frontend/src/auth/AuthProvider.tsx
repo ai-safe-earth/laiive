@@ -10,8 +10,11 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   /** Absolute URL to return to; defaults to the origin root. */
   signInWithGoogle: (redirectTo?: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  /** Resolves to whether a session came back — see the implementation. */
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ signedIn: boolean }>;
   signOut: () => Promise<void>;
+  /** Re-mint the access token so a role granted server-side reaches the client. */
+  refreshRole: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -60,15 +63,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw new Error(error.message);
       },
       signUp: async (email, password, displayName) => {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { data: displayName ? { display_name: displayName } : undefined },
         });
         if (error) throw new Error(error.message);
+        // Whether a confirmation mail is on its way is the project's setting,
+        // not the app's, and the only honest signal is what came back: with
+        // "Confirm email" off Supabase hands over a live session here, and the
+        // caller must not send the user to an inbox nothing was ever sent to.
+        return { signedIn: data.session !== null };
       },
       signOut: async () => {
         await supabase.auth.signOut();
+      },
+      refreshRole: async () => {
+        // The role rides in the JWT's user_role claim, stamped at issue by the
+        // custom access token hook. A grant that lands server-side is invisible
+        // until the token is re-minted — otherwise a promoter who just became
+        // one is still refused for up to an hour.
+        const { error } = await supabase.auth.refreshSession();
+        if (error) throw new Error(error.message);
       },
     }),
     [session, isLoading],

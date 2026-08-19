@@ -87,9 +87,17 @@ export default function Auth() {
         await signIn(email, password);
         navigate(destination);
       } else {
-        await signUp(email, password, displayName || undefined);
-        toast.success(t.auth.checkInbox);
-        setMode("signin");
+        // With "Confirm email" off, sign-up returns a live session and the
+        // account is already usable — telling that person to check an inbox
+        // sends them to wait for a mail Supabase never attempted to send, and
+        // then lets them in anyway. Follow what came back, not what we assume.
+        const { signedIn } = await signUp(email, password, displayName || undefined);
+        if (signedIn) {
+          navigate(destination);
+        } else {
+          toast.success(t.auth.checkInbox);
+          setMode("signin");
+        }
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.auth.failed);
