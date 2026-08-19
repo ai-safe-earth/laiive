@@ -100,6 +100,9 @@ export interface Translations {
     publish: string;
     publishing: string;
     fillHint: (fields: string) => string;
+    addArtist: string;
+    removeArtist: string;
+    artistPlaceholder: string;
   };
   cards: {
     free: string;
@@ -215,7 +218,7 @@ export const translations: Record<Language, Translations> = {
       stillNeeded: (n) => `${n} still needed`,
       labels: {
         name: "event name",
-        artists: "artists (comma separated)",
+        artists: "artists",
         start_at: "starts at",
         venue: "venue",
         address: "address",
@@ -231,6 +234,9 @@ export const translations: Record<Language, Translations> = {
       publish: "publish to laiive",
       publishing: "publishing…",
       fillHint: (fields) => `fill ${fields} — by typing here or just telling the assistant`,
+      addArtist: "+ add artist",
+      removeArtist: "remove artist",
+      artistPlaceholder: "artist or band name",
     },
     cards: {
       free: "free",
@@ -345,7 +351,7 @@ export const translations: Record<Language, Translations> = {
       stillNeeded: (n) => (n === 1 ? "falta 1" : `faltan ${n}`),
       labels: {
         name: "nombre del evento",
-        artists: "artistas (separados por comas)",
+        artists: "artistas",
         start_at: "empieza",
         venue: "sala",
         address: "dirección",
@@ -361,6 +367,9 @@ export const translations: Record<Language, Translations> = {
       publish: "publicar en laiive",
       publishing: "publicando…",
       fillHint: (fields) => `rellena ${fields} — escribiendo aquí o diciéndoselo al asistente`,
+      addArtist: "+ añadir artista",
+      removeArtist: "quitar artista",
+      artistPlaceholder: "nombre del artista o grupo",
     },
     cards: {
       free: "gratis",
@@ -475,7 +484,7 @@ export const translations: Record<Language, Translations> = {
       stillNeeded: (n) => (n === 1 ? "ne manca 1" : `ne mancano ${n}`),
       labels: {
         name: "nome dell'evento",
-        artists: "artisti (separati da virgole)",
+        artists: "artisti",
         start_at: "inizia",
         venue: "locale",
         address: "indirizzo",
@@ -491,6 +500,9 @@ export const translations: Record<Language, Translations> = {
       publish: "pubblica su laiive",
       publishing: "pubblico…",
       fillHint: (fields) => `completa ${fields} — scrivendo qui o dicendolo all'assistente`,
+      addArtist: "+ aggiungi artista",
+      removeArtist: "rimuovi artista",
+      artistPlaceholder: "nome dell'artista o del gruppo",
     },
     cards: {
       free: "gratis",
@@ -605,7 +617,7 @@ export const translations: Record<Language, Translations> = {
       stillNeeded: (n) => (n === 1 ? "en falta 1" : `en falten ${n}`),
       labels: {
         name: "nom de l'esdeveniment",
-        artists: "artistes (separats per comes)",
+        artists: "artistes",
         start_at: "comença",
         venue: "sala",
         address: "adreça",
@@ -621,6 +633,9 @@ export const translations: Record<Language, Translations> = {
       publish: "publica a laiive",
       publishing: "publicant…",
       fillHint: (fields) => `omple ${fields} — escrivint aquí o dient-ho a l'assistent`,
+      addArtist: "+ afegir artista",
+      removeArtist: "treure artista",
+      artistPlaceholder: "nom de l'artista o del grup",
     },
     cards: {
       free: "gratuït",

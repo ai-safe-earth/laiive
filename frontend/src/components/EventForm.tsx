@@ -1,5 +1,5 @@
 import type { EventDraft } from "@shared/protocol";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,9 +10,9 @@ import { cn } from "@/lib/cn";
 /** Fields the graph write refuses without (laiive_shared.REQUIRED_DRAFT_FIELDS). */
 const REQUIRED = ["artists", "start_at", "venue", "address", "city", "price_min"] as const;
 
+/** `artists` is rendered on its own — it is a list, not a text field. */
 const FIELDS: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
   { key: "name" },
-  { key: "artists" },
   { key: "start_at", type: "datetime-local" },
   { key: "venue" },
   { key: "address" },
@@ -39,6 +39,12 @@ function displayValue(draft: EventDraft, key: keyof EventDraft): string {
   return String(value);
 }
 
+/** One row per artist, never fewer than one, so the list is always editable. */
+function artistRows(draft: EventDraft): string[] {
+  const artists = draft.artists ?? [];
+  return artists.length > 0 ? [...artists] : [""];
+}
+
 /**
  * The last step of every submission path: whatever voice, a flyer, a document
  * or plain typing produced, it lands here for the human to complete and
@@ -57,34 +63,43 @@ export function EventForm({
 }) {
   const { t } = useTranslation();
   const [values, setValues] = useState<EventDraft>(draft);
+  // Held separately from `values.artists` so a half-typed row survives: the
+  // draft's list is the saved shape, this is what the user is editing.
+  const [artists, setArtists] = useState<string[]>(() => artistRows(draft));
 
   // Each turn re-extracts over the whole conversation, so a later message can
   // fill a field the user has not touched — take the server's draft as truth.
-  useEffect(() => setValues(draft), [draft]);
+  useEffect(() => {
+    setValues(draft);
+    setArtists(artistRows(draft));
+  }, [draft]);
+
+  const filledArtists = artists.map((name) => name.trim()).filter(Boolean);
 
   const stillMissing = REQUIRED.filter((key) => {
+    if (key === "artists") return filledArtists.length === 0;
     const value = values[key];
-    return value === null || value === undefined || value === "" ||
-      (Array.isArray(value) && value.length === 0);
+    return value === null || value === undefined || value === "";
   });
 
   const update = (key: keyof EventDraft, raw: string) => {
     setValues((current) => ({
       ...current,
       [key]:
-        key === "artists"
-          ? raw.split(",").map((part) => part.trim()).filter(Boolean)
-          : key === "price_min" || key === "price_max"
-            ? raw === "" ? null : Number(raw)
-            : raw === "" ? null : raw,
+        key === "price_min" || key === "price_max"
+          ? raw === "" ? null : Number(raw)
+          : raw === "" ? null : raw,
     }));
   };
+
+  const setArtist = (index: number, name: string) =>
+    setArtists((current) => current.map((value, i) => (i === index ? name : value)));
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(values);
+        onSave({ ...values, artists: filledArtists });
       }}
       className="space-y-3 rounded-lg border border-pro-border bg-pro-card p-4"
     >
@@ -96,6 +111,54 @@ export function EventForm({
             {t.form.stillNeeded(stillMissing.length)}
           </span>
         )}
+      </div>
+
+      {/* Artists were a comma-separated text field, which could not be typed
+          into: every keystroke split on "," and trimmed, so a space was eaten
+          the moment it was typed and a comma vanished with it. One row per
+          artist, and the list grows on demand. */}
+      <div className="space-y-1">
+        <span
+          className={cn(
+            "font-ibm-plex text-xs",
+            stillMissing.includes("artists") ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {t.form.labels.artists} *
+        </span>
+        <div className="space-y-2">
+          {artists.map((name, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                value={name}
+                onChange={(event) => setArtist(index, event.target.value)}
+                placeholder={t.form.artistPlaceholder}
+                className={cn(
+                  "h-9 text-sm",
+                  stillMissing.includes("artists") &&
+                    "border-destructive/60 focus-visible:ring-destructive",
+                )}
+              />
+              {artists.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setArtists((current) => current.filter((_, i) => i !== index))}
+                  aria-label={t.form.removeArtist}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setArtists((current) => [...current, ""])}
+          className="font-ibm-plex text-xs text-pro-accent transition-opacity hover:opacity-80"
+        >
+          {t.form.addArtist}
+        </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
