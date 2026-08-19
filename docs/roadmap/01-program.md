@@ -48,6 +48,19 @@ and phase 7's self-improvement loop has no signal without it.
 
 Nothing after this is a claim without it.
 
+**The baselines to beat.** Measured against the live graph in the geocoding and sweep-quality
+sessions of 2026-08-18, and the numbers any change here should be compared against:
+
+- All 35 venues stamped `venue`; none beyond the 25 km city guard; the eight Barcelona venues
+  that shared one pin now have eight distinct pins.
+- Genre reachability 43 → 55 of 57 events after tagging 12 artists; the hyphen-boundary genre
+  match took `rock` 7 → 18 events and `pop` 16 → 23.
+- 48 fabricated "free" prices cleared and 30 fabricated midnight starts marked date-only.
+  Clearing the prices was lossy: a genuinely free night has lost that fact until a sweep
+  re-reads its page.
+- No date poisoning (the heaviest day is 5 events at 5 venues) and no non-music events in the
+  corpus. There are no duplicate events; the duplication is in venues.
+
 **One turn, one trace.** Langfuse currently wraps only the retriever's OpenAI client
 (`services/retriever/agent/utils/llm_utils.py`); pusher and search use bare clients. All three
 get the same wrapper, and `pipeline.run_turn` opens a trace with spans for

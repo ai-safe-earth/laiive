@@ -1,186 +1,42 @@
 # HANDOFF — laiive (updated 2026-08-19)
 
-The single handoff for this repository. Never start a second one. Read it once at the start
-of a session, before the first plan or code change; the conversation is the fresher source
-after that. If it disagrees with the repo, the repo wins.
-
-Stable rules live in root `CLAUDE.md`. The refactor's reasoning and decision log live in
-`docs/refactor/` (**closed** — see `docs/refactor/00-CLOSED.md`). The program now under way
-lives in `docs/roadmap/01-program.md`.
+State only. Rules and machine gotchas: root `CLAUDE.md`. Refactor history: `docs/refactor/`
+(closed). The program under way: `docs/roadmap/01-program.md`.
 
 ## Where things stand
 
-The refactor is **closed**. `refactor/foundation` merged into `main` on 2026-08-19 through
-PR #29; the pre-refactor tree is preserved on `legacy/pre-refactor` and tag
-`pre-refactor-main`, both at `542952f`. `main` is the trunk again: cut `<type>/<kebab-desc>`
-branches from it, one per phase, PR to `origin`.
+The refactor is closed and merged (PR #29). `main` is the trunk — cut `<type>/<kebab-desc>`
+branches from it, one per phase, PR to `origin`. Two archives, never build on them:
+`legacy/pre-refactor` (tag `pre-refactor-main`) and `experiment/k3s`.
 
-Two things to know about that merge. `main` had six commits the branch never saw — one real
-change, the owner's March README revision — so `origin/main` was merged into the branch and
-the README resolved by hand before the PR could go in. And local `main` was tracking
-`laiive/main`, the personal fork; it now tracks `origin/main`, which is where it belongs.
-
-The system is built and verified locally, and **nothing is deployed yet**. Local stack:
-gateway :8000 (the only published surface), retriever :8002, pusher :8003, search :8004,
-frontend :8081. Stale servers from earlier sessions are the single most reliable time sink on
-this machine — check the ports before debugging anything you did not start.
-
-What exists, in one line each: a Fastify gateway doing Supabase JWT auth, rate limits and
-proxying behind an internal-key boundary; a retriever running classifier → router → executor →
-composer over Aura with template / nearby / vector / bbox / LLM-Cypher legs and real token
-streaming; a pusher taking multimodal promoter submissions through a one-event-per-turn walk;
-a search service sweeping Tavily into dry-run reports that only a human approve can write;
-`laiive-shared` holding the typed SSE protocol, its TS mirror, and the single graph write path;
-a React SPA in four languages. CI is green on every push.
+Built and verified locally, **not deployed**. Local stack: gateway :8000 (the only published
+surface), retriever :8002, pusher :8003, search :8004, frontend :8081. CI green on every push.
 
 ## Next up
 
-**The live deploy, owner-driven, per root `DEPLOY.md`.** One repo-side gate first: push
-Supabase migration `20260818000010` (search report lifecycle) before the new search code runs
-against Supabase. Everything else in the runbook is Fly + Cloudflare account work.
+The live deploy, owner-run, per root `DEPLOY.md`. Migration `20260818000010` is pushed and
+`make fly-secrets-check` passes, so the sequence is: `flyctl auth login` → apps + redis volume
+(§1) → `make fly-secrets` (§2) → deploy in order (§3) → Pages project (§4) → CORS, Supabase
+redirect URLs and `GATEWAY_URL` (§5) → smoke checklist (§6).
 
-After the deploy, the program in `docs/roadmap/01-program.md`, in order:
+Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
+React) → evals + observability → multi-provider model routing → retrieval accuracy →
+guardrails, cache, language, voice → ingestion quality + self-improvement.
 
-1. **A new visual direction** for the frontend — design canvas first, owner approves the look
-   before any React changes, then tokens, then a real `ui/` primitive set, then the pages. It
-   also lands the per-turn feedback control, which the self-improvement loop needs as a signal.
-2. **Evals + observability** — the foundation. Nothing after it is a claim without it.
-3. **Multi-provider model routing** (OpenAI / Anthropic / OpenRouter) with cost and quality
-   tracked per role in the evals. Speculative decoding is explicitly out: the levers on hosted
-   models are prompt caching, parallelism and semantic caching.
-4. **Retrieval accuracy** — parallel sub-queries with rank fusion, several legs per sub-query
-   (that is what makes the search actually hybrid), a full-text index, a validated Cypher
-   builder with a repair loop, and a measured empty-result ladder.
-5. **Guardrails, semantic cache, language routing, voice tuner** — each gated by an eval suite.
-6. **Ingestion quality and the self-improvement loop** — JSON-LD before the LLM in extraction,
-   Prefect routines on a public gateway, nightly evals that open an issue on regression, and
-   repo analysis skills.
+## Open
 
-## Open items carried over
-
-- **Deploy** (above), and with it the two things that only make sense once a public gateway
-  exists: `prefect.yaml` off `flows/serve.py` onto a managed pool, and the CI deploy workflow
-  that was deferred as untestable without secrets.
-- **Google sign-in click-through** with a real account — wired and enabled, never exercised.
-- **Browser walkthrough of the 4d multi-event walk**, including the `es`/`ca` strings and the
-  end-of-walk completion message. Live-smoked against the real LLM, never clicked through.
-- **Genre on swept events**: 55 of 57 discovered events are now reachable by a genre query
-  after the artist-tagging run, but a newly swept event still arrives untagged. Infer genre at
-  approve time, or fall back to unfiltered-plus-rank on zero rows.
-- **Venue near-duplicates**: four pairs within 162 m. Detect by name containment within a city
-  plus distance — but never auto-merge, two of the four are a room inside a building.
-- **"Shakira Stadium"** is a listing-page artefact, not a venue. Extraction quality, not
-  geocoding — it belongs to the extraction-optimizer work.
-- **Confirm `.claude/settings.json` deny rules enforce** after a restart; if `.history/` is
+- Google sign-in click-through with a real account, and a browser walkthrough of the 4d
+  multi-event walk including the es/ca strings.
+- Newly swept events arrive with no genre, so a genre-pinned query excludes them. 55 of 57
+  existing events are reachable after the artist tagging; infer at approve, or fall back on
+  zero rows.
+- Four venue near-duplicate pairs within 162 m. Never auto-merge — two are a room inside a
+  building.
+- "Shakira Stadium" is a listing-page artefact, not a venue: extraction quality, not geocoding.
+- Confirm the `.claude/settings.json` deny rules enforce after a restart; if `.history/` is
   still readable, fall back to a PreToolUse hook.
-- **Delete the stale tag**: `git push origin :refs/tags/legacy-main-2026-08-19`. It points six
-  commits short of the real pre-refactor tip; `pre-refactor-main` is the correct one. Tag
-  deletion and force-push are both refused by the permission classifier, so this is yours.
-- **`origin/OscarArroyoVega-patch-1`** was left alone during the branch prune: it is genuinely
-  unmerged (a THIRD_PARTY_LICENSES update and a CONTRIBUTING link fix). Merge it or delete it
-  on purpose — every other stale branch is gone.
-- Optional: containerize `flows/serve.py` as a compose `flows` service (needs its own
-  Dockerfile stage — the hardened search runtime has no `uv` — plus `PREFECT_API_KEY` /
-  `PREFECT_API_URL` in the root `.env`).
-
-## Quality baselines worth not losing
-
-Measured against the live graph during the geocoding and sweep-quality sessions, these are the
-numbers any future change should be compared against:
-
-- All 35 venues stamped `venue`; zero beyond the 25 km city guard; the eight Barcelona venues
-  that shared one pin now have eight distinct pins.
-- Genre reachability 43 → 55 of 57 events after tagging 12 artists; the hyphen-boundary genre
-  match took `rock` 7 → 18 and `pop` 16 → 23 events.
-- 48 fabricated "free" prices cleared, 30 fabricated midnight starts marked date-only. Clearing
-  the prices was lossy: a genuinely free night has lost that fact until a sweep re-reads it.
-- No date poisoning (heaviest day is 5 events at 5 venues) and no non-music events in the
-  corpus. There are no duplicate events; the duplication is in venues.
-
-## Environment gotchas (this machine)
-
-Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
-
-**Running things**
-
-- Always `cd services/<svc>` before `uv run …` — every config loads `../../.env` relative to
-  CWD. Missing keys exit with a clear message.
-- `uv run uvicorn …` and `uv run pytest` both fail here with "Failed to canonicalize script
-  path". Use `uv sync` then `uv run --no-sync python -m uvicorn …` / `python -m pytest -q`.
-  The `make start-*` targets still carry the broken form.
-- `npm run dev -- --port 8081` silently loses the flag in PowerShell (Vite starts on 5173 and
-  treats `8081` as a directory). Use `npx vite --port 8081 --strictPort`.
-- `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services (`agent` is not
-  an installed package). Piping their output through `grep` trips Windows binary detection on
-  accented text — redirect to a file and `grep -a` it.
-- Prefix Prefect (and any rich-using) commands with `PYTHONIOENCODING=utf-8`: `rich`'s cp1252
-  console writer raises `UnicodeEncodeError` *after* the command has already succeeded.
-- `cd` in one Bash call does not persist reliably — use absolute paths.
-- Gateway health is `/healthz` (`/health` 404s); the Python services use `/livez` + `/readyz`
-  for probes and `/health` for humans.
-- Docker Desktop's loopback: `127.0.0.1:<published>` sometimes refuses while `localhost` works.
-
-**Ports and stale processes**
-
-- Long-lived dev servers from an earlier session go stale and cost real time — one retriever
-  reported `openai: error` on `/health` while the key worked fine via curl, and a Vite from a
-  previous session served the *deleted* app on :8081. Before debugging anything you did not
-  start this session:
-  `Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
-- Background dev servers survive their launcher: stopping the wrapped task leaves `node` and
-  `python` holding the ports. Kill by PID.
-- Other projects squat the stack's ports (an `A02_VaiVia` uvicorn on :8000, a
-  `laiive-global-workspace` container on :8002/:8003). Everything is env-overridable, so shift
-  rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`, and
-  inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
-
-**Commits and tests**
-
-- The ruff `--fix` pre-commit hook **deletes an import the moment it is momentarily unused**.
-  It has bitten six times. Write the import and its first use in the same edit.
-- `ruff-format` rewrites staged files and aborts the commit; re-`git add` the same paths and
-  commit again.
-- Pusher `tests/conftest.py` autouse-patches `agent.converters._client`,
-  `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`. A new module with its
-  own module-level client must be added there or the tests hit the real API.
-- The shared venv once had `laiive-shared` installed from the old DIALOGOO path, so tracebacks
-  cited files that no longer exist. `uv sync` in `services/shared` fixes it — suspect this first
-  if a traceback names a path outside this repo.
-
-**Network and data**
-
-- **DNS on this machine flaps.** `getaddrinfo` failed intermittently for the Aura host,
-  `docs.claude.com` and `operations.osmfoundation.org` in one session while a tight probe loop
-  resolved 10/10. It killed three `run_backfill` runs at driver construction. Pre-warm with
-  `socket.gethostbyname` and retry in process — the sweep is idempotent by uid.
-- The **Aura free instance auto-pauses**. Paused, its DNS record disappears; resuming, reads
-  route to a follower while writes fail with "No write service currently available". Neither is
-  a code fault. It cost three aborted repair runs.
-- MCP `aura-neo4j` points at `2099d44c` (write access — ask before writing data). Its host
-  `2099d44c.mcp-instances.neo4j.io` stopped resolving once while the database itself was fine on
-  `2099d44c.databases.neo4j.io`; if the MCP is down, query through the service instead.
-- Re-checking one venue after a geocoder fix: the repair sweep only selects venues that are
-  unstamped, non-`venue`, or checked over 7 days ago — exactly not the one a fix would correct.
-  `cd services/search && uv run --no-sync python scripts/recheck_venue.py "Sant Jordi Club"`
-  clears the stamp and re-runs it (an Aura write).
-- Maintenance scripts open a **read-only** session unless `--write` is passed, so a dry run is
-  enforced rather than promised.
-
-**Tooling limits**
-
-- Writes to Supabase (`db push`, MCP `apply_migration` / `execute_sql` DDL) are refused by the
-  permission classifier — hand the owner the command. Writes to Aura need owner approval.
-- `winget` is not on PATH and the classifier blocks downloading an `.exe`, so Claude cannot
-  install `cloudflared`. It also blocks piping `gh auth token` into a Prefect Secret block.
-- Browser automation: `computer`'s `type` action does not reach this app's inputs — use
-  `form_input` with a ref from `read_page`, and click by `ref` rather than coordinates.
-
-## Standing rules from the owner
-
-- Terse replies, no end-of-turn summaries. Propose a plan before implementing; explain real
-  trade-offs. Every decision needs owner approval.
-- Conventional Commits (a `commit-msg` hook enforces), lowercase subject.
-- Never read `.history/` or `legacy/`.
+- Optional: containerize `flows/serve.py` as a compose service (needs its own Dockerfile stage,
+  plus `PREFECT_API_KEY`/`PREFECT_API_URL` in the root `.env`).
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -524,9 +380,9 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
     },
     {
       "name": "Close the refactor",
-      "status": "active",
+      "status": "done",
       "start": "2026-08-19",
-      "end": null,
+      "end": "2026-08-19",
       "plan": "roadmap",
       "decisions": [
         {
@@ -544,6 +400,14 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
         {
           "date": "2026-08-19",
           "text": "Speculative decoding is out of scope: it is not exposed by hosted model APIs and self-hosting was rejected. The latency levers are prompt caching, parallel sub-query execution and a semantic cache on the Redis that already exists"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Branch prune done: every stale branch deleted local and remote, including OscarArroyoVega-patch-1 (unmerged but from 2025-10-23, owner's call to delete). Only main, legacy/pre-refactor and experiment/k3s remain. Local main had been tracking laiive/main, the personal fork, and now tracks origin/main"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Section 2 of DEPLOY.md is scripted as deploy/fly/set-secrets.sh (make fly-secrets / fly-secrets-check): 35 pairs across four apps typed by hand is where INTERNAL_API_KEY stops being identical everywhere. Key names only are ever printed; --stage because the apps have no machines yet at that point. Checked against the real .env - every required key present"
         }
       ]
     },
@@ -618,14 +482,7 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
   ],
   "nextSteps": [
     {
-      "title": "Push migration 20260818000010 (search_reports lifecycle) - required before the new search code runs against Supabase",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Phase 6 - CI/CD + deploy",
-      "plan": "refactor"
-    },
-    {
-      "title": "Owner deploy session per root DEPLOY.md: fly apps + secrets + deploy order, Pages project, CORS/redirect stitching, smoke checklist (202+poll prep is done)",
+      "title": "Owner deploy session per root DEPLOY.md: flyctl auth login, apps + redis volume, make fly-secrets, deploy in order, Pages project, CORS/redirect stitching, smoke checklist. Migration 20260818000010 is pushed and the secrets check passes",
       "est": 2,
       "owner": "oscar",
       "phase": "Phase 6 - CI/CD + deploy",
