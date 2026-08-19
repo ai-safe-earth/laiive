@@ -1,52 +1,48 @@
 # HANDOFF — laiive (updated 2026-08-19)
 
-State only. Rules and machine gotchas: root `CLAUDE.md`. Refactor history: `docs/refactor/`
-(closed). The program under way: `docs/roadmap/01-program.md`.
+State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
+Refactor history: `docs/refactor/` (closed).
 
 ## Where things stand
 
-The refactor is closed and merged (PR #29). **`main` is production, `develop` is the trunk and
-the default branch** — work branches are cut from `develop` and PR into it; `main` takes a
-release PR only and is protected (PR, 11 green checks, no force-push, admin bypass on).
-Ship with `make release` (`cz bump` → version, `CHANGELOG.md`, tag); model in `CONTRIBUTING.md`.
-Two archives, never build on them: `legacy/pre-refactor` (tag `pre-refactor-main`) and
-`experiment/k3s`.
+**laiive is live end to end**, tagged `v0.1.0`. Frontend https://laiive.pages.dev (Pages,
+production branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev,
+five Fly apps in `fra`, retriever/pusher/search on zero public IPs. Verified from the
+production origin: CORS, a chat turn, real SSE streaming, the admin 202+poll sweep, and a
+browser walkthrough. Local: gateway :8000, retriever :8002, pusher :8003, search :8004,
+frontend :8081.
 
-**laiive is live end to end.** Frontend https://laiive.pages.dev (Cloudflare Pages, production
-branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev with five Fly
-apps in `fra`, retriever/pusher/search on zero public IPs. Verified from the production origin:
-CORS preflight, a chat turn, real SSE streaming, and the admin 202+poll sweep. Local stack
-unchanged: gateway :8000, retriever :8002, pusher :8003, search :8004, frontend :8081.
+**`main` is production, `develop` the trunk and default branch**; work branches PR into
+`develop`, `main` takes a release PR only and is protected. Ship with `make release`; model in
+`CONTRIBUTING.md`. Archives, never build on: `legacy/pre-refactor`, `experiment/k3s`.
 
-## Next up
+## Next up — the redesign
 
-`DEPLOY.md` is done except the parts only a human can do:
+The direction is decided and delivered in **`assets/brand/`**, committed unapplied. Start
+there, not from a canvas — that step is superseded. Read `brand-rules.md` first (what is
+locked, colour meanings, type, voice, and the exact chrome the consumer app may have), then
+the **eight-step order of work** in its `README.md`: tokens first (`brand-tokens.css` is a
+drop-in `:root`), then tailwind, `index.html`, Chat, EventCardView, UserMenu, ProSubmit +
+EventForm, Auth + Account.
 
-- Supabase Auth → URL configuration: Site URL and redirect URLs for
-  `https://laiive.pages.dev/**` — without it Google sign-in returns to localhost.
-- `GATEWAY_URL=https://laiive-gateway.fly.dev` in the root `.env`, so the Prefect flows drive
-  the deployed gateway.
-- Click through Google sign-in with a real account, walk the pro multi-event submission in the
-  browser (es/ca strings included), and hand over one `X-Request-Id` to trace through
-  `conversation_logs` and Langfuse.
-
-Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
-React) → evals + observability → multi-provider model routing → retrieval accuracy →
-guardrails, cache, language, voice → ingestion quality + self-improvement.
+It contradicts the live app deliberately: warm black `#0C0A0A`, cream for answers, amber not
+electric yellow, Bebas Neue + DM Sans, **no gradients or glows**, language switcher out of the
+header into the account menu. **`brand-guide.pdf` is named normative and is missing** — ask
+for it rather than guessing where it might disagree. Strings stay in
+`src/i18n/translations.ts` in four languages; protocol types are never redeclared here.
 
 ## Open
 
-- Google sign-in shows the Supabase project id rather than laiive. Brand verification in
-  Google Cloud Console is the free fix; a Supabase custom domain is the paid one, and it
-  moves the JWT issuer with it — `DEPLOY.md` §5b.
-- Migration `20260819000011` (organizations) is applied and nothing writes to those tables
-  yet: org creation is a screen. Build order in `docs/roadmap/02-ownership.md`.
-- Confirm the `.claude/settings.json` deny rules enforce after a restart; if `.history/` is
-  still readable, fall back to a PreToolUse hook.
-- `main_protection` (2025-10-13) is redundant with `main is production` and can be deleted.
-- Ingestion-quality items — untagged swept genres, four venue near-duplicates within 162 m,
-  the "Shakira Stadium" listing artefact — are tracked in `docs/roadmap/01-program.md` §7.
-- Research behind the decisions, with access dates, is in `docs/references.md`.
+- **Two account kinds at sign-up.** OAuth produces one kind of user today and the pro role is
+  granted by hand in `user_roles`. It needs a consumer path and a pro path, feeding the
+  organizations model in `docs/roadmap/02-ownership.md`. Deferred by the owner; the single
+  path stays until then.
+- Google sign-in shows the Supabase project id rather than laiive — `DEPLOY.md` §5b.
+- Migration `20260819000011` is applied; nothing writes to those tables until org creation
+  exists as a screen (`docs/roadmap/02-ownership.md`).
+- Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
+- Smaller: `.claude` deny rules unverified after restart; the `main_protection` ruleset is
+  redundant; ingestion items in `01-program.md` §7; sources in `docs/references.md`.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -204,9 +200,9 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     },
     {
       "name": "Phase 6 - CI/CD + deploy",
-      "status": "active",
+      "status": "done",
       "start": "2026-08-17",
-      "end": null,
+      "end": "2026-08-19",
       "plan": "refactor",
       "decisions": [
         {
@@ -475,11 +471,20 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     },
     {
       "name": "Restyle - new visual direction",
-      "status": "planned",
-      "start": null,
+      "status": "active",
+      "start": "2026-08-19",
       "end": null,
       "plan": "roadmap",
-      "decisions": []
+      "decisions": [
+        {
+          "date": "2026-08-19",
+          "text": "The design-canvas step is superseded: the owner delivered a finished brand pack from the design project as assets/brand - enforceable rules, a drop-in token block, 17 icons, static reference screens, the mark in 14 recolourings, and an eight-step order of work for the frontend. Committed as received and unapplied. brand-guide.pdf is named normative and is missing from the folder, so ambiguities are questions for the owner, not judgement calls"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Adopting it is a full visual pass rather than a token swap: warm black replaces pure black, cream replaces white for answers, amber replaces electric yellow, Bebas Neue and DM Sans replace Montserrat and IBM Plex Sans, gradients and glows are deleted outright, and the language switcher moves from the header into the account menu"
+        }
+      ]
     },
     {
       "name": "Evals + observability",
@@ -551,8 +556,15 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
       "plan": "refactor"
     },
     {
-      "title": "Design canvas for the new visual direction, owner approves the look before any React changes; then tokens, a real ui/ primitive set, the five pages, and the per-turn feedback control",
+      "title": "Apply assets/brand to the frontend in its own eight-step order: tokens, tailwind, index.html, Chat, EventCardView, UserMenu, ProSubmit + EventForm, Auth + Account. Ask for brand-guide.pdf before resolving any ambiguity",
       "est": 4,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Two account kinds at sign-up: OAuth produces one kind of user today and the pro role is granted by hand in user_roles. Needs a consumer path and a pro path, feeding the organizations model. Deferred by the owner, single path until then",
+      "est": 3,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
       "plan": "roadmap"
