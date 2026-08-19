@@ -1,12 +1,19 @@
 import { Link } from "react-router-dom";
+import { Mark } from "@/components/Mark";
 import { useTranslation } from "@/i18n/useTranslation";
 
 export default function NotFound() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-background">
-      <p className="font-montserrat text-2xl font-bold text-primary">404</p>
-      <Link to="/" className="font-ibm-plex text-sm text-muted-foreground hover:text-primary">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-background p-6">
+      <Mark size={30} />
+      <p className="font-bebas text-[54px] leading-none tracking-[0.04em] text-foreground/[0.14]">
+        404
+      </p>
+      <Link
+        to="/"
+        className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+      >
         {t.notFound.back}
       </Link>
     </div>

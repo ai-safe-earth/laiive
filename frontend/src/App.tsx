@@ -18,7 +18,17 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <AuthProvider>
-          <Toaster theme="dark" position="top-center" richColors />
+          {/* Nothing is square: the toast is a sheet, 26px, on the app ground. */}
+          <Toaster
+            theme="dark"
+            position="top-center"
+            richColors
+            toastOptions={{
+              // Radius and type only — richColors owns the fill, and red is
+              // the one colour an error is allowed.
+              className: "!rounded-[26px] !font-sans !text-[13.5px]",
+            }}
+          />
           <BrowserRouter
             future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           >

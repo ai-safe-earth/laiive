@@ -1,6 +1,6 @@
 import type { EventCard } from "@shared/protocol";
-import { ExternalLink, Info, MapPin, Ticket } from "lucide-react";
 import { useState } from "react";
+import { Icon } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 import { EventMap } from "./EventMap";
@@ -36,6 +36,15 @@ function formatPrice(card: EventCard, free: string): string | null {
   return `${money(min)} – ${money(max)}`;
 }
 
+/**
+ * A pill sized as the brand draws it (11.5px, ~30px tall) but with a 44px
+ * touch target underneath — the artwork's spacing and the accessibility floor
+ * both hold, which they do not if the pill is simply grown to 44px.
+ */
+const PILL =
+  "relative inline-flex items-center rounded-full px-3 py-[9px] text-[11.5px] font-medium leading-none " +
+  "transition-colors after:absolute after:inset-x-0 after:-top-[7px] after:h-11 after:content-['']";
+
 export function EventCardView({ card, language }: { card: EventCard; language: string }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -46,6 +55,7 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   // behaviour, which was right for every seed event.
   const when = formatWhen(card.start_at, language, card.start_time_known !== false);
   const price = formatPrice(card, t.cards.free);
+  const isFree = price === t.cards.free;
   const hasCoordinates =
     typeof card.lat === "number" && typeof card.lng === "number";
   // The pin is the city's centre, not the venue's door. Say so, and send the
@@ -67,51 +77,61 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
     ? encodeURIComponent(place || card.name)
     : `${card.lat},${card.lng}`;
 
+  const meta = [place, when, typeof card.distance_km === "number" ? `${card.distance_km.toFixed(1)} km` : null]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <article className="rounded-lg border border-border/50 bg-card p-3 transition-colors hover:border-primary/30 sm:p-4">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="truncate font-ibm-plex text-base font-semibold text-foreground">
-            {card.name}
-          </h4>
-          {card.artists.length > 0 && (
-            <p className="truncate text-sm text-muted-foreground">{card.artists.join(", ")}</p>
-          )}
-        </div>
-        {fromSearch && (
-          <button
-            type="button"
-            onClick={() => setShowProvenance(!showProvenance)}
-            aria-expanded={showProvenance}
-            aria-label={t.cards.webAria}
-            // A title attribute is a hover, and a phone has no hover — the
-            // explanation has to be reachable by tapping.
-            className="flex shrink-0 items-center gap-1 rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-primary"
+    <article className="rounded-[20px] border border-hairline/[0.07] bg-card px-[15px] py-[13px]">
+      <header className="flex items-baseline justify-between gap-2">
+        <h4 className="min-w-0 font-bebas text-[18px] leading-[1.05] tracking-[0.03em] text-card-foreground">
+          {card.name}
+        </h4>
+        {price && (
+          <span
+            className={cn(
+              "flex-none rounded-full px-[9px] py-[5px] text-[11px] font-bold leading-none text-primary-foreground",
+              // Free is the one thing fuchsia says besides the brand itself.
+              isFree ? "bg-primary" : "bg-secondary",
+            )}
           >
-            {t.cards.web}
-            <Info className="h-3 w-3" />
-          </button>
+            {isFree ? price.toUpperCase() : price}
+          </span>
         )}
       </header>
 
+      {card.artists.length > 0 && (
+        <p className="truncate pt-1 text-[12.5px] leading-[1.45] text-muted-foreground">
+          {card.artists.join(", ")}
+        </p>
+      )}
+      {meta && (
+        <p className="pt-1 text-[12.5px] leading-[1.45] text-muted-foreground">{meta}</p>
+      )}
+
+      {fromSearch && (
+        <button
+          type="button"
+          onClick={() => setShowProvenance(!showProvenance)}
+          aria-expanded={showProvenance}
+          aria-label={t.cards.webAria}
+          // A title attribute is a hover, and a phone has no hover — the
+          // explanation has to be reachable by tapping.
+          className="mt-2 rounded-full border border-field-border px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.11em] text-ink-dim transition-colors hover:text-foreground"
+        >
+          {t.cards.web}
+        </button>
+      )}
+
       {showProvenance && (
-        <p className="pt-2 text-xs leading-relaxed text-muted-foreground">
+        <p className="pt-2 text-[12.5px] leading-[1.45] text-muted-foreground">
           {t.cards.webTitle}
           {notStated.length > 0 && ` ${t.cards.webMissing}: ${notStated.join(", ")}.`}
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 text-sm">
-        {place && <span className="text-muted-foreground">{place}</span>}
-        {when && <span className="text-muted-foreground">{when}</span>}
-        {price && <span className="font-medium text-primary">{price}</span>}
-        {typeof card.distance_km === "number" && (
-          <span className="text-muted-foreground">{card.distance_km.toFixed(1)} km</span>
-        )}
-      </div>
-
       {expanded && card.description && (
-        <p className="whitespace-pre-wrap pt-2 text-sm text-muted-foreground">
+        <p className="whitespace-pre-wrap pt-2 text-[12.5px] leading-[1.5] text-muted-foreground">
           {card.description}
         </p>
       )}
@@ -125,37 +145,43 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             approximate={approximate}
           />
           {approximate && (
-            <p className="text-xs text-muted-foreground">{t.cards.approximate}</p>
+            <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+              {t.cards.approximate}
+            </p>
           )}
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+            className="inline-flex items-center gap-1 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            {t.cards.openMaps} <ExternalLink className="h-3 w-3" />
+            {t.cards.openMaps}
+            <Icon name="share" className="h-3.5 w-3.5" />
           </a>
         </div>
       )}
 
-      <footer className="flex flex-wrap items-center gap-3 pt-3 text-xs">
+      <footer className="flex flex-wrap items-center gap-2 pt-2.5">
         {card.description && (
           <button
+            type="button"
             onClick={() => setExpanded(!expanded)}
-            className="text-muted-foreground/80 transition-colors hover:text-primary"
+            className={cn(PILL, "bg-field-border text-white hover:bg-muted")}
           >
             {expanded ? t.cards.less : t.cards.readMore}
           </button>
         )}
         {hasCoordinates && (
           <button
+            type="button"
             onClick={() => setShowMap(!showMap)}
             className={cn(
-              "inline-flex items-center gap-1 transition-colors hover:text-primary",
-              showMap ? "text-primary" : "text-muted-foreground/80",
+              PILL,
+              "gap-1.5",
+              showMap ? "bg-muted text-white" : "bg-field-border text-white hover:bg-muted",
             )}
           >
-            <MapPin className="h-3 w-3" />
+            <Icon name="map" className="h-[15px] w-[15px]" />
             {showMap ? t.cards.hideMap : t.cards.map}
           </button>
         )}
@@ -164,9 +190,10 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
             href={card.ticket_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-primary hover:underline"
+            className={cn(PILL, "gap-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/90")}
           >
-            <Ticket className="h-3 w-3" /> {t.cards.tickets}
+            <Icon name="tickets" className="h-[15px] w-[15px]" />
+            {t.cards.tickets}
           </a>
         )}
       </footer>

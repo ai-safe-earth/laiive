@@ -1,12 +1,12 @@
 import type { EventCard } from "@shared/protocol";
-import { Loader2, Send, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { EventCardView } from "@/components/EventCardView";
+import { Icon } from "@/components/Icon";
+import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
 import { MicButton } from "@/components/MicButton";
 import { UserMenu } from "@/components/UserMenu";
@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
 import { detectLanguageFromText } from "@/i18n/detectLanguage";
 import { useTranslation, type Language } from "@/i18n/useTranslation";
-import { cn } from "@/lib/cn";
 
 export default function Chat() {
   const { t, language, setLanguage } = useTranslation();
@@ -146,92 +145,77 @@ export default function Chat() {
     toast.error(error instanceof Error ? error.message : t.chat.genericError);
   };
 
+  const isEmpty = messages.length === 0 && !status;
+
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
-      <header className="border-b border-border bg-card p-3 sm:p-4">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <div className="flex items-end gap-4">
-            <div className="flex items-end gap-1">
-              <span className="pb-0.5 text-xl sm:text-2xl">🫦</span>
-              <span className="font-montserrat text-lg font-bold text-primary sm:text-xl">
-                laiive
-              </span>
-            </div>
-            <Link
-              to="/pro"
-              className="pb-0.5 font-ibm-plex text-[10px] text-muted-foreground transition-colors hover:text-accent"
+      {/* The whole chrome inventory: mark + wordmark, saved, account. */}
+      <header className="flex-shrink-0 border-b border-rule px-4 pb-2 pt-3 sm:px-5">
+        <div className="mx-auto flex max-w-3xl items-center justify-between">
+          <Mark size={27} />
+          <div className="flex items-center">
+            {/* Artwork and a place in the bar; the feature is not built, so the
+                icon ships inert rather than promising something. */}
+            <span
+              aria-label={t.menu.saved}
+              className="flex h-11 w-11 items-center justify-center text-ink-dim/60"
             >
-              {t.chat.promoterLink}
-            </Link>
+              <Icon name="saved" />
+            </span>
+            <UserMenu />
           </div>
-          <UserMenu />
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
-        <div className="mx-auto max-w-4xl space-y-3 sm:space-y-4">
-          {messages.length === 0 && (
-            <p className="pt-12 text-center font-ibm-plex text-muted-foreground">
-              {t.chat.welcome}
-            </p>
-          )}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
+        {isEmpty ? (
+          <div className="flex h-full items-center justify-center" aria-hidden="true">
+            <span className="select-none font-bebas text-[26vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[9rem]">
+              laiive
+            </span>
+          </div>
+        ) : (
+          <div className="mx-auto flex max-w-3xl flex-col gap-3.5 py-4">
+            {messages.map((message, index) =>
+              message.role === "user" ? (
+                <p
+                  key={index}
+                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-[14.5px] leading-[1.4] text-white"
+                >
+                  {message.content}
+                </p>
+              ) : (
+                <div key={index} className="flex flex-col gap-2.5">
+                  {/* Answer first, cards second — the reason follows the answer. */}
+                  {message.content && (
+                    <Markdown
+                      text={message.content}
+                      className="whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground"
+                    />
+                  )}
+                  {message.events && message.events.length > 0 && (
+                    <div className="flex flex-col gap-2 border-l-2 border-secondary/50 pl-[11px]">
+                      {message.events.map((card) => (
+                        <EventCardView key={card.uid} card={card} language={language} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ),
+            )}
 
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
-            >
-              <div
-                className={cn(
-                  "max-w-[92%] font-ibm-plex text-base sm:max-w-[85%]",
-                  message.role === "user"
-                    ? "rounded-2xl border border-border bg-muted px-4 py-3 text-foreground"
-                    : message.events && message.events.length > 0
-                      ? "w-full space-y-3 bg-transparent"
-                      : "rounded-2xl border border-border bg-card px-4 py-3 text-card-foreground",
-                )}
-              >
-                {message.events && message.events.length > 0 && (
-                  <div className="space-y-2">
-                    {message.events.map((card) => (
-                      <EventCardView key={card.uid} card={card} language={language} />
-                    ))}
-                  </div>
-                )}
-                {message.content && (
-                  <Markdown
-                    text={message.content}
-                    className={cn(
-                      "whitespace-pre-wrap",
-                      message.events && message.events.length > 0 && "text-muted-foreground",
-                    )}
-                  />
-                )}
-              </div>
-            </div>
-          ))}
-
-          {status && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            {status && (
+              <p className="animate-pulse font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
                 {status}
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
+              </p>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
 
-      <div className="flex-shrink-0 border-t border-border bg-card p-3 pb-[env(safe-area-inset-bottom,12px)] sm:p-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-2 sm:gap-3">
-          {/* Voice is public (D7): the transcript lands in the composer for
-              review rather than sending itself. */}
-          <MicButton
-            transcribe={transcribeRecording}
-            onTranscript={(text) => setInput((current) => (current ? `${current} ${text}` : text))}
-            disabled={isStreaming}
-          />
+      <div className="flex-shrink-0 border-t border-rule px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 sm:px-5">
+        <div className="mx-auto flex max-w-3xl items-center gap-2.5">
           <Input
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -239,19 +223,28 @@ export default function Chat() {
             placeholder={t.chat.placeholder}
             aria-label={t.chat.placeholder}
           />
+          {/* One amber control: stop while streaming, send once there is
+              something to send, and the mic the rest of the time. */}
           {isStreaming ? (
-            <Button variant="outline" size="icon" onClick={stop} aria-label={t.chat.stop}>
-              <Square className="h-4 w-4" />
+            <Button variant="amber" size="icon" onClick={stop} aria-label={t.chat.stop}>
+              <Icon name="close" />
             </Button>
-          ) : (
+          ) : input.trim() ? (
             <Button
+              variant="amber"
               size="icon"
               onClick={() => void send()}
-              disabled={!input.trim()}
               aria-label={t.chat.send}
             >
-              <Send className="h-5 w-5" />
+              <Icon name="send" className="h-[18px] w-[18px]" />
             </Button>
+          ) : (
+            <MicButton
+              transcribe={transcribeRecording}
+              onTranscript={(text) =>
+                setInput((current) => (current ? `${current} ${text}` : text))
+              }
+            />
           )}
         </div>
       </div>
