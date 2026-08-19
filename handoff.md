@@ -9,16 +9,23 @@ The refactor is closed and merged (PR #29). `main` is the trunk — cut `<type>/
 branches from it, one per phase, PR to `origin`. Two archives, never build on them:
 `legacy/pre-refactor` (tag `pre-refactor-main`) and `experiment/k3s`.
 
-Built and verified locally, **not deployed**. Local stack: gateway :8000 (the only published
-surface), retriever :8002, pusher :8003, search :8004, frontend :8081. CI green on every push.
+**The services are live**: https://laiive-gateway.fly.dev, five Fly apps in `fra`, checks
+passing, retriever/pusher/search with zero public IPs. Verified there: chat, real SSE
+streaming, and the admin 202+poll sweep. Local stack unchanged: gateway :8000, retriever :8002,
+pusher :8003, search :8004, frontend :8081. CI green on every push.
 
 ## Next up
 
-The live deploy, per root `DEPLOY.md`. §0 is done — migration `20260818000010` is pushed and
-`make fly-secrets-check` passes — and the whole stack was verified locally in the deployed
-shape (chat, SSE, 202+poll sweep). **Blocked only on `flyctl auth login`**, then: apps + redis
-volume (§1) → `make fly-secrets` (§2) → deploy in order (§3) → Pages project (§4) → CORS,
-Supabase redirect URLs and `GATEWAY_URL` (§5) → smoke checklist (§6).
+Finish `DEPLOY.md` — §1–§3 are done, §4 and §5 need accounts:
+
+- **§4 Cloudflare Pages**: connect the repo, root directory `frontend`, build `npm run build`,
+  output `dist`, and three build-time vars — `VITE_API_URL=https://laiive-gateway.fly.dev`
+  plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from `frontend/.env`.
+- **§5**: `flyctl secrets set -a laiive-gateway CORS_ALLOW_ORIGINS=https://<project>.pages.dev`;
+  add that domain to Supabase Auth redirect URLs; set `GATEWAY_URL=https://laiive-gateway.fly.dev`
+  in the root `.env` so the Prefect flows hit the deployed gateway.
+- **§6 leftovers**: browser chat on the Pages URL, and trace one `X-Request-Id` from browser to
+  `conversation_logs` to Langfuse.
 
 Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
 React) → evals + observability → multi-provider model routing → retrieval accuracy →
@@ -255,6 +262,22 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-19",
           "text": "Local 202+poll smoke passed against the real deployed shape: five containers healthy, /api/chat returned three Barcelona events, /api/chat/stream streamed 21 real deltas and answered 'hola' in Spanish, and the admin sweep returned 202 in 2.9s then polled running -> dry_run in 28s with 3 candidates - which also proves migration 20260818000010 is live"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "BIND_HOST was the wrong fix and lasted an hour: the first Fly deploy came up started and permanently critical because Fly's machine checks arrive over IPv4 while 6PN needs IPv6, so one process has to answer both and uvicorn's --host takes one. laiive_shared.serve opens the socket with IPV6_V6ONLY off and execs uvicorn onto it via --fd, keeping uvicorn as PID 1 for the drain window"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Region is fra, not mad: Fly no longer offers Madrid ('region mad not found'). Owner chose Frankfurt over Paris because Supabase is eu-central-1, so JWKS, conversation logging and the search report writes all land next door"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Every make fly-deploy-* target was wrong and had never been run: flyctl resolves --config AND --dockerfile relative to the positional build-context directory, not the shell cwd, so repo-root paths gave 'missing an app name' and then services/services/retriever/Dockerfile. Targets now cd into services/ with both paths relative to it"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Deployed live: five apps in fra, checks passing, retriever/pusher/search with zero public IPs. Verified on https://laiive-gateway.fly.dev - healthz 200, /api/chat returned three Barcelona events, /api/chat/stream streamed 23 deltas through the Fly proxy, admin sweep 202 in 3.5s to dry_run with 2 candidates. Sections 4 and 5 (Pages, CORS, Supabase redirect URLs, GATEWAY_URL) still need the owner's accounts"
         }
       ]
     },
