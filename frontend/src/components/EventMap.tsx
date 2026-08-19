@@ -77,7 +77,7 @@ export function EventMap({
       ref={container}
       role="application"
       aria-label={`Map showing ${label}`}
-      className="h-48 w-full overflow-hidden rounded-md border border-border"
+      className="h-48 w-full overflow-hidden rounded-[16px] border border-hairline/[0.07]"
     />
   );
 }

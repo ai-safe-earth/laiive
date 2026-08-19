@@ -1,4 +1,3 @@
-import { ArrowLeft, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,6 +8,7 @@ import {
   useUpdateProfile,
 } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
+import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLanguagePreference } from "@/i18n/useLanguagePreference";
@@ -21,6 +21,18 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   it: "italiano",
   ca: "català",
 };
+
+/** Mono, small caps — the label voice for every setting on this page. */
+function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className="font-mono text-[11px] uppercase tracking-[0.11em] text-muted-foreground"
+    >
+      {children}
+    </label>
+  );
+}
 
 /** Free-form chip list — the graph owns the real entities, this is what the
  *  promoter says they manage (D8). */
@@ -46,25 +58,23 @@ function ChipList({
   };
 
   return (
-    <div className="space-y-2">
-      <label className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground">
-        {label}
-      </label>
+    <div className="flex flex-col gap-2">
+      <Label>{label}</Label>
       {items.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {items.map((item) => (
             <li
               key={item}
-              className="flex items-center gap-1 rounded-full border border-border bg-muted px-3 py-1 text-sm"
+              className="flex items-center gap-1.5 rounded-full border border-field-border bg-field py-1 pl-4 pr-1.5 text-[13px] text-foreground"
             >
               {item}
               <button
                 type="button"
                 aria-label={t.account.remove(item)}
                 onClick={() => onChange(items.filter((i) => i !== item))}
-                className="text-muted-foreground hover:text-destructive"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-dim transition-colors hover:text-destructive"
               >
-                <X className="h-3 w-3" />
+                <Icon name="close" className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}
@@ -82,7 +92,7 @@ function ChipList({
           }}
           placeholder={placeholder}
         />
-        <Button variant="outline" onClick={add} disabled={!draft.trim()}>
+        <Button variant="neutral" onClick={add} disabled={!draft.trim()}>
           {t.account.add}
         </Button>
       </div>
@@ -161,36 +171,32 @@ export default function Account() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+      <header className="flex items-center gap-2 border-b border-rule px-3 py-2 sm:px-4">
         <Link
           to="/"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+          aria-label={t.account.back}
+          className="flex h-11 w-11 items-center justify-center text-ink-dim transition-colors hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> {t.account.back}
+          <Icon name="back" />
         </Link>
-        <h1 className="font-montserrat text-lg font-bold text-foreground">
+        <h1 className="font-bebas text-[24px] leading-none tracking-[0.04em] text-card-foreground">
           {t.account.title}
         </h1>
       </header>
 
-      <div className="mx-auto max-w-xl space-y-8 p-4 sm:p-6">
-        <section className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <div>
-            <h2 className="font-montserrat text-base font-bold text-foreground">
+      <div className="mx-auto flex max-w-xl flex-col gap-6 p-4 sm:p-6">
+        <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-card-foreground">
               {t.account.you}
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {user?.email} · <span className="uppercase text-accent">{role}</span>
+            <p className="font-mono text-[11px] text-ink-dim">
+              {user?.email} · <span className="uppercase tracking-[0.11em]">{role}</span>
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label
-              htmlFor="display-name"
-              className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
-            >
-              {t.account.displayName}
-            </label>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="display-name">{t.account.displayName}</Label>
             <Input
               id="display-name"
               value={displayName}
@@ -200,10 +206,9 @@ export default function Account() {
             />
           </div>
 
-          <div className="space-y-2">
-            <span className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground">
-              {t.account.language}
-            </span>
+          {/* Language lives here, in settings — never in a header. */}
+          <div className="flex flex-col gap-2">
+            <Label>{t.account.language}</Label>
             <div className="flex flex-wrap gap-2">
               {LANGUAGES.map((code) => (
                 <button
@@ -211,40 +216,39 @@ export default function Account() {
                   type="button"
                   onClick={() => chooseLanguage(code)}
                   className={cn(
-                    "rounded-md border px-3 py-1.5 font-ibm-plex text-sm transition-colors",
+                    "h-11 rounded-full border px-4 text-[13px] transition-colors",
                     code === language
                       ? "border-primary text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground",
+                      : "border-field-border text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {LANGUAGE_LABELS[code]}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">{t.account.languageNote}</p>
+            <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+              {t.account.languageNote}
+            </p>
           </div>
 
-          <Button onClick={saveProfile} disabled={updateProfile.isPending}>
+          <Button className="self-start" onClick={saveProfile} disabled={updateProfile.isPending}>
             {updateProfile.isPending ? "…" : t.account.save}
           </Button>
         </section>
 
         {isPro && (
-          <section className="space-y-4 rounded-lg border border-border bg-card p-5">
-            <div>
-              <h2 className="font-montserrat text-base font-bold text-foreground">
+          <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-card-foreground">
                 {t.account.promoter}
               </h2>
-              <p className="text-xs text-muted-foreground">{t.account.promoterNote}</p>
+              <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+                {t.account.promoterNote}
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="org-name"
-                className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
-              >
-                {t.account.organisation}
-              </label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="org-name">{t.account.organisation}</Label>
               <Input
                 id="org-name"
                 value={orgName}
@@ -254,13 +258,8 @@ export default function Account() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label
-                  htmlFor="website"
-                  className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
-                >
-                  {t.account.website}
-                </label>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="website">{t.account.website}</Label>
                 <Input
                   id="website"
                   type="url"
@@ -269,13 +268,8 @@ export default function Account() {
                   placeholder="https://"
                 />
               </div>
-              <div className="space-y-2">
-                <label
-                  htmlFor="phone"
-                  className="font-ibm-plex text-xs uppercase tracking-wider text-muted-foreground"
-                >
-                  {t.account.phone}
-                </label>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="phone">{t.account.phone}</Label>
                 <Input
                   id="phone"
                   type="tel"
@@ -299,7 +293,11 @@ export default function Account() {
               placeholder="Ana Beck Quartet"
             />
 
-            <Button onClick={savePromoterProfile} disabled={savePromoter.isPending}>
+            <Button
+              className="self-start"
+              onClick={savePromoterProfile}
+              disabled={savePromoter.isPending}
+            >
               {savePromoter.isPending ? "…" : t.account.save}
             </Button>
           </section>

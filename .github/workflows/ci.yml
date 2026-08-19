@@ -106,3 +106,25 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # The single check the branch rulesets require. Requiring the matrix jobs
+  # directly means the ruleset holds eleven strings like
+  # "node (services/gateway, true)" — rename one matrix entry and the required
+  # check simply never reports, and the PR hangs on a context that no longer
+  # exists. This job's name is stable; the matrix underneath it is free to move.
+  #
+  # `if: always()` so it still runs when a dependency failed — without it the
+  # job is skipped, and a skipped required check reads as success.
+  ci-ok:
+    if: always()
+    needs: [python, node, images]
+    runs-on: ubuntu-latest
+    steps:
+      - name: verify
+        run: |
+          echo "python: ${{ needs.python.result }}"
+          echo "node:   ${{ needs.node.result }}"
+          echo "images: ${{ needs.images.result }}"
+          [ "${{ needs.python.result }}" = "success" ] \
+            && [ "${{ needs.node.result }}" = "success" ] \
+            && [ "${{ needs.images.result }}" = "success" ]

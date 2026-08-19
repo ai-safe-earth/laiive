@@ -20,11 +20,8 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
   `cd services/<svc>`, then `uv run …`. All services load the single **root `.env`** via
   `SettingsConfigDict(env_file="../../.env")` — resolved against CWD, so launching from the
   repo root silently loses all settings. Missing keys fail loudly. Template: `.example.env`.
-- `uv run uvicorn …` fails on this machine ("Failed to canonicalize script path") — use
-  `uv sync` then `uv run --no-sync python -m uvicorn …`, or the `make start-*` targets.
-- Frontend uses **npm** (bun is NOT installed): `cd frontend && npm install && npm run dev`.
-  Port 8080 is taken by EnterpriseDB on this machine — run Vite on 8081 via
-  `npx vite --port 8081 --strictPort` (`npm run dev -- --port` loses the flag in PowerShell).
+- Frontend uses **npm**, backend uses `uv` — both have machine-specific invocations that do
+  not work in their documented form here. See *Machine gotchas → Running things*.
 - Ports: gateway **8000** (the only published surface), retriever **8002**, pusher **8003**,
   search **8004**. The frontend talks to the gateway only (`VITE_API_URL`).
 - Deploy targets: services on **Fly.io** (`deploy/fly/*.toml`, `make fly-deploy-*`), SPA on
@@ -59,18 +56,18 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 
 ## Testing
 
-- Per service: `cd services/<svc> && uv run pytest -q` (retriever adds `-m "not integration"`;
-  integration tests need live Aura + real keys). Single test:
-  `uv run pytest -v tests/test_x.py::test_name`, `--timeout=120` for anything touching an LLM.
-  Or `/verify-retriever` after retriever changes; `make test-all` mirrors CI.
+- Per service: `cd services/<svc>`, then `uv sync` and `uv run --no-sync python -m pytest -q`
+  (bare `uv run pytest` fails here — see *Machine gotchas*). Retriever adds `-m "not
+  integration"`; integration tests need live Aura + real keys. Single test:
+  `… python -m pytest -v tests/test_x.py::test_name`, `--timeout=120` for anything touching
+  an LLM. Or `/verify-retriever` after retriever changes; `make test-all` mirrors CI.
 - Gateway: `cd services/gateway && npm test` (vitest, fakes Supabase locally). Frontend:
   `npm run typecheck` (runs both tsconfig projects — bare `tsc --noEmit` is a silent no-op).
 - Pusher `tests/conftest.py` autouse-patches module-level clients (`agent.converters._client`,
   `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`). A new module with its
   own module-level client must be added there or tests hit the real API.
-- The ruff `--fix` pre-commit hook deletes an import the moment it is momentarily unused —
-  add the import and its first use in the same edit. A failed commit usually just needs
-  re-`git add` + retry.
+- Commit-time hook traps (ruff eating imports, `ruff-format` aborting the commit): see
+  *Machine gotchas → Commits*.
 
 ## Repo etiquette
 
@@ -138,9 +135,11 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
   `socket.gethostbyname` and retry in process — the sweep is idempotent by uid.
 - The **Aura free instance auto-pauses**. Paused, its DNS record disappears; resuming, reads
   route to a follower while writes fail with "No write service currently available".
-- MCP `aura-neo4j` points at `2099d44c`. Its host `2099d44c.mcp-instances.neo4j.io` stopped
-  resolving once while the database itself was fine on `2099d44c.databases.neo4j.io`; if the
-  MCP is down, query through the service instead.
+- **The `aura-neo4j` and `tavily` MCP servers are NOT available in this directory** — they are
+  registered under the repo's old path (`MAIN/DS_ML_AI/DIALOGOO/laiive`), so query through the
+  service, not the MCP. If they are re-added here: `aura-neo4j` points at `2099d44c`, and its
+  host `2099d44c.mcp-instances.neo4j.io` stopped resolving once while the database itself was
+  fine on `2099d44c.databases.neo4j.io`.
 - Re-checking one venue after a geocoder fix: the repair sweep only selects venues that are
   unstamped, non-`venue`, or checked over 7 days ago — exactly not the one a fix would correct.
   `cd services/search && uv run --no-sync python scripts/recheck_venue.py "<venue>"` clears the

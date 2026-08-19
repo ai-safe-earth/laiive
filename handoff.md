@@ -1,53 +1,45 @@
 # HANDOFF — laiive (updated 2026-08-19)
 
-State only. Rules and machine gotchas: root `CLAUDE.md`. Refactor history: `docs/refactor/`
-(closed). The program under way: `docs/roadmap/01-program.md`.
+State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`;
+refactor history `docs/refactor/` (closed).
 
 ## Where things stand
 
-The refactor is closed and merged (PR #29). **`main` is production, `develop` is the trunk and
-the default branch** — work branches are cut from `develop` and PR into it; `main` takes a
-release PR only and is protected (PR, 11 green checks, no force-push, admin bypass on).
-Ship with `make release` (`cz bump` → version, `CHANGELOG.md`, tag); model in `CONTRIBUTING.md`.
-Two archives, never build on them: `legacy/pre-refactor` (tag `pre-refactor-main`) and
-`experiment/k3s`.
+**laiive is live end to end**, tagged `v0.1.0`. Frontend https://laiive.pages.dev (Pages,
+production branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev,
+five Fly apps in `fra`, retriever/pusher/search on zero public IPs. Local: gateway :8000,
+retriever :8002, pusher :8003, search :8004, frontend :8081 (squatted — 8082 works).
 
-**The services are live**: https://laiive-gateway.fly.dev, five Fly apps in `fra`, checks
-passing, retriever/pusher/search with zero public IPs. Verified there: chat, real SSE
-streaming, and the admin 202+poll sweep. Local stack unchanged: gateway :8000, retriever :8002,
-pusher :8003, search :8004, frontend :8081. CI green on every push.
+**`main` is production, `develop` the trunk and default branch**; work branches PR into
+`develop`, `main` takes a release PR only and is protected. Ship with `make release`; model in
+`CONTRIBUTING.md`. Archives, never build on: `legacy/pre-refactor`, `experiment/k3s`.
 
-## Next up
+## The redesign — applied, not shipped
 
-Finish `DEPLOY.md` — §1–§3 are done, §4 and §5 need accounts:
+**`assets/brand/` v1 is applied to the whole frontend** on `feat/brand-v1` (`efe6a10`), all
+eight steps. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro
+form were checked in a browser. **Not PR'd, not deployed** — next is a PR into `develop`.
 
-- **§4 Cloudflare Pages**: connect the repo, root directory `frontend`, build `npm run build`,
-  output `dist`, and three build-time vars — `VITE_API_URL=https://laiive-gateway.fly.dev`
-  plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from `frontend/.env`.
-- **§5**: `flyctl secrets set -a laiive-gateway CORS_ALLOW_ORIGINS=https://<project>.pages.dev`;
-  add that domain to Supabase Auth redirect URLs; set `GATEWAY_URL=https://laiive-gateway.fly.dev`
-  in the root `.env` so the Prefect flows hit the deployed gateway.
-- **§6 leftovers**: browser chat on the Pages URL, and trace one `X-Request-Id` from browser to
-  `conversation_logs` to Langfuse.
+Warm black `#0C0A0A`, cream answers, amber (price/mic/tickets/rail), cyan pro-only, Bebas +
+DM Sans + IBM Plex Mono, no gradients or glows. Icons come from `public/brand/icons.svg` via
+`<Icon>`, the lockup from `<Mark>`; `lucide-react` is imported nowhere now.
 
-Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
-React) → evals + observability → multi-provider model routing → retrieval accuracy →
-guardrails, cache, language, voice → ingestion quality + self-improvement.
+`brand-guide.pdf` is still missing and the owner chose to proceed without it, so these are
+decisions the PDF may overrule: composer is one amber circle (mic → send → stop), **no `+`**;
+card actions are map + tickets only, `saved` ships inert; empty screen is the wordmark as a
+watermark; `/pro` lives in the account menu; `/auth?kind=pro` is the promoter door; where the
+rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
 
 ## Open
 
-- Google sign-in click-through with a real account, and a browser walkthrough of the 4d
-  multi-event walk including the es/ca strings.
-- Newly swept events arrive with no genre, so a genre-pinned query excludes them. 55 of 57
-  existing events are reachable after the artist tagging; infer at approve, or fall back on
-  zero rows.
-- Four venue near-duplicate pairs within 162 m. Never auto-merge — two are a room inside a
-  building.
-- "Shakira Stadium" is a listing-page artefact, not a venue: extraction quality, not geocoding.
-- Confirm the `.claude/settings.json` deny rules enforce after a restart; if `.history/` is
-  still readable, fall back to a PreToolUse hook.
-- Optional: containerize `flows/serve.py` as a compose service (needs its own Dockerfile stage,
-  plus `PREFECT_API_KEY`/`PREFECT_API_URL` in the root `.env`).
+- **Two account kinds at sign-up.** OAuth produces one kind of user and the pro role is granted
+  by hand in `user_roles`; it needs a consumer path and a pro path feeding the organizations
+  model (`docs/roadmap/02-ownership.md`). Deferred by the owner.
+- The **OG card** is `og-base-1200x630.png` bare; the composed version is still to make.
+- Google sign-in shows the Supabase project id rather than laiive — `DEPLOY.md` §5b.
+- Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
+- Smaller: migration `20260819000011` applied but unwritten-to; `.claude` deny rules unverified
+  after restart; `main_protection` ruleset redundant; ingestion items in `01-program.md` §7.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -205,9 +197,9 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     },
     {
       "name": "Phase 6 - CI/CD + deploy",
-      "status": "active",
+      "status": "done",
       "start": "2026-08-17",
-      "end": null,
+      "end": "2026-08-19",
       "plan": "refactor",
       "decisions": [
         {
@@ -281,6 +273,22 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-19",
           "text": "Deployed live: five apps in fra, checks passing, retriever/pusher/search with zero public IPs. Verified on https://laiive-gateway.fly.dev - healthz 200, /api/chat returned three Barcelona events, /api/chat/stream streamed 23 deltas through the Fly proxy, admin sweep 202 in 3.5s to dry_run with 2 candidates. Sections 4 and 5 (Pages, CORS, Supabase redirect URLs, GATEWAY_URL) still need the owner's accounts"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Frontend live on Cloudflare Pages at https://laiive.pages.dev, production branch main, previews from develop. Verified from that origin: CORS preflight allows laiive.pages.dev and develop.laiive.pages.dev and refuses anything else, the built bundle carries the gateway URL and the Supabase publishable key with no localhost left in it, /account deep-links through the SPA fallback, and a chat turn plus an SSE stream both answer"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "flyctl secrets set replaces a key rather than appending, so setting CORS_ALLOW_ORIGINS twice locked out the production origin and left only the preview. Every origin has to go in one comma-separated value, and the check that catches it is a preflight, not the command output"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Ownership becomes organizations with members and roles, self-declared claims, and no restriction on listing at someone else's venue - so ownership governs who may EDIT a record, never who may create one. Migration 20260819000011 applied; nothing writes to the tables until org creation exists as a screen, which is deliberate because that is exactly how the unused public.ownerships table happened. Research with access dates in docs/references.md"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The artists field in the pro event form could not be typed into: it split on commas and trimmed on every keystroke, so a space was deleted as it was typed and a comma vanished with it. It held exactly one single-word artist while the label asked for commas. Replaced with one input per artist plus an add button"
         },
         {
           "date": "2026-08-19",
@@ -460,11 +468,52 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     },
     {
       "name": "Restyle - new visual direction",
-      "status": "planned",
-      "start": null,
+      "status": "active",
+      "start": "2026-08-19",
       "end": null,
       "plan": "roadmap",
-      "decisions": []
+      "decisions": [
+        {
+          "date": "2026-08-19",
+          "text": "The design-canvas step is superseded: the owner delivered a finished brand pack from the design project as assets/brand - enforceable rules, a drop-in token block, 17 icons, static reference screens, the mark in 14 recolourings, and an eight-step order of work for the frontend. Committed as received and unapplied. brand-guide.pdf is named normative and is missing from the folder, so ambiguities are questions for the owner, not judgement calls"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Adopting it is a full visual pass rather than a token swap: warm black replaces pure black, cream replaces white for answers, amber replaces electric yellow, Bebas Neue and DM Sans replace Montserrat and IBM Plex Sans, gradients and glows are deleted outright, and the language switcher moves from the header into the account menu"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "brand-guide.pdf is still missing and the owner chose to proceed on brand-rules.md as the spec rather than wait for it. Every ambiguity below was therefore an owner decision, not a judgement call, and the PDF may still overrule them"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The composer is one amber circle - mic when the field is empty, send once there is something to send, stop while streaming - and there is no '+'. reference-screens.html draws a '+' beside the mic, but the rule says the '+' opens voice and nothing else, which makes it a sheet holding a single item"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Card actions ship as map and tickets only. The artwork draws a 'save' pill, but saving has no feature behind it and a dead pill on every card breaks the promise once per card rather than once per screen. The header 'saved' icon still ships inert so the bar is final"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Where brand-rules.md and reference-screens.html disagree on size the rules win: every touch target is 44px, against the mock's 36px composer and 30px pills. Card action pills keep the mock's look and reach 44px through an :after hit area instead of growing"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The empty chat is the LAIIVE wordmark as a 5%-opacity watermark and nothing else - the old welcome line used 'discover', an exclamation and onboarding copy, all three banned. The promoter link leaves the header for the account menu, alongside settings, so the header holds exactly the four allowed elements"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "/auth?kind=pro is the promoter's door: it starts on sign-up and lands on /pro afterwards. It creates an ordinary account because the pro role is still granted by hand, so the gate copy no longer says 'contact us' - there is no contact channel in the app to honour it with"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Icons are referenced from assets/brand/icons.svg copied unmodified to public/brand and used via <use>, so the artwork stays the file the brand owner ships and a fix there needs no code. lucide-react is no longer imported by any component and the dependency can be dropped"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Applied end to end on feat/brand-v1 (efe6a10): tokens, tailwind, index.html, Chat, EventCardView, UserMenu, ProSubmit, EventForm, Auth, Account, NotFound, Button, Input, MicButton, and the four language blocks. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro form were checked in a browser at 390px and 1280px"
+        }
+      ]
     },
     {
       "name": "Evals + observability",
@@ -536,8 +585,29 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
       "plan": "refactor"
     },
     {
-      "title": "Design canvas for the new visual direction, owner approves the look before any React changes; then tokens, a real ui/ primitive set, the five pages, and the per-turn feedback control",
-      "est": 4,
+      "title": "PR feat/brand-v1 into develop, check the Pages preview, then deploy. Nothing on the branch has been seen outside localhost",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Compose the OG card on og-base-1200x630.png - public/og-image.png is the bare ground today, with og:title and og:description carrying the words",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Drop lucide-react from frontend/package.json - no component imports it since the brand icon set landed",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Two account kinds at sign-up: OAuth produces one kind of user today and the pro role is granted by hand in user_roles. Needs a consumer path and a pro path, feeding the organizations model. Deferred by the owner, single path until then",
+      "est": 3,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
       "plan": "roadmap"
@@ -679,6 +749,13 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
     },
     {
       "date": "2026-08-18",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-19",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",

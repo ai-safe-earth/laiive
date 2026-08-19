@@ -1,10 +1,16 @@
 # See https://pre-commit.com
+#
+# Hook types: the commit-msg hook was missing from `.git/hooks` for months, so
+# commitizen never validated a single message. `default_install_hook_types`
+# makes a bare `pre-commit install` wire up both, on every clone.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   #######################################################################
   # 1. House-keeping & "always on" fixers
   #######################################################################
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0          # pin to published tag
+    rev: v6.0.0          # pin to published tag
     hooks:
       - id: check-toml
       - id: check-yaml
@@ -18,10 +24,23 @@ repos:
         exclude: "^frontend/(dist|public)/|\\.svg$"
       - id: trailing-whitespace
         exclude: "^frontend/dist/"
+      - id: check-merge-conflict
+      # Dev is Windows, CI is Linux: two files differing only in case commit
+      # fine here and collide on checkout there.
+      - id: check-case-conflict
+      - id: detect-private-key
+      # No `mixed-line-ending` here. `core.autocrlf=true` on the dev box already
+      # stores LF and checks out CRLF, so `--fix=lf` rewrites the whole worktree
+      # against git's own filter — 222 phantom-modified files on every run, and
+      # a silent no-op on the all-LF Linux runner. `.gitattributes` is the place
+      # to force an ending, and it already does for *.sh.
 
   #######################################################################
   # 2. Ruff: lint *then* format, one pass, auto-fix on commit
   #######################################################################
+  # Held at 0.4.9 deliberately: the four services pin `ruff==0.4.9` in their
+  # pyproject so CI (`uv run ruff check`) and this hook agree. Bumping means
+  # four pyprojects, four relocks and whatever new rules fire — its own PR.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.9
     hooks:
@@ -40,8 +59,11 @@ repos:
   # `agent` package, and a single invocation spanning two of them dies on
   # "Duplicate module named agent" — which only surfaces on commits that touch
   # several services at once.
+  #
+  # Held in the 1.x line: mypy 2.x is a major release and this is a lint gate on
+  # every commit, not a migration project.
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.20.2
     hooks:
       - id: mypy
         alias: mypy-retriever
@@ -73,21 +95,19 @@ repos:
   #######################################################################
   # 4. Security & supply-chain
   #######################################################################
-  # - repo: https://github.com/PyCQA/bandit
-  #  rev: 1.7.3           # latest stable
-  #  hooks:
-  #    - id: bandit
-
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
+      # pre-commit only: the pre-push stage was never installed, and when it is
+      # it rescans the whole tree on every push for no extra coverage.
       - id: detect-secrets
-        stages: [pre-commit, pre-push]
         args: ["--baseline", ".secrets.baseline"]
 
   #######################################################################
   # 5. SQL linting for Postgres migrations & seed scripts
   #######################################################################
+  # Held at 3.x: sqlfluff 4 reshuffles the rule set and the migrations are
+  # applied history — reformatting them is not a hook's decision.
   - repo: https://github.com/sqlfluff/sqlfluff
     rev: 3.4.2
     hooks:
@@ -99,7 +119,7 @@ repos:
   # 6. Conventional Commit enforcement
   #######################################################################
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.13.0
+    rev: v4.18.0
     hooks:
       - id: commitizen
         stages: [commit-msg]  # validates on commit, no CI surprises

@@ -2,70 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
-All colors MUST be HSL.
-*/
+/* laiive brand tokens — v1, direction 4a (consumer) + 3b (promoter).
+   Source of truth: assets/brand/brand-tokens.css and brand-rules.md.
+   All colours HSL. Dark-first: there is no light mode. */
 
 @layer base {
   :root {
-    /* laiive color system - Dark theme by default */
-    --background: 0 0% 0%; /* Midnight Black */
-    --foreground: 0 0% 100%; /* Clean White */
+    /* ---- consumer app · dark-first, warm-black ---- */
+    --background: 0 9% 4%;          /* #0C0A0A  app ground, everywhere, no gradients */
+    --foreground: 37 45% 92%;       /* #F4EDE2  every answer laiive gives — never #fff */
+    --card: 0 14% 12%;              /* #241B1B  event cards, sheets */
+    --card-foreground: 0 0% 100%;   /* #FFFFFF  card titles only */
+    --popover: 0 14% 12%;
+    --popover-foreground: 37 45% 92%;
 
-    --card: 0 0% 8%; /* Slightly lifted black */
-    --card-foreground: 0 0% 100%;
+    --primary: 325 100% 57%;        /* #FF2AA0  brand + "free". Nothing else. */
+    --primary-foreground: 0 9% 4%;  /* dark ink on fuchsia — never white below 18px */
+    --secondary: 42 100% 50%;       /* #FFB100  price, mic, tickets, card rail */
+    --secondary-foreground: 0 9% 4%;
+    --accent: 42 100% 50%;
+    --accent-foreground: 0 9% 4%;
 
-    --popover: 0 0% 5%;
-    --popover-foreground: 0 0% 100%;
+    --muted: 0 12% 20%;             /* #3A2E2E  user's own messages, borders */
+    --muted-foreground: 0 9% 68%;   /* #B5A6A6  card meta: venue, time, distance */
+    --ink-dim: 0 8% 62%;            /* #A79797  chrome icons, composer placeholder — floor */
 
-    /* Fuchsia Pink - Primary brand color */
-    --primary: 325 100% 57%; /* #FF2AA0 */
-    --primary-foreground: 0 0% 100%;
-
-    /* Electric Yellow */
-    --secondary: 48 100% 50%; /* #FFD500 */
-    --secondary-foreground: 0 0% 0%;
-
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
-
-    /* Sky Cyan accent */
-    --accent: 188 100% 46%; /* #00CFEA */
-    --accent-foreground: 0 0% 0%;
-
-    /* Lipstick Red for destructive */
-    --destructive: 0 78% 53%; /* #E72828 */
+    --destructive: 0 78% 53%;       /* #E72828  errors and delete only */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 15%;
+    --border: 0 12% 20%;
+    --input: 0 14% 12%;
     --ring: 325 100% 57%;
+    --radius: 1.25rem;              /* cards 20px · pills 999px · sheets 26px */
 
-    --radius: 0.75rem;
+    /* Surfaces the tokens above do not name, taken off reference-screens.html. */
+    --hairline: 0 0% 100%;          /* used at 7% for the card edge */
+    --field: 0 11% 8%;              /* #171313  composer field */
+    --field-border: 0 14% 15%;      /* #2E2222  composer field edge, neutral pills */
+    --control: 0 12% 9%;            /* #1A1414  round composer controls */
+    --rule: 0 14% 11%;              /* #221A1A  header / composer separators */
 
-    /* Sunset Orange */
-    --orange: 30 100% 50%; /* #FF8C00 */
+    /* card hairline: hsl(var(--hairline) / .07)
+       answer-group rail: 2px solid hsl(var(--secondary) / .5), 11px indent */
 
-    /* Gradients */
-    --gradient-vibrant: linear-gradient(135deg, hsl(325 100% 57%), hsl(30 100% 50%));
-    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 0%), hsl(0 0% 5%));
-    --gradient-glow: radial-gradient(circle at center, hsl(325 100% 57% / 0.15), transparent);
+    /* ---- promoter (pro) · same warmth, pop removed ---- */
+    --pro-bg: 12 14% 7%;            /* #14100F */
+    --pro-bg-card: 10 14% 9%;       /* #191413 */
+    --pro-bg-elevated: 10 12% 10%;  /* #1C1716 */
+    --pro-border: 10 13% 18%;       /* #332927 */
+    --pro-fg: 17 21% 94%;           /* #F2EDEB */
+    --pro-muted: 13 9% 60%;         /* #A2938F */
+    --pro-dim: 13 7% 51%;           /* #8B7D79 */
+    --pro-accent: 188 100% 46%;     /* #00CFEA  PRO badge, focus, "in review" */
 
-    /* Glow effects */
-    --glow-primary: 0 0 30px hsl(325 100% 57% / 0.5);
-    --glow-accent: 0 0 20px hsl(188 100% 46% / 0.4);
-
-    /* Transitions */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    /* Pro/Promoter theme - more corporate, serious feel */
-    --pro-bg: 0 0% 10%;
-    --pro-bg-elevated: 0 0% 14%;
-    --pro-bg-card: 0 0% 12%;
-    --pro-border: 0 0% 22%;
-    --pro-accent: 188 100% 46%; /* Sky Cyan for pro */
+    --status-review: 188 100% 46%;  /* #00CFEA */
+    --status-published: 147 61% 47%;/* #2FBF71 */
+    --status-attention: 42 100% 50%;/* #FFB100 */
+    --status-rejected: 0 78% 53%;   /* #E72828 */
+    --status-draft: 13 7% 51%;      /* #8B7D79 */
   }
 }
+
+/* Deleted from the previous system — do not reintroduce:
+   --gradient-vibrant, --gradient-subtle, --gradient-glow,
+   --glow-primary, --glow-accent,
+   Electric Yellow #FFD500, Sunset Orange #FF8C00.
+   Sky Cyan #00CFEA survives only as --pro-accent. */
 
 @layer base {
   * {
@@ -74,5 +76,12 @@ All colors MUST be HSL.
 
   html, body, #root {
     @apply bg-background text-foreground min-h-screen;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Bebas Neue is caps-only by design; the browser must not fake a bold for it. */
+  .font-bebas {
+    font-weight: 400;
+    text-transform: uppercase;
   }
 }
