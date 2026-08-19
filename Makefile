@@ -76,17 +76,22 @@ fly-secrets-check:
 fly-secrets:
 	sh deploy/fly/set-secrets.sh
 
+# flyctl resolves BOTH --config and --dockerfile relative to the positional
+# build-context directory, not to the shell's cwd. Passing repo-root paths made
+# it look for services/services/retriever/Dockerfile and, before that, fail with
+# "the config for your app is missing an app name" -- so the deploy runs from
+# services/ and both paths are relative to it.
 fly-deploy-gateway:
-	flyctl deploy services --config deploy/fly/gateway.toml --dockerfile services/gateway/Dockerfile
+	cd services && flyctl deploy . --config ../deploy/fly/gateway.toml --dockerfile gateway/Dockerfile
 
 fly-deploy-retriever:
-	flyctl deploy services --config deploy/fly/retriever.toml --dockerfile services/retriever/Dockerfile
+	cd services && flyctl deploy . --config ../deploy/fly/retriever.toml --dockerfile retriever/Dockerfile
 
 fly-deploy-pusher:
-	flyctl deploy services --config deploy/fly/pusher.toml --dockerfile services/pusher/Dockerfile
+	cd services && flyctl deploy . --config ../deploy/fly/pusher.toml --dockerfile pusher/Dockerfile
 
 fly-deploy-search:
-	flyctl deploy services --config deploy/fly/search.toml --dockerfile services/search/Dockerfile
+	cd services && flyctl deploy . --config ../deploy/fly/search.toml --dockerfile search/Dockerfile
 
 fly-deploy-redis:
 	flyctl deploy . --config deploy/fly/redis.toml

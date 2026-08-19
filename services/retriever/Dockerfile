@@ -30,13 +30,11 @@ EXPOSE 8002
 # uvicorn needs to drain gracefully. Graceful shutdown is set just under the
 # pod's terminationGracePeriodSeconds so uvicorn always finishes first.
 #
-# BIND_HOST, defaulting to 0.0.0.0, for the same reason the gateway has
-# GATEWAY_HOST: asyncio sets IPV6_V6ONLY on a "::" listener, so a hardcoded "::"
-# is not dual-stack -- it refuses IPv4 outright. That is required on Fly, whose
-# 6PN private network is IPv6-only (deploy/fly/*.toml set it), and fatal under
-# compose, whose network is IPv4: the gateway got ECONNREFUSED from every
-# service and the healthchecks never passed. `exec` keeps uvicorn as PID 1.
-CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn agent.api:app \
-     --host ${BIND_HOST:-0.0.0.0} --port 8002 \
-     --proxy-headers --forwarded-allow-ips '*' \
-     --timeout-graceful-shutdown 110"]
+# Through laiive_shared.serve rather than uvicorn's own --host, because no
+# single --host value works: Fly's 6PN needs IPv6, Fly's health checks and
+# compose's network need IPv4, and asyncio's "::" listener refuses IPv4. It
+# binds one dual-stack socket and execs uvicorn onto it, so uvicorn is still
+# PID 1 and still gets the drain signal.
+CMD ["/app/.venv/bin/python", "-m", "laiive_shared.serve", "agent.api:app", "8002", \
+     "--proxy-headers", "--forwarded-allow-ips", "*", \
+     "--timeout-graceful-shutdown", "110"]

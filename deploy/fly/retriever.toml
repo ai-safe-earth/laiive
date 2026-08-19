@@ -6,12 +6,6 @@ app = "laiive-retriever"
 primary_region = "fra"
 kill_timeout = 120
 
-[env]
-  # 6PN is IPv6-only, so the listener has to be "::" here. The image defaults to
-  # 0.0.0.0 because compose's network is IPv4 and a "::" listener refuses it
-  # (asyncio sets IPV6_V6ONLY) — see the Dockerfile.
-  BIND_HOST = "::"
-
 [checks]
   [checks.livez]
     type = "http"
