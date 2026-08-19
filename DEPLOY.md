@@ -88,7 +88,20 @@ Pages project → connect the GitHub repo:
 
 ## 5. Stitch the origins together
 
-1. Gateway: `flyctl secrets set -a laiive-gateway CORS_ALLOW_ORIGINS=https://<project>.pages.dev` (comma-append any custom domain).
+1. Gateway CORS. **`flyctl secrets set` replaces a key, it never appends** — every
+   origin goes in one comma-separated value, or the last command silently
+   locks out the ones before it:
+
+   ```
+   flyctl secrets set -a laiive-gateway \
+     CORS_ALLOW_ORIGINS="https://laiive.pages.dev,https://develop.laiive.pages.dev"
+   ```
+
+   The preview origin is worth carrying: Pages builds `develop` at
+   `develop.<project>.pages.dev`, and without it a preview cannot call the
+   gateway at all. Verify with a preflight rather than by reading the output —
+   `curl -X OPTIONS <gateway>/api/chat -H "Origin: …" -H "Access-Control-Request-Method: POST"`
+   answers with `access-control-allow-origin` only for an allowed origin.
 2. Supabase Auth → URL configuration: add the Pages domain to redirect
    URLs (Google sign-in return leg).
 3. Prefect: `serve.py` keeps running on the dev machine, now against the

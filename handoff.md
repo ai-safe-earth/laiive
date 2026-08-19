@@ -12,23 +12,23 @@ Ship with `make release` (`cz bump` → version, `CHANGELOG.md`, tag); model in 
 Two archives, never build on them: `legacy/pre-refactor` (tag `pre-refactor-main`) and
 `experiment/k3s`.
 
-**The services are live**: https://laiive-gateway.fly.dev, five Fly apps in `fra`, checks
-passing, retriever/pusher/search with zero public IPs. Verified there: chat, real SSE
-streaming, and the admin 202+poll sweep. Local stack unchanged: gateway :8000, retriever :8002,
-pusher :8003, search :8004, frontend :8081. CI green on every push.
+**laiive is live end to end.** Frontend https://laiive.pages.dev (Cloudflare Pages, production
+branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev with five Fly
+apps in `fra`, retriever/pusher/search on zero public IPs. Verified from the production origin:
+CORS preflight, a chat turn, real SSE streaming, and the admin 202+poll sweep. Local stack
+unchanged: gateway :8000, retriever :8002, pusher :8003, search :8004, frontend :8081.
 
 ## Next up
 
-Finish `DEPLOY.md` — §1–§3 are done, §4 and §5 need accounts:
+`DEPLOY.md` is done except the parts only a human can do:
 
-- **§4 Cloudflare Pages**: connect the repo, root directory `frontend`, build `npm run build`,
-  output `dist`, and three build-time vars — `VITE_API_URL=https://laiive-gateway.fly.dev`
-  plus `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from `frontend/.env`.
-- **§5**: `flyctl secrets set -a laiive-gateway CORS_ALLOW_ORIGINS=https://<project>.pages.dev`;
-  add that domain to Supabase Auth redirect URLs; set `GATEWAY_URL=https://laiive-gateway.fly.dev`
-  in the root `.env` so the Prefect flows hit the deployed gateway.
-- **§6 leftovers**: browser chat on the Pages URL, and trace one `X-Request-Id` from browser to
-  `conversation_logs` to Langfuse.
+- Supabase Auth → URL configuration: Site URL and redirect URLs for
+  `https://laiive.pages.dev/**` — without it Google sign-in returns to localhost.
+- `GATEWAY_URL=https://laiive-gateway.fly.dev` in the root `.env`, so the Prefect flows drive
+  the deployed gateway.
+- Click through Google sign-in with a real account, walk the pro multi-event submission in the
+  browser (es/ca strings included), and hand over one `X-Request-Id` to trace through
+  `conversation_logs` and Langfuse.
 
 Then `docs/roadmap/01-program.md`, in order: new visual direction (canvas approved before any
 React) → evals + observability → multi-provider model routing → retrieval accuracy →
@@ -36,8 +36,6 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
 
 ## Open
 
-- Google sign-in click-through with a real account, and a browser walkthrough of the 4d
-  multi-event walk including the es/ca strings.
 - Newly swept events arrive with no genre, so a genre-pinned query excludes them. 55 of 57
   existing events are reachable after the artist tagging; infer at approve, or fall back on
   zero rows.
@@ -284,6 +282,14 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
         {
           "date": "2026-08-19",
           "text": "Deployed live: five apps in fra, checks passing, retriever/pusher/search with zero public IPs. Verified on https://laiive-gateway.fly.dev - healthz 200, /api/chat returned three Barcelona events, /api/chat/stream streamed 23 deltas through the Fly proxy, admin sweep 202 in 3.5s to dry_run with 2 candidates. Sections 4 and 5 (Pages, CORS, Supabase redirect URLs, GATEWAY_URL) still need the owner's accounts"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Frontend live on Cloudflare Pages at https://laiive.pages.dev, production branch main, previews from develop. Verified from that origin: CORS preflight allows laiive.pages.dev and develop.laiive.pages.dev and refuses anything else, the built bundle carries the gateway URL and the Supabase publishable key with no localhost left in it, /account deep-links through the SPA fallback, and a chat turn plus an SSE stream both answer"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "flyctl secrets set replaces a key rather than appending, so setting CORS_ALLOW_ORIGINS twice locked out the production origin and left only the preview. Every origin has to go in one comma-separated value, and the check that catches it is a preflight, not the command output"
         },
         {
           "date": "2026-08-19",
