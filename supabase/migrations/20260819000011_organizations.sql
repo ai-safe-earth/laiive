@@ -106,9 +106,8 @@ create index entity_ownership_org_idx on public.entity_ownership (org_id);
 --
 -- SECURITY DEFINER because the policies below query organization_members from
 -- inside organization_members' own policy, which recurses. A definer function
--- reads the table without re-entering RLS and breaks the cycle. EXECUTE is
--- revoked from the API roles at the end: the policies call these as the
--- definer, nobody needs to call them directly.
+-- reads the table without re-entering RLS and breaks the cycle. `authenticated`
+-- keeps EXECUTE — see the grants at the end for why it has to.
 -- ---------------------------------------------------------------------------
 
 create function public.is_org_member(org uuid, uid uuid)
