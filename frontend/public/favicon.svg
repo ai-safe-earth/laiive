@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Pink lips - upper lip -->
+  <path d="M5 50 Q5 25 30 30 Q50 15 70 30 Q95 25 95 50 Q85 45 50 48 Q15 45 5 50 Z" fill="#F546A0"/>
+  <!-- Pink lips - lower lip -->
+  <path d="M5 50 Q5 75 50 85 Q95 75 95 50 Q85 55 50 52 Q15 55 5 50 Z" fill="#F546A0"/>
+  <!-- Mouth opening (black) -->
+  <ellipse cx="50" cy="50" rx="35" ry="12" fill="#1a1a1a"/>
+  <!-- Teeth (white) -->
+  <ellipse cx="50" cy="48" rx="28" ry="6" fill="white"/>
+</svg>

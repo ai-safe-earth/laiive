@@ -1,5 +1,5 @@
-
 <img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/357725b4-4da2-4463-b9a5-896a29fc4b79" />
+
 # Laiive.com
 
 #### what is 🫦Laiive?
@@ -18,76 +18,107 @@ laiive links the broken connection between events and public[^*]
 
 laiive was born to connect small events with people close to them, laiive does not focus on big musical events as many platforms are, laiive works on the human and community scale where small music events live.
 
-#### 🫦laiive uses AI to balance our digital-physical culture.  
+#### 🫦laiive uses AI to balance our digital-physical culture.
 
 laiive was born as an AI cultural agenda, with the AI hype and AI competition without the AI Safety layer laiive has become a subversive way of using AI, it tries to steal attention from the main digital platforms and bring it back to real world social meetings. laiive positions itself as an ethical AI app helping to develop a balanced digital-physical culture before the intermediate layer in our digital comunication becomes too powerful.
 
 #### 🫦laiive has abitious positive outcomes
 
-laiive is a catalyst of a worldwide demand that is actually unattended. laiive connects thousands of daily live events and millions of people are not going to them because they don't know they exist. Solving this gap may have a direct positive outcome, and many indirect ones, the most interesting one for our point of view, and because of the times that we are facing, is that laiive can enhance community strengths around physical cultural events, historically relevant focal points of resistance to authoritarianism. 
+laiive is a catalyst of a worldwide demand that is actually unattended. laiive connects thousands of daily live events and millions of people are not going to them because they don't know they exist. Solving this gap may have a direct positive outcome, and many indirect ones, the most interesting one for our point of view, and because of the times that we are facing, is that laiive can enhance community strengths around physical cultural events, historically relevant focal points of resistance to authoritarianism.
 
 ---
 
 ## Services
 <img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  /><img width="90" height="90" alt="laiive1" src="https://github.com/user-attachments/assets/f8dc0267-f630-4a87-b3f8-fe0277137ba5"  />
-### UI
-a simple and accessible UI is the public view of laiive, easy to publish an event, easy to find an event.
 
-### Retriever Agent
-The backbone of laiive, an agent-based retrieval system with high accuracy on retrievals from the Neo4j knowledge graph database. The retriever uses an orchestrator pattern with specialized tools.
+Four services and one shared contract package. Only the gateway is ever published; the three
+Python services are reachable on the internal network alone.
 
-Currently supports session-based queries. User ID preferences support planned for future phases.
+### Frontend (`frontend/`)
+Vite + React + Tailwind. A zero-click UI: you ask in your own words and get an answer with
+event cards and a map next to it, not a list to scroll. Four languages (en/es/it/ca), voice
+input, and a promoter side that publishes an event by talking about it — including a flyer
+photo or a spreadsheet, one event per turn. Talks to the gateway only.
 
-### Pusher Agent
-Multimodal event ingestion service that receives submissions (text/image/audio), runs router + extraction + guardrails + HITL (Human-In-The-Loop) validation. The system takes care of reliability and data quality through automated validation and human review workflows.
+### Gateway (`services/gateway`, Fastify + TypeScript, port 8000)
+The only published surface. Supabase JWT auth with the role in the token, rate limits per
+role, and proxying: `/api/chat/*` → retriever, `/api/push/*` → pusher (pro and up),
+`/api/admin/search/*` → search (admin). It injects a verified user id and role plus an
+internal key that the Python services check, so nothing reaches them unmediated.
 
-### Internet search tool (previous Event Scraper - Legacy)
-Internet search service for complementary data feed. The tool will help the main data source (promoters publications) as the system transitions based on geographic penetration. 
+### Retriever (`services/retriever`, FastAPI, port 8002)
+Reads the knowledge graph. One turn is classifier → router → executor → composer: a cheap
+structured call resolves the full constraint state and splits multi-intent asks into atomic
+sub-queries; routing is deterministic code; execution is parameterized Cypher templates for
+the common shapes, `point.distance` with a widening radius for "near me", vector kNN for vibe
+asks, a bounding box for neighbourhoods that are not cities, and LLM-generated read-only
+Cypher for the long tail. The composer streams real tokens and never lists events — the cards
+do that.
 
-### Data Strategy
-laiive deals with ephemeral data, data that still doesn't exist. laiive is a systemic platform that generates dynamic processes, it grows in inertia when users use it and promoters do too. Neo4j graph database is the heart of this dynamics and stores all the system knowledge, enabling natural relationship queries between events, artists, venues, and users.
+### Pusher (`services/pusher`, FastAPI, port 8003)
+Multimodal ingestion for promoters: text, images and audio become an event draft through
+extraction, guardrails and a human confirmation. Chat is stateless — the client carries the
+history — and a listing with many events becomes a walk, one event per turn. A spreadsheet is
+a longer conversation, not a batch screen.
+
+### Search (`services/search`, FastAPI, port 8004)
+Sweeps the web for events in a city (Tavily), extracts drafts, dedups them against the graph
+and reports them as a **dry run**. Nothing is written until an admin approves. Sweeps and
+backfills run on a schedule through Prefect.
+
+### Shared (`services/shared`, the `laiive-shared` package)
+The contract: the typed SSE protocol with its TypeScript mirror, the card and draft models,
+geocoding, language detection, and `neo4j_writer.py` — the single write path into the graph,
+MERGE-by-identity with duplicate detection.
+
+### Data
+A Neo4j (Aura) knowledge graph of events, artists, venues, cities and genres. laiive deals
+with ephemeral data, data that still doesn't exist: it grows in inertia when users ask and
+promoters publish, and the graph is what makes "jazz near me on Friday, under 15 euros" one
+query instead of five filters.
 
 ---
 
 ## License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSES/LICENSE) file for details.
+Proprietary software - Copyright (c) 2026 Oscar Arroyo Vega. All rights reserved. See [LICENSE](LICENSE).
 
 ---
 
-### instructions
+## Running it
 
-#### Development Setup in devcontainer (recommended)
+Every Python service is its own `uv` project — there is no root `pyproject.toml`, and every
+command runs from inside a service directory. All of them load the single root `.env`
+(template: `.example.env`), resolved relative to the working directory.
 
-1. Open the devcontainer: (instructions for VScode/Cursor)
-   ```bash
-   # From the root directory
-   code .
-   # Then click "Reopen in Container" when prompted
-   ```
-   alternatively Ctrl+shift+P "DevContainer: Rebuild and reopen in Container"
+### The whole stack, in Docker
 
-2. Navigate to desired service directory and install dependencies (once inside the devcontainer):
-   ```bash
-   cd services/<service-name>
-   uv sync  # Install Python dependencies using uv
-   ```
-   alternatively use the Makefile command
-   ```bash
-   make deps
-   ```
+```bash
+make up-dev        # build + run gateway, retriever, pusher, search, redis
+make down
+```
 
-3. The containers start automatically, but to run the actual services:
-   ```bash
-   make run-dev  # Start frontend and backend services
-   ```
+### Service by service, for development
 
-4. Open localhost:3001 and localhost:8001 to check or use the services ports. (they are maped from port 3000 to port 3001 and from port 8000 to port 8001 in the devcontainer)
+```bash
+make start-gateway     # :8000, the only surface the frontend uses
+make start-retriever   # :8002
+make start-pusher      # :8003
+make start-search      # :8004
 
+cd frontend && npm install && npm run dev   # Vite
+```
 
-#### Production Setup (it build and runs all the services at once)
+### Tests
 
-1. Go to the root directory and run:
-   ```bash
-   make up-prod
-   ```
+```bash
+make test-all          # mirrors CI: ruff + pytest per service, vitest for the gateway
+```
+
+Integration tests need a live graph and real keys; they are deselected by default.
+
+### Deploy
+
+Fly.io for the services, Cloudflare Pages for the SPA — see [DEPLOY.md](DEPLOY.md).
+
+[^*]: laiive is a project of [ai safe earth](https://github.com/ai-safe-earth).

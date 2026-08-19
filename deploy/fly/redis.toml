@@ -1,0 +1,21 @@
+# laiive redis — gateway rate limits + geocode cache/gate. volatile-lru is
+# load-bearing: rate-limit keys carry TTLs and are evictable, geocode hits do
+# not and must never be evicted (why managed Redis/Upstash was not used).
+# Private only (6PN). Volume: fly volumes create redis_data --size 1.
+# Auth: 6PN is org-private; add --requirepass via secrets if the org is shared.
+app = "laiive-redis"
+primary_region = "mad"
+
+[build]
+  image = "redis:7-alpine"
+
+[processes]
+  app = "redis-server --maxmemory 128mb --maxmemory-policy volatile-lru --save 60 1"
+
+[mounts]
+  source = "redis_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

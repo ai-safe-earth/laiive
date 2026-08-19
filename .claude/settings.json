@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.claude/worktrees/**)",
+      "Read(./.history/**)",
+      "Read(**/node_modules/**)",
+      "Read(**/.venv/**)",
+      "Read(**/__pycache__/**)",
+      "Read(**/.mypy_cache/**)",
+      "Read(**/.pytest_cache/**)",
+      "Read(**/.ruff_cache/**)",
+      "Read(./frontend/dist/**)",
+      "Read(**/uv.lock)",
+      "Read(**/package-lock.json)",
+      "Read(./.env)",
+      "Read(./.env.bak*)",
+      "Read(./frontend/.env)",
+      "Read(**/.geocode_cache.json)",
+      "Read(./.playwright-mcp/**)",
+      "Read(./supabase/.temp/**)",
+      "Read(**/logs/**)",
+      "Read(**/*.jsonl)",
+      "Read(./.agents/**)",
+      "Read(**/*.png)",
+      "Read(**/*.jpg)",
+      "Read(**/*.jpeg)",
+      "Read(**/*.gif)",
+      "Read(**/*.ico)",
+      "Read(**/*.webp)",
+      "Read(**/*.woff)",
+      "Read(**/*.woff2)",
+      "Read(**/*.ttf)",
+      "Read(**/*.pdf)"
+    ]
+  }
+}

@@ -3,7 +3,6 @@ Unit test for SafetyGuardTool - without requiring settings/config.
 Tests the validation logic directly.
 """
 
-import json
 import re
 
 
@@ -188,7 +187,7 @@ def test_multiple_violations():
     expected_violations = ["CREATE", "SET", "DELETE"]
     has_all = all(v in violations for v in expected_violations)
 
-    print(f"Multiple Violations Test:")
+    print("Multiple Violations Test:")
     print(f"  Query: {query}")
     print(f"  Violations Found: {violations}")
     print(f"  Expected: {expected_violations}")

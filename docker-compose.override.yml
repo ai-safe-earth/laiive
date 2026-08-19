@@ -1,5 +1,23 @@
 # development
+#
+# The three Python services here are idle `sleep infinity` shells you exec into,
+# not running APIs. Two consequences of the hardened images (D19 phase B):
+#   - they build the `build` stage, because the runtime stage has no uv;
+#   - their healthchecks are disabled, since nothing is listening — and the
+#     gateway's `depends_on` conditions are relaxed to match, or `up-dev` waits
+#     forever for a service that will never report healthy.
 services:
+  gateway:
+    depends_on:
+      redis:
+        condition: service_started
+      retriever:
+        condition: service_started
+      pusher:
+        condition: service_started
+      search:
+        condition: service_started
+
   global-workspace:
     container_name: global-workspace
     build:
@@ -13,8 +31,8 @@ services:
       - retriever
     ports:
       - "3002:3000"
-      - "8002:8000"
-      - "8003:8001"
+      - "8002:8002"
+      - "8003:8003"
     env_file:
       - .env
     tty: true
@@ -23,9 +41,15 @@ services:
 
   pusher:
     container_name: laiive-pusher
-    build: ./services/pusher
+    build:
+      context: ./services
+      dockerfile: pusher/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
     volumes:
       - ./services/pusher:/app:cached
+      - ./services/shared:/shared:cached
       - pusher-venv:/app/.venv
     tty: true
     stdin_open: true
@@ -42,9 +66,15 @@ services:
 
   retriever:
     container_name: laiive-retriever
-    build: ./services/retriever
+    build:
+      context: ./services
+      dockerfile: retriever/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
     volumes:
       - ./services/retriever:/app:cached
+      - ./services/shared:/shared:cached
       - retriever-venv:/app/.venv
     tty: true
     stdin_open: true
@@ -59,6 +89,32 @@ services:
           ignore:
             - .venv/
 
+  search:
+    container_name: laiive-search
+    build:
+      context: ./services
+      dockerfile: search/Dockerfile
+      target: build
+    healthcheck:
+      disable: true
+    volumes:
+      - ./services/search:/app:cached
+      - ./services/shared:/shared:cached
+      - search-venv:/app/.venv
+    tty: true
+    stdin_open: true
+    environment:
+      UV_LINK_MODE: copy
+    command: ["sleep", "infinity"]
+    develop:
+      watch:
+        - action: sync
+          path: ./services/search
+          target: /app
+          ignore:
+            - .venv/
+
 volumes:
   pusher-venv:
   retriever-venv:
+  search-venv:

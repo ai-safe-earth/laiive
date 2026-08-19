@@ -1,0 +1,5 @@
+[sqlfluff]
+dialect = postgres
+# RF05: RLS policy names with spaces are idiomatic Postgres/Supabase
+exclude_rules = RF05
+max_line_length = 100

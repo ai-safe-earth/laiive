@@ -6,28 +6,23 @@ readability. This module imports and re-exports all of them so they can be
 discovered, versioned, and managed from one place.
 
 Ownership:
-  DECISION_PROMPT        → agent/orchestrator.py
-  REACT_SYSTEM_PROMPT    → agent/orchestrator.py
-  OUT_OF_SCOPE_PROMPT    → agent/orchestrator.py
-  UNSAFE_CONTENT_PROMPT  → agent/orchestrator.py
-  QUERY_BUILDER_PROMPT   → agent/tools/query_builder.py
-  SAFETY_GUARD_PROMPT    → agent/tools/safety_guard.py
+  CLASSIFIER_SYSTEM_PROMPT → agent/classifier.py
+  COMPOSER_SYSTEM_PROMPT   → agent/composer.py
+  QUERY_BUILDER_PROMPT     → agent/tools/query_builder.py
 """
 
-from agent.orchestrator import (
-    DECISION_PROMPT,
-    REACT_SYSTEM_PROMPT,
-    OUT_OF_SCOPE_PROMPT,
-    UNSAFE_CONTENT_PROMPT,
+from agent.classifier import CLASSIFIER_PROMPT_VERSION, CLASSIFIER_SYSTEM_PROMPT
+from agent.composer import COMPOSER_PROMPT_VERSION, COMPOSER_SYSTEM_PROMPT
+from agent.tools.query_builder import (
+    QUERY_BUILDER_PROMPT,
+    QUERY_BUILDER_PROMPT_VERSION,
 )
-from agent.tools.query_builder import QUERY_BUILDER_PROMPT
-from agent.tools.safety_guard import SAFETY_GUARD_PROMPT
 
 __all__ = [
-    "DECISION_PROMPT",
-    "REACT_SYSTEM_PROMPT",
-    "OUT_OF_SCOPE_PROMPT",
-    "UNSAFE_CONTENT_PROMPT",
+    "CLASSIFIER_SYSTEM_PROMPT",
+    "CLASSIFIER_PROMPT_VERSION",
+    "COMPOSER_SYSTEM_PROMPT",
+    "COMPOSER_PROMPT_VERSION",
     "QUERY_BUILDER_PROMPT",
-    "SAFETY_GUARD_PROMPT",
+    "QUERY_BUILDER_PROMPT_VERSION",
 ]

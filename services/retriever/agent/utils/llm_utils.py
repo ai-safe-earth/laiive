@@ -1,18 +1,16 @@
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
-from openai import OpenAI, RateLimitError, APITimeoutError, APIConnectionError
+
 from config import settings
 
 
-def get_openai_client(
-    api_key: str = None, base_url: str = None, http_client=None
-) -> OpenAI:
-    key = settings.openai_api_key
-
+def get_openai_client() -> OpenAI:
+    """The one OpenAI client factory (Langfuse-wrapped when tracing is on)."""
     if settings.langfuse_enabled:
         from langfuse import Langfuse
 
@@ -23,9 +21,8 @@ def get_openai_client(
         )
         from langfuse.openai import OpenAI as LangfuseOpenAI
 
-        return LangfuseOpenAI(api_key=key, base_url=base_url, http_client=http_client)
-    else:
-        return OpenAI(api_key=key, base_url=base_url, http_client=http_client)
+        return LangfuseOpenAI(api_key=settings.openai_api_key)
+    return OpenAI(api_key=settings.openai_api_key)
 
 
 RETRY_EXCEPTIONS = (RateLimitError, APITimeoutError, APIConnectionError)

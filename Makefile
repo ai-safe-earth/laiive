@@ -1,135 +1,85 @@
-include .env
+# .env is optional for docker targets (compose reads it via env_file);
+# python services load it themselves from the repo root.
+-include .env
 export
 
-# -----------------BUILD DOCKER COMPOSE FOR DEV AND PROD----------------------------------------------------------------------
+# ----------------- docker compose ---------------------------------------------------------------
 build:
-	docker-compose build
+	docker compose build
 
 up-dev:
-	docker-compose up --build
+	docker compose up --build
 
 up-prod:
-	docker-compose -f docker-compose.yml up --build
+	docker compose -f docker-compose.yml up --build
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
-
-# ---------------SHELL FOR DEV INSIDE EACH SERVICE CONTAINER ------------------------------------------------------------------
-
-# Update shell commands:
+# --------------- shells into service containers -------------------------------------------------
 shell-pusher:
 	docker exec -it laiive-pusher sh
 
 shell-retriever:
 	docker exec -it laiive-retriever sh
 
-# Update service starters:
+# --------------- local service starters (gateway :8000 is the only public surface) ---------------
+# `uv run uvicorn` fails on some machines ("Failed to canonicalize script path");
+# sync first, then run uvicorn as a module without re-syncing.
 start-retriever:
-	cd services/retriever && uv sync && uv run uvicorn agent.api:app --host 0.0.0.0 --port 8000 --reload
+	cd services/retriever && uv sync && uv run --no-sync python -m uvicorn agent.api:app --host 127.0.0.1 --port 8002 --reload
 
 start-pusher:
-	cd services/pusher && uv sync && uv run uvicorn agent.api:app --host 0.0.0.0 --port 8001 --reload
+	cd services/pusher && uv sync && uv run --no-sync python -m uvicorn agent.api:app --host 127.0.0.1 --port 8003 --reload
 
-# tests
+start-gateway:
+	cd services/gateway && npm install && npm run dev
 
-test-metrics:
-	cd services/retriever && uv sync && uv run pytest -s -vv --timeout=120 tests/test_pipeline_metrics.py
+start-search:
+	cd services/search && uv sync && uv run --no-sync python -m uvicorn agent.api:app --host 127.0.0.1 --port 8004 --reload
 
-test-full-pipeline:
-	cd services/retriever && uv sync && uv run pytest tests/test_full_pipeline.py
+# --------------- tests ---------------------------------------------------------------------------
+# Mirrors CI: ruff + pytest per service, integration tests deselected
+# (they need a live Aura and real keys - see the verify-retriever skill).
+test-shared:
+	cd services/shared && uv sync && uv run pytest -q
 
-test-formatting:
-	cd services/retriever && uv sync && uv run pytest tests/test_formatting.py
+test-retriever:
+	cd services/retriever && uv sync && uv run pytest -q -m "not integration"
 
-test-safety-guard:
-	cd services/retriever && uv sync && uv run pytest tests/test_safety_guard.py
+test-pusher:
+	cd services/pusher && uv sync && uv run pytest -q
 
-test-safety-manual:
-	cd services/retriever && uv sync && uv run pytest tests/test_safety_manual.py
+test-search:
+	cd services/search && uv sync && uv run pytest -q
 
-test-safety-unit:
-	cd services/retriever && uv sync && uv run pytest tests/test_safety_unit.py
-
-test-api:
-	cd services/retriever && uv run pytest -s -vv --timeout=60 tests/test_llm_api.py
-
-# New comprehensive tests
-test-api-endpoints:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_api_endpoints.py
-
-test-orchestrator:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_orchestrator_unit.py
-
-test-query-builder:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_query_builder.py
-
-test-error-handling:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_error_handling.py
-
-# Run all unit tests (fast, mocked)
-test-unit:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_safety_guard.py tests/test_safety_unit.py tests/test_orchestrator_unit.py tests/test_query_builder.py tests/test_api_endpoints.py tests/test_error_handling.py
-
-# Run all integration tests (slower, may need external services)
-test-integration:
-	cd services/retriever && uv sync && uv run pytest -v tests/test_full_pipeline.py tests/test_pipeline_metrics.py tests/test_llm_api.py
-
-# Run tests with coverage
-test-coverage:
-	cd services/retriever && uv sync && uv run pytest tests/ -v --cov=agent --cov-report=html --cov-report=term
-
-dashboard:
-	cd services/retriever && uv run python -m agent.utils.metrics print_live_dashboard
+test-gateway:
+	cd services/gateway && npm test
 
 test-all:
-	make test-safety-guard
-	make test-safety-manual
-	make test-safety-unit
-	make test-orchestrator
-	make test-query-builder
-	make test-api-endpoints
-	make test-error-handling
-	make test-formatting
-	make test-full-pipeline
-	make test-metrics
-	make test-api
+	make test-shared
+	make test-retriever
+	make test-pusher
+	make test-search
+	make test-gateway
 
-	# ============== EVALS ==============
+# --------------- deploy (Fly.io, see DEPLOY.md) ---------------------------------------------------
+# The build context must be services/ (the Dockerfiles COPY shared/ + the service);
+# the redis app deploys from a stock image, so any context works.
+fly-deploy-gateway:
+	flyctl deploy services --config deploy/fly/gateway.toml --dockerfile services/gateway/Dockerfile
 
-# Run all component evals
-eval-all:
-	cd services/retriever && uv run python evals/run_evals.py --component all
+fly-deploy-retriever:
+	flyctl deploy services --config deploy/fly/retriever.toml --dockerfile services/retriever/Dockerfile
 
-# Run specific component evals
-eval-query-builder:
-	cd services/retriever && uv run python evals/run_evals.py --component query_builder
+fly-deploy-pusher:
+	flyctl deploy services --config deploy/fly/pusher.toml --dockerfile services/pusher/Dockerfile
 
-eval-intent:
-	cd services/retriever && uv run python evals/run_evals.py --component intent_classification
+fly-deploy-search:
+	flyctl deploy services --config deploy/fly/search.toml --dockerfile services/search/Dockerfile
 
-eval-safety:
-	cd services/retriever && uv run python evals/run_evals.py --component safety_guard
-
-# Run end-to-end system evals
-eval-e2e:
-	cd services/retriever && uv run python evals/run_evals.py --system
-
-# Compare prompt versions
-eval-compare-prompts:
-	cd services/retriever && uv run python evals/run_evals.py --component query_builder --compare-prompts
-
-# Extract from production logs and create datasets
-eval-extract-logs:
-	cd services/retriever && uv run python -c "\
-	from evals.utils.smart_extraction import SmartLogExtractor; \
-	extractor = SmartLogExtractor(use_llm_evaluation=False, min_score=0.5); \
-	extractor.extract_filter_and_create_datasets('logs/requests.jsonl')"
-
-# Full eval pipeline: extract + run evals
-eval-pipeline:
-	make eval-extract-logs
-	make eval-all
+fly-deploy-redis:
+	flyctl deploy . --config deploy/fly/redis.toml

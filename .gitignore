@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -87,6 +87,10 @@ dmypy.json
 
 # Others
 *.log
+logs/
+*.jsonl
+desktop.ini
+.playwright-mcp/
 
 # Ignore .envs directories anywhere in the repo
 **/.envs/
@@ -99,13 +103,33 @@ dmypy.json
 analysis/
 out/
 
+# .env backups carry the same secrets as .env itself
+.env.bak*
+
 # not push data files
 data/
 */data/
 
 # cache files
 *_cache
-.claude/
+
+# claude code — track the shared skills, hooks and permissions, ignore local
+# state (settings.local.json, worktrees/, and anything else added under .claude/)
+.claude/*
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
+
+# agent skills (personal tooling)
+.agents/
+skills-lock.json
+
+# supabase cli scratch
+supabase/.temp/
 
 # neo4j files
 Neo4j-*
+.geocode_cache.json
+
+# Node (gateway)
+node_modules/

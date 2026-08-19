@@ -1,20 +1,26 @@
 # See https://pre-commit.com
 repos:
   #######################################################################
-  # 1. House‑keeping & “always on” fixers
+  # 1. House-keeping & "always on" fixers
   #######################################################################
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0          # pin to published tag
     hooks:
       - id: check-toml
       - id: check-yaml
+        # k8s manifests are multi-document files
+        args: ["--allow-multiple-documents"]
       - id: check-json
+        # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
+        exclude: "tsconfig.*\\.json$|\\.vscode/"
       - id: check-added-large-files
       - id: end-of-file-fixer
+        exclude: "^frontend/(dist|public)/|\\.svg$"
       - id: trailing-whitespace
+        exclude: "^frontend/dist/"
 
   #######################################################################
-  # 2. Ruff: lint *then* format, one pass, auto‑fix on commit
+  # 2. Ruff: lint *then* format, one pass, auto-fix on commit
   #######################################################################
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.9
@@ -23,22 +29,49 @@ repos:
       # see Ruff docs on ordering
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --show-fixes]
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
       - id: ruff-format
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        files: "^services/(retriever|pusher|shared|search)/.*\\.py$"
 
   #######################################################################
   # 3. Static typing
   #######################################################################
+  # One mypy hook per service: retriever, pusher and search each have a top-level
+  # `agent` package, and a single invocation spanning two of them dies on
+  # "Duplicate module named agent" — which only surfaces on commits that touch
+  # several services at once.
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.0
     hooks:
       - id: mypy
-        additional_dependencies: ["types-requests"]   # add stubs your app needs
-        files: "^(services/frontend|services/backend)/.*\\.py$"
+        alias: mypy-retriever
+        name: mypy (retriever)
+        additional_dependencies: ["types-requests"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/retriever/.*\\.py$"
+        exclude: "^services/retriever/evals/"   # quarantined eval tooling
+      - id: mypy
+        alias: mypy-pusher
+        name: mypy (pusher)
+        additional_dependencies: ["types-requests"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/pusher/.*\\.py$"
+      - id: mypy
+        alias: mypy-search
+        name: mypy (search)
+        additional_dependencies: ["types-requests"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/search/.*\\.py$"
+      - id: mypy
+        alias: mypy-shared
+        name: mypy (shared)
+        # types-redis: shared lazily imports redis in geocode_store
+        additional_dependencies: ["types-requests", "types-redis"]
+        args: ["--ignore-missing-imports", "--no-strict-optional"]
+        files: "^services/shared/.*\\.py$"
 
   #######################################################################
-  # 4. Security & supply‑chain
+  # 4. Security & supply-chain
   #######################################################################
   # - repo: https://github.com/PyCQA/bandit
   #  rev: 1.7.3           # latest stable
@@ -50,19 +83,20 @@ repos:
     hooks:
       - id: detect-secrets
         stages: [pre-commit, pre-push]
+        args: ["--baseline", ".secrets.baseline"]
 
   #######################################################################
   # 5. SQL linting for Postgres migrations & seed scripts
   #######################################################################
   - repo: https://github.com/sqlfluff/sqlfluff
-    rev: 2.3.5
+    rev: 3.4.2
     hooks:
       - id: sqlfluff-lint
         args: ["--dialect", "postgres"]
-        files: "^migrations/.*\\.sql$"
+        files: "^supabase/migrations/.*\\.sql$"
 
   #######################################################################
-  # 6. Conventional Commit enforcement
+  # 6. Conventional Commit enforcement
   #######################################################################
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v3.13.0

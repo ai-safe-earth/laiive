@@ -1,0 +1,20 @@
+# laiive retriever — private (no [http_service]): reachable only over Fly's 6PN
+# as laiive-retriever.internal:8002, which with INTERNAL_API_KEY is the same
+# boundary compose draws with expose-only ports.
+# Deploy: make fly-deploy-retriever. See DEPLOY.md for the secrets list.
+app = "laiive-retriever"
+primary_region = "mad"
+kill_timeout = 120
+
+[checks]
+  [checks.livez]
+    type = "http"
+    port = 8002
+    path = "/livez"
+    interval = "20s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

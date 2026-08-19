@@ -1,0 +1,252 @@
+"""The search service's graph access — owns the clients, delegates writes.
+
+Writes go only through laiive_shared.neo4j_writer (04-plan Phase 5 risk note:
+same writer code path, never bespoke Cypher). Reads here are the dry-run dedup
+probes and the backfill selects. Tests patch _openai / _driver / _geocoder
+(see tests/conftest.py).
+"""
+
+from laiive_shared import EventDraft
+from laiive_shared.embedding_text import event_text
+from laiive_shared.geocode import (
+    CENTROID_COLLAPSE_M,
+    VENUE_MAX_KM,
+    NominatimGeocoder,
+    haversine_km,
+)
+from laiive_shared.geocode_store import RedisGeocodeStore
+from laiive_shared.neo4j_writer import (
+    WriteResult,
+    backfill_embeddings,
+    parse_start_at,
+)
+from laiive_shared.neo4j_writer import write_event as _shared_write_event
+from laiive_shared.normalize import norm
+from neo4j import GraphDatabase
+from openai import OpenAI
+from pydantic import BaseModel
+
+from agent import address_lookup
+from config import settings
+
+_openai = OpenAI(api_key=settings.openai_api_key)
+_driver = GraphDatabase.driver(
+    settings.neo4j_uri,
+    auth=(settings.neo4j_user, settings.neo4j_password),
+    connection_timeout=10,
+    # Single replica, sequential per-candidate probes and writes — a small pool
+    # keeps a sweep or an approve from crowding the retriever out of Aura.
+    max_connection_pool_size=settings.neo4j_max_pool_size,
+)
+_geocoder = NominatimGeocoder(
+    cache_path=settings.geocode_cache_path,
+    store=RedisGeocodeStore(settings.redis_url) if settings.redis_url else None,
+)
+
+
+def _embed_texts(texts: list[str]) -> list[list[float]]:
+    response = _openai.embeddings.create(model=settings.embedding_model, input=texts)
+    return [d.embedding for d in response.data]
+
+
+def write_event(draft: EventDraft) -> WriteResult:
+    with _driver.session(database=settings.neo4j_database) as session:
+        return _shared_write_event(
+            session,
+            draft,
+            source="admin_search",
+            owner_id=None,
+            embed_texts=_embed_texts,
+            embedding_model=settings.embedding_model,
+            geocoder=_geocoder,
+            address_resolver=address_lookup.resolve_address,
+        )
+
+
+class GraphMatch(BaseModel):
+    uid: str
+    name: str
+    score: float | None = None  # None for an exact identity hit
+
+
+def probe_duplicate(draft: EventDraft) -> GraphMatch | None:
+    """Read-only version of the writer's dedup probe (name+day+venue)."""
+    start_at = parse_start_at(draft.start_at or "")
+    if start_at is None or not draft.venue:
+        return None
+    name = draft.name or (
+        f"{draft.artists[0]} live at {draft.venue}" if draft.artists else ""
+    )
+    if not name:
+        return None
+    with _driver.session(database=settings.neo4j_database) as session:
+        record = session.run(
+            """
+            MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
+            WHERE date(e.start_at) = date(datetime($start_at))
+            RETURN e.uid AS uid, e.name AS name LIMIT 1
+            """,
+            name_norm=norm(name),
+            venue_norm=norm(draft.venue),
+            start_at=start_at.isoformat(),
+        ).single()
+    if record is None:
+        return None
+    return GraphMatch(uid=record["uid"], name=record["name"])
+
+
+def similar_event(draft: EventDraft) -> GraphMatch | None:
+    """Nearest existing event by embedding; advisory dedup for the report."""
+    text = event_text(
+        draft.name or "",
+        artists=draft.artists,
+        venue=draft.venue,
+        city=draft.city,
+        genres=[draft.genre] if draft.genre else [],
+        start_at=draft.start_at,
+        description=draft.description,
+    )
+    embedding = _embed_texts([text])[0]
+    with _driver.session(database=settings.neo4j_database) as session:
+        record = session.run(
+            """
+            CALL db.index.vector.queryNodes('event_embedding', 1, $embedding)
+            YIELD node, score
+            WHERE score >= $threshold
+            RETURN node.uid AS uid, node.name AS name, score
+            """,
+            embedding=embedding,
+            threshold=settings.dedup_similarity,
+        ).single()
+    if record is None:
+        return None
+    return GraphMatch(uid=record["uid"], name=record["name"], score=record["score"])
+
+
+class BackfillResult(BaseModel):
+    embedded: int = 0
+    venues_geocoded: int = 0
+    venues_flagged: int = 0
+    warnings: list[str] = []
+
+
+# A venue that re-geocodes to nothing would be re-selected every night and
+# starve the LIMIT, so a failed attempt is stamped and not retried for a week
+# -- the same window Redis uses for a cached miss.
+GEOCODE_RETRY_DAYS = 7
+
+
+def run_backfill(max_venues: int = 25) -> BackfillResult:
+    """Fill missing embeddings and repair venue locations. Bounded, idempotent.
+
+    Geocoding is Nominatim at 1 req/s (D12), so the venue pass is capped per
+    run — the nightly schedule drains any backlog a few venues at a time.
+
+    "Repair", not just "fill": a venue is also selected when its pin is only
+    the city centroid, when it predates the geocode_precision flag, or when it
+    sits further than VENUE_MAX_KM from its own city — the last case catches
+    the answers a geocoder returned confidently and wrongly, which are not NULL
+    and were therefore invisible to this sweep before.
+    """
+    result = BackfillResult()
+    with _driver.session(database=settings.neo4j_database) as session:
+        result.embedded = backfill_embeddings(
+            session, _embed_texts, settings.embedding_model
+        )
+
+        rows = list(
+            session.run(
+                """
+                MATCH (v:Venue)-[:LOCATED_IN]->(c:City)
+                WHERE (
+                        v.location IS NULL
+                        OR v.geocode_precision IS NULL
+                        OR v.geocode_precision <> 'venue'
+                        OR (c.location IS NOT NULL
+                            AND point.distance(v.location, c.location) > $max_m)
+                      )
+                  AND (v.geocode_checked_at IS NULL
+                       OR v.geocode_checked_at
+                          < datetime() - duration({days: $retry_days}))
+                RETURN v.uid AS uid, v.name AS name, v.address AS address,
+                       c.name AS city,
+                       (v.location IS NOT NULL AND c.location IS NOT NULL
+                        AND point.distance(v.location, c.location) > $max_m)
+                           AS misplaced
+                // A pin known to be in the wrong metro area is actively
+                // misleading; an unstamped legacy one is merely unverified.
+                ORDER BY misplaced DESC
+                LIMIT $limit
+                """,
+                limit=max_venues,
+                max_m=VENUE_MAX_KM * 1000,
+                retry_days=GEOCODE_RETRY_DAYS,
+            )
+        )
+        for row in rows:
+            # Same form-and-plausibility rules as the write path; the city
+            # lookup collapses to one cache key across every venue in it.
+            city_point = _geocoder.geocode(row["city"])
+            geo = _geocoder.geocode_venue(
+                row["name"],
+                row["address"],
+                row["city"],
+                near=city_point,
+                address_resolver=address_lookup.resolve_address,
+            )
+            if geo is None:
+                # Stamp the attempt either way, so one unresolvable venue does
+                # not occupy a slot in every future run. A pin already known to
+                # be in the wrong metro area is marked, so it is visible to a
+                # human and can be ranked down rather than silently trusted.
+                session.run(
+                    """
+                    MATCH (v:Venue {uid: $uid})
+                    SET v.geocode_checked_at = datetime(),
+                        v.geocode_precision = CASE WHEN $misplaced THEN 'suspect'
+                                                   ELSE v.geocode_precision END
+                    """,
+                    uid=row["uid"],
+                    misplaced=row["misplaced"],
+                )
+                if row["misplaced"]:
+                    result.venues_flagged += 1
+                result.warnings.append(f"Could not geocode venue {row['name']!r}")
+                continue
+            # An answer that lands on the city's own geocode is the provider
+            # falling back to the city, not an address — stamping it 'venue'
+            # would bless a pin that means "somewhere in Barcelona" as if it
+            # were a doorway. Eight Barcelona venues in the live graph share
+            # exactly that point. Comparing against the geocoder's own answer
+            # rather than c.location matters: the two differ by 888 m there,
+            # which is enough for the graph-side distance check to miss it.
+            collapsed = city_point is not None and (
+                haversine_km(geo.lat, geo.lng, city_point.lat, city_point.lng) * 1000
+                < CENTROID_COLLAPSE_M
+            )
+            session.run(
+                """
+                MATCH (v:Venue {uid: $uid})
+                SET v.location = point({latitude: $lat, longitude: $lng}),
+                    v.geocode_precision = $precision,
+                    v.geocode_checked_at = datetime()
+                """,
+                uid=row["uid"],
+                lat=geo.lat,
+                lng=geo.lng,
+                precision="city_centroid" if collapsed else "venue",
+            )
+            if collapsed:
+                result.venues_flagged += 1
+            else:
+                result.venues_geocoded += 1
+    return result
+
+
+def check_neo4j() -> bool:
+    try:
+        with _driver.session(database=settings.neo4j_database) as session:
+            session.run("RETURN 1").single()
+        return True
+    except Exception:
+        return False
