@@ -36,8 +36,11 @@ them. Rename in both places or not at all.
 
 ## 2. Secrets per app
 
-Non-secret config lives in each toml's `[env]`. Secrets via
-`flyctl secrets set -a <app> KEY=value ...` — values from the root `.env`:
+Non-secret config lives in each toml's `[env]`. The whole table below is
+scripted — `make fly-secrets-check` reports missing key *names* without
+touching Fly, `make fly-secrets` stages every app's secrets from the root
+`.env` (`deploy/fly/set-secrets.sh`, no value is ever printed). Do it by
+hand with `flyctl secrets set -a <app> KEY=value ...` if you prefer:
 
 | app | keys |
 | --- | --- |

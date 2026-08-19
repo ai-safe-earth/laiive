@@ -69,6 +69,13 @@ test-all:
 # --------------- deploy (Fly.io, see DEPLOY.md) ---------------------------------------------------
 # The build context must be services/ (the Dockerfiles COPY shared/ + the service);
 # the redis app deploys from a stock image, so any context works.
+# Secrets first: fly-secrets-check reports missing key NAMES without touching Fly.
+fly-secrets-check:
+	sh deploy/fly/set-secrets.sh --check
+
+fly-secrets:
+	sh deploy/fly/set-secrets.sh
+
 fly-deploy-gateway:
 	flyctl deploy services --config deploy/fly/gateway.toml --dockerfile services/gateway/Dockerfile
 
