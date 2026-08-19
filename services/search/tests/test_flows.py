@@ -151,6 +151,32 @@ class TestRenderReport:
         assert "**Madrid**: 503" in md
 
 
+class TestProvinceCoverage:
+    """The province lists are coverage data, not code — a duplicate or a
+    stray-whitespace town is a silently wasted sweep, so it is worth a guard."""
+
+    @pytest.mark.parametrize(
+        ("province", "capital"),
+        [
+            (city_sweep.BERGAMO_PROVINCE, "Bergamo"),
+            (city_sweep.GIRONA_PROVINCE, "Girona"),
+        ],
+    )
+    def test_list_is_clean_and_led_by_its_capital(self, province, capital):
+        assert province, "an empty province list would schedule a sweep of nothing"
+        assert province[0] == capital
+        assert len(set(province)) == len(province), "a duplicate town sweeps twice"
+        assert all(town == town.strip() and town for town in province)
+
+    def test_provinces_do_not_overlap_each_other_or_the_weekly_sweep(self):
+        bergamo = set(city_sweep.BERGAMO_PROVINCE)
+        girona = set(city_sweep.GIRONA_PROVINCE)
+        assert not bergamo & girona
+        # Barcelona is in DEFAULT_CITIES and is *not* in Girona province; a town
+        # landing in both lists would be swept twice a week for one calendar.
+        assert not (bergamo | girona) & set(city_sweep.DEFAULT_CITIES)
+
+
 class TestBackfillTask:
     def test_posts_then_polls_for_stats(self, monkeypatch):
         monkeypatch.setattr(backfill, "get_admin_jwt", lambda: "jwt-3")

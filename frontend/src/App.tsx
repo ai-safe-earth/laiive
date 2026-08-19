@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes, useLocation, useNavigate } from "react-ro
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
 import { takeDestination } from "@/auth/postAuth";
+import { IconSprite } from "@/components/IconSprite";
 import { LanguageProvider } from "@/i18n/useTranslation";
 import Account from "@/pages/Account";
 import Auth from "@/pages/Auth";
@@ -39,6 +40,9 @@ function PostAuthLanding() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Mounted above everything and never unmounted: every <Icon> is a
+          same-document reference into these symbols. */}
+      <IconSprite />
       <LanguageProvider>
         <AuthProvider>
           {/* Nothing is square: the toast is a sheet, 26px, on the app ground. */}

@@ -20,6 +20,41 @@ except ImportError:
 
 DEFAULT_CITIES = ["Madrid", "Barcelona", "Berlin"]
 
+# Provinces are swept as a list of their towns, because the query templates
+# take a city name: "Bergamo" finds the comune, not the province, and no
+# phrasing of a province name reliably surfaces the agenda of a town inside it.
+#
+# These are not every comune — Bergamo province alone has 243, almost all of
+# which would burn two Tavily queries to find nothing. They are the towns that
+# actually programme live music: the provincial capital, the larger centres,
+# and the lake and mountain towns whose summer seasons are the reason to sweep
+# a province rather than just its capital.
+BERGAMO_PROVINCE = [
+    "Bergamo",
+    "Treviglio",
+    "Seriate",
+    "Dalmine",
+    "Romano di Lombardia",
+    "Albino",
+    "Caravaggio",
+    "Alzano Lombardo",
+    "Clusone",
+    "Sarnico",
+]
+
+GIRONA_PROVINCE = [
+    "Girona",
+    "Figueres",
+    "Blanes",
+    "Lloret de Mar",
+    "Olot",
+    "Salt",
+    "Palafrugell",
+    "Sant Feliu de Guíxols",
+    "Roses",
+    "Banyoles",
+]
+
 # /sweep answers 202 in well under a minute; the sweep itself (2-6 min live)
 # runs in the service's background and lands on the report we then poll.
 REQUEST_TIMEOUT = 60.0
