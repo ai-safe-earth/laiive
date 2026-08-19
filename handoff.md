@@ -10,10 +10,15 @@ lives in `docs/roadmap/01-program.md`.
 
 ## Where things stand
 
-The refactor is **closed**. `refactor/foundation` (147 commits) merged into `main` on
-2026-08-19; the pre-refactor tree is preserved on `legacy/pre-refactor` and tag
-`legacy-main-2026-08-19`. `main` is the trunk again: cut `<type>/<kebab-desc>` branches from
-it, one per phase, PR to `origin`.
+The refactor is **closed**. `refactor/foundation` merged into `main` on 2026-08-19 through
+PR #29; the pre-refactor tree is preserved on `legacy/pre-refactor` and tag
+`pre-refactor-main`, both at `542952f`. `main` is the trunk again: cut `<type>/<kebab-desc>`
+branches from it, one per phase, PR to `origin`.
+
+Two things to know about that merge. `main` had six commits the branch never saw — one real
+change, the owner's March README revision — so `origin/main` was merged into the branch and
+the README resolved by hand before the PR could go in. And local `main` was tracking
+`laiive/main`, the personal fork; it now tracks `origin/main`, which is where it belongs.
 
 The system is built and verified locally, and **nothing is deployed yet**. Local stack:
 gateway :8000 (the only published surface), retriever :8002, pusher :8003, search :8004,
@@ -68,6 +73,12 @@ After the deploy, the program in `docs/roadmap/01-program.md`, in order:
   geocoding — it belongs to the extraction-optimizer work.
 - **Confirm `.claude/settings.json` deny rules enforce** after a restart; if `.history/` is
   still readable, fall back to a PreToolUse hook.
+- **Delete the stale tag**: `git push origin :refs/tags/legacy-main-2026-08-19`. It points six
+  commits short of the real pre-refactor tip; `pre-refactor-main` is the correct one. Tag
+  deletion and force-push are both refused by the permission classifier, so this is yours.
+- **`origin/OscarArroyoVega-patch-1`** was left alone during the branch prune: it is genuinely
+  unmerged (a THIRD_PARTY_LICENSES update and a CONTRIBUTING link fix). Merge it or delete it
+  on purpose — every other stale branch is gone.
 - Optional: containerize `flows/serve.py` as a compose `flows` service (needs its own
   Dockerfile stage — the hardened search runtime has no `uv` — plus `PREFECT_API_KEY` /
   `PREFECT_API_URL` in the root `.env`).
@@ -520,7 +531,7 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
       "decisions": [
         {
           "date": "2026-08-19",
-          "text": "The pre-refactor main is preserved as branch legacy/pre-refactor and tag legacy-main-2026-08-19 before merging; main was a strict ancestor of refactor/foundation, so the merge carried no conflicts and nothing had to be rewritten"
+          "text": "The pre-refactor main is preserved as branch legacy/pre-refactor and tag pre-refactor-main, both at 542952f. main was not the untouched ancestor it looked like - it carried six commits the branch never saw, one of them the owner's March README revision - so origin/main was merged into the branch and the README resolved by hand (owner's marketing copy, branch's technical sections) before PR #29 could merge. The earlier tag legacy-main-2026-08-19 points six commits short and should be deleted"
         },
         {
           "date": "2026-08-19",
