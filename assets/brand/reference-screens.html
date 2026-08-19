@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>laiive — reference screens (4a consumer · 3b pro)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Reference only — the real app should read brand-tokens.css and use utilities.
+     Every value below is normative: hex, radius, size, spacing. */
+  body{margin:0;background:#e7e4dd;font-family:"DM Sans",system-ui,sans-serif;padding:36px}
+  h1,h2{font-family:"Bebas Neue",sans-serif;letter-spacing:.04em;color:#141010;margin:0 0 4px}
+  h1{font-size:34px}h2{font-size:24px;margin-top:34px}
+  .cap{font:400 11.5px/1.5 'IBM Plex Mono',monospace;color:#5f5f5f;margin:0 0 18px}
+</style>
+</head>
+<body>
+<h1>LAIIVE REFERENCE SCREENS</h1>
+<p class="cap">4a consumer chat · 3b promoter submit · static markup, real values</p>
+
+<h2>CONSUMER — CHAT (the whole app)</h2>
+<p class="cap">ground #0C0A0A · answer #F4EDE2 15px/1.5 · user bubble #3A2E2E pill · card #241B1B r20 + hairline rgba(255,255,255,.07) · group rail 2px amber 50% indent 11px</p>
+<div style="width:360px;background:#0C0A0A;border:1px solid #3A2E2E;border-radius:26px;overflow:hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 17px 12px;border-bottom:1px solid #221A1A">
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="mark-fuchsia-alpha.png" alt="laiive" style="width:27px;height:27px;display:block">
+      <span style="font:400 24px/1 'Bebas Neue',sans-serif;color:#fff;letter-spacing:.04em">LAIIVE</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#A79797" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"></path></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#A79797" stroke-width="1.7" stroke-linecap="round" style="width:20px;height:20px"><circle cx="12" cy="8.5" r="3.5"></circle><path d="M5.5 20a6.5 6.5 0 0 1 13 0"></path></svg>
+    </div>
+  </div>
+  <div style="padding:15px 17px 17px;display:flex;flex-direction:column;gap:14px">
+    <div style="align-self:flex-end;max-width:74%;background:#3A2E2E;border-radius:999px;padding:10px 16px;font:400 14.5px/1.4 'DM Sans',sans-serif;color:#fff">what can I do tonight?</div>
+    <div style="font:400 15px/1.5 'DM Sans',sans-serif;color:#F4EDE2">Three rooms worth leaving the house for tonight.</div>
+    <div style="display:flex;flex-direction:column;gap:8px;padding-left:11px;border-left:2px solid rgba(255,177,0,.5)">
+      <div style="background:#241B1B;border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:13px 15px;width:96%">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+          <div style="font:400 18px/1.05 'Bebas Neue',sans-serif;color:#fff;letter-spacing:.03em">CUARTETO VERTICAL</div>
+          <div style="font:700 11px/1 'DM Sans',sans-serif;color:#0C0A0A;background:#FFB100;border-radius:999px;padding:5px 9px;flex:none">8 €</div>
+        </div>
+        <div style="font:400 12.5px/1.45 'DM Sans',sans-serif;color:#B5A6A6;padding-top:4px">Sala Vol Aeri, Gràcia · sáb 21:00 · 1.2 km</div>
+      </div>
+      <div style="background:#241B1B;border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:13px 15px;width:88%">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+          <div style="font:400 18px/1.05 'Bebas Neue',sans-serif;color:#fff;letter-spacing:.03em">NOCHE DE TAMBORES</div>
+          <div style="font:700 11px/1 'DM Sans',sans-serif;color:#0C0A0A;background:#FF2AA0;border-radius:999px;padding:5px 9px;flex:none">FREE</div>
+        </div>
+        <div style="font:400 12.5px/1.45 'DM Sans',sans-serif;color:#B5A6A6;padding-top:4px">Ateneu del Raval · sáb 22:30 · 2.4 km</div>
+        <div style="display:flex;gap:8px;padding-top:10px">
+          <div style="font:500 11.5px/1 'DM Sans',sans-serif;color:#fff;background:#2E2222;border-radius:999px;padding:7px 12px">map</div>
+          <div style="font:500 11.5px/1 'DM Sans',sans-serif;color:#fff;background:#2E2222;border-radius:999px;padding:7px 12px">save</div>
+          <div style="font:500 11.5px/1 'DM Sans',sans-serif;color:#0C0A0A;background:#FFB100;border-radius:999px;padding:7px 12px">tickets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="padding:12px 16px 18px;border-top:1px solid #221A1A;display:flex;align-items:center;gap:10px">
+    <button style="width:36px;height:36px;border-radius:999px;border:1px solid #3A2E2E;background:#1A1414;color:#B5A6A6;font:400 21px/1 'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">+</button>
+    <div style="flex:1;height:36px;border-radius:999px;background:#171313;border:1px solid #2E2222;display:flex;align-items:center;padding:0 15px;font:400 14px/1 'DM Sans',sans-serif;color:#A79797">ask</div>
+    <div style="width:36px;height:36px;border-radius:999px;background:#FFB100;display:flex;align-items:center;justify-content:center;flex:none"><svg viewBox="0 0 24 24" fill="#0C0A0A" style="width:19px;height:19px"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5 11.5a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0z"></path><rect x="11" y="18.5" width="2" height="3" rx="1"></rect></svg></div>
+  </div>
+</div>
+
+<h2>PROMOTER — SUBMIT</h2>
+<p class="cap">same ground · conversation flat, no panel · form card #241B1B r20 border 1.5px rgba(244,237,226,.32) · fields pill r999 bg #1A1414 border #332727 · required * amber · publish cream · composer icons warm-neutral · language in settings, not the header</p>
+<div style="max-width:980px;background:#0C0A0A;border:1px solid #3A2E2E;border-radius:20px;overflow:hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 24px 13px;border-bottom:1px solid #221A1A">
+    <div style="display:flex;align-items:center;gap:10px">
+      <img src="mark-fuchsia-alpha.png" alt="laiive" style="width:27px;height:27px;display:block">
+      <span style="font:400 25px/1 'Bebas Neue',sans-serif;color:#fff;letter-spacing:.04em">LAIIVE</span>
+      <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#00CFEA;background:rgba(0,207,234,.12);border:1px solid rgba(0,207,234,.45);border-radius:999px;padding:5px 8px;letter-spacing:.11em">PRO</span>
+    </div>
+    <div style="width:34px;height:34px;border-radius:999px;background:#241B1B;border:1px solid #3A2E2E;display:flex;align-items:center;justify-content:center;font:500 12.5px/1 'DM Sans',sans-serif;color:#F4EDE2">A</div>
+  </div>
+  <div style="padding:24px;display:flex;flex-direction:column;gap:16px">
+    <div style="align-self:flex-end;max-width:84%;background:#3A2E2E;border-radius:999px;padding:12px 20px;font:400 14.5px/1.5 'DM Sans',sans-serif;color:#fff">diego and xavier play today at 20:00h at ponteranica, BG a la casa delle finestre azzurre (via leone XIII 78) fanno funky per bimbi e costa 5euros</div>
+    <div style="max-width:84%;font:400 15px/1.5 'DM Sans',sans-serif;color:#F4EDE2">Per favore, controlla i dettagli e pubblica quando sei pronto.</div>
+
+    <div style="border-radius:20px;padding:22px 24px 24px;background:#241B1B;border:1.5px solid rgba(244,237,226,.32)">
+      <div style="display:flex;align-items:center;gap:11px;padding-bottom:8px">
+        <div style="width:5px;height:20px;border-radius:999px;background:#00CFEA"></div>
+        <div style="font:400 23px/1 'Bebas Neue',sans-serif;color:#fff;letter-spacing:.05em">EVENT DETAILS</div>
+      </div>
+      <div style="height:1px;background:rgba(255,255,255,.08);margin:0 0 18px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 20px">
+        <label style="display:flex;flex-direction:column;gap:7px"><span style="font:400 11px/1 'IBM Plex Mono',monospace;color:#B5A6A6">event name</span><input value="bimbo Funk" style="height:44px;background:#1A1414;border:1px solid #332727;border-radius:999px;padding:0 16px;font:400 14.5px/1 'DM Sans',sans-serif;color:#F4EDE2"></label>
+        <label style="display:flex;flex-direction:column;gap:7px"><span style="font:400 11px/1 'IBM Plex Mono',monospace;color:#B5A6A6">artists (comma separated) <span style="color:#FFB100">*</span></span><input value="DiegoeXavier" style="height:44px;background:#1A1414;border:1px solid #332727;border-radius:999px;padding:0 16px;font:400 14.5px/1 'DM Sans',sans-serif;color:#F4EDE2"></label>
+        <label style="display:flex;flex-direction:column;gap:7px"><span style="font:400 11px/1 'IBM Plex Mono',monospace;color:#B5A6A6">starts at <span style="color:#FFB100">*</span></span><input type="datetime-local" value="2026-08-19T20:00" style="height:44px;background:#1A1414;border:1px solid #332727;border-radius:999px;padding:0 16px;font:400 14.5px/1 'DM Sans',sans-serif;color:#F4EDE2"></label>
+        <label style="display:flex;flex-direction:column;gap:7px"><span style="font:400 11px/1 'IBM Plex Mono',monospace;color:#E72828">venue *</span><input value="" placeholder="the listing didn't say" style="height:44px;background:#1A1414;border:1px solid rgba(231,40,40,.6);border-radius:999px;padding:0 16px;font:400 14.5px/1 'DM Sans',sans-serif;color:#F4EDE2"></label>
+      </div>
+      <p style="font:400 11.5px/1.5 'IBM Plex Mono',monospace;color:#8B7D79;margin:14px 0 0">↑ fourth field shows the missing-required state (label + border red, placeholder “the listing didn't say”). Full field list, in order: name · artists* · start_at* (datetime-local) · venue* · address* · city* · price_min* (number) · price_max (number) · price_currency · genre · ticket_url · description — matching EventForm.tsx.</p>
+      <div style="display:flex;align-items:center;gap:14px;padding-top:20px">
+        <button style="border:1px solid #3A2E2E;background:#241B1B;color:#8B7D79;border-radius:999px;padding:14px 24px;font:500 13.5px/1 'DM Sans',sans-serif;cursor:not-allowed">publish to laiive</button>
+        <span style="font:400 12.5px/1.4 'DM Sans',sans-serif;color:#B5A6A6">fill venue to publish</span>
+        <button style="border:none;background:#F4EDE2;color:#0C0A0A;border-radius:999px;padding:14px 24px;font:500 13.5px/1 'DM Sans',sans-serif;cursor:pointer">publish to laiive</button>
+        <span style="font:400 11.5px/1.4 'IBM Plex Mono',monospace;color:#8B7D79">← disabled · enabled →</span>
+      </div>
+    </div>
+  </div>
+  <div style="border-top:1px solid #221A1A;padding:16px 24px 20px;display:flex;align-items:center;gap:12px">
+    <button style="width:38px;height:38px;border-radius:999px;border:1px solid #3A2E2E;background:#1A1414;color:#B5A6A6;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="M20 11.5 12.5 19a4.6 4.6 0 0 1-6.5-6.5l7-7a3 3 0 0 1 4.3 4.3l-7 7a1.4 1.4 0 0 1-2-2l6.3-6.3"></path></svg></button>
+    <button style="width:38px;height:38px;border-radius:999px;border:1px solid #3A2E2E;background:#1A1414;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none"><svg viewBox="0 0 24 24" fill="#B5A6A6" style="width:19px;height:19px"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5 11.5a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0z"></path><rect x="11" y="18.5" width="2" height="3" rx="1"></rect></svg></button>
+    <input placeholder="artist, venue, date, price…" style="flex:1;height:38px;background:#171313;border:1px solid #2E2222;border-radius:999px;padding:0 18px;font:400 14px/1 'DM Sans',sans-serif;color:#F4EDE2">
+    <button style="width:38px;height:38px;border-radius:999px;border:1px solid #3A2E2E;background:#1A1414;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="#B5A6A6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M4 12l16-7-7 16-2-7z"></path></svg></button>
+  </div>
+</div>
+
+<h2>STATUS PILLS (PRO)</h2>
+<p class="cap">10% fill · 40% border · full-strength text · always with the word</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;background:#0C0A0A;padding:18px;border-radius:16px;max-width:980px">
+  <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#00CFEA;background:rgba(0,207,234,.1);border:1px solid rgba(0,207,234,.4);border-radius:999px;padding:7px 11px;letter-spacing:.06em">IN REVIEW</span>
+  <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#2FBF71;background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.4);border-radius:999px;padding:7px 11px;letter-spacing:.06em">PUBLISHED</span>
+  <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#FFB100;background:rgba(255,177,0,.1);border:1px solid rgba(255,177,0,.4);border-radius:999px;padding:7px 11px;letter-spacing:.06em">NEEDS YOU</span>
+  <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#E72828;background:rgba(231,40,40,.1);border:1px solid rgba(231,40,40,.4);border-radius:999px;padding:7px 11px;letter-spacing:.06em">REJECTED</span>
+  <span style="font:500 9.5px/1 'IBM Plex Mono',monospace;color:#8B7D79;background:rgba(139,125,121,.12);border:1px solid rgba(139,125,121,.4);border-radius:999px;padding:7px 11px;letter-spacing:.06em">DRAFT</span>
+</div>
+</body>
+</html>
