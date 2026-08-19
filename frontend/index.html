@@ -25,6 +25,12 @@
     <meta name="twitter:description" content="ask what is on tonight." />
     <meta name="twitter:image" content="https://laiive.pages.dev/og-image.png" />
 
+    <!-- The lockup is on every screen and <Mark> renders it as soon as React
+         paints, so without this it is fetched a round trip too late and the
+         header shows a gap. The icon sprite needs no equivalent: it is inlined
+         into the bundle (components/IconSprite.tsx). -->
+    <link rel="preload" as="image" href="/brand/mark-fuchsia-alpha.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
