@@ -2,7 +2,7 @@
 
 # Laiive.com
 
-#### what is 🫦Laiive
+#### what is 🫦Laiive?
 laiive is what will save you from being at home scrolling for the rest of your life.
 laiive is where you find the perfect life event for you, and if you are an artist or a promoter is the way to make people know you are doing something.
 If you want to do something now, friday evening, saturday morning... Just ask, Laiive will help you to find what you are looking for outside of the screen.
@@ -14,17 +14,17 @@ laiive links the broken connection between events and public[^*]
 
 ![mission](https://github.com/user-attachments/assets/569506fc-6adb-4762-8b60-2f2e0bb69866)
 
-#### why 🫦laiive makes sense?
+#### 🫦laiive look for all, not just for the big ones
 
 laiive was born to connect small events with people close to them, laiive does not focus on big musical events as many platforms are, laiive works on the human and community scale where small music events live.
 
-#### why is 🫦laiive good?
+#### 🫦laiive uses AI to balance our digital-physical culture.
 
 laiive was born as an AI cultural agenda, with the AI hype and AI competition without the AI Safety layer laiive has become a subversive way of using AI, it tries to steal attention from the main digital platforms and bring it back to real world social meetings. laiive positions itself as an ethical AI app helping to develop a balanced digital-physical culture before the intermediate layer in our digital comunication becomes too powerful.
 
-#### why is 🫦laiive profitable?
+#### 🫦laiive has abitious positive outcomes
 
-laiive is a catalyzer of a world wide business that is actually unatended. laiive connects thousands of daily live events and millions of people are not going to them because they don't know they exist. Who is willing to pay for laiive services? I am sure you have arrived to the same conclusion than I ;)
+laiive is a catalyst of a worldwide demand that is actually unattended. laiive connects thousands of daily live events and millions of people are not going to them because they don't know they exist. Solving this gap may have a direct positive outcome, and many indirect ones, the most interesting one for our point of view, and because of the times that we are facing, is that laiive can enhance community strengths around physical cultural events, historically relevant focal points of resistance to authoritarianism.
 
 ---
 
