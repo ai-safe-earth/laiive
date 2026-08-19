@@ -1,7 +1,7 @@
 # HANDOFF — laiive (updated 2026-08-19)
 
-State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
-Refactor history: `docs/refactor/` (closed).
+State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`;
+refactor history `docs/refactor/` (closed).
 
 ## Where things stand
 
@@ -21,9 +21,8 @@ eight steps. Typecheck, lint and build pass; chat with cards, auth, the pro gate
 form were checked in a browser. **Not PR'd, not deployed** — next is a PR into `develop`.
 
 Warm black `#0C0A0A`, cream answers, amber (price/mic/tickets/rail), cyan pro-only, Bebas +
-DM Sans + IBM Plex Mono, every gradient/glow/orange token deleted. Icons come from
-`public/brand/icons.svg` via `<Icon>`, the lockup from `<Mark>`; `lucide-react` is imported
-nowhere and can leave `package.json`.
+DM Sans + IBM Plex Mono, no gradients or glows. Icons come from `public/brand/icons.svg` via
+`<Icon>`, the lockup from `<Mark>`; `lucide-react` is imported nowhere now.
 
 `brand-guide.pdf` is still missing and the owner chose to proceed without it, so these are
 decisions the PDF may overrule: composer is one amber circle (mic → send → stop), **no `+`**;
@@ -38,11 +37,9 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
   model (`docs/roadmap/02-ownership.md`). Deferred by the owner.
 - The **OG card** is `og-base-1200x630.png` bare; the composed version is still to make.
 - Google sign-in shows the Supabase project id rather than laiive — `DEPLOY.md` §5b.
-- Migration `20260819000011` is applied; nothing writes to those tables until org creation
-  exists as a screen.
 - Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
-- Smaller: `.claude` deny rules unverified after restart; the `main_protection` ruleset is
-  redundant; ingestion items in `01-program.md` §7; sources in `docs/references.md`.
+- Smaller: migration `20260819000011` applied but unwritten-to; `.claude` deny rules unverified
+  after restart; `main_protection` ruleset redundant; ingestion items in `01-program.md` §7.
 
 <!-- pmctl:handoff v1 -->
 ```json
