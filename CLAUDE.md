@@ -27,6 +27,9 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
   `npx vite --port 8081 --strictPort` (`npm run dev -- --port` loses the flag in PowerShell).
 - Ports: gateway **8000** (the only published surface), retriever **8002**, pusher **8003**,
   search **8004**. The frontend talks to the gateway only (`VITE_API_URL`).
+- Deploy targets: services on **Fly.io** (`deploy/fly/*.toml`, `make fly-deploy-*`), SPA on
+  **Cloudflare Pages**, Aura + Supabase managed. Runbook: root `DEPLOY.md`. Anything needing
+  `flyctl auth`, Cloudflare or Supabase credentials is yours to run — I prepare and verify.
 
 ## Architecture
 
@@ -73,7 +76,10 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 
 - Conventional Commits, lowercase subject, enforced by a commitizen `commit-msg` hook.
   `CONTRIBUTING.md` wants a body explaining *why* plus a `Refs: #123` trailer.
-- Branches: `<type>/<kebab-desc>` (`feature/…`, `fix/…`).
+- Branches: `<type>/<kebab-desc>` (`feature/…`, `fix/…`), cut from `main`, one per phase, PR to
+  `origin/main`. **`main` is the trunk again** since the refactor merged (2026-08-19).
+  Two branches are archives, never build on them: `legacy/pre-refactor` (the pre-refactor tree,
+  also tag `legacy-main-2026-08-19`) and `experiment/k3s` (the withdrawn D19 detour).
 - Two GitHub remotes — `origin` → `ai-safe-earth/laiive` (canonical, PRs here), `laiive` →
   `OscarArroyoVega/laiive` (personal fork — don't push there).
 - Never read or edit anything under `.history/` — VSCode local-history junk holding stale copies
