@@ -7,39 +7,39 @@ Refactor history: `docs/refactor/` (closed).
 
 **laiive is live end to end**, tagged `v0.1.0`. Frontend https://laiive.pages.dev (Pages,
 production branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev,
-five Fly apps in `fra`, retriever/pusher/search on zero public IPs. Verified from the
-production origin: CORS, a chat turn, real SSE streaming, the admin 202+poll sweep, and a
-browser walkthrough. Local: gateway :8000, retriever :8002, pusher :8003, search :8004,
-frontend :8081.
+five Fly apps in `fra`, retriever/pusher/search on zero public IPs. Local: gateway :8000,
+retriever :8002, pusher :8003, search :8004, frontend :8081 (squatted — 8082 works).
 
 **`main` is production, `develop` the trunk and default branch**; work branches PR into
 `develop`, `main` takes a release PR only and is protected. Ship with `make release`; model in
 `CONTRIBUTING.md`. Archives, never build on: `legacy/pre-refactor`, `experiment/k3s`.
 
-## Next up — the redesign
+## The redesign — applied, not shipped
 
-The direction is decided and delivered in **`assets/brand/`**, committed unapplied. Start
-there, not from a canvas — that step is superseded. Read `brand-rules.md` first (what is
-locked, colour meanings, type, voice, and the exact chrome the consumer app may have), then
-the **eight-step order of work** in its `README.md`: tokens first (`brand-tokens.css` is a
-drop-in `:root`), then tailwind, `index.html`, Chat, EventCardView, UserMenu, ProSubmit +
-EventForm, Auth + Account.
+**`assets/brand/` v1 is applied to the whole frontend** on `feat/brand-v1` (`efe6a10`), all
+eight steps. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro
+form were checked in a browser. **Not PR'd, not deployed** — next is a PR into `develop`.
 
-It contradicts the live app deliberately: warm black `#0C0A0A`, cream for answers, amber not
-electric yellow, Bebas Neue + DM Sans, **no gradients or glows**, language switcher out of the
-header into the account menu. **`brand-guide.pdf` is named normative and is missing** — ask
-for it rather than guessing where it might disagree. Strings stay in
-`src/i18n/translations.ts` in four languages; protocol types are never redeclared here.
+Warm black `#0C0A0A`, cream answers, amber (price/mic/tickets/rail), cyan pro-only, Bebas +
+DM Sans + IBM Plex Mono, every gradient/glow/orange token deleted. Icons come from
+`public/brand/icons.svg` via `<Icon>`, the lockup from `<Mark>`; `lucide-react` is imported
+nowhere and can leave `package.json`.
+
+`brand-guide.pdf` is still missing and the owner chose to proceed without it, so these are
+decisions the PDF may overrule: composer is one amber circle (mic → send → stop), **no `+`**;
+card actions are map + tickets only, `saved` ships inert; empty screen is the wordmark as a
+watermark; `/pro` lives in the account menu; `/auth?kind=pro` is the promoter door; where the
+rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
 
 ## Open
 
-- **Two account kinds at sign-up.** OAuth produces one kind of user today and the pro role is
-  granted by hand in `user_roles`. It needs a consumer path and a pro path, feeding the
-  organizations model in `docs/roadmap/02-ownership.md`. Deferred by the owner; the single
-  path stays until then.
+- **Two account kinds at sign-up.** OAuth produces one kind of user and the pro role is granted
+  by hand in `user_roles`; it needs a consumer path and a pro path feeding the organizations
+  model (`docs/roadmap/02-ownership.md`). Deferred by the owner.
+- The **OG card** is `og-base-1200x630.png` bare; the composed version is still to make.
 - Google sign-in shows the Supabase project id rather than laiive — `DEPLOY.md` §5b.
 - Migration `20260819000011` is applied; nothing writes to those tables until org creation
-  exists as a screen (`docs/roadmap/02-ownership.md`).
+  exists as a screen.
 - Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
 - Smaller: `.claude` deny rules unverified after restart; the `main_protection` ruleset is
   redundant; ingestion items in `01-program.md` §7; sources in `docs/references.md`.
@@ -483,6 +483,38 @@ for it rather than guessing where it might disagree. Strings stay in
         {
           "date": "2026-08-19",
           "text": "Adopting it is a full visual pass rather than a token swap: warm black replaces pure black, cream replaces white for answers, amber replaces electric yellow, Bebas Neue and DM Sans replace Montserrat and IBM Plex Sans, gradients and glows are deleted outright, and the language switcher moves from the header into the account menu"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "brand-guide.pdf is still missing and the owner chose to proceed on brand-rules.md as the spec rather than wait for it. Every ambiguity below was therefore an owner decision, not a judgement call, and the PDF may still overrule them"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The composer is one amber circle - mic when the field is empty, send once there is something to send, stop while streaming - and there is no '+'. reference-screens.html draws a '+' beside the mic, but the rule says the '+' opens voice and nothing else, which makes it a sheet holding a single item"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Card actions ship as map and tickets only. The artwork draws a 'save' pill, but saving has no feature behind it and a dead pill on every card breaks the promise once per card rather than once per screen. The header 'saved' icon still ships inert so the bar is final"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Where brand-rules.md and reference-screens.html disagree on size the rules win: every touch target is 44px, against the mock's 36px composer and 30px pills. Card action pills keep the mock's look and reach 44px through an :after hit area instead of growing"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "The empty chat is the LAIIVE wordmark as a 5%-opacity watermark and nothing else - the old welcome line used 'discover', an exclamation and onboarding copy, all three banned. The promoter link leaves the header for the account menu, alongside settings, so the header holds exactly the four allowed elements"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "/auth?kind=pro is the promoter's door: it starts on sign-up and lands on /pro afterwards. It creates an ordinary account because the pro role is still granted by hand, so the gate copy no longer says 'contact us' - there is no contact channel in the app to honour it with"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Icons are referenced from assets/brand/icons.svg copied unmodified to public/brand and used via <use>, so the artwork stays the file the brand owner ships and a fix there needs no code. lucide-react is no longer imported by any component and the dependency can be dropped"
+        },
+        {
+          "date": "2026-08-19",
+          "text": "Applied end to end on feat/brand-v1 (efe6a10): tokens, tailwind, index.html, Chat, EventCardView, UserMenu, ProSubmit, EventForm, Auth, Account, NotFound, Button, Input, MicButton, and the four language blocks. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro form were checked in a browser at 390px and 1280px"
         }
       ]
     },
@@ -556,8 +588,22 @@ for it rather than guessing where it might disagree. Strings stay in
       "plan": "refactor"
     },
     {
-      "title": "Apply assets/brand to the frontend in its own eight-step order: tokens, tailwind, index.html, Chat, EventCardView, UserMenu, ProSubmit + EventForm, Auth + Account. Ask for brand-guide.pdf before resolving any ambiguity",
-      "est": 4,
+      "title": "PR feat/brand-v1 into develop, check the Pages preview, then deploy. Nothing on the branch has been seen outside localhost",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Compose the OG card on og-base-1200x630.png - public/og-image.png is the bare ground today, with og:title and og:description carrying the words",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Drop lucide-react from frontend/package.json - no component imports it since the brand icon set landed",
+      "est": 1,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
       "plan": "roadmap"
@@ -706,6 +752,13 @@ for it rather than guessing where it might disagree. Strings stay in
     },
     {
       "date": "2026-08-18",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-19",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",
