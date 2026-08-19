@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
+import { rememberDestination, takeDestination } from "@/auth/postAuth";
 import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -39,8 +40,17 @@ export default function Auth() {
   // covers returning without one — an in-app browser, or an app switch on a
   // phone. Clearing it twice is harmless; never clearing it kills the screen.
   useEffect(() => {
+    // Reaching this screen at all means no round trip is in flight, so any
+    // stashed destination is left over from an abandoned one. Cleared on mount
+    // as well as on the events below, because `pageshow` has already fired by
+    // the time React attaches to it on a fresh document — which left the stash
+    // alive to ambush the next sign-in, one made by email minutes later.
+    takeDestination();
+
     const revive = () => {
-      if (document.visibilityState === "visible") setRedirecting(false);
+      if (document.visibilityState !== "visible") return;
+      setRedirecting(false);
+      takeDestination();
     };
     window.addEventListener("pageshow", revive);
     document.addEventListener("visibilitychange", revive);
@@ -50,12 +60,18 @@ export default function Auth() {
     };
   }, []);
 
+  // Where this sign-in is headed. The promoter's door has to survive OAuth,
+  // which leaves the app and returns as a fresh document.
+  const destination = isPro ? "/pro" : "/";
+
   const googleSignIn = async () => {
     setRedirecting(true);
     try {
+      rememberDestination(destination);
       // Resolves before the browser leaves, so this stays on until it does.
-      await signInWithGoogle();
+      await signInWithGoogle(`${window.location.origin}${destination}`);
     } catch (error) {
+      takeDestination();
       toast.error(error instanceof Error ? error.message : t.auth.googleFailed);
       setRedirecting(false);
     }
@@ -69,7 +85,7 @@ export default function Auth() {
     try {
       if (mode === "signin") {
         await signIn(email, password);
-        navigate(isPro ? "/pro" : "/");
+        navigate(destination);
       } else {
         await signUp(email, password, displayName || undefined);
         toast.success(t.auth.checkInbox);

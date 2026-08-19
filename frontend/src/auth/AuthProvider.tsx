@@ -8,7 +8,8 @@ interface AuthState {
   role: UserRole;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  /** Absolute URL to return to; defaults to the origin root. */
+  signInWithGoogle: (redirectTo?: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -45,12 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
       },
-      signInWithGoogle: async () => {
+      signInWithGoogle: async (redirectTo) => {
         // Google → Supabase's /auth/v1/callback → back here; detectSessionInUrl
         // picks the session out of the redirect, onAuthStateChange does the rest.
+        //
+        // Supabase drops a redirectTo its Redirect URLs allow-list does not
+        // match and sends the user to the Site URL instead, saying nothing.
+        // Callers that care where they land also stash it — auth/postAuth.ts.
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: window.location.origin },
+          options: { redirectTo: redirectTo ?? window.location.origin },
         });
         if (error) throw new Error(error.message);
       },
