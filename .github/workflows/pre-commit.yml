@@ -2,9 +2,12 @@
 name: pre-commit
 
 on:
-  push:                # protect every branch
-  pull_request:        # protect every PR
-  workflow_dispatch:   # (optional) run it manually from the UI
+  # Long-lived branches only: a work branch is covered by its PR, and running
+  # both doubled every check on every push.
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   pre-commit:

@@ -2,3 +2,12 @@
 name = "cz_conventional_commits"
 tag_format = "v$version"
 version_scheme = "semver"
+# Set at the first release (2026-08-19, the first live deploy). `cz bump` reads
+# the Conventional Commits since the last tag, decides the next version, writes
+# the CHANGELOG section, commits and tags — see CONTRIBUTING.md, "Releasing".
+version = "0.1.0"
+update_changelog_on_bump = true
+changelog_incremental = true
+# While the major is 0, a breaking change bumps the minor rather than jumping
+# to 1.0.0. 1.0.0 should be a decision, not a side effect of a commit footer.
+major_version_zero = true

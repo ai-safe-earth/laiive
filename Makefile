@@ -66,6 +66,17 @@ test-all:
 	make test-search
 	make test-gateway
 
+# --------------- release (see CONTRIBUTING.md) ----------------------------------------------------
+# Run on main, after the release PR from develop has merged: cz reads the
+# Conventional Commits since the last tag, picks the version, writes the
+# CHANGELOG section, commits and tags. PYTHONIOENCODING because rich's cp1252
+# console writer dies on this machine after the command has already succeeded.
+release:
+	PYTHONIOENCODING=utf-8 uvx --from commitizen==3.13.0 cz bump --changelog --yes
+
+release-dry-run:
+	PYTHONIOENCODING=utf-8 uvx --from commitizen==3.13.0 cz bump --changelog --dry-run --yes
+
 # --------------- deploy (Fly.io, see DEPLOY.md) ---------------------------------------------------
 # The build context must be services/ (the Dockerfiles COPY shared/ + the service);
 # the redis app deploys from a stock image, so any context works.
