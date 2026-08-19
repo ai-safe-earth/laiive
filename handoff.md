@@ -48,6 +48,9 @@ guardrails, cache, language, voice → ingestion quality + self-improvement.
   still readable, fall back to a PreToolUse hook.
 - Optional: containerize `flows/serve.py` as a compose service (needs its own Dockerfile stage,
   plus `PREFECT_API_KEY`/`PREFECT_API_URL` in the root `.env`).
+- Two rulesets now guard `main`: `main is production` (2026-08-19, PR + all 11 checks) and
+  `main_protection` (2025-10-13, PR only). The old one is redundant — it was narrowed off
+  `~DEFAULT_BRANCH` and given the same admin bypass, and can be deleted whenever you like.
 
 <!-- pmctl:handoff v1 -->
 ```json
