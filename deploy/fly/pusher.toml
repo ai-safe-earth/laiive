@@ -22,3 +22,5 @@ kill_timeout = 120
 [env]
   # Shares the geocode cache and the 1 req/s Nominatim gate with search.
   REDIS_URL = "redis://laiive-redis.internal:6379/0"
+  # 6PN is IPv6-only; the image defaults to 0.0.0.0 for compose. See the Dockerfile.
+  BIND_HOST = "::"
