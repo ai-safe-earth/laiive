@@ -9,6 +9,8 @@ kill_timeout = 300
 
 [env]
   REDIS_URL = "redis://laiive-redis.internal:6379/0"
+  # 6PN is IPv6-only; the image defaults to 0.0.0.0 for compose. See the Dockerfile.
+  BIND_HOST = "::"
 
 [checks]
   [checks.livez]

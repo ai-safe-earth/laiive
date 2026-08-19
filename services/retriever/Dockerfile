@@ -29,7 +29,14 @@ EXPOSE 8002
 # under a read-only root filesystem) and would sit between PID 1 and the signal
 # uvicorn needs to drain gracefully. Graceful shutdown is set just under the
 # pod's terminationGracePeriodSeconds so uvicorn always finishes first.
-CMD ["/app/.venv/bin/uvicorn", "agent.api:app", \
-     "--host", "::", "--port", "8002", \
-     "--proxy-headers", "--forwarded-allow-ips", "*", \
-     "--timeout-graceful-shutdown", "110"]
+#
+# BIND_HOST, defaulting to 0.0.0.0, for the same reason the gateway has
+# GATEWAY_HOST: asyncio sets IPV6_V6ONLY on a "::" listener, so a hardcoded "::"
+# is not dual-stack -- it refuses IPv4 outright. That is required on Fly, whose
+# 6PN private network is IPv6-only (deploy/fly/*.toml set it), and fatal under
+# compose, whose network is IPv4: the gateway got ECONNREFUSED from every
+# service and the healthchecks never passed. `exec` keeps uvicorn as PID 1.
+CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn agent.api:app \
+     --host ${BIND_HOST:-0.0.0.0} --port 8002 \
+     --proxy-headers --forwarded-allow-ips '*' \
+     --timeout-graceful-shutdown 110"]

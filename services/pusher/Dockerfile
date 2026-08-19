@@ -24,8 +24,9 @@ USER 10001
 
 EXPOSE 8003
 
-# See the retriever Dockerfile for why this is the venv's uvicorn and not `uv run`.
-CMD ["/app/.venv/bin/uvicorn", "agent.api:app", \
-     "--host", "::", "--port", "8003", \
-     "--proxy-headers", "--forwarded-allow-ips", "*", \
-     "--timeout-graceful-shutdown", "110"]
+# See the retriever Dockerfile for why this is the venv's uvicorn and not `uv run`,
+# and why the bind address is BIND_HOST rather than a hardcoded "::".
+CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn agent.api:app \
+     --host ${BIND_HOST:-0.0.0.0} --port 8003 \
+     --proxy-headers --forwarded-allow-ips '*' \
+     --timeout-graceful-shutdown 110"]
