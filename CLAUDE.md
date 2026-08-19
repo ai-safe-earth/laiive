@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Instructions for this repo. State of play + machine-specific gotchas: root `handoff.md`
-(read it first — this file is the stable rules, that one is the moving picture).
+Instructions for this repo, plus the machine gotchas that cost real time here. State of play:
+root `handoff.md` (read it first — this file is the stable rules, that one is the moving picture).
 
 ## Working with me
 
@@ -87,9 +87,73 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 - Writes to Supabase (`db push`, MCP DDL) are refused by the permission classifier — hand me
   the command to run. Writes to Aura need my approval.
 
+## Machine gotchas (this box)
+
+Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
+
+**Running things**
+
+- `uv run uvicorn …` and `uv run pytest` both fail here with "Failed to canonicalize script
+  path". Use `uv sync` then `uv run --no-sync python -m uvicorn …` / `python -m pytest -q`.
+  The `make start-*` targets still carry the broken form.
+- `npm run dev -- --port 8081` silently loses the flag in PowerShell (Vite starts on 5173 and
+  treats `8081` as a directory). Use `npx vite --port 8081 --strictPort`.
+- `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services (`agent` is not
+  an installed package). Piping their output through `grep` trips Windows binary detection on
+  accented text — redirect to a file and `grep -a` it.
+- Prefix Prefect (and any rich-using) commands with `PYTHONIOENCODING=utf-8`: `rich`'s cp1252
+  console writer raises `UnicodeEncodeError` *after* the command has already succeeded.
+- `cd` in one Bash call does not persist reliably — use absolute paths.
+- Docker Desktop's loopback: `127.0.0.1:<published>` sometimes refuses while `localhost` works.
+
+**Ports and stale processes**
+
+- Dev servers from an earlier session go stale and cost real time — one retriever reported
+  `openai: error` on `/health` while the key worked fine via curl, and a Vite from a previous
+  session served the *deleted* app on :8081. Before debugging anything you did not start:
+  `Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
+- Background dev servers survive their launcher; kill by PID.
+- Other projects squat these ports (an `A02_VaiVia` uvicorn on :8000, a
+  `laiive-global-workspace` container on :8002/:8003). Everything is env-overridable, so shift
+  rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`, and
+  inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
+
+**Commits**
+
+- The ruff `--fix` pre-commit hook **deletes an import the moment it is momentarily unused**.
+  It has bitten six times. Write the import and its first use in the same edit.
+- `ruff-format` rewrites staged files and aborts the commit; re-`git add` and commit again.
+
+**Network and data**
+
+- **DNS here flaps.** `getaddrinfo` failed intermittently for the Aura host, `docs.claude.com`
+  and `operations.osmfoundation.org` in one session while a tight probe loop resolved 10/10. It
+  killed three `run_backfill` runs at driver construction. Pre-warm with
+  `socket.gethostbyname` and retry in process — the sweep is idempotent by uid.
+- The **Aura free instance auto-pauses**. Paused, its DNS record disappears; resuming, reads
+  route to a follower while writes fail with "No write service currently available".
+- MCP `aura-neo4j` points at `2099d44c`. Its host `2099d44c.mcp-instances.neo4j.io` stopped
+  resolving once while the database itself was fine on `2099d44c.databases.neo4j.io`; if the
+  MCP is down, query through the service instead.
+- Re-checking one venue after a geocoder fix: the repair sweep only selects venues that are
+  unstamped, non-`venue`, or checked over 7 days ago — exactly not the one a fix would correct.
+  `cd services/search && uv run --no-sync python scripts/recheck_venue.py "<venue>"` clears the
+  stamp and re-runs it (an Aura write).
+- Maintenance scripts open a **read-only** session unless `--write` is passed.
+
+**Tooling limits**
+
+- `winget` is not on PATH and the classifier blocks downloading an `.exe`, so `cloudflared`
+  cannot be installed from here. Tag deletion and force-push are refused too — hand me those.
+- Browser automation: `computer`'s `type` action does not reach this app's inputs — use
+  `form_input` with a ref from `read_page`, and click by `ref` rather than coordinates.
+
 ## Handoff file (read by the project tracker)
 
 Read `handoff.md` once, at the start of a session, before the first plan or code change. Do not
 re-read it later in the same session — the conversation is the fresher source. Re-read only after
 a `/clear`, a `/compact`, or if I say the repo moved outside this session. If it conflicts with
 the repo, trust the repo and say so.
+
+Keep it to state, 40 lines maximum, no narrative and no history — git log keeps that. Non-code
+progress (branding, strategy, artwork) goes to `product-status.md` instead.
