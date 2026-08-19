@@ -101,7 +101,7 @@ function ChipList({
 }
 
 export default function Account() {
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, isLoading: authLoading, refreshRole } = useAuth();
   const { t } = useTranslation();
   const { language, chooseLanguage } = useLanguagePreference();
 
@@ -163,7 +163,16 @@ export default function Account() {
         managed_artists: artists,
         notes: promoter?.notes ?? null,
       });
-      toast.success(t.account.promoterSaved);
+      if (isPro) {
+        toast.success(t.account.promoterSaved);
+        return;
+      }
+      // The row just written is what granted the role (see the trigger in
+      // 20260820000012). The grant is stamped into the JWT at issue, so without
+      // re-minting the token this page — and /pro — would keep reading the old
+      // claim and refusing the promoter it just created.
+      await refreshRole();
+      toast.success(t.account.becamePromoter);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.account.saveFailed);
     }
@@ -236,14 +245,17 @@ export default function Account() {
           </Button>
         </section>
 
-        {isPro && (
-          <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
+        {/* Open to every signed-in account, not just pros. This form is the one
+            way to become a promoter: saving it grants the role. Gating it on
+            already having the role is what made /pro's "not a pro account yet →"
+            link point at a page that could not help. */}
+        <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
             <div className="flex flex-col gap-1">
               <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-card-foreground">
-                {t.account.promoter}
+                {isPro ? t.account.promoter : t.account.becomePromoter}
               </h2>
               <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
-                {t.account.promoterNote}
+                {isPro ? t.account.promoterNote : t.account.becomePromoterNote}
               </p>
             </div>
 
@@ -298,10 +310,9 @@ export default function Account() {
               onClick={savePromoterProfile}
               disabled={savePromoter.isPending}
             >
-              {savePromoter.isPending ? "…" : t.account.save}
+              {savePromoter.isPending ? "…" : isPro ? t.account.save : t.account.becomePromoterCta}
             </Button>
-          </section>
-        )}
+        </section>
       </div>
     </div>
   );
