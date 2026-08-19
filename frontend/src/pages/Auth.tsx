@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
@@ -25,16 +25,43 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  // Held apart from `busy`: a form submit clears itself in a `finally`, but the
+  // OAuth hand-off never returns, so only coming back to this page can clear it.
+  // Sharing one flag meant tabbing away mid-submit would re-enable the button.
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Abandoning the Google screen and pressing back restores this page from the
+  // bfcache with its state intact, so `redirecting` stayed true and the whole
+  // form was left dead — no Google button, and a submit button whose disabled
+  // fill matched the card behind it, so it read as missing rather than off.
+  // Two triggers, because the browsers disagree about which one you get back:
+  // `pageshow` covers a bfcache restore (the back button), `visibilitychange`
+  // covers returning without one — an in-app browser, or an app switch on a
+  // phone. Clearing it twice is harmless; never clearing it kills the screen.
+  useEffect(() => {
+    const revive = () => {
+      if (document.visibilityState === "visible") setRedirecting(false);
+    };
+    window.addEventListener("pageshow", revive);
+    document.addEventListener("visibilitychange", revive);
+    return () => {
+      window.removeEventListener("pageshow", revive);
+      document.removeEventListener("visibilitychange", revive);
+    };
+  }, []);
 
   const googleSignIn = async () => {
-    setBusy(true);
+    setRedirecting(true);
     try {
-      await signInWithGoogle(); // navigates away; busy stays on until the redirect
+      // Resolves before the browser leaves, so this stays on until it does.
+      await signInWithGoogle();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.auth.googleFailed);
-      setBusy(false);
+      setRedirecting(false);
     }
   };
+
+  const frozen = busy || redirecting;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -101,8 +128,8 @@ export default function Auth() {
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
         />
 
-        <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? "…" : mode === "signin" ? t.auth.signIn : t.auth.signUp}
+        <Button type="submit" className="w-full" disabled={frozen}>
+          {frozen ? "…" : mode === "signin" ? t.auth.signIn : t.auth.signUp}
         </Button>
 
         <div className="flex items-center gap-3 font-mono text-[11px] text-ink-dim">
@@ -115,7 +142,7 @@ export default function Auth() {
           type="button"
           variant="neutral"
           className="w-full"
-          disabled={busy}
+          disabled={frozen}
           onClick={googleSignIn}
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
