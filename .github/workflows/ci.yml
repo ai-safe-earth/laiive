@@ -3,7 +3,10 @@
 name: ci
 
 on:
+  # Long-lived branches only: a work branch is covered by its PR, and running
+  # both doubled every check on every push.
   push:
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 

@@ -74,6 +74,10 @@ Dockerfiles COPY `shared/` plus the service. Verify each app with
 
 Pages project → connect the GitHub repo:
 
+- **Production branch: `main`** (`develop` and every PR then get preview
+  builds automatically — that is the point of the two-branch model, see
+  `CONTRIBUTING.md`). The default branch is `develop`, so Pages will offer
+  that one first; change it.
 - Root directory: `frontend` (the clone is the whole repo, so the
   `@shared` → `../services/shared/ts` alias resolves at build)
 - Build command: `npm run build`  ·  Output: `dist`

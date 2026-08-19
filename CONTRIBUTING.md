@@ -4,6 +4,51 @@ Thanks for helping improve **laiive**!
 
 ---
 
+## Branches
+
+Two branches live forever:
+
+| branch | what it is |
+| --- | --- |
+| `main` | **production.** What is deployed, or about to be. Only `develop` merges into it, through a release PR. Protected: pull request required, every check green, no force-push, no deletion. |
+| `develop` | **the trunk.** The default branch and where all work lands. Always deployable in principle, not necessarily deployed. |
+
+Everything else is short-lived and named `<type>/<kebab-desc>` — `feat/voice-tuner`,
+`fix/cypher-limit`, `docs/…`, `chore/…`, `refactor/…`. Branch from `develop`, open the
+PR against `develop`, and let GitHub delete the branch on merge.
+
+Two archives are never built on: `legacy/pre-refactor` (the tree as it stood before
+the refactor merged, also tag `pre-refactor-main`) and `experiment/k3s`.
+
+```
+feat/…  ─┐
+fix/…   ─┼─▶ develop ──(release PR)──▶ main ──▶ tag + deploy
+         │      │                        │
+hotfix/… ┘      └─ preview build         └─ production build
+     └─────────────▶ main, then merged back into develop
+```
+
+**Merges keep every commit.** No squashing: the commit bodies here carry the reasoning
+for the change, and squashing flattens a branch's worth of that into one blob. Merge
+commits on both legs.
+
+### Releasing
+
+1. Open a PR from `develop` to `main` titled `release: vX.Y.Z`. CI must be green.
+2. Merge it (a merge commit, never a squash).
+3. On `main`, run `make release` — `cz bump` reads the Conventional Commits since the
+   last tag, picks the next version, writes the `CHANGELOG.md` section, commits and
+   tags. Push the commit and the tag.
+4. Deploy: `make fly-deploy-*` per `DEPLOY.md`; Cloudflare Pages builds `main` on its own.
+5. Merge `main` back into `develop` so the release commit and tag are not stranded.
+
+### Hotfixes
+
+Branch from `main`, PR into `main`, release as above — then merge `main` into `develop`
+in the same sitting. A hotfix that never comes back is how the two branches drift.
+
+---
+
 ## How to Contribute
 
 We follow a simple workflow to keep contributions organized:
@@ -21,8 +66,9 @@ We follow a simple workflow to keep contributions organized:
 
 ### 3. **Fork and Branch**
 - Fork the repository
-- Create a new branch: `git checkout -b feature/your-feature-name` or `fix/bug-description`
-- Use descriptive branch names
+- Branch from `develop`, never from `main`: `git checkout -b feat/your-feature` or
+  `fix/bug-description`
+- Use descriptive branch names, and open the PR against `develop`
 
 ### 4. **Make Your Changes**
 - Write clean, self-documenting code
