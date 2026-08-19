@@ -1,4 +1,5 @@
-# .github/workflows/pre-commit.yml
+# Formatters, linters and the secret scan, over the whole tree.
+# `ci.yml` stays separate: it is the expensive half (tests, images).
 name: pre-commit
 
 on:
@@ -9,29 +10,44 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: pre-commit-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest           # you can also matrix this (see tips)
-    # Don’t let several runs clash on the same branch
-    concurrency:
-      group: ${{ github.ref }}-precommit
-      cancel-in-progress: true
-
+    runs-on: ubuntu-latest
     steps:
-      # 1. Check out the code that triggered the build
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0            # let pre-commit diff correctly
 
-      # 2. Ensure a Python runtime for pre‑commit itself (even if your project isn’t Python)
-      - uses: actions/setup-python@v5   # v5 is current as of July 2025
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.x'         # any supported version works
+          # Pinned, not '3.x': the services target 3.13, and a floating runtime
+          # drifts onto an interpreter the hook environments have no wheels for.
+          python-version: "3.13"
 
-      # 3. Run the hooks (and benefit from built‑in caching)
-      - uses: pre-commit/action@v3.0.1  # latest release • maintenance only • works great :contentReference[oaicite:0]{index=0}
+      # Runs every pre-commit-stage hook over --all-files and fails if any of
+      # them rewrites a file, so no extra "check for unstaged changes" step.
+      - uses: pre-commit/action@v3.0.1
 
-      # 4. (optional) Fail fast when hooks change files instead of only linting
-      #    - name: Check for unstaged changes
-      #      run: |
-      #        git diff --exit-code
+  # The commit-msg hook only fires on `git commit`, so nothing on the server
+  # ever saw a message until now. `cz check` re-reads the PR's own commits.
+  # CONTRIBUTING.md makes the bodies the reasoning — this keeps them parseable
+  # by `cz bump`, which is what writes CHANGELOG.md at release.
+  commit-lint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install "commitizen==4.18.0"
+      - name: cz check
+        run: |
+          cz check --rev-range \
+            "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
