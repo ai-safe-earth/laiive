@@ -39,7 +39,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         "inline-flex items-center justify-center gap-2 rounded-full leading-none",
         "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "disabled:pointer-events-none disabled:border-border disabled:bg-card disabled:text-pro-dim",
+        // The disabled pill is #241B1B on a #3A2E2E hairline, as the reference
+        // draws it — and the hairline is load-bearing, not decoration. Without
+        // an explicit border *width* the fill matches `bg-card` exactly, so a
+        // disabled button sitting on a card (the auth form, the pro form) has
+        // no edge and no contrast, and simply is not there.
+        "disabled:pointer-events-none disabled:border disabled:border-border",
+        "disabled:bg-card disabled:text-pro-dim",
         VARIANTS[variant],
         SIZES[size],
         className,
