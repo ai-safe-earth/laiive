@@ -1873,10 +1873,12 @@ dev = [
     { name = "prefect" },
     { name = "pytest" },
     { name = "pytest-timeout" },
+    { name = "python-dotenv" },
     { name = "ruff" },
 ]
 flows = [
     { name = "prefect" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -1897,9 +1899,13 @@ dev = [
     { name = "prefect", specifier = ">=3.1" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-timeout", specifier = ">=2.3" },
+    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "ruff", specifier = "==0.4.9" },
 ]
-flows = [{ name = "prefect", specifier = ">=3.1" }]
+flows = [
+    { name = "prefect", specifier = ">=3.1" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+]
 
 [[package]]
 name = "semver"

@@ -16,10 +16,14 @@ Same dual-import guard as city_sweep.py / backfill.py: Prefect (and a bare
 
 try:
     from flows.backfill import backfill
-    from flows.city_sweep import city_sweep
+    from flows.city_sweep import BERGAMO_PROVINCE, GIRONA_PROVINCE, city_sweep
 except ImportError:
     from backfill import backfill  # type: ignore[no-redef]
-    from city_sweep import city_sweep  # type: ignore[no-redef]
+    from city_sweep import (  # type: ignore[no-redef]
+        BERGAMO_PROVINCE,
+        GIRONA_PROVINCE,
+        city_sweep,
+    )
 
 from prefect import serve
 from prefect.schedules import Cron
@@ -29,6 +33,24 @@ if __name__ == "__main__":
         city_sweep.to_deployment(
             name="city-sweep-weekly",
             schedule=Cron("0 6 * * 1", timezone="Europe/Madrid"),
+        ),
+        # One deployment per province rather than one sweep of both: the flow
+        # runs its cities sequentially at minutes each, so twenty towns in one
+        # run is over an hour in which any failure is reported against a single
+        # run. Split, each province gets its own history and its own retry, and
+        # the two never overlap on Tavily and OpenAI.
+        #
+        # Tue/Thu 07:00: clear of the Monday city sweep at 06:00 and of the
+        # nightly backfill at 04:30.
+        city_sweep.to_deployment(
+            name="bergamo-province-weekly",
+            parameters={"cities": BERGAMO_PROVINCE},
+            schedule=Cron("0 7 * * 2", timezone="Europe/Madrid"),
+        ),
+        city_sweep.to_deployment(
+            name="girona-province-weekly",
+            parameters={"cities": GIRONA_PROVINCE},
+            schedule=Cron("0 7 * * 4", timezone="Europe/Madrid"),
         ),
         backfill.to_deployment(
             name="backfill-nightly",

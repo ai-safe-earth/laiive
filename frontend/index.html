@@ -15,15 +15,24 @@
     <meta name="author" content="laiive" />
 
     <meta property="og:type" content="website" />
+    <!-- Absolute and apex-only: this is one index.html served on every route,
+         so a per-route value is not something a static tag can be right about. -->
+    <meta property="og:url" content="https://laiive.com/" />
     <meta property="og:title" content="laiive" />
     <meta property="og:description" content="ask what is on tonight." />
-    <meta property="og:image" content="https://laiive.pages.dev/og-image.png" />
+    <meta property="og:image" content="https://laiive.com/og-image.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@laiive" />
     <meta name="twitter:title" content="laiive" />
     <meta name="twitter:description" content="ask what is on tonight." />
-    <meta name="twitter:image" content="https://laiive.pages.dev/og-image.png" />
+    <meta name="twitter:image" content="https://laiive.com/og-image.png" />
+
+    <!-- The lockup is on every screen and <Mark> renders it as soon as React
+         paints, so without this it is fetched a round trip too late and the
+         header shows a gap. The icon sprite needs no equivalent: it is inlined
+         into the bundle (components/IconSprite.tsx). -->
+    <link rel="preload" as="image" href="/brand/mark-fuchsia-alpha.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

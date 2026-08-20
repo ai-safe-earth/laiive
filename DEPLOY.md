@@ -86,6 +86,41 @@ Pages project → connect the GitHub repo:
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `public/_redirects` ships the SPA fallback; no wrangler.toml needed.
 
+## 4b. laiive.com as the custom domain
+
+The domain was registered through **Piensa Solutions** (`ns21`/`ns22.piensasolutions.com`)
+and pointed at the pre-refactor Lovable build. Two facts decide the shape of the move.
+
+**`laiive.com` carries live email** — `MX 10 mx.buzondecorreo.com`. A nameserver change
+that does not recreate that record kills mail silently: no bounce to you, no error
+anywhere, senders just stop arriving. Verify it before the flip, not after.
+
+**A bare apex cannot CNAME.** DNS forbids it, so Pages cannot serve `laiive.com` from
+the registrar's zone unless Piensa offers `ALIAS`/`ANAME`. Cloudflare fakes it with
+CNAME flattening, which is why the nameservers move rather than one record.
+
+Order matters — each step is only safe once the previous one is true:
+
+1. Add `laiive.com` as a site in Cloudflare. It scans the existing zone and copies
+   what it finds.
+2. **Check the import before going further.** `MX → mx.buzondecorreo.com` must be
+   present, along with any SPF/DKIM `TXT`. Add by hand anything the scan missed.
+3. Change the nameservers at Piensa to the pair Cloudflare assigns. Propagation is
+   hours; Cloudflare shows the zone as *Active* when it is done. **The Lovable site
+   goes dark at this point** — that is the cutover, and it is immediate.
+4. Pages project → Custom domains → add `laiive.com` and `www.laiive.com`.
+5. Then §5 below, with `https://laiive.com` in the origin list. Until the gateway
+   knows the origin, the site loads and every request fails CORS.
+
+The gateway stays on `laiive-gateway.fly.dev`; `VITE_API_URL` does not change. An
+`api.laiive.com` would need a Fly certificate, its own DNS record and a Pages
+rebuild — another moving part in the same cutover, for a hostname only visible in
+the network tab.
+
+`index.html`'s `og:image` and `twitter:image` are absolute (Open Graph requires it)
+and point at `laiive.com`. They resolve only once step 4 is done, so that change
+ships with the cutover, not before it.
+
 ## 5. Stitch the origins together
 
 1. Gateway CORS. **`flyctl secrets set` replaces a key, it never appends** — every

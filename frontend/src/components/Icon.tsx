@@ -1,9 +1,10 @@
 import { cn } from "@/lib/cn";
 
 /**
- * The brand icon set, one sprite, referenced rather than inlined:
- * `assets/brand/icons.svg` is copied to `public/brand/` unmodified, so the
- * artwork stays the file the brand owner ships and a fix there needs no code.
+ * The brand icon set, one sprite, inlined into the document by <IconSprite/>
+ * at the app root — so these are same-document `#id` references and cost no
+ * request. `assets/brand/icons.svg` is still the artwork the brand owner
+ * ships, unmodified, and a fix there still needs no code change.
  *
  * Every symbol strokes `currentColor`, so colour comes from the parent's
  * text colour — never from a prop.
@@ -30,7 +31,7 @@ export type IconName =
 export function Icon({ name, className }: { name: IconName; className?: string }) {
   return (
     <svg className={cn("h-5 w-5 shrink-0", className)} aria-hidden="true" focusable="false">
-      <use href={`/brand/icons.svg#${name}`} />
+      <use href={`#${name}`} />
     </svg>
   );
 }
