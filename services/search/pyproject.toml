@@ -22,6 +22,9 @@ dependencies = [
 # prefect stays out of the service's main dependencies so the API image is slim.
 flows = [
     "prefect>=3.1",
+    # flows/auth.py loads the root .env directly — pydantic-settings pulls this
+    # in anyway, but the flows import it by name, so they declare it.
+    "python-dotenv>=1.0",
 ]
 dev = [
     "pytest>=8.0",

@@ -1,15 +1,27 @@
 """Admin JWT for gateway calls — Supabase password grant, minted per run.
 
-Configuration resolution: environment first (a local run picks up the root
-`.env` values already in the shell), then Prefect Cloud — Variables for the
-non-secret settings, Secret blocks for the service-account credentials.
-Nothing lives in the repo.
+Configuration resolution: the root `.env`, then the environment, then Prefect
+Cloud — Variables for the non-secret settings, Secret blocks for the
+service-account credentials. Nothing lives in the repo.
 """
 
 import os
+from pathlib import Path
 from typing import cast
 
 import httpx
+from dotenv import load_dotenv
+
+# The services read the root .env through pydantic's `env_file`; these flows
+# read os.environ directly, and `python flows/serve.py` inherits a shell that
+# has never sourced it — so a GATEWAY_URL sitting exactly where DEPLOY.md says
+# to put it still came out missing, and every scheduled run failed on it.
+#
+# Resolved from this file rather than the CWD: Prefect loads the module with
+# either flows/ or its parent on sys.path, and config.py's relative env_file
+# already bites for that reason. override=False keeps the documented order —
+# a real environment variable, or Prefect Cloud, still wins over the file.
+load_dotenv(Path(__file__).resolve().parents[3] / ".env", override=False)
 
 AUTH_TIMEOUT = 30.0
 
