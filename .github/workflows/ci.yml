@@ -61,7 +61,7 @@ jobs:
       matrix:
         include:
           - { dir: services/gateway, test: true }
-          - { dir: frontend, test: false }
+          - { dir: frontend, test: true }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
