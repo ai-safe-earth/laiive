@@ -129,14 +129,32 @@ ships with the cutover, not before it.
 
    ```
    flyctl secrets set -a laiive-gateway \
-     CORS_ALLOW_ORIGINS="https://laiive.pages.dev,https://develop.laiive.pages.dev"
+     CORS_ALLOW_ORIGINS="https://laiive.com,https://www.laiive.com,https://laiive.pages.dev,https://develop.laiive.pages.dev"
    ```
 
-   The preview origin is worth carrying: Pages builds `develop` at
-   `develop.<project>.pages.dev`, and without it a preview cannot call the
-   gateway at all. Verify with a preflight rather than by reading the output —
-   `curl -X OPTIONS <gateway>/api/chat -H "Origin: …" -H "Access-Control-Request-Method: POST"`
-   answers with `access-control-allow-origin` only for an allowed origin.
+   All four earn their place. The apex and `www` are the custom domain from
+   §4b; `laiive.pages.dev` stays because Pages keeps serving it after the
+   cutover, and it is the fallback if DNS goes wrong. The preview origin matters
+   too: Pages builds `develop` at `develop.<project>.pages.dev`, and without it a
+   preview cannot call the gateway at all.
+
+   **Matching is exact — no wildcards.** `config.ts` splits the value on commas
+   and hands the array to `@fastify/cors`, which compares strings. The *per-deploy*
+   preview hostnames (`<hash>.laiive.pages.dev`) are therefore rejected and cannot
+   be covered by a pattern: `develop.laiive.pages.dev`, the branch alias, is the
+   only preview URL that can reach the gateway. Note the asymmetry with Supabase's
+   redirect list in step 2, which does take wildcards — a hash preview can
+   complete a sign-in and still fail every API call after it.
+
+   Verify with a preflight rather than by reading the command's output:
+
+   ```
+   curl -sS -o /dev/null -D - -X OPTIONS https://laiive-gateway.fly.dev/api/chat \
+     -H "Origin: https://laiive.com" -H "Access-Control-Request-Method: POST"
+   ```
+
+   An allowed origin comes back echoed in `access-control-allow-origin`; a
+   rejected one omits the header altogether rather than saying no.
 2. **Supabase Auth → URL configuration** (the Google sign-in return leg). Two
    fields; the second is the one that bites.
 
