@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import {
   usePromoterProfile,
@@ -102,6 +102,12 @@ function ChipList({
 
 export default function Account() {
   const { user, role, isLoading: authLoading, refreshRole } = useAuth();
+  // Back means back. A promoter who came from /pro was being returned to the
+  // consumer chat, which is a different product wearing the same header.
+  // Router state rather than a query string: it survives no URL, and a deep
+  // link or a bookmark simply has none and falls back to the chat.
+  const location = useLocation() as { state?: { from?: string } };
+  const backTo = location.state?.from ?? "/";
   const { t } = useTranslation();
   const { language, chooseLanguage } = useLanguagePreference();
 
@@ -182,7 +188,7 @@ export default function Account() {
     <div className="min-h-[100dvh] bg-background">
       <header className="flex items-center gap-2 border-b border-rule px-3 py-2 sm:px-4">
         <Link
-          to="/"
+          to={backTo}
           aria-label={t.account.back}
           className="flex h-11 w-11 items-center justify-center text-ink-dim transition-colors hover:text-foreground"
         >
@@ -249,12 +255,15 @@ export default function Account() {
             way to become a promoter: saving it grants the role. Gating it on
             already having the role is what made /pro's "not a pro account yet →"
             link point at a page that could not help. */}
-        <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
+        {/* The promoter block wears the promoter ground even inside the
+            consumer account screen — same tokens as /pro, so the two read as
+            one room and this reads as the door into it. */}
+        <section className="flex flex-col gap-4 rounded-[26px] border border-pro-border bg-pro-card p-6">
             <div className="flex flex-col gap-1">
-              <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-card-foreground">
+              <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-pro-fg">
                 {isPro ? t.account.promoter : t.account.becomePromoter}
               </h2>
-              <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+              <p className="text-[12.5px] leading-[1.45] text-pro-muted">
                 {isPro ? t.account.promoterNote : t.account.becomePromoterNote}
               </p>
             </div>
