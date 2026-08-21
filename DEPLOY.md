@@ -137,8 +137,47 @@ ships with the cutover, not before it.
    gateway at all. Verify with a preflight rather than by reading the output —
    `curl -X OPTIONS <gateway>/api/chat -H "Origin: …" -H "Access-Control-Request-Method: POST"`
    answers with `access-control-allow-origin` only for an allowed origin.
-2. Supabase Auth → URL configuration: add the Pages domain to redirect
-   URLs (Google sign-in return leg).
+2. **Supabase Auth → URL configuration** (the Google sign-in return leg). Two
+   fields; the second is the one that bites.
+
+   **Site URL** — `https://laiive.com`. It is the fallback substituted whenever a
+   `redirectTo` fails to match the list below, *and* where the email-confirmation
+   link lands: `signUp` passes no `emailRedirectTo`, so a promoter who confirms a
+   mail arrives here with a session and `PostAuthLanding` spends their stashed
+   organisation from there. Point it anywhere that is not the app and that whole
+   leg dies without a sound.
+
+   **Redirect URLs** — one pattern per line:
+
+   ```
+   https://laiive.com/**
+   https://www.laiive.com/**
+   https://laiive.pages.dev/**
+   https://*.laiive.pages.dev/**
+   http://localhost:8081/**
+   http://localhost:8082/**
+   ```
+
+   The trailing `/**` is not decoration. OAuth returns to `<origin>/auth/callback`
+   (`CALLBACK_PATH` in `frontend/src/auth/postAuth.ts`) — a waiting room, so that
+   `/pro` is never reached with a token minted before the promoter grant. A bare
+   origin matches no path at all, and a single `*` stops at the first separator:
+   `*` is a run of non-separator characters, `**` crosses `/` and `.`. The
+   wildcard subdomain covers Pages previews, whose hostname is a per-deploy hash.
+
+   Nothing moves on the Google side for this. Its only registered redirect URI is
+   `https://<ref>.supabase.co/auth/v1/callback`; Google never sees an app path.
+
+   **Checking it is a trap, twice over.** A value the list does not match is not
+   an error — it is dropped for the Site URL, silently. And it cannot be caught on
+   the way out either: `/auth/v1/authorize` echoes `redirect_to` into the Google
+   URL unvalidated (`https://example.com/` sails straight through), because the
+   check happens on the way back. So verify in a browser, not with curl — sign in
+   with Google and watch the URL bar for `/auth/callback` before the destination.
+   Landing directly on `/` means the pattern did not match. To read the list
+   rather than infer it: `curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"
+   https://api.supabase.com/v1/projects/<ref>/config/auth | jq '{site_url, uri_allow_list}'`
+   with a personal access token from the Supabase account page.
 3. Prefect: `serve.py` keeps running on the dev machine, now against the
    public gateway — set `GATEWAY_URL=https://laiive-gateway.fly.dev` in
    the root `.env`. (Containerizing serve.py stays optional, see handoff.)
