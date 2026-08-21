@@ -1,45 +1,44 @@
-# HANDOFF — laiive (updated 2026-08-19)
+# HANDOFF - laiive (updated 2026-08-21)
 
 State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`;
 refactor history `docs/refactor/` (closed).
 
 ## Where things stand
 
-**laiive is live end to end**, tagged `v0.1.0`. Frontend https://laiive.pages.dev (Pages,
-production branch `main`, previews from `develop`); gateway https://laiive-gateway.fly.dev,
-five Fly apps in `fra`, retriever/pusher/search on zero public IPs. Local: gateway :8000,
-retriever :8002, pusher :8003, search :8004, frontend :8081 (squatted — 8082 works).
+**laiive is live at https://laiive.com**, tagged `v0.1.0` - Cloudflare Pages (production branch
+`main`, previews from `develop`; `laiive.pages.dev` still serves as fallback); gateway
+https://laiive-gateway.fly.dev, five Fly apps in `fra`, retriever/pusher/search on no public IPs.
 
 **`main` is production, `develop` the trunk and default branch**; work branches PR into
 `develop`, `main` takes a release PR only and is protected. Ship with `make release`; model in
 `CONTRIBUTING.md`. Archives, never build on: `legacy/pre-refactor`, `experiment/k3s`.
 
-## The redesign — applied, not shipped
+**Brand v1 is shipped and serving**; `brand-guide.pdf` is still missing, so the decisions it may
+overrule stay under "Restyle" in the machine block - reverting is a token swap. **`develop` is
+four commits ahead of `main` and unreleased**: the promoter door, the sign-up hardening, the
+frontend test suite. PR #57 (deploy docs) is open on top.
 
-**`assets/brand/` v1 is applied to the whole frontend** on `feat/brand-v1` (`efe6a10`), all
-eight steps. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro
-form were checked in a browser. **Not PR'd, not deployed** — next is a PR into `develop`.
+## The promoter door - finished, unclicked
 
-Warm black `#0C0A0A`, cream answers, amber (price/mic/tickets/rail), cyan pro-only, Bebas +
-DM Sans + IBM Plex Mono, no gradients or glows. Icons come from `public/brand/icons.svg` via
-`<Icon>`, the lockup from `<Mark>`; `lucide-react` is imported nowhere now.
-
-`brand-guide.pdf` is still missing and the owner chose to proceed without it, so these are
-decisions the PDF may overrule: composer is one amber circle (mic → send → stop), **no `+`**;
-card actions are map + tickets only, `saved` ships inert; empty screen is the wordmark as a
-watermark; `/pro` lives in the account menu; `/auth?kind=pro` is the promoter door; where the
-rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
+`?kind=pro` is one form now: the organisation is a field on sign-up, `20260820000012` grants the
+role by trigger, the token is re-minted before `/pro` opens. OAuth returns to `/auth/callback`, a
+waiting room, so `/pro` never renders against a pre-grant token; a confirmation mail is survived
+by a `localStorage` intent keyed to the address (24 h). The frontend has tests now too - vitest +
+jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
 
 ## Open
 
-- **Two account kinds at sign-up.** OAuth produces one kind of user and the pro role is granted
-  by hand in `user_roles`; it needs a consumer path and a pro path feeding the organizations
-  model (`docs/roadmap/02-ownership.md`). Deferred by the owner.
+- **The Supabase redirect allow-list is unverified** and gates Google sign-in in production: it
+  needs `<origin>/**`, not bare origins, now the return leg is `/auth/callback`. It cannot be
+  probed from outside - read it (`DEPLOY.md` section 5 step 2).
+- `origin/feat/promoter-onboarding-and-surface` is stale - a push recreated it after #56 merged
+  and deleted it; remote branch deletion is refused from here.
 - The **OG card** is `og-base-1200x630.png` bare; the composed version is still to make.
-- Google sign-in shows the Supabase project id rather than laiive — `DEPLOY.md` §5b.
+- Google sign-in shows the Supabase project id rather than laiive - `DEPLOY.md` section 5b.
 - Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
-- Smaller: migration `20260819000011` applied but unwritten-to; `.claude` deny rules unverified
-  after restart; `main_protection` ruleset redundant; ingestion items in `01-program.md` §7.
+- Smaller: `lucide-react` unused in `package.json`; `20260819000011` applied but unwritten-to;
+  `.claude` deny rules unverified after restart; `main_protection` redundant; ingestion items in
+  `01-program.md` section 7.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -47,7 +46,7 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-19",
+  "updated": "2026-08-21",
   "deadline": null,
   "people": [
     "oscar"
@@ -301,6 +300,22 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
         {
           "date": "2026-08-19",
           "text": "Releases are semver tags plus a generated CHANGELOG: .cz.toml gains version 0.1.0, update_changelog_on_bump and major_version_zero, and make release runs cz bump through uvx. --yes is not optional on this machine - prompt_toolkit raises NoConsoleScreenBufferError under Git Bash. CI push triggers narrowed to main and develop, since a work branch is already covered by its PR and both were running"
+        },
+        {
+          "date": "2026-08-20",
+          "text": "laiive.com is the live domain: Cloudflare nameservers, Pages custom domain for apex and www, og/twitter cards pointed at it. laiive.pages.dev keeps serving as the fallback"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "The frontend has a test suite - vitest + jsdom, config merged from the app's vite config so aliases cannot drift, fake VITE_* env, every Supabase-touching spec mocks the client. 33 specs, and CI's frontend matrix row flips from test:false to test:true"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "Supabase's redirect allow-list needs <origin>/** patterns now the OAuth return leg is /auth/callback: a bare origin matches no path and a single * stops at a separator. It cannot be probed from outside - /auth/v1/authorize echoes redirect_to unvalidated (https://example.com/ passes straight through), the check happens on the return leg - so read it with the Management API or watch the URL bar"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "Gateway CORS is exact string equality (@fastify/cors over the split CORS_ALLOW_ORIGINS array), so per-deploy Pages preview hostnames can never reach it and develop.laiive.pages.dev is the only usable preview. Verified live: laiive.com, www, laiive.pages.dev and the develop alias are allowed, nothing else"
         }
       ]
     },
@@ -512,6 +527,30 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
         {
           "date": "2026-08-19",
           "text": "Applied end to end on feat/brand-v1 (efe6a10): tokens, tailwind, index.html, Chat, EventCardView, UserMenu, ProSubmit, EventForm, Auth, Account, NotFound, Button, Input, MicButton, and the four language blocks. Typecheck, lint and build pass; chat with cards, auth, the pro gate and the pro form were checked in a browser at 390px and 1280px"
+        },
+        {
+          "date": "2026-08-20",
+          "text": "brand v1 is shipped: merged through develop into main and serving on laiive.com. The brand-guide.pdf caveats above stand - the PDF may still overrule them, and reverting the palette is a token swap"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "The promoter door finishes the job in one form: the organisation is a field on the ?kind=pro sign-up, migration 20260820000012 grants the role by trigger, and the token is re-minted before /pro opens. This supersedes the 2026-08-19 decision that the door creates an ordinary account"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "OAuth returns to /auth/callback, a waiting room that renders nothing role-gated, so /pro is never reached with a token minted before the grant and no promoter is shown a refusal that then flips under them"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "A promoter's organisation survives a confirmation mail in localStorage keyed to the address it was typed for, 24 h TTL - sessionStorage cannot cross a mail client, and an intent with no lifetime or no owner ambushes whoever signs in next"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "A refreshSession that fails after the promoter row landed is its own failure (PromoterRefreshError) and routes to /account: the account is a promoter, only the token in that browser disagrees, so /pro would refuse it"
+        },
+        {
+          "date": "2026-08-21",
+          "text": "The promoter surface uses the pro.* palette brand-tokens.css already shipped, contradicting a comment in that same file. Owner chose the palette; the PDF may overrule it"
         }
       ]
     },
@@ -574,23 +613,15 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
       "severity": "low",
       "owner": "oscar",
       "since": "2026-08-14"
+    },
+    {
+      "text": "The Supabase redirect allow-list is unverified and gates Google sign-in in production: with bare origins rather than <origin>/** patterns the return to /auth/callback is silently dropped for the Site URL. Read it with GET /v1/projects/<ref>/config/auth",
+      "severity": "medium",
+      "owner": "oscar",
+      "since": "2026-08-21"
     }
   ],
   "nextSteps": [
-    {
-      "title": "Owner deploy session per root DEPLOY.md: flyctl auth login, apps + redis volume, make fly-secrets, deploy in order, Pages project, CORS/redirect stitching, smoke checklist. Migration 20260818000010 is pushed and the secrets check passes",
-      "est": 2,
-      "owner": "oscar",
-      "phase": "Phase 6 - CI/CD + deploy",
-      "plan": "refactor"
-    },
-    {
-      "title": "PR feat/brand-v1 into develop, check the Pages preview, then deploy. Nothing on the branch has been seen outside localhost",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Restyle - new visual direction",
-      "plan": "roadmap"
-    },
     {
       "title": "Compose the OG card on og-base-1200x630.png - public/og-image.png is the bare ground today, with og:title and og:description carrying the words",
       "est": 1,
@@ -601,13 +632,6 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
     {
       "title": "Drop lucide-react from frontend/package.json - no component imports it since the brand icon set landed",
       "est": 1,
-      "owner": "oscar",
-      "phase": "Restyle - new visual direction",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Two account kinds at sign-up: OAuth produces one kind of user today and the pro role is granted by hand in user_roles. Needs a consumer path and a pro path, feeding the organizations model. Deferred by the owner, single path until then",
-      "est": 3,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
       "plan": "roadmap"
@@ -680,6 +704,27 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
       "est": 1,
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Verify the Supabase redirect allow-list carries <origin>/** for laiive.com, www, laiive.pages.dev and the develop alias, and that Site URL is https://laiive.com - read it, do not infer it (DEPLOY.md section 5 step 2)",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Release PR develop -> main: the promoter door, the sign-up hardening and the frontend test suite are unreleased. Then make release, deploy, and merge main back into develop so the tag is not stranded",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Delete origin/feat/promoter-onboarding-and-surface - recreated by a push after PR #56 merged and deleted it, and remote branch deletion is refused from this machine",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
       "plan": "roadmap"
     }
   ],
@@ -763,6 +808,13 @@ rules and `reference-screens.html` disagreed on size, the 44px touch floor won.
     },
     {
       "date": "2026-08-19",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-21",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",
