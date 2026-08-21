@@ -2,11 +2,19 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
-import { rememberDestination, takeDestination } from "@/auth/postAuth";
+import { becomePromoter, PromoterRefreshError } from "@/auth/becomePromoter";
+import {
+  CALLBACK_PATH,
+  clearPostAuth,
+  rememberDestination,
+  rememberPendingPromoter,
+  rememberPromoterOrg,
+} from "@/auth/postAuth";
 import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
+import { cn } from "@/lib/cn";
 
 type Mode = "signin" | "signup";
 
@@ -15,9 +23,12 @@ export default function Auth() {
   const { t } = useTranslation();
   const { signIn, signInWithGoogle, signUp } = useAuth();
 
-  // `?kind=pro` is the promoter's door. It creates an ordinary account — the
-  // pro role is granted separately — but it starts on sign-up and lands on
-  // /pro afterwards, which is where the rest of that conversation happens.
+  // `?kind=pro` is the promoter's door, and it now finishes the job. It used to
+  // create an ordinary account and land on /pro, which refused it and sent the
+  // promoter to /account to fill a second form — the door made you apply for
+  // what you had just walked through it to get. Asking for the organisation
+  // here means one form: the account and the promoter row are written together,
+  // the trigger grants the role, and /pro opens.
   const [params] = useSearchParams();
   const isPro = params.get("kind") === "pro";
 
@@ -25,6 +36,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [busy, setBusy] = useState(false);
   // Held apart from `busy`: a form submit clears itself in a `finally`, but the
   // OAuth hand-off never returns, so only coming back to this page can clear it.
@@ -45,12 +57,12 @@ export default function Auth() {
     // as well as on the events below, because `pageshow` has already fired by
     // the time React attaches to it on a fresh document — which left the stash
     // alive to ambush the next sign-in, one made by email minutes later.
-    takeDestination();
+    clearPostAuth();
 
     const revive = () => {
       if (document.visibilityState !== "visible") return;
       setRedirecting(false);
-      takeDestination();
+      clearPostAuth();
     };
     window.addEventListener("pageshow", revive);
     document.addEventListener("visibilitychange", revive);
@@ -65,13 +77,25 @@ export default function Auth() {
   const destination = isPro ? "/pro" : "/";
 
   const googleSignIn = async () => {
+    if (isPro && mode === "signup" && !orgName.trim()) {
+      toast.error(t.auth.orgRequired);
+      return;
+    }
     setRedirecting(true);
     try {
       rememberDestination(destination);
+      // The organisation cannot be written yet — there is no session until
+      // Google hands one back — so it travels the same way the destination
+      // does, and PostAuthLanding spends it once the account exists.
+      if (isPro && mode === "signup") rememberPromoterOrg(orgName);
+      // Not `destination`: coming back straight to /pro renders the refusal
+      // screen against a token that has not been re-minted yet, then flips
+      // under the promoter a moment later. The callback is a waiting room —
+      // it holds until the row and the token have both landed, then forwards.
       // Resolves before the browser leaves, so this stays on until it does.
-      await signInWithGoogle(`${window.location.origin}${destination}`);
+      await signInWithGoogle(`${window.location.origin}${CALLBACK_PATH}`);
     } catch (error) {
-      takeDestination();
+      clearPostAuth();
       toast.error(error instanceof Error ? error.message : t.auth.googleFailed);
       setRedirecting(false);
     }
@@ -81,6 +105,13 @@ export default function Auth() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    // Before the account exists, not after: `required` is happy with a space,
+    // and becomePromoter is not — which used to create an ordinary account,
+    // fail the grant, and land the new non-promoter on /pro to be refused.
+    if (isPro && mode === "signup" && !orgName.trim()) {
+      toast.error(t.auth.orgRequired);
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "signin") {
@@ -91,13 +122,37 @@ export default function Auth() {
         // account is already usable — telling that person to check an inbox
         // sends them to wait for a mail Supabase never attempted to send, and
         // then lets them in anyway. Follow what came back, not what we assume.
-        const { signedIn } = await signUp(email, password, displayName || undefined);
-        if (signedIn) {
-          navigate(destination);
-        } else {
+        const { signedIn, userId } = await signUp(email, password, displayName || undefined);
+        if (!signedIn) {
+          // Confirmation is on, so there is no session to write the promoter
+          // row into and the mail will be opened somewhere this tab cannot
+          // reach. The organisation waits for the address instead, and the
+          // first session that belongs to it spends the intent.
+          if (isPro) rememberPendingPromoter(email, orgName);
           toast.success(t.auth.checkInbox);
           setMode("signin");
+          return;
         }
+        if (isPro && userId) {
+          // Deliberately not fatal. The account exists and works; a promoter
+          // row that failed to land is a finishable state on /account, not a
+          // reason to throw someone back at a sign-up form they just completed.
+          // A failed *refresh* is a third thing again: they are a promoter, the
+          // token in this tab just does not say so yet, and /pro would refuse
+          // them on it — so both failures finish on /account.
+          try {
+            await becomePromoter(userId, orgName);
+          } catch (error) {
+            toast.error(
+              error instanceof PromoterRefreshError
+                ? t.auth.promoterSessionStale
+                : t.auth.promoterSetupFailed,
+            );
+            navigate("/account");
+            return;
+          }
+        }
+        navigate(destination);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.auth.failed);
@@ -107,7 +162,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background p-6">
+    <div className={cn("flex min-h-[100dvh] flex-col items-center justify-center p-6", isPro ? "bg-pro-bg" : "bg-background")}>
       <Link to="/" className="mb-8 flex items-center gap-2.5">
         <Mark size={30} />
         {isPro && (
@@ -119,9 +174,12 @@ export default function Auth() {
 
       <form
         onSubmit={submit}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6"
+        className={cn(
+          "flex w-full max-w-sm flex-col gap-4 rounded-[26px] border p-6",
+          isPro ? "border-pro-border bg-pro-card" : "border-hairline/[0.07] bg-card",
+        )}
       >
-        <h1 className="font-bebas text-[24px] leading-none tracking-[0.04em] text-card-foreground">
+        <h1 className={cn("font-bebas text-[24px] leading-none tracking-[0.04em]", isPro ? "text-pro-fg" : "text-card-foreground")}>
           {mode === "signin" ? t.auth.signInTitle : t.auth.signUpTitle}
         </h1>
 
@@ -131,6 +189,18 @@ export default function Auth() {
             onChange={(event) => setDisplayName(event.target.value)}
             placeholder={t.auth.displayNamePlaceholder}
             autoComplete="nickname"
+          />
+        )}
+
+        {/* The one field that makes this the promoter's door rather than a
+            consumer sign-up wearing a badge: it is what grants the role. */}
+        {isPro && mode === "signup" && (
+          <Input
+            required
+            value={orgName}
+            onChange={(event) => setOrgName(event.target.value)}
+            placeholder={t.auth.orgPlaceholder}
+            autoComplete="organization"
           />
         )}
 

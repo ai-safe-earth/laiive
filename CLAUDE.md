@@ -62,7 +62,9 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
   `… python -m pytest -v tests/test_x.py::test_name`, `--timeout=120` for anything touching
   an LLM. Or `/verify-retriever` after retriever changes; `make test-all` mirrors CI.
 - Gateway: `cd services/gateway && npm test` (vitest, fakes Supabase locally). Frontend:
-  `npm run typecheck` (runs both tsconfig projects — bare `tsc --noEmit` is a silent no-op).
+  `npm run typecheck` (runs both tsconfig projects — bare `tsc --noEmit` is a silent no-op) and
+  `npm test` (vitest + jsdom, `vitest.config.ts` fakes the `VITE_*` env; every spec mocks the
+  Supabase client, so no test ever dials out).
 - Pusher `tests/conftest.py` autouse-patches module-level clients (`agent.converters._client`,
   `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`). A new module with its
   own module-level client must be added there or tests hit the real API.

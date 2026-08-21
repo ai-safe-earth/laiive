@@ -17,9 +17,14 @@ inside each service directory).
 
 ```sh
 npm run typecheck   # both tsconfig projects — plain `tsc --noEmit` is a no-op here
+npm test            # vitest + jsdom, one run;  npm run test:watch to stay open
 npm run build       # typecheck + vite build
 npm run lint
 ```
+
+Specs live beside what they cover (`src/**/*.test.ts?(x)`). `vitest.config.ts`
+inherits the app's aliases and supplies fake `VITE_*` values, and every spec
+that reaches Supabase mocks the client — a test run never dials out.
 
 ## Environment
 
