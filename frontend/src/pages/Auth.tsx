@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
-import { becomePromoter } from "@/auth/becomePromoter";
-import { clearPostAuth, rememberDestination, rememberPromoterOrg } from "@/auth/postAuth";
+import { becomePromoter, PromoterRefreshError } from "@/auth/becomePromoter";
+import {
+  CALLBACK_PATH,
+  clearPostAuth,
+  rememberDestination,
+  rememberPendingPromoter,
+  rememberPromoterOrg,
+} from "@/auth/postAuth";
 import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -82,8 +88,12 @@ export default function Auth() {
       // Google hands one back — so it travels the same way the destination
       // does, and PostAuthLanding spends it once the account exists.
       if (isPro && mode === "signup") rememberPromoterOrg(orgName);
+      // Not `destination`: coming back straight to /pro renders the refusal
+      // screen against a token that has not been re-minted yet, then flips
+      // under the promoter a moment later. The callback is a waiting room —
+      // it holds until the row and the token have both landed, then forwards.
       // Resolves before the browser leaves, so this stays on until it does.
-      await signInWithGoogle(`${window.location.origin}${destination}`);
+      await signInWithGoogle(`${window.location.origin}${CALLBACK_PATH}`);
     } catch (error) {
       clearPostAuth();
       toast.error(error instanceof Error ? error.message : t.auth.googleFailed);
@@ -95,6 +105,13 @@ export default function Auth() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    // Before the account exists, not after: `required` is happy with a space,
+    // and becomePromoter is not — which used to create an ordinary account,
+    // fail the grant, and land the new non-promoter on /pro to be refused.
+    if (isPro && mode === "signup" && !orgName.trim()) {
+      toast.error(t.auth.orgRequired);
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "signin") {
@@ -107,6 +124,11 @@ export default function Auth() {
         // then lets them in anyway. Follow what came back, not what we assume.
         const { signedIn, userId } = await signUp(email, password, displayName || undefined);
         if (!signedIn) {
+          // Confirmation is on, so there is no session to write the promoter
+          // row into and the mail will be opened somewhere this tab cannot
+          // reach. The organisation waits for the address instead, and the
+          // first session that belongs to it spends the intent.
+          if (isPro) rememberPendingPromoter(email, orgName);
           toast.success(t.auth.checkInbox);
           setMode("signin");
           return;
@@ -115,10 +137,19 @@ export default function Auth() {
           // Deliberately not fatal. The account exists and works; a promoter
           // row that failed to land is a finishable state on /account, not a
           // reason to throw someone back at a sign-up form they just completed.
+          // A failed *refresh* is a third thing again: they are a promoter, the
+          // token in this tab just does not say so yet, and /pro would refuse
+          // them on it — so both failures finish on /account.
           try {
             await becomePromoter(userId, orgName);
-          } catch {
-            toast.error(t.auth.promoterSetupFailed);
+          } catch (error) {
+            toast.error(
+              error instanceof PromoterRefreshError
+                ? t.auth.promoterSessionStale
+                : t.auth.promoterSetupFailed,
+            );
+            navigate("/account");
+            return;
           }
         }
         navigate(destination);

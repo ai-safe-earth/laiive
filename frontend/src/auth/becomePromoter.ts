@@ -1,6 +1,20 @@
 import { supabase } from "./supabase";
 
 /**
+ * The row landed, the token did not. Thrown apart from every other failure
+ * because it means something different to the caller: this account *is* a
+ * promoter, the database says so, and only the JWT in this browser disagrees.
+ * Sending them to /pro on that stale claim is the refusal screen again, so the
+ * caller routes elsewhere and says what actually happened.
+ */
+export class PromoterRefreshError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PromoterRefreshError";
+  }
+}
+
+/**
  * Turn a signed-in account into a promoter account.
  *
  * Writing the promoter_profiles row is the grant: the trigger from
@@ -13,9 +27,9 @@ import { supabase } from "./supabase";
  * being refused for up to an hour. Same reason /account refreshes after its own
  * save; this is that step for the sign-up path.
  *
- * Callers own the failure: the account exists and is usable either way, so a
- * promoter whose row did not land should be let in and told to finish on
- * /account, never bounced back to a sign-up screen.
+ * Callers own the failure, and the two halves fail differently — see
+ * PromoterRefreshError. Neither is a reason to bounce someone back to a
+ * sign-up screen: the account exists and is usable either way.
  */
 export async function becomePromoter(userId: string, orgName: string): Promise<void> {
   const org = orgName.trim();
@@ -27,6 +41,12 @@ export async function becomePromoter(userId: string, orgName: string): Promise<v
   );
   if (error) throw new Error(error.message);
 
+  // Past this line the grant has happened. A refresh that fails is a network
+  // blip far more often than anything structural, so try once more before
+  // telling anyone their sign-up went wrong — it did not.
   const { error: refreshError } = await supabase.auth.refreshSession();
-  if (refreshError) throw new Error(refreshError.message);
+  if (!refreshError) return;
+
+  const { error: retryError } = await supabase.auth.refreshSession();
+  if (retryError) throw new PromoterRefreshError(retryError.message);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { Icon } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
@@ -13,6 +13,10 @@ export function UserMenu() {
   const { t } = useTranslation();
   const { user, role, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  // Back means back. /account's arrow returns to whatever page opened it, and
+  // this menu is the way in from /pro — without telling it where we came from
+  // a promoter is returned to the consumer chat, a different product.
+  const { pathname } = useLocation();
   const wrapper = useRef<HTMLDivElement>(null);
 
   // A menu that only closes on its own items strands the user on a phone,
@@ -56,7 +60,12 @@ export function UserMenu() {
           <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-[0.11em] text-ink-dim">
             {role}
           </p>
-          <MenuLink to="/account" icon="settings" onNavigate={() => setOpen(false)}>
+          <MenuLink
+            to="/account"
+            icon="settings"
+            state={{ from: pathname }}
+            onNavigate={() => setOpen(false)}
+          >
             {t.menu.settings}
           </MenuLink>
           <MenuLink to="/pro" icon="flyer" onNavigate={() => setOpen(false)}>
@@ -82,17 +91,20 @@ export function UserMenu() {
 function MenuLink({
   to,
   icon,
+  state,
   onNavigate,
   children,
 }: {
   to: string;
   icon: "settings" | "flyer";
+  state?: { from: string };
   onNavigate: () => void;
   children: React.ReactNode;
 }) {
   return (
     <Link
       to={to}
+      state={state}
       onClick={onNavigate}
       className="flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-[14px] text-popover-foreground transition-colors hover:bg-muted"
     >
