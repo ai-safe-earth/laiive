@@ -42,6 +42,10 @@ export interface Translations {
     toSignIn: string;
     withoutAccount: string;
     checkInbox: string;
+    /** The promoter door only. */
+    orgPlaceholder: string;
+    orgRequired: string;
+    promoterSetupFailed: string;
     failed: string;
     googleFailed: string;
     proInvite: string;
@@ -175,6 +179,9 @@ export const translations: Record<Language, Translations> = {
       toSignIn: "already have an account? sign in",
       withoutAccount: "continue without an account →",
       checkInbox: "Check your inbox to confirm the address, then sign in.",
+      orgPlaceholder: "organisation — venue, label, collective…",
+      orgRequired: "the organisation name is required",
+      promoterSetupFailed: "Account created, but promoter setup did not finish — add it in your account.",
       failed: "Authentication failed",
       googleFailed: "Google sign-in failed",
       proInvite: "promoter, musician, venue owner?",
@@ -322,6 +329,9 @@ export const translations: Record<Language, Translations> = {
       toSignIn: "¿ya tienes cuenta? inicia sesión",
       withoutAccount: "continúa sin cuenta →",
       checkInbox: "Revisa tu correo para confirmar la dirección y luego inicia sesión.",
+      orgPlaceholder: "organización — sala, sello, colectivo…",
+      orgRequired: "el nombre de la organización es obligatorio",
+      promoterSetupFailed: "Cuenta creada, pero no se completó el alta de promotor — añádelo en tu cuenta.",
       failed: "No se pudo iniciar sesión",
       googleFailed: "No se pudo iniciar sesión con Google",
       proInvite: "¿promotor, músico, dueño de una sala?",
@@ -469,6 +479,9 @@ export const translations: Record<Language, Translations> = {
       toSignIn: "hai già un account? accedi",
       withoutAccount: "continua senza account →",
       checkInbox: "Controlla la tua casella per confermare l'indirizzo, poi accedi.",
+      orgPlaceholder: "organizzazione — locale, etichetta, collettivo…",
+      orgRequired: "il nome dell'organizzazione è obbligatorio",
+      promoterSetupFailed: "Account creato, ma la configurazione da promoter non è andata a buon fine — completala nel tuo account.",
       failed: "Autenticazione non riuscita",
       googleFailed: "Accesso con Google non riuscito",
       proInvite: "promoter, musicista, gestore di un locale?",
@@ -616,6 +629,9 @@ export const translations: Record<Language, Translations> = {
       toSignIn: "ja tens compte? inicia sessió",
       withoutAccount: "continua sense compte →",
       checkInbox: "Revisa el correu per confirmar l'adreça i després inicia sessió.",
+      orgPlaceholder: "organització — sala, segell, col·lectiu…",
+      orgRequired: "el nom de l'organització és obligatori",
+      promoterSetupFailed: "Compte creat, però l'alta de promotor no s'ha completat — afegeix-la al teu compte.",
       failed: "No s'ha pogut iniciar la sessió",
       googleFailed: "No s'ha pogut iniciar la sessió amb Google",
       proInvite: "promotor, músic, propietari d'una sala?",

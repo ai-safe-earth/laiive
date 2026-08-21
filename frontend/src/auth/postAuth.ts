@@ -37,3 +37,39 @@ export function takeDestination(): string | null {
     return null;
   }
 }
+
+/**
+ * The organisation a promoter typed on the way out, for the same reason and
+ * with the same lifetime as the destination above: OAuth leaves the app, and
+ * the name they gave has to be there when the session comes back so signing up
+ * as a promoter is one form rather than an account followed by an application.
+ */
+const ORG_KEY = "laiive-post-auth-org";
+
+export function rememberPromoterOrg(orgName: string): void {
+  const trimmed = orgName.trim();
+  if (!trimmed) return;
+  try {
+    sessionStorage.setItem(ORG_KEY, trimmed);
+  } catch {
+    // Same trade as the destination: losing the fallback must not fail sign-in.
+    // The promoter can still fill the form on /account.
+  }
+}
+
+/** Read the organisation and forget it — consumed exactly once, like above. */
+export function takePromoterOrg(): string | null {
+  try {
+    const org = sessionStorage.getItem(ORG_KEY);
+    if (org) sessionStorage.removeItem(ORG_KEY);
+    return org;
+  } catch {
+    return null;
+  }
+}
+
+/** Both stashes at once, for the screen that clears an abandoned attempt. */
+export function clearPostAuth(): void {
+  takeDestination();
+  takePromoterOrg();
+}

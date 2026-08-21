@@ -10,8 +10,14 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   /** Absolute URL to return to; defaults to the origin root. */
   signInWithGoogle: (redirectTo?: string) => Promise<void>;
-  /** Resolves to whether a session came back — see the implementation. */
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ signedIn: boolean }>;
+  /** Resolves to whether a session came back, and to whom — see the
+   *  implementation. `userId` lets the caller act on the new account before
+   *  React has re-rendered with the session. */
+  signUp: (
+    email: string,
+    password: string,
+    displayName?: string,
+  ) => Promise<{ signedIn: boolean; userId: string | null }>;
   signOut: () => Promise<void>;
   /** Re-mint the access token so a role granted server-side reaches the client. */
   refreshRole: () => Promise<void>;
@@ -73,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // not the app's, and the only honest signal is what came back: with
         // "Confirm email" off Supabase hands over a live session here, and the
         // caller must not send the user to an inbox nothing was ever sent to.
-        return { signedIn: data.session !== null };
+        return { signedIn: data.session !== null, userId: data.user?.id ?? null };
       },
       signOut: async () => {
         await supabase.auth.signOut();

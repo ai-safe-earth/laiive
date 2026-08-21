@@ -85,14 +85,17 @@ export default function ProSubmit() {
   if (isLoading) return null;
   if (!user || (role !== "pro" && role !== "admin")) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
         <span className="flex items-center gap-2.5">
           <Mark size={30} />
           <ProBadge />
         </span>
-        <p className="max-w-sm text-[15px] leading-[1.5] text-foreground">{t.pro.needsPro}</p>
+        <p className="max-w-sm text-[15px] leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
         <Link
           to={user ? "/account" : "/auth?kind=pro"}
+          // So /account's back arrow returns here rather than dumping a
+          // promoter on the consumer chat, which is a different product.
+          state={user ? { from: "/pro" } : undefined}
           className="text-[13.5px] text-pro-accent transition-opacity hover:opacity-80"
         >
           {user ? t.pro.becomeProLink : t.pro.signInLink}
@@ -225,8 +228,8 @@ export default function ProSubmit() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
-      <header className="flex-shrink-0 border-b border-rule px-4 pb-2 pt-3 sm:px-6">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
+      <header className="flex-shrink-0 border-b border-pro-border px-4 pb-2 pt-3 sm:px-6">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <Link to="/" className="flex items-center gap-2.5">
             <Mark size={27} />
@@ -242,7 +245,7 @@ export default function ProSubmit() {
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {messages.length === 0 && !draft && (
             <div className="flex flex-col gap-1.5 pt-6">
-              <p className="text-[15px] leading-[1.5] text-foreground">{t.pro.emptyTitle}</p>
+              <p className="text-[15px] leading-[1.5] text-pro-fg">{t.pro.emptyTitle}</p>
               <p className="font-mono text-[11px] text-pro-dim">{t.pro.emptyHint}</p>
             </div>
           )}
@@ -259,7 +262,7 @@ export default function ProSubmit() {
               <Markdown
                 key={index}
                 text={message.content}
-                className="max-w-[84%] whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground"
+                className="max-w-[84%] whitespace-pre-wrap text-[15px] leading-[1.5] text-pro-fg"
               />
             ),
           )}
@@ -285,7 +288,7 @@ export default function ProSubmit() {
       </div>
 
       {/* Composer icons are warm-neutral here, never accent-filled. */}
-      <div className="flex-shrink-0 border-t border-rule px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
+      <div className="flex-shrink-0 border-t border-pro-border px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <input
             ref={fileInput}
