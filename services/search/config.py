@@ -42,11 +42,12 @@ class Settings(BaseSettings):
     # costs one credit whatever it returns, so results_per_query is free; only
     # max_pages, applied after the calls, bounds the OpenAI extraction bill.
     #
-    # results_per_query went 5 -> 10 and max_pages deliberately did not. Two
-    # queries at 5 could not fill a 10-page budget once their overlapping URLs
-    # were deduped, so the sweep was reading fewer pages than it had already
-    # paid for. At 10 the budget fills. Neither bill moves.
-    sweep_max_pages: int = Field(10, alias="SEARCH_SWEEP_MAX_PAGES")
+    # results_per_query is free, so it sits at Tavily's practical ceiling.
+    # max_pages is the one that costs: it is pages x one gpt-4o-mini extraction.
+    # It has to scale with the number of query templates or the extra queries
+    # are paid for and then truncated away unread — five templates reaching
+    # five kinds of site is pointless if only the first one's results survive.
+    sweep_max_pages: int = Field(25, alias="SEARCH_SWEEP_MAX_PAGES")
     sweep_results_per_query: int = Field(10, alias="SEARCH_RESULTS_PER_QUERY")
     # Boosts a locale in Tavily's ranking (general topic only). Empty disables
     # it. Both swept provinces are Italian.

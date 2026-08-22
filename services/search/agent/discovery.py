@@ -6,6 +6,7 @@ still guards the actual write.
 """
 
 from datetime import datetime
+from itertools import zip_longest
 
 from laiive_shared import EventDraft, missing_required
 from laiive_shared.neo4j_writer import parse_start_at
@@ -16,11 +17,33 @@ from pydantic import BaseModel
 from agent import extraction, graph, tavily
 from config import settings
 
-# City name goes into every template; the templates stay English because
-# Tavily handles the translation problem better than we would guess locales.
+# One phrasing reaches one kind of site. The first Torino sweep ran two English
+# templates and came back with fifteen candidates that were all opera: the
+# venue's own site, an international opera aggregator, and a tourism page. That
+# is what "live music concerts in Torino" asks for — the institutions publish
+# structured pages and rank, and the circuit does not.
+#
+# So the templates are deliberately one per source type rather than two good
+# general ones, and they are Italian because both swept provinces are: a
+# circolo's page says "serate live", never "concert venues". A non-Italian
+# province would need this list revisited, which is the trade for reaching the
+# scene rather than the search engine's idea of it.
+#
+# Recall is the goal here, not precision. A wrong candidate costs a human one
+# glance at a dry-run report, and anything that survives to a card carries the
+# "!" mark saying nobody at the door confirmed it.
 QUERY_TEMPLATES = [
-    "live music concerts in {city} {month_year} agenda",
-    "{city} concert venues upcoming gigs tickets",
+    # Cultural agendas and what's-on listings.
+    "{city} agenda eventi musica dal vivo {month_year}",
+    # Clubs and the live circuit.
+    "{city} concerti live club locali serate musica dal vivo",
+    # The independent circuit, which is where the small gigs actually are.
+    "{city} circolo arci centro culturale live band concerti",
+    # Venue programming and ticketing.
+    "concerti {city} {month_year} biglietti programmazione stagione",
+    # Kept in English: the international aggregators publish in it, and they
+    # are worth reaching even though they are not the point.
+    "live music concerts {city} {month_year}",
 ]
 
 
@@ -45,25 +68,32 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     max_pages = max_pages or settings.sweep_max_pages
     month_year = datetime.now().strftime("%B %Y")
 
-    pages: list[tavily.SearchHit] = []
-    seen_urls: set[str] = set()
     # One credit per call regardless of how many rows come back, so this counts
     # calls, not results. Recorded on the report because a monthly allowance
     # nobody can see is one nobody notices spending.
     tavily_calls = 0
+    per_template: list[list[tavily.SearchHit]] = []
+    seen_urls: set[str] = set()
     for template in QUERY_TEMPLATES:
         query = template.format(city=city, month_year=month_year)
         tavily_calls += 1
-        hits = tavily.search(
+        kept = []
+        for hit in tavily.search(
             query,
             settings.sweep_results_per_query,
             country=settings.sweep_country,
-        )
-        for hit in hits:
+        ):
             if hit.url in seen_urls:
                 continue
             seen_urls.add(hit.url)
-            pages.append(hit)
+            kept.append(hit)
+        per_template.append(kept)
+
+    # Round-robin rather than concatenation. max_pages truncates below, and
+    # appending template after template spends the whole budget on the first
+    # one's results — the later, narrower phrasings are what reach the circuit,
+    # so they must not be the ones that fall off the end.
+    pages = [hit for row in zip_longest(*per_template) for hit in row if hit]
     # Bounds the LLM extraction below, never the Tavily spend above: the calls
     # have already been made and paid for by the time this runs.
     pages = pages[:max_pages]
