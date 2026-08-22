@@ -37,8 +37,20 @@ class Settings(BaseSettings):
     embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
 
     # Sweep bounds — a sweep is a synchronous admin call, keep it minutes not hours.
+    #
+    # These two bound different budgets and are easy to confuse. A Tavily call
+    # costs one credit whatever it returns, so results_per_query is free; only
+    # max_pages, applied after the calls, bounds the OpenAI extraction bill.
+    #
+    # results_per_query went 5 -> 10 and max_pages deliberately did not. Two
+    # queries at 5 could not fill a 10-page budget once their overlapping URLs
+    # were deduped, so the sweep was reading fewer pages than it had already
+    # paid for. At 10 the budget fills. Neither bill moves.
     sweep_max_pages: int = Field(10, alias="SEARCH_SWEEP_MAX_PAGES")
-    sweep_results_per_query: int = Field(5, alias="SEARCH_RESULTS_PER_QUERY")
+    sweep_results_per_query: int = Field(10, alias="SEARCH_RESULTS_PER_QUERY")
+    # Boosts a locale in Tavily's ranking (general topic only). Empty disables
+    # it. Both swept provinces are Italian.
+    sweep_country: str = Field("italy", alias="SEARCH_SWEEP_COUNTRY")
     page_max_chars: int = Field(12000, alias="SEARCH_PAGE_MAX_CHARS")
 
     # Cosine score above which a vector neighbour is flagged as a likely

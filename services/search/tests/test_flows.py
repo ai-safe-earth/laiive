@@ -159,7 +159,7 @@ class TestProvinceCoverage:
         ("province", "capital"),
         [
             (city_sweep.BERGAMO_PROVINCE, "Bergamo"),
-            (city_sweep.GIRONA_PROVINCE, "Girona"),
+            (city_sweep.TORINO_PROVINCE, "Torino"),
         ],
     )
     def test_list_is_clean_and_led_by_its_capital(self, province, capital):
@@ -168,13 +168,28 @@ class TestProvinceCoverage:
         assert len(set(province)) == len(province), "a duplicate town sweeps twice"
         assert all(town == town.strip() and town for town in province)
 
-    def test_provinces_do_not_overlap_each_other_or_the_weekly_sweep(self):
+    def test_provinces_do_not_overlap(self):
         bergamo = set(city_sweep.BERGAMO_PROVINCE)
-        girona = set(city_sweep.GIRONA_PROVINCE)
-        assert not bergamo & girona
-        # Barcelona is in DEFAULT_CITIES and is *not* in Girona province; a town
-        # landing in both lists would be swept twice a week for one calendar.
-        assert not (bergamo | girona) & set(city_sweep.DEFAULT_CITIES)
+        torino = set(city_sweep.TORINO_PROVINCE)
+        # A town in both lists would be swept twice a week for one calendar.
+        assert not bergamo & torino
+
+    def test_the_default_is_exactly_what_the_schedules_sweep(self):
+        """DEFAULT_CITIES is what a bare city_sweep() run uses. It drifting
+        away from the scheduled lists would mean an ad-hoc run quietly sweeping
+        a different set from the one on the calendar."""
+        assert set(city_sweep.DEFAULT_CITIES) == set(city_sweep.BERGAMO_PROVINCE) | set(
+            city_sweep.TORINO_PROVINCE
+        )
+
+    def test_the_swept_cities_carry_no_province_suffix(self):
+        """ "Ponteranica, BG" is a second City node holding events the plain
+        name never returns. The writer strips the suffix now; the sweep must
+        not be asking for it in the first place."""
+        from laiive_shared.normalize import clean_city_name
+
+        for town in city_sweep.DEFAULT_CITIES:
+            assert clean_city_name(town) == town
 
 
 class TestBackfillTask:

@@ -47,13 +47,25 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
 
     pages: list[tavily.SearchHit] = []
     seen_urls: set[str] = set()
+    # One credit per call regardless of how many rows come back, so this counts
+    # calls, not results. Recorded on the report because a monthly allowance
+    # nobody can see is one nobody notices spending.
+    tavily_calls = 0
     for template in QUERY_TEMPLATES:
         query = template.format(city=city, month_year=month_year)
-        for hit in tavily.search(query, settings.sweep_results_per_query):
+        tavily_calls += 1
+        hits = tavily.search(
+            query,
+            settings.sweep_results_per_query,
+            country=settings.sweep_country,
+        )
+        for hit in hits:
             if hit.url in seen_urls:
                 continue
             seen_urls.add(hit.url)
             pages.append(hit)
+    # Bounds the LLM extraction below, never the Tavily spend above: the calls
+    # have already been made and paid for by the time this runs.
     pages = pages[:max_pages]
 
     drafts: list[tuple[EventDraft, str]] = []
@@ -112,6 +124,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         candidates=candidates,
         stats={
             "queries": len(QUERY_TEMPLATES),
+            "tavily_credits": tavily_calls,
             "pages_searched": len(pages),
             "pages_with_events": pages_with_events,
             "drafts_extracted": len(drafts),

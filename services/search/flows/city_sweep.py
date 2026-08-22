@@ -18,8 +18,6 @@ except ImportError:
     from auth import gateway_url, get_admin_jwt  # type: ignore[no-redef]
     from polling import wait_for_report  # type: ignore[no-redef]
 
-DEFAULT_CITIES = ["Madrid", "Barcelona", "Berlin"]
-
 # Provinces are swept as a list of their towns, because the query templates
 # take a city name: "Bergamo" finds the comune, not the province, and no
 # phrasing of a province name reliably surfaces the agenda of a town inside it.
@@ -42,18 +40,25 @@ BERGAMO_PROVINCE = [
     "Sarnico",
 ]
 
-GIRONA_PROVINCE = [
-    "Girona",
-    "Figueres",
-    "Blanes",
-    "Lloret de Mar",
-    "Olot",
-    "Salt",
-    "Palafrugell",
-    "Sant Feliu de Guíxols",
-    "Roses",
-    "Banyoles",
+TORINO_PROVINCE = [
+    "Torino",
+    "Moncalieri",
+    "Rivoli",
+    "Collegno",
+    "Nichelino",
+    "Settimo Torinese",
+    "Chieri",
+    "Pinerolo",
+    "Ivrea",
+    "Venaria Reale",
 ]
+
+# Bergamo and Torino are the whole discovery surface for now, deliberately:
+# they are the two the owner can walk into and check, and a source list that
+# learns from yield (flows feeding search_domains) is only worth trusting where
+# someone can tell a real local listing from a well-formed aggregator page.
+# Madrid, Barcelona, Berlin and Girona are no longer swept; their events stay.
+DEFAULT_CITIES = BERGAMO_PROVINCE + TORINO_PROVINCE
 
 # /sweep answers 202 in well under a minute; the sweep itself (2-6 min live)
 # runs in the service's background and lands on the report we then poll.

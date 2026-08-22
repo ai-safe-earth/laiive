@@ -140,3 +140,34 @@ def test_tavily_failure_yields_empty_sweep(mock_tavily):
     result = discovery.sweep_city("Berlin")
     assert result.candidates == []
     assert result.stats["pages_searched"] == 0
+
+
+def test_a_sweep_spends_one_tavily_credit_per_query_template(mock_tavily):
+    """A credit is charged per call, not per result, and the free plan is 1000
+    a month. This is the number that decides how many towns fit in it, so a
+    change that multiplies queries should fail here rather than on the bill."""
+    discovery.sweep_city("Bergamo")
+    assert mock_tavily.post.call_count == len(discovery.QUERY_TEMPLATES) == 2
+
+
+def test_the_sweep_reports_what_it_spent(mock_tavily):
+    result = discovery.sweep_city("Bergamo")
+    assert result.stats["tavily_credits"] == 2
+
+
+def test_max_pages_does_not_reduce_the_tavily_spend(mock_tavily):
+    """It is applied after the calls, so it bounds the OpenAI extraction bill
+    and nothing else. Easy to reach for as a cost control and wrong."""
+    discovery.sweep_city("Bergamo", max_pages=1)
+    assert mock_tavily.post.call_count == 2
+
+
+def test_the_search_is_biased_to_the_swept_country(mock_tavily):
+    """Both provinces are Italian; the locale boost is free."""
+    discovery.sweep_city("Torino")
+    body = mock_tavily.post.call_args.kwargs["json"]
+    assert body["country"] == "italy"
+    # An empty domain filter must never be sent: an over-restricted query
+    # returns nothing and reads as a town with no music.
+    assert "include_domains" not in body
+    assert "exclude_domains" not in body

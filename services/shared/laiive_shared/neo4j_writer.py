@@ -23,7 +23,13 @@ from timezonefinder import TimezoneFinder
 from .cards import EventDraft, missing_required
 from .embedding_text import artist_text, event_text, venue_text
 from .geocode import AddressResolver, NominatimGeocoder
-from .normalize import genre_slug, norm, source_domain
+from .normalize import (
+    canonical_city_name,
+    clean_city_name,
+    genre_slug,
+    norm,
+    source_domain,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +160,10 @@ def write_event(
         )
 
     name = draft.name or f"{draft.artists[0]} live at {draft.venue}"
+    # Resolved once and used for the node, the MERGE key and the geocoder
+    # alike: a promoter typing "Ponteranica, BG" must not create a second City
+    # beside the one every search actually reaches.
+    city = clean_city_name(draft.city or "")
     warnings: list[str] = []
 
     # ── Dedup probe: same name + calendar day + venue → refuse to duplicate ──
@@ -173,7 +183,7 @@ def write_event(
             uid=existing["uid"],
             name=existing["name"],
             venue=draft.venue,
-            city=draft.city,
+            city=city,
             message="An event with the same name, date, and venue already exists.",
         )
 
@@ -186,11 +196,18 @@ def write_event(
     # this flag it is indistinguishable from a real venue location.
     precision = None
     if geocoder is not None:
-        city_geo = geocoder.geocode(draft.city)
+        city_geo = geocoder.geocode(city)
+        if city_geo is not None:
+            # The geocoder answers in the local language, so this collapses the
+            # exonym split before the name becomes a MERGE key: one Torino
+            # sweep returned eight candidates saying Torino and seven saying
+            # Turin, which is two City nodes and a search that finds half its
+            # events. Done before the venue lookup so both ask for one place.
+            city = canonical_city_name(city_geo.display_name) or city
         venue_geo = geocoder.geocode_venue(
             draft.venue,
             draft.address,
-            draft.city,
+            city,
             near=city_geo,
             address_resolver=address_resolver,
         )
@@ -292,8 +309,8 @@ def write_event(
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
                    v.uid AS venue_uid
             """,
-            city=draft.city,
-            city_norm=norm(draft.city),
+            city=city,
+            city_norm=norm(city),
             country_code=country_code,
             city_lat=city_geo.lat if city_geo else None,
             city_lng=city_geo.lng if city_geo else None,
