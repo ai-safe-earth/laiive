@@ -95,6 +95,10 @@ class ChatRequestSSE(BaseModel):
 
     messages: List[Message]
     location: Optional[UserLocation] = None
+    # The asker's IANA zone, for resolving "today" and "tonight". Optional
+    # because a client that sends none is not broken -- it falls back to UTC,
+    # which is what every client did before this existed.
+    timezone: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -103,6 +107,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[Message]] = None
     location: Optional[UserLocation] = None
+    timezone: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -231,6 +236,7 @@ def chat(request: ChatRequest):
             request.message,
             _history_dicts(request.conversation_history),
             _location_dict(request.location),
+            timezone=request.timezone,
         )
         log_turn(
             request_id,
@@ -264,7 +270,7 @@ async def chat_stream(request: ChatRequestSSE):
     location = _location_dict(request.location)
 
     return StreamingResponse(
-        _generate(request_id, user_message, history, location),
+        _generate(request_id, user_message, history, location, request.timezone),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -280,6 +286,7 @@ def _generate(
     user_message: str,
     history: list[dict] | None,
     location: dict | None,
+    timezone: str | None = None,
 ):
     """Named-event frames from the shared protocol.
 
@@ -292,7 +299,7 @@ def _generate(
     result = TurnResult()
     try:
         for payload in get_pipeline().run_turn(
-            user_message, history, location, result=result
+            user_message, history, location, result=result, timezone=timezone
         ):
             yield sse_frame(payload)
     except Exception as e:

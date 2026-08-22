@@ -55,9 +55,32 @@ class TestTemplateQuery:
                 date_to="2026-09-02T00:00:00",
             )
         )
-        assert "e.start_at >= datetime($date_from)" in cypher
-        assert "e.start_at < datetime($date_to)" in cypher
+        assert "localdatetime(e.start_at) >= localdatetime($date_from)" in cypher
+        assert "localdatetime(e.start_at) < localdatetime($date_to)" in cypher
         assert "e.start_at >= datetime()" not in cypher
+
+    def test_a_date_window_is_read_on_the_venues_clock(self):
+        """A window is a wall-clock question. datetime() would read the naive
+        bounds as UTC and compare them against a zoned instant, shifting every
+        window by the venue's offset — a 19:00 Madrid gig fell out of
+        "tonight" and 01:00 the next local morning fell in."""
+        cypher, _ = build_template_query(
+            Constraints(date_from="2026-08-22T18:00:00", date_to="2026-08-23T06:00:00")
+        )
+        # The zoned form must not survive on either bound. Checked as the
+        # whole clause because "localdatetime($date_from)" contains
+        # "datetime($date_from)" as a substring.
+        assert "e.start_at >= datetime($date_from)" not in cypher
+        assert "e.start_at < datetime($date_to)" not in cypher
+        assert "localdatetime(e.start_at) >= localdatetime($date_from)" in cypher
+        assert "localdatetime(e.start_at) < localdatetime($date_to)" in cypher
+
+    def test_upcoming_default_stays_an_instant_comparison(self):
+        """ "Still to come" is the same moment in every zone, so the default is
+        the one clause that must NOT become a wall-clock comparison."""
+        cypher, _ = build_template_query(Constraints(city="Berlin"))
+        assert "e.start_at >= datetime()" in cypher
+        assert "localdatetime" not in cypher
 
     def test_artist_venue_type_and_price(self):
         cypher, params = build_template_query(
