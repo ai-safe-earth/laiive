@@ -28,6 +28,7 @@ WITH DISTINCT e, v, c{extra_with}
 OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
 RETURN e.uid AS uid, e.name AS name, e.description AS description,
        toString(e.start_at) AS start_at, e.start_time_known AS start_time_known,
+       e.timezone AS timezone,
        e.price_min AS price_min,
        e.price_max AS price_max, e.price_currency AS price_currency,
        e.ticket_url AS ticket_url, e.source AS source,
@@ -287,6 +288,7 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 venue_type=row.get("venue_type"),
                 city=row.get("city"),
                 start_at=row.get("start_at"),
+                timezone=row.get("timezone"),
                 start_time_known=row.get("start_time_known"),
                 price_min=row.get("price_min"),
                 price_max=row.get("price_max"),
@@ -341,6 +343,7 @@ def flexible_rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 city=city,
                 venue_type=_get(row, "venue_type") or _get(props, "venue_type"),
                 start_at=str(_get(props, "start_at") or "") or None,
+                timezone=_get(row, "timezone") or _get(props, "timezone"),
                 price_min=_get(props, "price_min", "price_amount"),
                 price_max=_get(props, "price_max"),
                 price_currency=_get(props, "price_currency"),

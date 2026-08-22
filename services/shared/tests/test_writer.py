@@ -3,6 +3,7 @@ from laiive_shared.geocode import GeocodeResult, NominatimGeocoder
 from laiive_shared.neo4j_writer import (
     has_explicit_time,
     parse_start_at,
+    resolve_timezone,
     tag_artist_genres,
     write_event,
 )
@@ -427,3 +428,106 @@ class TestStartTimeKnown:
         write_event(session, draft, source="admin_search")
         create = next(p for q, p in session.queries if "CREATE (e:Event" in q)
         assert create["start_time_known"] is False
+
+
+def test_resolve_timezone_reads_the_zone_off_the_coordinate():
+    """The country code is not a substitute: Spain spans two zones, and the
+    graph already holds Spanish events."""
+    assert resolve_timezone(52.5058, 13.323) == "Europe/Berlin"
+    assert resolve_timezone(45.695, 9.67) == "Europe/Rome"
+    # Both Spain. A country -> zone table gets the second one wrong by an hour.
+    assert resolve_timezone(41.3874, 2.1686) == "Europe/Madrid"
+    assert resolve_timezone(28.1235, -15.4363) == "Atlantic/Canary"
+    assert resolve_timezone(None, None) is None
+
+
+def test_start_time_is_read_in_the_venues_zone_not_as_utc():
+    """A draft states a wall-clock time and no zone. Reading "22:00" as UTC
+    moved a Bergamo gig to midnight the next day; it has to be read at the
+    door. Regression for the 41 events written before this."""
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Druso, Bergamo": GeocodeResult(
+                lat=45.695, lng=9.67, country_code="IT", display_name="Druso"
+            ),
+            "Bergamo": GeocodeResult(
+                lat=45.6983, lng=9.6773, country_code="IT", display_name="Bergamo"
+            ),
+        }
+    )
+    result = write_event(
+        session,
+        EventDraft(
+            artists=["BobSin"],
+            start_at="2026-08-22T22:00:00",
+            venue="Druso",
+            address="Via Portico 71",
+            city="Bergamo",
+            price_min=5.0,
+        ),
+        source="pro_submission",
+        geocoder=geocoder,
+    )
+    assert result.status == "created"
+
+    write_params = session.queries[1][1]
+    # 22:00 at the door in Bergamo, which is 20:00 UTC in August — not 22:00Z.
+    assert write_params["start_at"] == "2026-08-22T22:00:00+02:00"
+    assert write_params["timezone"] == "Europe/Rome"
+
+
+def test_zone_is_resolved_from_the_city_when_the_venue_is_not_found():
+    """The venue falls back to the city centroid, and the zone follows that
+    pin — a centroid is imprecise about the street, not about the hour."""
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            )
+        }
+    )
+    result = write_event(
+        session, DRAFT.model_copy(), source="pro_submission", geocoder=geocoder
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["timezone"] == "Europe/Berlin"
+    assert write_params["start_at"] == "2026-09-01T20:00:00+02:00"
+
+
+def test_no_coordinate_keeps_utc_and_says_so():
+    """A geocoder outage must not stop submissions, but it must not quietly
+    invent an instant either: the row keeps the old UTC reading and carries an
+    empty zone so the backfill can find it."""
+    session = FakeSession()
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["start_at"] == "2026-09-01T20:00:00"
+    assert write_params["timezone"] == ""
+    assert any("timezone" in w for w in result.warnings)
+
+
+def test_date_only_draft_is_localised_too_but_stays_flagged_unknown():
+    """Midnight from a date-only listing is a placeholder, so the card must
+    still hide the hour — but the date it prints is the local one."""
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            )
+        }
+    )
+    result = write_event(
+        session,
+        SWEPT.model_copy(update={"start_at": "2026-09-01"}),
+        source="admin_search",
+        geocoder=geocoder,
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["start_at"] == "2026-09-01T00:00:00+02:00"
+    assert write_params["start_time_known"] is False

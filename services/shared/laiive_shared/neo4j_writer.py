@@ -15,8 +15,10 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
+from timezonefinder import TimezoneFinder
 
 from .cards import EventDraft, missing_required
 from .embedding_text import artist_text, event_text, venue_text
@@ -62,6 +64,31 @@ def has_explicit_time(raw: str) -> bool:
     is a datetime.
     """
     return bool(raw) and bool(re.search(r"\d{1,2}[:.]\d{2}", raw))
+
+
+# Building the finder reads its boundary tables off disk, so it is built once
+# per process and shared. It is documented as thread-safe for lookups.
+_timezone_finder: TimezoneFinder | None = None
+
+
+def resolve_timezone(lat: float | None, lng: float | None) -> str | None:
+    """IANA zone for a coordinate, or None when there is no coordinate.
+
+    A listing says "21:00" and means 21:00 at the door. Without the venue's own
+    zone that wall-clock reading has to be assumed to be something, and
+    assuming UTC silently moved every event in the graph by its offset — a
+    22:00 gig in Bergamo was stored as 00:00 the next day.
+
+    The country code is not a substitute: Spain spans Europe/Madrid and
+    Atlantic/Canary, and the graph already holds Spanish events.
+    """
+    if lat is None or lng is None:
+        return None
+    global _timezone_finder
+    if _timezone_finder is None:
+        _timezone_finder = TimezoneFinder()
+    # Returns None over open water, which for a venue means a bad pin.
+    return _timezone_finder.timezone_at(lat=lat, lng=lng)
 
 
 def parse_start_at(raw: str) -> datetime | None:
@@ -172,6 +199,25 @@ def write_event(
         warnings.append(
             "No venue location — this event will not appear in nearby search."
         )
+
+    # ── Localise the start time to the venue (D-tz) ──────────────────────────
+    # The draft carries a wall-clock reading with no zone: "21:00" off a poster,
+    # or whatever the promoter typed into the form. It only becomes an instant
+    # once it is read in the venue's zone, so that happens here, after geocoding
+    # has produced a coordinate and before the write.
+    timezone = resolve_timezone(
+        venue_geo.lat if venue_geo else None,
+        venue_geo.lng if venue_geo else None,
+    )
+    if timezone is not None:
+        start_at = start_at.replace(tzinfo=ZoneInfo(timezone))
+    else:
+        # Storing it as UTC is what this did for every event written before
+        # this existed. Keep that rather than refuse the write, but say so and
+        # flag the row so the backfill can find it if a pin arrives later.
+        warnings.append(
+            "Could not resolve the venue's timezone; the start time is stored as UTC."
+        )
     country_code = (city_geo.country_code if city_geo else "") or (
         venue_geo.country_code if venue_geo else ""
     )
@@ -208,7 +254,7 @@ def write_event(
             CREATE (e:Event {
                 uid: $event_uid, name: $name, name_norm: $name_norm,
                 description: $description, start_at: datetime($start_at),
-                start_time_known: $start_time_known,
+                start_time_known: $start_time_known, timezone: $timezone,
                 price_min: $price_min, price_max: $price_max,
                 price_currency: $price_currency, ticket_url: $ticket_url,
                 status: 'scheduled', source: $source, owner_id: $owner_id,
@@ -258,6 +304,10 @@ def write_event(
             name_norm=norm(name),
             description=draft.description or "",
             start_at=start_at.isoformat(),
+            # Empty rather than NULL so the property always exists and a card
+            # can distinguish "we do not know" from a zone we simply did not
+            # return. An empty zone means the instant above is UTC by default.
+            timezone=timezone or "",
             # A listing that gave only a date parses to midnight, and midnight
             # then reads as a stated fact on the card. Record which it was.
             start_time_known=has_explicit_time(draft.start_at or ""),

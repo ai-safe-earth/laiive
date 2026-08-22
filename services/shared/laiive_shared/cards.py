@@ -16,6 +16,10 @@ class EventCard(BaseModel):
     venue_type: str | None = None
     city: str | None = None
     start_at: str | None = None  # ISO 8601
+    # IANA zone of the venue, so the card can print the time at the door rather
+    # than on the reader's clock. Empty or None is a row written before the
+    # writer resolved zones, whose start_at is UTC by default.
+    timezone: str | None = None
     price_min: float | None = None
     price_max: float | None = None
     price_currency: str | None = None

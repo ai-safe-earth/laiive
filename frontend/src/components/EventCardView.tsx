@@ -10,6 +10,7 @@ function formatWhen(
   startAt: string | null | undefined,
   language: string,
   timeKnown: boolean,
+  timeZone: string | null | undefined,
 ): string | null {
   if (!startAt) return null;
   const date = new Date(startAt);
@@ -17,12 +18,29 @@ function formatWhen(
   // A listing that gave only a date parses to midnight upstream. Printing
   // "00:00" would turn that default into a claim about when the doors open.
   const time = timeKnown ? ({ hour: "2-digit", minute: "2-digit" } as const) : {};
-  return new Intl.DateTimeFormat(language, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...time,
-  }).format(date);
+  // Doors open at 21:00 where the venue is, not where the reader is. Without
+  // this the same gig reads an hour earlier from Lisbon than from Berlin, and
+  // a late one changes date. Rows written before the writer resolved zones
+  // carry no zone; those fall back to the reader's clock, as they always did.
+  const zone = timeZone ? ({ timeZone } as const) : {};
+  try {
+    return new Intl.DateTimeFormat(language, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...time,
+      ...zone,
+    }).format(date);
+  } catch {
+    // An unknown zone throws a RangeError rather than degrading, and a card
+    // that renders no date at all is worse than one on the reader's clock.
+    return new Intl.DateTimeFormat(language, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...time,
+    }).format(date);
+  }
 }
 
 function formatPrice(card: EventCard, free: string): string | null {
@@ -53,7 +71,12 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
 
   // Rows written before the flag existed have no value and keep the old
   // behaviour, which was right for every seed event.
-  const when = formatWhen(card.start_at, language, card.start_time_known !== false);
+  const when = formatWhen(
+    card.start_at,
+    language,
+    card.start_time_known !== false,
+    card.timezone,
+  );
   const price = formatPrice(card, t.cards.free);
   const isFree = price === t.cards.free;
   const hasCoordinates =
