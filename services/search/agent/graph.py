@@ -49,7 +49,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]]:
     return [d.embedding for d in response.data]
 
 
-def write_event(draft: EventDraft) -> WriteResult:
+def write_event(draft: EventDraft, source_url: str = "") -> WriteResult:
     with _driver.session(database=settings.neo4j_database) as session:
         return _shared_write_event(
             session,
@@ -60,6 +60,7 @@ def write_event(draft: EventDraft) -> WriteResult:
             embedding_model=settings.embedding_model,
             geocoder=_geocoder,
             address_resolver=address_lookup.resolve_address,
+            source_url=source_url,
         )
 
 

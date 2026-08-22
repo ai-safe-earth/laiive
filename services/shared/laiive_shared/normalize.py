@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from urllib.parse import urlparse
 
 
 def norm(name: str) -> str:
@@ -80,3 +81,25 @@ def genre_family(genre: str) -> list[str]:
         v for v, canonical in GENRE_ALIASES.items() if canonical == slug
     }
     return sorted(variants)
+
+
+def source_domain(url: str) -> str:
+    """The host a discovered listing came from, as a grouping key.
+
+    Lowercased and stripped of "www." so one site is one key: a sweep sees
+    both www.ecodibergamo.it and ecodibergamo.it, and counting them as two
+    sources would halve the evidence for each and let a good site sit below a
+    promotion threshold forever.
+
+    The port is kept — a host answering on a non-default port is a different
+    service — and an unparseable URL yields "" rather than raising, because a
+    missing domain must never fail a write.
+    """
+    if not url:
+        return ""
+    try:
+        host = urlparse(url.strip()).hostname or ""
+    except ValueError:
+        return ""
+    host = host.lower()
+    return host[4:] if host.startswith("www.") else host

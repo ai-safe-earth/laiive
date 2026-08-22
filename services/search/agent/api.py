@@ -143,7 +143,10 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
     results = []
     for index, candidate in selected:
         draft = EventDraft(**(candidate.get("draft") or {}))
-        outcome = graph.write_event(draft)
+        # The page this was read off. It has been on the candidate since the
+        # sweep and was dropped here, which left the card promising a source
+        # it could not name.
+        outcome = graph.write_event(draft, candidate.get("source_url") or "")
         results.append(
             {
                 "index": index,

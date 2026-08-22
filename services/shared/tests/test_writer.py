@@ -531,3 +531,48 @@ def test_date_only_draft_is_localised_too_but_stays_flagged_unknown():
     write_params = session.queries[1][1]
     assert write_params["start_at"] == "2026-09-01T00:00:00+02:00"
     assert write_params["start_time_known"] is False
+
+
+def test_source_domain_groups_one_site_under_one_key():
+    from laiive_shared.normalize import source_domain
+
+    assert source_domain("https://www.ecodibergamo.it/agenda/x") == "ecodibergamo.it"
+    # The same site, two spellings. Counted apart, each would carry half the
+    # evidence and neither would ever clear a promotion threshold.
+    assert source_domain("https://ecodibergamo.it/agenda/x") == "ecodibergamo.it"
+    assert source_domain("HTTPS://WWW.EcoDiBergamo.IT/x") == "ecodibergamo.it"
+    assert source_domain("") == ""
+    assert source_domain("not a url") == ""
+
+
+def test_a_discovered_event_records_the_page_it_came_from():
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            )
+        }
+    )
+    result = write_event(
+        session,
+        SWEPT.model_copy(),
+        source="admin_search",
+        geocoder=geocoder,
+        source_url="https://www.ecodibergamo.it/agenda/bobsin",
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["source_url"] == "https://www.ecodibergamo.it/agenda/bobsin"
+    assert write_params["source_domain"] == "ecodibergamo.it"
+
+
+def test_a_promoter_submission_has_no_source_page():
+    """Nobody searched for it, so there is no page to name — and the card must
+    not imply one."""
+    session = FakeSession()
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["source_url"] == ""
+    assert write_params["source_domain"] == ""

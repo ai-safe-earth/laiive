@@ -23,7 +23,7 @@ from timezonefinder import TimezoneFinder
 from .cards import EventDraft, missing_required
 from .embedding_text import artist_text, event_text, venue_text
 from .geocode import AddressResolver, NominatimGeocoder
-from .normalize import genre_slug, norm
+from .normalize import genre_slug, norm, source_domain
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +118,7 @@ def write_event(
     embedding_model: str = "",
     geocoder: NominatimGeocoder | None = None,
     address_resolver: AddressResolver | None = None,
+    source_url: str = "",
 ) -> WriteResult:
     """Write one event (plus its artists/venue/city/genre) to the graph.
 
@@ -131,6 +132,10 @@ def write_event(
         geocoder: venue/city geocoding; skipped (with a warning) when None.
         address_resolver: last-resort (venue, city) -> street address, for the
             venues OSM has no named POI for. Skipped when None.
+        source_url: the page this event was read off, for a discovered event.
+            Deliberately an argument rather than an EventDraft field: it is
+            what the caller knows, not something extracted from the page, and
+            a field on the draft is a field the model can invent.
     """
     missing = missing_required(draft, source)
     if missing:
@@ -258,6 +263,7 @@ def write_event(
                 price_min: $price_min, price_max: $price_max,
                 price_currency: $price_currency, ticket_url: $ticket_url,
                 status: 'scheduled', source: $source, owner_id: $owner_id,
+                source_url: $source_url, source_domain: $source_domain,
                 created_at: datetime(), updated_at: datetime()
             })
             MERGE (e)-[:HOSTED_AT]->(v)
@@ -322,6 +328,11 @@ def write_event(
             artists=artist_rows,
             source=source,
             owner_id=owner_id,
+            source_url=source_url,
+            # Stored beside the URL rather than derived on read: it is the key
+            # every "which sites are worth sweeping" question groups by, and
+            # parsing a URL inside a Cypher aggregation is not a thing.
+            source_domain=source_domain(source_url),
         ).single()
     except Exception as e:  # neo4j errors surface as a typed result, not a 500
         logger.error("Event write failed: %s", e)
