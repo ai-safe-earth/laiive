@@ -1,9 +1,11 @@
 import type { EventCard } from "@shared/protocol";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
+import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
@@ -33,6 +35,12 @@ export default function Chat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [location, setLocation] = useState<UserLocation | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // One query for every card on the page rather than one per card, which
+  // is why EventCardView takes the state as a prop instead of reading it.
+  const { data: savedUids } = useSavedUids(user?.id);
+  const savedSet = useMemo(() => new Set(savedUids ?? []), [savedUids]);
+  const toggleSaved = useToggleSaved(user?.id);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,14 +167,16 @@ export default function Chat() {
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Mark size={27} />
           <div className="flex items-center">
-            {/* Artwork and a place in the bar; the feature is not built, so the
-                icon ships inert rather than promising something. */}
-            <span
+            {/* Visible signed out too: the route sends you to /auth and
+                back, and a header control that appears on sign-in makes
+                the bar jump. */}
+            <Link
+              to="/saved"
               aria-label={t.menu.saved}
-              className="flex h-11 w-11 items-center justify-center text-ink-dim/60"
+              className="flex h-11 w-11 items-center justify-center text-ink-dim transition-colors hover:text-foreground"
             >
               <Icon name="saved" />
-            </span>
+            </Link>
             <UserMenu />
           </div>
         </div>
@@ -219,7 +229,17 @@ export default function Chat() {
                   {message.events && message.events.length > 0 && (
                     <div className="flex flex-col gap-2 border-l-2 border-secondary/50 pl-[11px]">
                       {message.events.map((card) => (
-                        <EventCardView key={card.uid} card={card} language={language} />
+                        <EventCardView
+                key={card.uid}
+                card={card}
+                language={language}
+                saved={savedSet.has(card.uid)}
+                // No control at all when signed out, rather than a pill
+                // that breaks its promise once per card.
+                onToggleSave={
+                  user ? (uid, next) => toggleSaved.mutate({ uid, next }) : undefined
+                }
+              />
                       ))}
                     </div>
                   )}

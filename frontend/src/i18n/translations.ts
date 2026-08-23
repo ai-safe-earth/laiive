@@ -131,6 +131,8 @@ export interface Translations {
     openMaps: string;
     approximate: string;
     tickets: string;
+    save: string;
+    saved: string;
     webTitle: string;
     webAria: string;
     webMissing: string;
@@ -141,6 +143,17 @@ export interface Translations {
     fieldTime: string;
     fieldPrice: string;
     fieldLocation: string;
+  };
+  /** The saved list. Named apart from menu.saved, which is the way in. */
+  savedPage: {
+    title: string;
+    empty: string;
+    emptyHint: string;
+    upcoming: string;
+    past: string;
+    failed: string;
+    retry: string;
+    back: string;
   };
   menu: {
     saved: string;
@@ -297,6 +310,8 @@ export const translations: Record<Language, Translations> = {
       openMaps: "open in Google Maps",
       approximate: "Approximate — the exact address of this venue is not known yet.",
       tickets: "tickets",
+      save: "save",
+      saved: "saved",
       webAria: "Where did this come from?",
       webSourceFallback: "see the original listing",
       webClaim:
@@ -310,6 +325,16 @@ export const translations: Record<Language, Translations> = {
       fieldTime: "start time",
       fieldPrice: "price",
       fieldLocation: "exact address",
+    },
+    savedPage: {
+      title: "saved",
+      empty: "Nothing saved yet.",
+      emptyHint: "Save a card and it waits for you here.",
+      upcoming: "coming up",
+      past: "already happened",
+      failed: "could not load your saved events",
+      retry: "try again",
+      back: "back",
     },
     menu: {
       account: "account",
@@ -464,6 +489,8 @@ export const translations: Record<Language, Translations> = {
       openMaps: "abrir en Google Maps",
       approximate: "Aproximado — todavía no se conoce la dirección exacta de este local.",
       tickets: "entradas",
+      save: "guardar",
+      saved: "guardado",
       webAria: "¿De dónde sale esto?",
       webSourceFallback: "ver el anuncio original",
       webClaim:
@@ -477,6 +504,16 @@ export const translations: Record<Language, Translations> = {
       fieldTime: "hora de inicio",
       fieldPrice: "precio",
       fieldLocation: "dirección exacta",
+    },
+    savedPage: {
+      title: "guardados",
+      empty: "Aún no has guardado nada.",
+      emptyHint: "Guarda una tarjeta y te espera aquí.",
+      upcoming: "próximos",
+      past: "ya pasaron",
+      failed: "no se pudieron cargar tus guardados",
+      retry: "reintentar",
+      back: "atrás",
     },
     menu: {
       account: "cuenta",
@@ -631,6 +668,8 @@ export const translations: Record<Language, Translations> = {
       openMaps: "apri in Google Maps",
       approximate: "Approssimativo — l'indirizzo esatto di questo locale non è ancora noto.",
       tickets: "biglietti",
+      save: "salva",
+      saved: "salvato",
       webAria: "Da dove arriva?",
       webSourceFallback: "vedi l'annuncio originale",
       webClaim:
@@ -644,6 +683,16 @@ export const translations: Record<Language, Translations> = {
       fieldTime: "orario di inizio",
       fieldPrice: "prezzo",
       fieldLocation: "indirizzo esatto",
+    },
+    savedPage: {
+      title: "salvati",
+      empty: "Non hai ancora salvato niente.",
+      emptyHint: "Salva una scheda e ti aspetta qui.",
+      upcoming: "in arrivo",
+      past: "già passati",
+      failed: "non è stato possibile caricare i salvati",
+      retry: "riprova",
+      back: "indietro",
     },
     menu: {
       account: "account",
@@ -798,6 +847,8 @@ export const translations: Record<Language, Translations> = {
       openMaps: "obre a Google Maps",
       approximate: "Aproximat — encara no es coneix l'adreça exacta d'aquesta sala.",
       tickets: "entrades",
+      save: "desa",
+      saved: "desat",
       webAria: "D'on surt això?",
       webSourceFallback: "veure l'anunci original",
       webClaim:
@@ -811,6 +862,16 @@ export const translations: Record<Language, Translations> = {
       fieldTime: "hora d'inici",
       fieldPrice: "preu",
       fieldLocation: "adreça exacta",
+    },
+    savedPage: {
+      title: "desats",
+      empty: "Encara no has desat res.",
+      emptyHint: "Desa una targeta i t'espera aquí.",
+      upcoming: "properament",
+      past: "ja han passat",
+      failed: "no s'han pogut carregar els desats",
+      retry: "torna-ho a provar",
+      back: "enrere",
     },
     menu: {
       account: "compte",

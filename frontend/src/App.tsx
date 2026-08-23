@@ -15,6 +15,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import Chat from "@/pages/Chat";
 import NotFound from "@/pages/NotFound";
 import ProSubmit from "@/pages/ProSubmit";
+import Saved from "@/pages/Saved";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -49,7 +50,19 @@ export default function App() {
               <Route path={CALLBACK_PATH} element={<AuthCallback />} />
               <Route path="/account" element={<Account />} />
               <Route path="/pro" element={<ProSubmit />} />
-              {/* The only role-gated routes in the app. /pro keeps its own
+              {/* RequireRole as a sign-in gate rather than a role gate:
+                  "user" is the floor, so this refuses nobody who is signed
+                  in, and sends anybody else to /auth carrying where they
+                  were, so they land back on their list. */}
+              <Route
+                path="/saved"
+                element={
+                  <RequireRole minimum="user">
+                    <Saved />
+                  </RequireRole>
+                }
+              />
+              {/* The role-gated ones. /pro keeps its own
                   refusal screen, which explains how to become a promoter —
                   a redirect would just drop someone on the chat with no clue
                   why. There is nothing to explain about /admin. */}

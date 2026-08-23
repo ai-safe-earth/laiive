@@ -6,6 +6,7 @@ from agent.classifier import Constraints
 from agent.executor import (
     Executor,
     build_bbox_query,
+    build_uid_query,
     build_nearby_query,
     build_template_query,
     build_vector_query,
@@ -510,3 +511,29 @@ class TestStartTimeOnTheCard:
             build_vector_query(Constraints(free_text="loud")),
         ):
             assert "e.start_time_known AS start_time_known" in cypher
+
+
+class TestUidLookupQuery:
+    """Fetching a saved list is a lookup, and lookups do not filter."""
+
+    def test_it_asks_only_for_the_uids(self):
+        cypher, params = build_uid_query(["e1", "e2"])
+        assert "e.uid IN $uids" in cypher
+        assert params == {"uids": ["e1", "e2"]}
+        # No LIMIT: the caller already bounded the set by naming it.
+        assert "$limit" not in cypher
+
+    def test_a_saved_event_that_has_passed_is_still_returned(self):
+        """It is what somebody put aside. A card vanishing from the list with
+        no explanation is worse than a card showing a past date."""
+        cypher, _ = build_uid_query(["e1"])
+        assert "e.status" not in cypher
+        assert "datetime()" not in cypher
+        assert "localdatetime()" not in cypher
+
+    def test_the_rows_are_the_standard_shape(self):
+        """So rows_to_cards builds these exactly as it builds a search's."""
+        cypher, _ = build_uid_query(["e1"])
+        assert "RETURN e.uid AS uid" in cypher
+        assert "v.geocode_precision AS geocode_precision" in cypher
+        assert "e.source_url AS source_url" in cypher

@@ -56,6 +56,24 @@ export function registerProxies(app: FastifyInstance, config: GatewayConfig): vo
     replyOptions,
   });
 
+  // /api/events → retriever /events — any signed-in account, no role floor.
+  //
+  // Not folded into /api/chat: that prefix is anonymous by decision (D7) and
+  // scoped to a chat turn, and this is a by-uid lookup for the caller's own
+  // saved list. Saving needs an account, so the rule belongs here rather than
+  // only in a client we ship. requireRole("user") is exactly "present a valid
+  // token" — user is the floor of the role order, so it 401s anonymous and
+  // refuses nobody who is signed in.
+  app.register(async (scope) => {
+    scope.addHook("preHandler", requireRole("user"));
+    scope.register(httpProxy, {
+      upstream: config.retrieverUrl,
+      prefix: "/api/events",
+      rewritePrefix: "/events",
+      replyOptions,
+    });
+  });
+
   // /api/push/* → pusher /* — pro and admin only
   app.register(async (scope) => {
     scope.addHook("preHandler", requireRole("pro"));

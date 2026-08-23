@@ -314,3 +314,66 @@ class TestRequestValidation:
         )
         assert response.status_code == 200
         assert "event: done" in response.text
+
+
+class TestEventsByUid:
+    """The saved list's read path: uids in, fresh cards out."""
+
+    @staticmethod
+    def _row(uid: str, name: str) -> dict:
+        return {"uid": uid, "name": name, "artists": [], "source": "pro_submission"}
+
+    def test_returns_cards_in_the_order_they_were_asked_for(self, client):
+        """The list is ordered by when each event was saved, and only the
+        caller knows that — the graph returns rows in its own order."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read.return_value = [
+                self._row("e2", "second"),
+                self._row("e1", "first"),
+            ]
+            response = client.get("/events?uids=e1,e2")
+        assert response.status_code == 200
+        assert [c["uid"] for c in response.json()["events"]] == ["e1", "e2"]
+
+    def test_trims_blanks_and_asks_once_per_uid(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read.return_value = []
+            client.get("/events?uids= e1 ,,e1,e2")
+        assert neo4j.execute_read.call_args[0][1] == {"uids": ["e1", "e2"]}
+
+    def test_an_empty_list_never_reaches_the_graph(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            response = client.get("/events?uids=")
+        assert response.status_code == 200
+        assert response.json()["events"] == []
+        neo4j.execute_read.assert_not_called()
+
+    def test_too_many_uids_is_refused_not_truncated(self, client):
+        uids = ",".join(f"e{i}" for i in range(api_module.EVENT_LOOKUP_MAX_UIDS + 1))
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            response = client.get(f"/events?uids={uids}")
+        assert response.status_code == 400
+        neo4j.execute_read.assert_not_called()
+
+    def test_a_uid_the_graph_no_longer_has_is_simply_absent(self, client):
+        """A deleted event is a stale pointer in somebody's list, not a 404."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read.return_value = [self._row("e1", "still here")]
+            response = client.get("/events?uids=e1,gone")
+        assert response.status_code == 200
+        assert [c["uid"] for c in response.json()["events"]] == ["e1"]
+
+    def test_a_driver_failure_is_a_502(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read.side_effect = Exception("no write service")
+            response = client.get("/events?uids=e1")
+        assert response.status_code == 502
+
+    def test_it_never_builds_the_pipeline(self, client):
+        """The executable form of "importing agent.api needs no Neo4j": a
+        saved list must not be what constructs an OpenAI client."""
+        api_module._pipeline = None
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read.return_value = []
+            client.get("/events?uids=e1")
+        assert api_module._pipeline is None
