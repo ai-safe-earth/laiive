@@ -6,6 +6,7 @@ module-level client gets added to this list or tests hit the real API):
   agent.extraction._client — OpenAI extraction
   agent.address_lookup._client — OpenAI venue-address lookup
   agent.reports._http      — Supabase PostgREST
+  agent.learning._http     — Supabase PostgREST (source + query ranking)
   agent.graph._openai      — embeddings
   agent.graph._driver      — Neo4j driver
   agent.graph._geocoder    — Nominatim
@@ -131,6 +132,21 @@ def mock_reports_http():
         200, [{"id": "00000000-0000-0000-0000-000000000001", "status": "approved"}]
     )
     with patch("agent.reports._http", http):
+        yield http
+
+
+@pytest.fixture(autouse=True)
+def mock_learning_http():
+    """An empty store: nothing learned yet, which is also the first-run state.
+
+    GET returns [] so the sweep falls back to the file's templates and applies
+    no domain filters; POST accepts the upsert. A test that wants a populated
+    ranking sets http.get.return_value itself.
+    """
+    http = MagicMock()
+    http.get.return_value = http_response(200, [])
+    http.post.return_value = http_response(201, [])
+    with patch("agent.learning._http", http):
         yield http
 
 

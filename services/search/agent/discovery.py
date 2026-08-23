@@ -10,11 +10,11 @@ from itertools import zip_longest
 
 from laiive_shared import EventDraft, missing_required
 from laiive_shared.neo4j_writer import parse_start_at
-from laiive_shared.normalize import norm
+from laiive_shared.normalize import norm, source_domain
 from loguru import logger
 from pydantic import BaseModel
 
-from agent import extraction, graph, tavily
+from agent import extraction, graph, learning, tavily
 from config import settings
 
 # One phrasing reaches one kind of site, and the language of the phrasing picks
@@ -60,6 +60,27 @@ QUERY_TEMPLATES = [
 ]
 
 
+# Phrasings on probation. One is tried per sweep, in the slot the standing set
+# gives up, so the vocabulary keeps growing instead of ossifying around
+# whatever was written into this file first. A trial that earns its keep is
+# promoted in search_queries and starts appearing on its own; one that does not
+# is retired and stops costing credits.
+#
+# Seeded with the words a person in the scene would use — genre, register, and
+# the region rather than the town — because those are exactly the ones a
+# generic "concerti" query does not reach. Add to it freely: a new phrasing
+# costs nothing until the trial slot reaches it.
+TRIAL_TEMPLATES = [
+    "{city} musica indipendente concerti emergenti",
+    "{city} festival musicale rassegna {month_year}",
+    "{city} locali musicali dal vivo jazz blues",
+    "{city} concerti rock indie punk {month_year}",
+    "{city} jazz club rassegna concerti {month_year}",
+    "{city} Piemonte Lombardia eventi musicali {month_year}",
+    "{city} cartellone concerti stagione musicale",
+]
+
+
 # strftime("%B") answers in the process locale, which is C on both this box and
 # the container -- so it was putting "August 2026" inside otherwise-Italian
 # queries, the exact mistake the templates above exist to avoid. Spelled out
@@ -100,29 +121,60 @@ class SweepResult(BaseModel):
     stats: dict = {}
 
 
+def plan_queries() -> list[str]:
+    """The templates this sweep will spend its credits on.
+
+    Most slots go to the phrasings that have earned them and one is reserved
+    for a trial, which is the whole reason the vocabulary can improve. Before
+    anything has been learned the file's list is the answer, so a fresh
+    database sweeps exactly as it did before this existed.
+    """
+    slots = settings.sweep_query_slots
+    standing = learning.standing_templates(QUERY_TEMPLATES, slots - 1)
+    trial = learning.select_trial(TRIAL_TEMPLATES)
+    return [*standing, trial] if trial else standing[:slots]
+
+
 def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     """Dry-run discovery for one city. Never writes to the graph."""
     max_pages = max_pages or settings.sweep_max_pages
     month_year = italian_month_year(datetime.now())
+
+    templates = plan_queries()
+    include, exclude = learning.domain_filters()
+    hints = learning.extraction_hints()
 
     # One credit per call regardless of how many rows come back, so this counts
     # calls, not results. Recorded on the report because a monthly allowance
     # nobody can see is one nobody notices spending.
     tavily_calls = 0
     per_template: list[list[tavily.SearchHit]] = []
+    queries: list[str] = []
     seen_urls: set[str] = set()
-    for template in QUERY_TEMPLATES:
+    url_query: dict[str, str] = {}
+    for position, template in enumerate(templates):
         query = template.format(city=city, month_year=month_year)
+        queries.append(template)
         tavily_calls += 1
+        # Only the first slot is narrowed to what is already trusted. The rest
+        # run open, because a search restricted to the sites it already knows
+        # can only ever confirm them — the list would close around whatever it
+        # found first and never see a venue that opened last month.
+        focus = include if (position == 0 and len(include) >= 3) else None
         kept = []
         for hit in tavily.search(
             query,
             settings.sweep_results_per_query,
             country=settings.sweep_country,
+            include_domains=focus,
+            # Applied to every slot: dropping a known-empty domain costs
+            # nothing and never narrows the field to the already-known.
+            exclude_domains=exclude,
         ):
             if hit.url in seen_urls:
                 continue
             seen_urls.add(hit.url)
+            url_query[hit.url] = template
             kept.append(hit)
         per_template.append(kept)
 
@@ -137,13 +189,26 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
 
     drafts: list[tuple[EventDraft, str]] = []
     pages_with_events = 0
+    # Per-page bookkeeping, folded into the store at the end of the sweep.
+    observed: dict[str, dict] = {}
     for hit in pages:
+        domain = source_domain(hit.url)
+        seen = observed.setdefault(
+            domain,
+            {"pages": 0, "pages_with_events": 0, "drafts": 0, "scores": []},
+        )
+        seen["pages"] += 1
+        seen["scores"].append(hit.score)
         text = hit.raw_content or hit.content
         if not text.strip():
             continue
-        found = extraction.extract_events_from_page(text, url=hit.url, city=city)
+        found = extraction.extract_events_from_page(
+            text, url=hit.url, city=city, hint=hints.get(domain, "")
+        )
         if found:
             pages_with_events += 1
+            seen["pages_with_events"] += 1
+        seen["drafts"] += len(found)
         drafts.extend((draft, hit.url) for draft in found)
 
     candidates: list[Candidate] = []
@@ -186,12 +251,75 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             logger.warning(f"Dedup probe failed for {key}: {e}")
         candidates.append(candidate)
 
+    # ── Fold what this sweep learned into the store ──────────────────────────
+    # Attribution runs on the "new" verdict, not on approval: the default
+    # approve path takes every new candidate, so approval would measure the
+    # dedup probe rather than anyone's judgement.
+    new_per_domain: dict[str, int] = {}
+    new_per_query: dict[str, int] = {}
+    for candidate in candidates:
+        if candidate.dedup_status != "new":
+            continue
+        domain = source_domain(candidate.source_url)
+        new_per_domain[domain] = new_per_domain.get(domain, 0) + 1
+        template = url_query.get(candidate.source_url)
+        if template:
+            new_per_query[template] = new_per_query.get(template, 0) + 1
+
+    by_domain = {
+        domain: {
+            "pages": seen["pages"],
+            "pages_with_events": seen["pages_with_events"],
+            "drafts": seen["drafts"],
+            "candidates_new": new_per_domain.get(domain, 0),
+            "mean_score": (sum(seen["scores"]) / len(seen["scores"]))
+            if seen["scores"]
+            else 0.0,
+        }
+        for domain, seen in observed.items()
+    }
+
+    read_per_query: dict[str, int] = {}
+    local_per_query: dict[str, int] = {}
+    for hit in pages:
+        template = url_query.get(hit.url)
+        if not template:
+            continue
+        read_per_query[template] = read_per_query.get(template, 0) + 1
+        if source_domain(hit.url).endswith(settings.sweep_local_tld):
+            local_per_query[template] = local_per_query.get(template, 0) + 1
+
+    by_query = {
+        template: {
+            "pages": read_per_query.get(template, 0),
+            "pages_with_events": 0,
+            "candidates_new": new_per_query.get(template, 0),
+            "local_domain_share": (
+                local_per_query.get(template, 0) / read_per_query[template]
+            )
+            if read_per_query.get(template)
+            else 0.0,
+        }
+        for template in queries
+    }
+
+    try:
+        learning.record_sources(by_domain)
+        learning.record_queries(by_query)
+        learning.promote_queries()
+    except Exception as e:
+        # The store is an optimisation for the next sweep, never a reason to
+        # lose this one's candidates.
+        logger.warning(f"Could not record what the sweep learned: {e}")
+
     return SweepResult(
         city=city,
         candidates=candidates,
         stats={
-            "queries": len(QUERY_TEMPLATES),
+            "queries": len(queries),
             "tavily_credits": tavily_calls,
+            "trial_query": queries[-1] if queries else None,
+            "domains": len(by_domain),
             "pages_searched": len(pages),
             "pages_with_events": pages_with_events,
             "drafts_extracted": len(drafts),

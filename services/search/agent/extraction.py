@@ -51,22 +51,33 @@ Rules:
 - A missing price is not a free event. Leave price_min out entirely unless the
   page states an amount or says the entry is free.
 - JSON only. No explanation, no markdown fences.
-
+{hint}
 Page text:
 {text}"""
 
 
-def extract_events_from_page(text: str, *, url: str, city: str) -> list[EventDraft]:
-    """LLM extraction over one page's text; [] when the page has no events."""
+def extract_events_from_page(
+    text: str, *, url: str, city: str, hint: str = ""
+) -> list[EventDraft]:
+    """LLM extraction over one page's text; [] when the page has no events.
+
+    `hint` is whatever search_sources holds for this page's domain — a note
+    about how that particular site lays its listings out. Empty for a domain
+    nobody has written one for, which is all of them until somebody does.
+    """
     text = text[: settings.page_max_chars]
-    drafts = _extract(settings.extraction_model, text, url=url, city=city)
+    drafts = _extract(settings.extraction_model, text, url=url, city=city, hint=hint)
     if drafts is None:  # unparseable reply — the one "low confidence" signal we trust
         logger.info(f"Falling back to {settings.extraction_fallback_model} for {url}")
-        drafts = _extract(settings.extraction_fallback_model, text, url=url, city=city)
+        drafts = _extract(
+            settings.extraction_fallback_model, text, url=url, city=city, hint=hint
+        )
     return drafts or []
 
 
-def _extract(model: str, text: str, *, url: str, city: str) -> list[EventDraft] | None:
+def _extract(
+    model: str, text: str, *, url: str, city: str, hint: str = ""
+) -> list[EventDraft] | None:
     """One extraction call; None signals a reply we could not parse at all."""
     response = _client.chat.completions.create(
         model=model,
@@ -74,7 +85,14 @@ def _extract(model: str, text: str, *, url: str, city: str) -> list[EventDraft] 
             {
                 "role": "user",
                 "content": EXTRACTION_PROMPT.format(
-                    today=date.today().isoformat(), city=city, url=url, text=text
+                    today=date.today().isoformat(),
+                    city=city,
+                    url=url,
+                    text=text,
+                    # Its own paragraph when present, nothing at all when not —
+                    # an empty "Notes:" heading reads as an instruction to the
+                    # model to find something that is not there.
+                    hint=(f"\nNotes on this site:\n{hint}\n" if hint else ""),
                 ),
             }
         ],
