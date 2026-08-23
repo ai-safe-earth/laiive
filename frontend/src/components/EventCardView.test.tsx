@@ -31,7 +31,9 @@ describe("the time a card prints", () => {
     // this is 20:00 on the 22nd, and in New York 16:00 — neither is the answer.
     renderCard(BERGAMO);
     // "en" formats 12-hour: 22:00 in Rome reads as 10:00 PM on the 22nd.
-    expect(screen.getByText(/Aug 22, 10:00 PM|Aug 22, 10:00 PM/)).toBeTruthy();
+    // \s rather than a literal space: ICU 72+ separates the time from the
+    // meridiem with U+202F, a narrow no-break space, and JS \s matches it.
+    expect(screen.getByText(/Aug 22, 10:00\sPM/)).toBeTruthy();
   });
 
   it("keeps a late gig on the day the venue calls it", () => {
@@ -43,7 +45,7 @@ describe("the time a card prints", () => {
       start_at: "2026-08-22T21:30:00Z",
       timezone: "Europe/Madrid",
     });
-    expect(screen.getByText(/Aug 22, 11:30 PM|Aug 22, 11:30 PM/)).toBeTruthy();
+    expect(screen.getByText(/Aug 22, 11:30\sPM/)).toBeTruthy();
   });
 
   it("falls back to the reader's clock when the row carries no zone", () => {
