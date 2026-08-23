@@ -55,6 +55,14 @@
     --pro-dim: 13 7% 51%;           /* #8B7D79 */
     --pro-accent: 188 100% 46%;     /* #00CFEA  PRO badge, focus, "in review" */
 
+    /* The two provenance marks on a card. Named rather than borrowing
+       --status-published / --destructive: those are the promoter's own
+       lifecycle and the delete-and-errors red, and this is a reader-facing
+       claim about who vouched for a listing. Red as a card mark is the one
+       deliberate exception to "red is errors and delete only". */
+    --mark-verified: 147 61% 47%;   /* #2FBF71 */
+    --mark-unverified: 0 78% 53%;   /* #E72828 */
+
     --status-review: 188 100% 46%;  /* #00CFEA */
     --status-published: 147 61% 47%;/* #2FBF71 */
     --status-attention: 42 100% 50%;/* #FFB100 */

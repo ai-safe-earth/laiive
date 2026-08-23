@@ -127,9 +127,11 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
               className={cn(
                 "relative flex-none transition-colors",
                 "after:absolute after:-inset-3 after:content-['']",
-                fromSearch
-                  ? "text-ink-dim hover:text-foreground"
-                  : "text-primary hover:text-primary/80",
+                // Hover brightens rather than fades: --mark-unverified on the
+                // card ground is ~3.2:1, so any dimming drops the mark under
+                // the 3:1 floor for non-text contrast.
+                "hover:brightness-125",
+                fromSearch ? "text-mark-unverified" : "text-mark-verified",
               )}
             >
               <Icon name={fromSearch ? "error" : "done"} className="h-4 w-4" />
