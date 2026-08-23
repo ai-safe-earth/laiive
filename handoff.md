@@ -5,38 +5,39 @@ State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-
 **laiive is live at https://laiive.com**, `v0.1.0` - Pages from `main`, gateway
 https://laiive-gateway.fly.dev, five Fly apps in `fra`. `main` is production, `develop` the trunk.
 
-**PR #60 merged** (event times on the venue's clock). **#61 open** into `develop`: discovery
-refocused on Bergamo + Torino, provenance, the source/query learning loop. **#62 open**, stacked
-on #61: the `/admin` review queue. Both CI green. Merge #61, then
-`gh pr edit 62 --base develop`.
+## One branch open
 
-## The backlog that is the point of #62
+**#61, #62 and #63 are merged** - discovery on Torino and Bergamo with provenance and the
+learning loop, and the `/admin` review queue. Nothing else is open.
+**`feat/saved-events-and-ui-polish`** is six commits rebased onto `develop`, no PR yet; suites
+green at 77 / 25 / 173 / 118 (frontend, gateway, retriever, shared).
+
+On it and nowhere else: **saved events end to end** (`saved_events` under RLS, retriever
+`GET /events?uids=`, gateway `/api/events` behind `requireRole("user")`, `/saved`), the card
+and chat polish, and a `/pro` onboarding panel whose 16/9 frame waits on a Claude Design piece.
+
+## The backlog that is the point of /admin
 
 **12 reports sit in `dry_run` holding ~180 candidates**, including every Torino and Bergamo event
-found this week. A sweep never writes to the graph - it writes a report to Supabase and stops, and
-only `POST /reports/{id}/approve` moves it. That gate had no UI, which is how the queue grew;
-`/admin` is that UI, and nothing has been approved through it yet.
+found this week. A sweep writes a report to Supabase and stops; only `POST /reports/{id}/approve`
+moves it. The UI exists now, and nothing has been approved through it yet.
 
 ## Discovery, as it now runs
 
 Bergamo and Torino provinces, weekly, five **Italian** query templates plus Tavily `/extract` for
-three vouched Bergamo sources (Druso, Daste, Eppen). ~435 Tavily credits a month of 1000, pinned
-by a test. `search_sources` / `search_queries` learn from yield with decaying counters; one query
-slot per sweep is always a trial phrasing.
+three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a test.
 
 ## Open
 
-- **Two migrations unpushed**: `...13` (learning tables) and `...14` (`dismissed`). Both fail
-  soft - sweeps and approve work without them.
+- **Three migrations unpushed**: `...13`, `...14`, `...15`. The first two fail soft; **`...15`
+  does not** - without `saved_events` every save is a 404. Push before the SPA ships, and deploy
+  the retriever and gateway first: `/api/events` does not exist until they do.
 - **`flows/serve.py` is not running**, so no schedule fires; every sweep so far was by hand.
-- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` - including an
-  ad-hoc `python flows/city_sweep.py` - hits production, not the local stack.
-- Redirect allow-list still unread (`DEPLOY.md` 5 step 2), but Google sign-in has worked once:
-  `auth.identities` holds a `google` provider for the admin user.
-- `origin/feat/promoter-onboarding-and-surface` stale; remote deletion refused from here. **OG
-  card** bare. Google sign-in shows the Supabase project id (`DEPLOY.md` 5b). `lucide-react`
-  unused. Never clicked: the pro walk in es/ca.
-- Reference artifacts: pipelines `04820bb1`, admin scope `a331b289`.
+- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` hits production.
+- Deferred by decision: the venue welcome pack, and the Supabase confirmation email (yours).
+- Redirect allow-list unread (`DEPLOY.md` 5 step 2). `origin/feat/promoter-onboarding-and-surface`
+  stale. **OG card** bare. `lucide-react` unused. Never clicked: the pro walk in es/ca. Reference
+  artifacts: pipelines `04820bb1`, admin scope `a331b289`.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -553,6 +554,22 @@ slot per sweep is always a trial phrasing.
         {
           "date": "2026-08-23",
           "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Saved events are pointers, not snapshots: saved_events holds uids under RLS and the card bodies are re-read from the graph on every open, so a corrected price or a moved door time reaches a saved card"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The by-uid lookup gets its own gateway prefix, /api/events behind requireRole(\"user\"), rather than riding the anonymous /api/chat - saving needs an account, and a rule that lives only in the SPA is a hope"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Both doors between the two surfaces live in UserMenu and are promoter-only; the /pro logo is no longer a link. A free user reaches /pro through /account or /auth?kind=pro"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The venue welcome pack and the confirmation email are deferred out of this batch - the pack needs mail, QR and PDF infrastructure the repo does not have"
         }
       ]
     },
@@ -654,6 +671,10 @@ slot per sweep is always a trial phrasing.
         {
           "date": "2026-08-23",
           "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "#61 (discovery on Torino and Bergamo, provenance, the learning loop), #62 and #63 (the /admin review queue) merged into develop; all three head branches deleted"
         }
       ]
     }
@@ -678,8 +699,8 @@ slot per sweep is always a trial phrasing.
       "since": "2026-08-21"
     },
     {
-      "text": "Two migrations are unpushed: 20260823000013 (search_sources, search_queries) and 20260823000014 (dismissed status). Until 13 lands every sweep logs 404s and learns nothing; until 14 lands the admin dismiss button 400s. Both fail soft - sweeps and approve work regardless",
-      "severity": "medium",
+      "text": "Three migrations are unpushed: 20260823000013 (search_sources, search_queries), 20260823000014 (dismissed status) and 20260823000015 (saved_events). 13 and 14 fail soft; 15 does not - without the table every save is a PostgREST 404 and /saved shows its error state, so push before the SPA ships",
+      "severity": "high",
       "owner": "oscar",
       "since": "2026-08-23"
     },
@@ -698,14 +719,35 @@ slot per sweep is always a trial phrasing.
   ],
   "nextSteps": [
     {
-      "title": "Merge PR #61 (discovery), then retarget PR #62 (admin) to develop with gh pr edit 62 --base develop",
+      "title": "PR feat/saved-events-and-ui-polish into develop - rebased onto develop after #61, #62 and #63 merged, so it is six commits on a clean base",
       "est": 1,
       "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
+      "phase": "Restyle - new visual direction",
       "plan": "roadmap"
     },
     {
-      "title": "supabase db push for 20260823000013 and 20260823000014, then walk /admin signed in and approve the Bergamo and Torino backlog",
+      "title": "Deploy order for saved events: push the migrations, then make fly-deploy-retriever and fly-deploy-gateway, then the SPA. The SPA calls /api/events, which does not exist until both ship",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Venue welcome pack: a printable QR sheet (small to A4) saying where to find that venue's events, mailed after email confirmation. Nothing exists yet - no mail provider, no edge functions, no QR or PDF dependency, and supabase/ has no functions/ on purpose",
+      "est": 3,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Turn on the Supabase confirmation email in the dashboard, and hand the walkthrough animation for the /pro onboarding panel to Claude Design - the frame is in place at 16/9",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "supabase db push for 20260823000013, 14 and 15 (one push applies all three in order), confirm with supabase migration list, then walk /admin signed in and approve the Bergamo and Torino backlog",
       "est": 1,
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",
@@ -939,6 +981,13 @@ slot per sweep is always a trial phrasing.
     },
     {
       "date": "2026-08-21",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-23",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",

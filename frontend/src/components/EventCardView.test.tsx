@@ -1,7 +1,7 @@
 import type { EventCard } from "@shared/protocol";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EventCardView } from "./EventCardView";
 import { LanguageProvider } from "@/i18n/useTranslation";
 
@@ -118,5 +118,41 @@ describe("where a card says it came from", () => {
     renderCard({ ...BERGAMO, source: "seed" });
     expect(screen.queryByRole("button", { name: /where did this come from/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /who confirmed this/i })).toBeNull();
+  });
+});
+
+describe("saving a card", () => {
+  it("shows no save control at all when the page passes no handler", () => {
+    // What a signed-out reader gets. A pill that cannot save is a promise
+    // broken once per card.
+    renderCard(BERGAMO);
+    expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+  });
+
+  it("asks the page to save, and says which card and which direction", async () => {
+    const user = userEvent.setup();
+    const onToggleSave = vi.fn();
+    render(
+      <LanguageProvider>
+        <EventCardView card={BERGAMO} language="en" onToggleSave={onToggleSave} />
+      </LanguageProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(onToggleSave).toHaveBeenCalledWith("e1", true);
+  });
+
+  it("carries the saved state in the label, not only in the colour", async () => {
+    const user = userEvent.setup();
+    const onToggleSave = vi.fn();
+    render(
+      <LanguageProvider>
+        <EventCardView card={BERGAMO} language="en" saved onToggleSave={onToggleSave} />
+      </LanguageProvider>,
+    );
+
+    const pill = screen.getByRole("button", { name: /^saved$/i, pressed: true });
+    await user.click(pill);
+    expect(onToggleSave).toHaveBeenCalledWith("e1", false);
   });
 });

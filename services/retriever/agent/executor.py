@@ -278,6 +278,33 @@ def build_vector_query(c: Constraints) -> tuple[str, dict]:
     return cypher, params
 
 
+# A saved list is fetched by uid in one call. The cap is protocol, not tuning:
+# it bounds the query string the gateway forwards and the rows one request can
+# pull. Anything longer is the client's to page through.
+EVENT_LOOKUP_MAX_UIDS = 50
+
+
+def build_uid_query(uids: list[str]) -> tuple[str, dict]:
+    """Cards for a known set of event uids — a lookup, not a search.
+
+    No status, no date and no location predicate, unlike every other builder
+    here. Those answer "what is on"; this answers "what did I put aside", and a
+    saved event that was cancelled or has already happened is still the thing
+    somebody saved. Filtering it out would make a card vanish from the list
+    with no explanation, which is worse than a card showing a past date.
+
+    `e.uid` is backed by the event_uid uniqueness constraint, so the IN is an
+    index seek rather than a label scan.
+    """
+    cypher = (
+        "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
+        "WHERE e.uid IN $uids\n"
+        + STANDARD_RETURN.format(extra_with="", extra_return="")
+        + "ORDER BY start_at"
+    )
+    return cypher, {"uids": uids}
+
+
 def rows_to_cards(rows: list[dict]) -> list[EventCard]:
     """Standard-shape rows → EventCards. Distance arrives in meters."""
     cards = []
