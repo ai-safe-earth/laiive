@@ -11,6 +11,7 @@ import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
 import { MicButton } from "@/components/MicButton";
+import { ProWatermark } from "@/components/ProWatermark";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -228,20 +229,27 @@ export default function ProSubmit() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
-      <header className="flex-shrink-0 border-b border-pro-border px-4 pb-2 pt-3 sm:px-6">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
+      {/* First child, so it paints under everything positioned after it. The
+          root is the clip, not the scroll region, so the ground stays still
+          while the conversation moves over it. */}
+      <ProWatermark />
+      <header className="relative flex-shrink-0 border-b border-pro-border px-4 pb-2 pt-3 sm:px-6">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-2.5">
+          {/* Not a link. The way back to the consumer chat is in the account
+              menu, where the way to every other surface already is — a logo
+              that navigates somewhere else is a door nobody means to open. */}
+          <span className="flex items-center gap-2.5">
             <Mark size={27} />
             <ProBadge />
-          </Link>
+          </span>
           <UserMenu />
         </div>
       </header>
 
       {/* The conversation is flat on the page — no chat panel, no bubbles for
           what laiive says. Only the promoter's own lines are pills. */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {messages.length === 0 && !draft && (
             <div className="flex flex-col gap-1.5 pt-6">

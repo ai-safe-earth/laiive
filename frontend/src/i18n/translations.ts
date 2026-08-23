@@ -142,6 +142,7 @@ export interface Translations {
     account: string;
     settings: string;
     pro: string;
+    toLaiive: string;
     signOut: string;
     signIn: string;
     aria: string;
@@ -302,6 +303,7 @@ export const translations: Record<Language, Translations> = {
       signIn: "sign in",
       settings: "settings",
       pro: "laiive pro",
+      toLaiive: "back to laiive",
       saved: "saved",
       aria: "Account menu",
     },
@@ -459,6 +461,7 @@ export const translations: Record<Language, Translations> = {
       signIn: "inicia sesión",
       settings: "ajustes",
       pro: "laiive pro",
+      toLaiive: "volver a laiive",
       saved: "guardados",
       aria: "Menú de cuenta",
     },
@@ -616,6 +619,7 @@ export const translations: Record<Language, Translations> = {
       signIn: "accedi",
       settings: "impostazioni",
       pro: "laiive pro",
+      toLaiive: "torna a laiive",
       saved: "salvati",
       aria: "Menu account",
     },
@@ -773,6 +777,7 @@ export const translations: Record<Language, Translations> = {
       signIn: "inicia sessió",
       settings: "configuració",
       pro: "laiive pro",
+      toLaiive: "torna a laiive",
       saved: "desats",
       aria: "Menú del compte",
     },
