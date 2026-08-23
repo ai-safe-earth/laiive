@@ -25,6 +25,10 @@ export interface EventCard {
   venue_type?: string | null;
   city?: string | null;
   start_at?: string | null;
+  // IANA zone of the venue, so the card prints the time at the door rather
+  // than on the reader's clock. Empty or null is a row written before the
+  // writer resolved zones, whose start_at is UTC by default.
+  timezone?: string | null;
   price_min?: number | null;
   price_max?: number | null;
   price_currency?: string | null;

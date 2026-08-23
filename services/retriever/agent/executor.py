@@ -28,6 +28,7 @@ WITH DISTINCT e, v, c{extra_with}
 OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
 RETURN e.uid AS uid, e.name AS name, e.description AS description,
        toString(e.start_at) AS start_at, e.start_time_known AS start_time_known,
+       e.timezone AS timezone,
        e.price_min AS price_min,
        e.price_max AS price_max, e.price_currency AS price_currency,
        e.ticket_url AS ticket_url, e.source AS source,
@@ -89,13 +90,22 @@ def _constraint_clauses(c: Constraints) -> tuple[list[str], dict]:
             f"WHERE {genre_match} }})"
         )
         params["genres"] = genres
+    # A date window is a wall-clock question: "tonight in Bergamo" means the
+    # hours the door is open there, whatever clock the asker is on. The
+    # classifier emits a naive window, and datetime() would read it as UTC and
+    # compare it against a zoned instant -- shifting every window by the
+    # venue's offset, cutting a 19:00 Madrid gig out of "tonight" and pulling
+    # the next local morning in. localdatetime() drops back to the wall clock
+    # the offset was stored for, so both sides are read at the venue.
     if c.date_from:
-        where.append("e.start_at >= datetime($date_from)")
+        where.append("localdatetime(e.start_at) >= localdatetime($date_from)")
         params["date_from"] = c.date_from
     else:
+        # Not a window but an instant -- "still to come" is the same moment
+        # everywhere, so this one stays a zoned comparison.
         where.append("e.start_at >= datetime()")  # upcoming only by default
     if c.date_to:
-        where.append("e.start_at < datetime($date_to)")
+        where.append("localdatetime(e.start_at) < localdatetime($date_to)")
         params["date_to"] = c.date_to
     if c.price_max is not None:
         where.append("e.price_min <= $price_max")
@@ -287,6 +297,7 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 venue_type=row.get("venue_type"),
                 city=row.get("city"),
                 start_at=row.get("start_at"),
+                timezone=row.get("timezone"),
                 start_time_known=row.get("start_time_known"),
                 price_min=row.get("price_min"),
                 price_max=row.get("price_max"),
@@ -341,6 +352,7 @@ def flexible_rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 city=city,
                 venue_type=_get(row, "venue_type") or _get(props, "venue_type"),
                 start_at=str(_get(props, "start_at") or "") or None,
+                timezone=_get(row, "timezone") or _get(props, "timezone"),
                 price_min=_get(props, "price_min", "price_amount"),
                 price_max=_get(props, "price_max"),
                 price_currency=_get(props, "price_currency"),
@@ -377,7 +389,12 @@ class Executor:
         self.query_builder = query_builder
         self.geocoder = geocoder
 
-    def execute(self, plan: ExecutionPlan, location: dict | None = None) -> Outcome:
+    def execute(
+        self,
+        plan: ExecutionPlan,
+        location: dict | None = None,
+        timezone: str | None = None,
+    ) -> Outcome:
         try:
             if plan.kind == PlanKind.TEMPLATE:
                 cypher, params = build_template_query(plan.constraints)
@@ -398,7 +415,7 @@ class Executor:
                     rows_to_cards(self.neo4j.execute_read(cypher, params)), cypher
                 )
 
-            return self._execute_llm_cypher(plan.constraints)
+            return self._execute_llm_cypher(plan.constraints, timezone)
         except Exception as e:
             logger.error(f"Execution failed for {plan.kind}: {e}")
             return Outcome(error=str(e))
@@ -466,8 +483,10 @@ class Executor:
                 break
         return Outcome(rows_to_cards(rows), cypher)
 
-    def _execute_llm_cypher(self, c: Constraints) -> Outcome:
-        raw = self.query_builder.run(c.query_text or "")
+    def _execute_llm_cypher(
+        self, c: Constraints, timezone: str | None = None
+    ) -> Outcome:
+        raw = self.query_builder.run(c.query_text or "", timezone)
         data = json.loads(raw)
         if data.get("status") != "success":
             return Outcome(

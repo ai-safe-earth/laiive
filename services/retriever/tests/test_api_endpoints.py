@@ -37,7 +37,10 @@ class FakePipeline:
         self.cyphers = cyphers if cyphers is not None else ["MATCH (e:Event) RETURN e"]
         self.moment = moment
 
-    def run_turn(self, user_message, history=None, location=None, result=None):
+    def run_turn(
+        self, user_message, history=None, location=None, result=None, timezone=None
+    ):
+        self.seen_timezone = timezone
         result.classification = Classification(
             query_type="event_search", moment=self.moment
         )
@@ -53,11 +56,15 @@ class FakePipeline:
             result.text += delta
             yield MessageDelta(text=delta)
 
-    def run_turn_collected(self, user_message, history=None, location=None):
+    def run_turn_collected(
+        self, user_message, history=None, location=None, timezone=None
+    ):
         from agent.pipeline import TurnResult
 
         result = TurnResult()
-        for _ in self.run_turn(user_message, history, location, result=result):
+        for _ in self.run_turn(
+            user_message, history, location, result=result, timezone=timezone
+        ):
             pass
         return result
 
@@ -128,6 +135,23 @@ class TestHealthEndpoints:
 
 
 class TestChatEndpoint:
+    def test_the_askers_timezone_reaches_the_pipeline(self, client):
+        """It decides what "today" means, so a silent drop is an off-by-one-day
+        bug that only shows up for users east or west of the server."""
+        pipeline = FakePipeline()
+        api_module._pipeline = pipeline
+        client.post("/chat", json={"message": "tonight", "timezone": "Europe/Rome"})
+        assert pipeline.seen_timezone == "Europe/Rome"
+
+    def test_a_request_without_a_timezone_still_answers(self, client):
+        """Every client sent none before this existed, and the JSON endpoint is
+        callable by things that are not the browser."""
+        pipeline = FakePipeline()
+        api_module._pipeline = pipeline
+        data = client.post("/chat", json={"message": "jazz"}).json()
+        assert pipeline.seen_timezone is None
+        assert "request_id" in data
+
     def test_chat_returns_cards_and_prose(self, client):
         data = client.post("/chat", json={"message": "jazz in madrid"}).json()
         assert "request_id" in data

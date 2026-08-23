@@ -5,10 +5,10 @@ return the executor's standard row shape so results still map to EventCards.
 """
 
 import json
-from datetime import date
 
 from config import settings
 
+from ..classifier import now_in
 from ..utils.llm_utils import chat_completion_with_retry, get_openai_client
 from .safety_guard import SafetyGuardTool
 
@@ -74,9 +74,9 @@ class QueryBuilderTool:
             self._schema = self.neo4j.get_schema()
         return self._schema
 
-    def run(self, question: str) -> str:
+    def run(self, question: str, timezone: str | None = None) -> str:
         try:
-            cypher = self._generate_cypher(question)
+            cypher = self._generate_cypher(question, timezone)
             safety_data = json.loads(self.safety_guard.run(cypher))
             if not safety_data.get("is_safe", False):
                 return json.dumps(
@@ -103,10 +103,11 @@ class QueryBuilderTool:
         except Exception as e:
             return json.dumps({"status": "error", "error": str(e), "results": []})
 
-    def _generate_cypher(self, question: str) -> str:
-        date_context = (
-            f"{date.today().isoformat()} ({date.today().strftime('%A, %B %d, %Y')})"
-        )
+    def _generate_cypher(self, question: str, timezone: str | None = None) -> str:
+        # The asker's today, not the server's -- same reason as the classifier.
+        today = now_in(timezone).date()
+        date_context = f"{today.isoformat()} ({today.strftime('%A, %B %d, %Y')})"
+
         system_prompt = QUERY_BUILDER_PROMPT.format(
             schema=self.db_schema, date_context=date_context
         )

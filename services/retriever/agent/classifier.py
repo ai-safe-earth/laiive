@@ -6,8 +6,9 @@ atomic sub-queries. Re-emitting the whole state every turn is how refinements
 ("cheaper", "what about Berlin instead?") work without server-side sessions.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone as utc_timezone
 from typing import Literal, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from laiive_shared import DEFAULT_LANGUAGE, DETECTION_RULE, normalize_language
 from loguru import logger
@@ -145,6 +146,24 @@ FALLBACK = Classification(
 )
 
 
+def now_in(timezone: str | None) -> datetime:
+    """The current moment on the asker's clock.
+
+    "Tonight" is a question about the asker's evening, and the server has no
+    standing to answer it: in production the container carries no TZ, so
+    datetime.now() was UTC, and a user in Madrid asking at 00:30 was told it
+    was still yesterday. An unknown or unparseable zone falls back to UTC,
+    which is exactly what every caller got before this existed.
+    """
+    if timezone:
+        try:
+            return datetime.now(ZoneInfo(timezone))
+        except (ZoneInfoNotFoundError, ValueError):
+            # A client is free to send nonsense; it must not fail the turn.
+            logger.warning(f"Unknown timezone {timezone!r}; falling back to UTC")
+    return datetime.now(utc_timezone.utc)
+
+
 class Classifier:
     def __init__(self, client=None):
         self.client = client or get_openai_client()
@@ -154,8 +173,9 @@ class Classifier:
         user_message: str,
         history: list[dict] | None = None,
         has_location: bool = False,
+        timezone: str | None = None,
     ) -> Classification:
-        now = datetime.now()
+        now = now_in(timezone)
         system = CLASSIFIER_SYSTEM_PROMPT.format(
             today=now.date().isoformat(),
             weekday=now.strftime("%A"),
