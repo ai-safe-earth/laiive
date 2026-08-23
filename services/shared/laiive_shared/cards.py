@@ -28,6 +28,12 @@ class EventCard(BaseModel):
     lat: float | None = None
     lng: float | None = None
     source: str = "pro_submission"  # pro_submission | admin_search | seed
+    # The page a discovered event was read off, and its host. Empty or None on
+    # a promoter submission (nobody searched for it) and on rows written before
+    # the writer carried it. The card names the source rather than only
+    # claiming there was one.
+    source_url: str | None = None
+    source_domain: str | None = None
     distance_km: float | None = None
     # False when the listing gave a date and no time, so start_at's 00:00 is a
     # default rather than a claim. None is a row written before the flag.

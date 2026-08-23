@@ -126,10 +126,13 @@ export interface Translations {
     openMaps: string;
     approximate: string;
     tickets: string;
-    web: string;
     webTitle: string;
     webAria: string;
     webMissing: string;
+    webSourceFallback: string;
+    webClaim: string;
+    verifiedAria: string;
+    verifiedTitle: string;
     fieldTime: string;
     fieldPrice: string;
     fieldLocation: string;
@@ -279,8 +282,13 @@ export const translations: Record<Language, Translations> = {
       openMaps: "open in Google Maps",
       approximate: "Approximate — the exact address of this venue is not known yet.",
       tickets: "tickets",
-      web: "web",
-      webAria: "What does “web” mean?",
+      webAria: "Where did this come from?",
+      webSourceFallback: "see the original listing",
+      webClaim:
+        "Putting this night on? Add it from a promoter account and it becomes yours to correct.",
+      verifiedAria: "Who confirmed this?",
+      verifiedTitle:
+        "Confirmed by a promoter of this event, from their own account — the times, the price and the door are as they entered them.",
       webTitle:
         "We found this listing with our own web search. The promoter has not confirmed it, so anything the page did not state is left blank rather than guessed.",
       webMissing: "Not stated on the page",
@@ -431,8 +439,13 @@ export const translations: Record<Language, Translations> = {
       openMaps: "abrir en Google Maps",
       approximate: "Aproximado — todavía no se conoce la dirección exacta de este local.",
       tickets: "entradas",
-      web: "web",
-      webAria: "¿Qué significa “web”?",
+      webAria: "¿De dónde sale esto?",
+      webSourceFallback: "ver el anuncio original",
+      webClaim:
+        "¿Organizas esta noche? Añádela desde una cuenta de promotor y podrás corregirla tú.",
+      verifiedAria: "¿Quién lo ha confirmado?",
+      verifiedTitle:
+        "Confirmado por un promotor de este evento, desde su propia cuenta: la hora, el precio y la puerta son los que él indicó.",
       webTitle:
         "Encontramos este anuncio con nuestra propia búsqueda web. El promotor no lo ha confirmado, así que lo que la página no decía se deja en blanco en vez de inventarlo.",
       webMissing: "La página no lo indicaba",
@@ -583,8 +596,13 @@ export const translations: Record<Language, Translations> = {
       openMaps: "apri in Google Maps",
       approximate: "Approssimativo — l'indirizzo esatto di questo locale non è ancora noto.",
       tickets: "biglietti",
-      web: "web",
-      webAria: "Cosa significa “web”?",
+      webAria: "Da dove arriva?",
+      webSourceFallback: "vedi l'annuncio originale",
+      webClaim:
+        "Organizzi tu questa serata? Aggiungila da un account promoter e potrai correggerla tu.",
+      verifiedAria: "Chi lo ha confermato?",
+      verifiedTitle:
+        "Confermato da un promoter di questo evento, dal suo account: orario, prezzo e ingresso sono quelli che ha inserito.",
       webTitle:
         "Abbiamo trovato questo annuncio con la nostra ricerca sul web. Il promoter non lo ha confermato, quindi ciò che la pagina non diceva resta vuoto invece di essere inventato.",
       webMissing: "Non indicato sulla pagina",
@@ -735,8 +753,13 @@ export const translations: Record<Language, Translations> = {
       openMaps: "obre a Google Maps",
       approximate: "Aproximat — encara no es coneix l'adreça exacta d'aquesta sala.",
       tickets: "entrades",
-      web: "web",
-      webAria: "Què vol dir “web”?",
+      webAria: "D'on surt això?",
+      webSourceFallback: "veure l'anunci original",
+      webClaim:
+        "Organitzes aquesta nit? Afegeix-la des d'un compte de promotor i podràs corregir-la tu.",
+      verifiedAria: "Qui ho ha confirmat?",
+      verifiedTitle:
+        "Confirmat per un promotor d'aquest esdeveniment, des del seu compte: l'hora, el preu i la porta són els que va indicar.",
       webTitle:
         "Hem trobat aquest anunci amb la nostra cerca web. El promotor no l'ha confirmat, així que allò que la pàgina no deia es deixa en blanc en lloc d'inventar-ho.",
       webMissing: "La pàgina no ho indicava",

@@ -531,3 +531,151 @@ def test_date_only_draft_is_localised_too_but_stays_flagged_unknown():
     write_params = session.queries[1][1]
     assert write_params["start_at"] == "2026-09-01T00:00:00+02:00"
     assert write_params["start_time_known"] is False
+
+
+def test_source_domain_groups_one_site_under_one_key():
+    from laiive_shared.normalize import source_domain
+
+    assert source_domain("https://www.ecodibergamo.it/agenda/x") == "ecodibergamo.it"
+    # The same site, two spellings. Counted apart, each would carry half the
+    # evidence and neither would ever clear a promotion threshold.
+    assert source_domain("https://ecodibergamo.it/agenda/x") == "ecodibergamo.it"
+    assert source_domain("HTTPS://WWW.EcoDiBergamo.IT/x") == "ecodibergamo.it"
+    assert source_domain("") == ""
+    assert source_domain("not a url") == ""
+
+
+def test_a_discovered_event_records_the_page_it_came_from():
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            )
+        }
+    )
+    result = write_event(
+        session,
+        SWEPT.model_copy(),
+        source="admin_search",
+        geocoder=geocoder,
+        source_url="https://www.ecodibergamo.it/agenda/bobsin",
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["source_url"] == "https://www.ecodibergamo.it/agenda/bobsin"
+    assert write_params["source_domain"] == "ecodibergamo.it"
+
+
+def test_a_promoter_submission_has_no_source_page():
+    """Nobody searched for it, so there is no page to name — and the card must
+    not imply one."""
+    session = FakeSession()
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["source_url"] == ""
+    assert write_params["source_domain"] == ""
+
+
+def test_a_province_suffix_does_not_create_a_second_city():
+    """The graph holds both "Bergamo" and "ponteranica, BG" today. City
+    identity is (name_norm, country_code), so a suffixed spelling is a city
+    nobody searches for, holding events the plain name never returns."""
+    from laiive_shared.normalize import clean_city_name
+
+    assert clean_city_name("Ponteranica, BG") == "Ponteranica"
+    assert clean_city_name("Ponteranica (BG)") == "Ponteranica"
+    assert clean_city_name("ponteranica,BG") == "ponteranica"
+    # Left alone: a real name, a lowercase word, and a longer code.
+    assert clean_city_name("Sant Feliu de Guíxols") == "Sant Feliu de Guíxols"
+    assert clean_city_name("Frankfurt am Main") == "Frankfurt am Main"
+    assert clean_city_name("Bergamo") == "Bergamo"
+    assert clean_city_name("Torino, ITA") == "Torino, ITA"
+    assert clean_city_name("") == ""
+
+
+def test_the_writer_strips_the_suffix_before_it_becomes_a_merge_key():
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Ponteranica": GeocodeResult(
+                lat=45.73, lng=9.65, country_code="IT", display_name="Ponteranica"
+            )
+        }
+    )
+    result = write_event(
+        session,
+        EventDraft(
+            name="bimbo Funk",
+            start_at="2026-09-19T20:00:00",
+            venue="la casa delle finestre azurre",
+            city="ponteranica, BG",
+        ),
+        source="admin_search",
+        geocoder=geocoder,
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["city"] == "ponteranica"
+    assert write_params["city_norm"] == "ponteranica"
+    # The geocoder is asked for the town, not the town-plus-code string.
+    assert "Ponteranica" in geocoder.calls or "ponteranica" in geocoder.calls
+
+
+def test_an_exonym_does_not_become_a_second_city():
+    """A real Torino sweep returned eight candidates saying "Torino" and seven
+    saying "Turin". City identity is (name_norm, country_code), so approving
+    that report unfixed is two cities and a search that finds half its events.
+    The geocoder answers in the local language, so it settles the spelling."""
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Turin": GeocodeResult(
+                lat=45.0703,
+                lng=7.6869,
+                country_code="IT",
+                display_name="Torino, Piemonte, Italia",
+            )
+        }
+    )
+    result = write_event(
+        session,
+        EventDraft(
+            name="The Night of Hits",
+            start_at="2026-09-11T21:00:00",
+            venue="Teatro Regio",
+            city="Turin",
+        ),
+        source="admin_search",
+        geocoder=geocoder,
+    )
+    assert result.status == "created"
+    write_params = session.queries[1][1]
+    assert write_params["city"] == "Torino"
+    assert write_params["city_norm"] == "torino"
+
+
+def test_canonical_city_name_keeps_what_it_cannot_improve():
+    from laiive_shared.normalize import canonical_city_name
+
+    assert canonical_city_name("Torino, Piemonte, Italia") == "Torino"
+    assert canonical_city_name("München, Bayern, Deutschland") == "München"
+    assert canonical_city_name("Bergamo, Lombardia, Italia") == "Bergamo"
+    # An address, not a place — renaming a city after a house number would be
+    # worse than the split it is meant to fix.
+    assert canonical_city_name("12, Kantstraße, Berlin") == ""
+    assert canonical_city_name("") == ""
+
+
+def test_no_geocoder_leaves_the_city_as_written():
+    """The canonicalisation is the geocoder's answer, so without one the draft
+    is all there is — and a write must still go through."""
+    session = FakeSession()
+    result = write_event(
+        session,
+        SWEPT.model_copy(update={"city": "Turin"}),
+        source="admin_search",
+    )
+    assert result.status == "created"
+    assert session.queries[1][1]["city"] == "Turin"

@@ -1,5 +1,6 @@
 import type { EventCard } from "@shared/protocol";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { EventCardView } from "./EventCardView";
 import { LanguageProvider } from "@/i18n/useTranslation";
@@ -68,5 +69,54 @@ describe("the time a card prints", () => {
     });
     expect(screen.queryByText(/AM|PM/)).toBeNull();
     expect(screen.getByText(/Aug 22/)).toBeTruthy();
+  });
+});
+
+describe("where a card says it came from", () => {
+  const WEB: EventCard = {
+    ...BERGAMO,
+    source: "admin_search",
+    source_url: "https://www.ecodibergamo.it/agenda/bobsin",
+    source_domain: "ecodibergamo.it",
+  };
+
+  it("marks a web-found listing and names the page behind it", async () => {
+    const user = userEvent.setup();
+    renderCard(WEB);
+    // The mark is the affordance; the source is one tap away, not hidden.
+    await user.click(screen.getByRole("button", { name: /where did this come from/i }));
+    const link = screen.getByRole("link", { name: "ecodibergamo.it" });
+    expect(link.getAttribute("href")).toBe(WEB.source_url);
+    expect(link.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("invites the promoter to take the listing over", async () => {
+    const user = userEvent.setup();
+    renderCard(WEB);
+    await user.click(screen.getByRole("button", { name: /where did this come from/i }));
+    expect(screen.getByText(/promoter account/i)).toBeTruthy();
+  });
+
+  it("marks a promoter submission as confirmed instead", async () => {
+    const user = userEvent.setup();
+    renderCard(BERGAMO); // source: pro_submission
+    expect(screen.queryByRole("button", { name: /where did this come from/i })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /who confirmed this/i }));
+    expect(screen.getByText(/confirmed by a promoter/i)).toBeTruthy();
+  });
+
+  it("still renders a web card whose source was never recorded", async () => {
+    // Every admin_search row written before the writer carried the URL.
+    const user = userEvent.setup();
+    renderCard({ ...WEB, source_url: null, source_domain: null });
+    await user.click(screen.getByRole("button", { name: /where did this come from/i }));
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByText(/promoter account/i)).toBeTruthy();
+  });
+
+  it("gives a seed row neither mark", () => {
+    renderCard({ ...BERGAMO, source: "seed" });
+    expect(screen.queryByRole("button", { name: /where did this come from/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /who confirmed this/i })).toBeNull();
   });
 });

@@ -32,6 +32,7 @@ RETURN e.uid AS uid, e.name AS name, e.description AS description,
        e.price_min AS price_min,
        e.price_max AS price_max, e.price_currency AS price_currency,
        e.ticket_url AS ticket_url, e.source AS source,
+       e.source_url AS source_url, e.source_domain AS source_domain,
        v.name AS venue, v.venue_type AS venue_type, c.name AS city,
        v.location.latitude AS lat, v.location.longitude AS lng,
        v.geocode_precision AS geocode_precision,
@@ -308,6 +309,8 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 lng=None if suspect else row.get("lng"),
                 geocode_precision=precision,
                 source=row.get("source") or "unknown",
+                source_url=row.get("source_url"),
+                source_domain=row.get("source_domain"),
                 distance_km=round(distance_m / 1000, 2)
                 if distance_m is not None
                 else None,
@@ -359,6 +362,8 @@ def flexible_rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 description=_get(props, "description"),
                 ticket_url=_get(props, "ticket_url", "url"),
                 source=str(_get(props, "source") or "unknown"),
+                source_url=_get(props, "source_url"),
+                source_domain=_get(props, "source_domain"),
             )
         )
     return cards

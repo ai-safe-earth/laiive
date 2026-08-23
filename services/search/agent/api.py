@@ -18,10 +18,11 @@ from datetime import UTC, datetime
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from laiive_shared import EventDraft, install_internal_auth, register_health
+from laiive_shared.normalize import source_domain
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from agent import discovery, graph, reports
+from agent import discovery, graph, learning, reports
 from config import settings
 
 app = FastAPI(title="laiive search", version="0.1.0")
@@ -141,9 +142,16 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     results = []
+    written_domains: list[str] = []
     for index, candidate in selected:
         draft = EventDraft(**(candidate.get("draft") or {}))
-        outcome = graph.write_event(draft)
+        # The page this was read off. It has been on the candidate since the
+        # sweep and was dropped here, which left the card promising a source
+        # it could not name.
+        source_url = candidate.get("source_url") or ""
+        outcome = graph.write_event(draft, source_url)
+        if outcome.status == "created":
+            written_domains.append(source_domain(source_url))
         results.append(
             {
                 "index": index,
@@ -156,6 +164,10 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     created = sum(1 for r in results if r["status"] == "created")
+    # The only signal in the ranking that survives the writer's own duplicate
+    # and validity probes: a site whose listings parse but never write is not
+    # actually producing events.
+    learning.record_writes(written_domains)
     # The report is already marked approved by the claim above; this only records
     # what the writes did. The graph writes are committed, so a failure here must
     # not turn them into a 502 that hides what was written.

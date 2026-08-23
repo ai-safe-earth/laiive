@@ -37,6 +37,10 @@ export interface EventCard {
   lat?: number | null;
   lng?: number | null;
   source: string;
+  // The page a discovered event was read off, and its host. Empty or null on a
+  // promoter submission and on rows written before the writer carried it.
+  source_url?: string | null;
+  source_domain?: string | null;
   distance_km?: number | null;
   // false when the listing gave a date and no time: start_at's 00:00 is a
   // default, so the card must show the day without an hour.

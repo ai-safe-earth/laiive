@@ -23,7 +23,13 @@ from timezonefinder import TimezoneFinder
 from .cards import EventDraft, missing_required
 from .embedding_text import artist_text, event_text, venue_text
 from .geocode import AddressResolver, NominatimGeocoder
-from .normalize import genre_slug, norm
+from .normalize import (
+    canonical_city_name,
+    clean_city_name,
+    genre_slug,
+    norm,
+    source_domain,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +124,7 @@ def write_event(
     embedding_model: str = "",
     geocoder: NominatimGeocoder | None = None,
     address_resolver: AddressResolver | None = None,
+    source_url: str = "",
 ) -> WriteResult:
     """Write one event (plus its artists/venue/city/genre) to the graph.
 
@@ -131,6 +138,10 @@ def write_event(
         geocoder: venue/city geocoding; skipped (with a warning) when None.
         address_resolver: last-resort (venue, city) -> street address, for the
             venues OSM has no named POI for. Skipped when None.
+        source_url: the page this event was read off, for a discovered event.
+            Deliberately an argument rather than an EventDraft field: it is
+            what the caller knows, not something extracted from the page, and
+            a field on the draft is a field the model can invent.
     """
     missing = missing_required(draft, source)
     if missing:
@@ -149,6 +160,10 @@ def write_event(
         )
 
     name = draft.name or f"{draft.artists[0]} live at {draft.venue}"
+    # Resolved once and used for the node, the MERGE key and the geocoder
+    # alike: a promoter typing "Ponteranica, BG" must not create a second City
+    # beside the one every search actually reaches.
+    city = clean_city_name(draft.city or "")
     warnings: list[str] = []
 
     # ── Dedup probe: same name + calendar day + venue → refuse to duplicate ──
@@ -168,7 +183,7 @@ def write_event(
             uid=existing["uid"],
             name=existing["name"],
             venue=draft.venue,
-            city=draft.city,
+            city=city,
             message="An event with the same name, date, and venue already exists.",
         )
 
@@ -181,11 +196,18 @@ def write_event(
     # this flag it is indistinguishable from a real venue location.
     precision = None
     if geocoder is not None:
-        city_geo = geocoder.geocode(draft.city)
+        city_geo = geocoder.geocode(city)
+        if city_geo is not None:
+            # The geocoder answers in the local language, so this collapses the
+            # exonym split before the name becomes a MERGE key: one Torino
+            # sweep returned eight candidates saying Torino and seven saying
+            # Turin, which is two City nodes and a search that finds half its
+            # events. Done before the venue lookup so both ask for one place.
+            city = canonical_city_name(city_geo.display_name) or city
         venue_geo = geocoder.geocode_venue(
             draft.venue,
             draft.address,
-            draft.city,
+            city,
             near=city_geo,
             address_resolver=address_resolver,
         )
@@ -258,6 +280,7 @@ def write_event(
                 price_min: $price_min, price_max: $price_max,
                 price_currency: $price_currency, ticket_url: $ticket_url,
                 status: 'scheduled', source: $source, owner_id: $owner_id,
+                source_url: $source_url, source_domain: $source_domain,
                 created_at: datetime(), updated_at: datetime()
             })
             MERGE (e)-[:HOSTED_AT]->(v)
@@ -286,8 +309,8 @@ def write_event(
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
                    v.uid AS venue_uid
             """,
-            city=draft.city,
-            city_norm=norm(draft.city),
+            city=city,
+            city_norm=norm(city),
             country_code=country_code,
             city_lat=city_geo.lat if city_geo else None,
             city_lng=city_geo.lng if city_geo else None,
@@ -322,6 +345,11 @@ def write_event(
             artists=artist_rows,
             source=source,
             owner_id=owner_id,
+            source_url=source_url,
+            # Stored beside the URL rather than derived on read: it is the key
+            # every "which sites are worth sweeping" question groups by, and
+            # parsing a URL inside a Cypher aggregation is not a thing.
+            source_domain=source_domain(source_url),
         ).single()
     except Exception as e:  # neo4j errors surface as a typed result, not a 500
         logger.error("Event write failed: %s", e)

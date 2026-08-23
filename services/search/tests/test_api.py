@@ -164,6 +164,38 @@ def test_approve_source_is_admin_search(mock_reports_http, mock_neo4j):
     assert write_params["owner_id"] is None
 
 
+def test_approve_carries_the_source_page_into_the_graph(mock_reports_http, mock_neo4j):
+    """The candidate has carried source_url since the sweep, and approve used
+    to read only its draft — so an approved event could not name the page it
+    came from, while the card's own copy promised it could."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    client.post(f"/reports/{REPORT_ID}/approve", json={"indices": [0]})
+    write_params = next(
+        params
+        for q, params in mock_neo4j.fake_session.queries
+        if "CREATE (e:Event" in q
+    )
+    assert write_params["source_url"] == "https://example.com/agenda"
+    # Stored beside the URL because it is what per-source questions group by.
+    assert write_params["source_domain"] == "example.com"
+
+
+def test_approve_without_a_source_url_still_writes(mock_reports_http, mock_neo4j):
+    """A candidate from before source_url existed, or a hand-built report."""
+    report = stored_report()
+    del report["candidates"][0]["source_url"]
+    mock_reports_http.get.return_value = http_response(200, [report])
+    response = client.post(f"/reports/{REPORT_ID}/approve", json={"indices": [0]})
+    assert response.status_code == 200
+    write_params = next(
+        params
+        for q, params in mock_neo4j.fake_session.queries
+        if "CREATE (e:Event" in q
+    )
+    assert write_params["source_url"] == ""
+    assert write_params["source_domain"] == ""
+
+
 def test_approve_non_uuid_user_id_does_not_break_the_update(mock_reports_http):
     """approved_by is a uuid column — a stray header value becomes null."""
     mock_reports_http.get.return_value = http_response(200, [stored_report()])
