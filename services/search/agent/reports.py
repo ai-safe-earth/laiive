@@ -65,16 +65,30 @@ def get_report(report_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
-def list_reports(limit: int = 20) -> list[dict]:
-    response = _http.get(
-        _url(),
-        headers=_headers(),
-        params={
-            "select": "id,city,status,kind,error,stats,created_at,approved_at,approved_by",
-            "order": "created_at.desc",
-            "limit": str(limit),
-        },
-    )
+def list_reports(
+    limit: int = 20, status: str | None = None, city: str | None = None
+) -> list[dict]:
+    """Newest reports first, optionally narrowed to a status or a city.
+
+    `candidates` stays out of the select on purpose — it is the large jsonb and
+    a queue listing twenty reports does not need twenty candidate arrays. The
+    detail read is where it comes from.
+    """
+    params = {
+        # Exactly what the queue renders, and nothing that a later migration
+        # added: naming a column PostgREST does not have yet 400s the whole
+        # listing, which would make reading the queue depend on being able to
+        # dismiss from it. The detail read selects * and picks those up.
+        "select": "id,city,status,kind,error,stats,created_at,approved_at",
+        "order": "created_at.desc",
+        "limit": str(limit),
+    }
+    if status:
+        # `in.(a,b)` so the queue can ask for one status or several.
+        params["status"] = f"in.({status})" if "," in status else f"eq.{status}"
+    if city:
+        params["city"] = f"eq.{city}"
+    response = _http.get(_url(), headers=_headers(), params=params)
     if response.status_code != 200:
         raise ReportStoreError(f"Could not list reports ({response.status_code})")
     return response.json()
@@ -117,3 +131,29 @@ def update_report(report_id: str, patch: dict) -> None:
     )
     if response.status_code not in (200, 204):
         raise ReportStoreError(f"Could not update the report ({response.status_code})")
+
+
+def dismiss_report(
+    report_id: str, reviewed_by: str | None, reviewed_at: str, note: str = ""
+) -> bool:
+    """Flip dry_run → dismissed, returning False if it was no longer dry_run.
+
+    Same compare-and-set as claim_report, and for the same reason: dismissing
+    and approving race against each other, and exactly one of them should win.
+    Recorded under reviewed_* rather than approved_* — "who cleared this" and
+    "who wrote these events" are different questions.
+    """
+    response = _http.patch(
+        _url(),
+        headers=_headers(Prefer="return=representation"),
+        params={"id": f"eq.{report_id}", "status": "eq.dry_run"},
+        json={
+            "status": "dismissed",
+            "reviewed_by": reviewed_by,
+            "reviewed_at": reviewed_at,
+            "review_note": note,
+        },
+    )
+    if response.status_code != 200:
+        raise ReportStoreError(f"Could not dismiss the report ({response.status_code})")
+    return bool(response.json())

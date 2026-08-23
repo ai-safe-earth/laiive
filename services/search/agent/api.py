@@ -92,8 +92,13 @@ def _mark_failed(report_id: str, exc: Exception) -> None:
 
 
 @app.get("/reports")
-def get_reports(limit: int = 20):
-    return {"reports": reports.list_reports(min(max(limit, 1), 100))}
+def get_reports(limit: int = 20, status: str = "", city: str = ""):
+    """The review queue. `status` accepts one value or a comma-separated set."""
+    return {
+        "reports": reports.list_reports(
+            min(max(limit, 1), 100), status=status or None, city=city or None
+        )
+    }
 
 
 @app.get("/reports/{report_id}")
@@ -102,6 +107,36 @@ def get_report(report_id: str):
     if report is None:
         raise HTTPException(status_code=404, detail="No such report")
     return report
+
+
+class DismissRequest(BaseModel):
+    # Free text, for the admin's own benefit later. Never shown to a user.
+    note: str = ""
+
+
+@app.post("/reports/{report_id}/dismiss")
+def dismiss(report_id: str, body: DismissRequest, x_user_id: str = Header("")):
+    """Clear a report without writing any of it.
+
+    A sweep that found only junk had no exit before this: the queue could only
+    be emptied by approving, which is the wrong verb and the wrong side effect.
+    """
+    report = reports.get_report(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="No such report")
+
+    reviewed_at = datetime.now(UTC).isoformat()
+    if not reports.dismiss_report(
+        report_id, _as_uuid(x_user_id), reviewed_at, body.note
+    ):
+        current = reports.get_report(report_id)
+        status = (current or {}).get("status") or "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Report is not dismissable (status: {status})",
+        )
+    logger.info(f"Report {report_id} dismissed by {x_user_id or 'unknown'}")
+    return {"report_id": report_id, "status": "dismissed"}
 
 
 class ApproveRequest(BaseModel):
