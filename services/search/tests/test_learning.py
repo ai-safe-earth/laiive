@@ -223,9 +223,13 @@ class TestSteeringTheSweep:
         ]
         assert len(narrowed) == 1
 
-    def test_two_trusted_domains_are_not_enough_to_narrow_anything(
-        self, mock_learning_http, mock_tavily
+    def test_thin_evidence_does_not_narrow_anything(
+        self, mock_learning_http, mock_tavily, monkeypatch
     ):
+        """The focused slot needs three trusted domains. The vouched seeds meet
+        that on their own, so this checks the guard itself with none of them --
+        one lucky domain must not be allowed to become the whole search."""
+        monkeypatch.setattr(learning, "SEED_SOURCES", [])
         store(
             mock_learning_http,
             sources=[{"domain": "good.example", "status": "trusted"}],
@@ -297,3 +301,49 @@ class TestWriteBack:
     def test_a_store_outage_does_not_fail_the_approve(self, mock_learning_http):
         mock_learning_http.get.side_effect = RuntimeError("supabase down")
         learning.record_writes(["venue.example"])  # must not raise
+
+
+class TestSeedSources:
+    def test_a_vouched_source_is_included_before_anything_is_learned(
+        self, mock_learning_http
+    ):
+        """The point of vouching: the ranking otherwise has to find a good site
+        by accident before it can prefer it."""
+        include, _ = learning.domain_filters()
+        assert "drusobg.it" in include
+        assert "dastebergamo.com" in include
+        assert "ecodibergamo.it" in include
+
+    def test_they_are_enough_to_open_the_focused_slot(
+        self, mock_learning_http, mock_tavily
+    ):
+        """Three trusted domains is the threshold, and the seeds meet it on the
+        first sweep of a fresh database."""
+        discovery.sweep_city("Bergamo")
+        narrowed = [
+            call.kwargs["json"]
+            for call in mock_tavily.post.call_args_list
+            if "include_domains" in call.kwargs["json"]
+        ]
+        assert len(narrowed) == 1
+        assert "drusobg.it" in narrowed[0]["include_domains"]
+
+    def test_a_vouched_source_is_never_auto_blocked(self, mock_learning_http):
+        """A quiet fortnight at Druso is an extraction problem to look at, not
+        a verdict on the club."""
+        store(
+            mock_learning_http,
+            sources=[{"domain": "drusobg.it", "status": "trusted", "pages": 20}],
+        )
+        learning.record_sources({"drusobg.it": {"pages": 20, "pages_with_events": 0}})
+        (row,) = posted(mock_learning_http, "search_sources")
+        assert row["status"] == "trusted"
+
+    def test_the_arithmetic_still_blocks_everyone_else(self, mock_learning_http):
+        learning.record_sources({"junk.example": {"pages": 20, "pages_with_events": 0}})
+        (row,) = posted(mock_learning_http, "search_sources")
+        assert row["status"] == "blocked"
+
+    def test_a_subdomain_of_a_vouched_source_counts_too(self):
+        assert learning._seeded("eventi.ecodibergamo.it")
+        assert not learning._seeded("notecodibergamo.it")

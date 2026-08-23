@@ -92,6 +92,24 @@ BLOCK_MIN_PAGES = 6.0
 BLOCK_MAX_YIELD = 0.05
 
 
+# Sources the owner vouches for, from knowing the place rather than from any
+# measurement. They bootstrap the ranking, which otherwise has to discover a
+# good site by accident before it can prefer it — and they are exempt from
+# being auto-blocked: if one of these stops yielding, that is an extraction
+# problem to look at, not a verdict on the source.
+#
+# Bergamo. Druso in Ranica is the province's main live club; Daste is the
+# cultural centre in the old Daste e Spalenga power station; Eppen is L'Eco di
+# Bergamo's events agenda, which is the paper's own domain rather than a
+# separate one — it covers the whole province, so it is the broadest of the
+# three.
+SEED_SOURCES = [
+    "drusobg.it",
+    "dastebergamo.com",
+    "ecodibergamo.it",
+]
+
+
 def _source_status(row: dict) -> str:
     """trusted / blocked / candidate, from the decayed counters alone."""
     pages = float(row.get("pages") or 0.0)
@@ -101,6 +119,11 @@ def _source_status(row: dict) -> str:
     if pages >= BLOCK_MIN_PAGES and yield_rate <= BLOCK_MAX_YIELD:
         return "blocked"
     return "candidate"
+
+
+def _seeded(domain: str) -> bool:
+    """A vouched source, or a subdomain of one."""
+    return any(domain == seed or domain.endswith("." + seed) for seed in SEED_SOURCES)
 
 
 def record_sources(by_domain: dict[str, dict]) -> None:
@@ -126,6 +149,10 @@ def record_sources(by_domain: dict[str, dict]) -> None:
         # 'trusted' and 'candidate'.
         if before and before.get("status") == "blocked":
             row["status"] = "blocked"
+        elif _seeded(domain):
+            # Vouched for by hand, so it starts trusted and never falls out of
+            # the focused slot on a quiet fortnight.
+            row["status"] = "trusted"
         else:
             row["status"] = _source_status(row)
         # Carried through the upsert, which replaces the whole row.
@@ -206,6 +233,11 @@ def domain_filters(limit: int = 50) -> tuple[list[str], list[str]]:
     # same table, and PostgREST returns exactly what was selected.
     include = [r["domain"] for r in rows if r.get("status") == "trusted"]
     exclude = [r["domain"] for r in rows if r.get("status") == "blocked"]
+    # The seeds hold from the first sweep, before anything has been recorded --
+    # which is the whole point of vouching for them. Ordered first so a capped
+    # include list never drops them.
+    include = SEED_SOURCES + [d for d in include if not _seeded(d)]
+    exclude = [d for d in exclude if not _seeded(d)]
     return include, exclude
 
 
