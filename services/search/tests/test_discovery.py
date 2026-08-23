@@ -216,3 +216,40 @@ def test_every_template_reaches_the_page_budget(mock_tavily, mock_openai):
     assert "t0.example" in read
     assert "t1.example" in read
     assert "t2.example" in read
+
+
+def test_the_queries_are_italian_all_the_way_through(mock_tavily):
+    """The templates are Italian because the query language picks the language
+    of the sites reached -- measured 3/9 Italian domains for an English query
+    against 7/9 for an Italian one. An English month name inside them is the
+    same mistake in miniature, and strftime("%B") answers in the C locale."""
+    discovery.sweep_city("Torino")
+    queries = [call.kwargs["json"]["query"] for call in mock_tavily.post.call_args_list]
+    assert queries, "no query was issued"
+    for query in queries:
+        assert "concerts" not in query and "live music" not in query
+        assert not any(
+            month in query
+            for month in (
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+            )
+        ), f"English month leaked into {query!r}"
+
+
+def test_italian_month_year_does_not_depend_on_the_process_locale():
+    from datetime import datetime as dt
+
+    assert discovery.italian_month_year(dt(2026, 8, 23)) == "agosto 2026"
+    assert discovery.italian_month_year(dt(2027, 1, 5)) == "gennaio 2027"
+    assert discovery.italian_month_year(dt(2026, 12, 31)) == "dicembre 2026"

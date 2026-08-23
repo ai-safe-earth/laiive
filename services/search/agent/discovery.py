@@ -17,34 +17,71 @@ from pydantic import BaseModel
 from agent import extraction, graph, tavily
 from config import settings
 
-# One phrasing reaches one kind of site. The first Torino sweep ran two English
-# templates and came back with fifteen candidates that were all opera: the
-# venue's own site, an international opera aggregator, and a tourism page. That
-# is what "live music concerts in Torino" asks for — the institutions publish
-# structured pages and rank, and the circuit does not.
+# One phrasing reaches one kind of site, and the language of the phrasing picks
+# the language of the sites. Measured on Torino, ten results per query, counting
+# Italian domains:
 #
-# So the templates are deliberately one per source type rather than two good
-# general ones, and they are Italian because both swept provinces are: a
-# circolo's page says "serate live", never "concert venues". A non-Italian
-# province would need this list revisited, which is the trade for reaching the
-# scene rather than the search engine's idea of it.
+#   "live music concerts Torino August 2026"        3/9
+#   "live music concerts Turin August 2026"         2/9
+#   "concerti Torino agosto 2026"                   7/9
+#   "agenda culturale Torino musica dal vivo"       6/9
+#   "cosa fare a Torino spettacoli musicali eventi" 5/9
+#
+# The English queries return eventbrite.com, songkick, bandsintown, operabase
+# and an English tourism site. The Italian ones return torinotoday.it,
+# guidatorino.com, torinogiovani.it and eventi.comune.torino.it — the city
+# council's own listing, which no English query surfaced at all.
+#
+# Note it is the keywords, not the toponym: Torino vs Turin moved 3/9 to 2/9,
+# English vs Italian moved 3/9 to 7/9. So there is no English template here.
+# The international aggregators are reachable in Italian anyway (ticketone.it
+# and eventbrite.it appear in every Italian query above), so an English one
+# would buy only the layer written for visitors.
+#
+# This couples the list to the swept provinces being Italian. Adding a province
+# elsewhere means writing its own phrasings, which is the honest cost of
+# reaching a scene instead of a search engine's idea of one.
 #
 # Recall is the goal here, not precision. A wrong candidate costs a human one
 # glance at a dry-run report, and anything that survives to a card carries the
 # "!" mark saying nobody at the door confirmed it.
 QUERY_TEMPLATES = [
     # Cultural agendas and what's-on listings.
-    "{city} agenda eventi musica dal vivo {month_year}",
+    "{city} agenda culturale musica dal vivo {month_year}",
     # Clubs and the live circuit.
     "{city} concerti live club locali serate musica dal vivo",
     # The independent circuit, which is where the small gigs actually are.
     "{city} circolo arci centro culturale live band concerti",
     # Venue programming and ticketing.
     "concerti {city} {month_year} biglietti programmazione stagione",
-    # Kept in English: the international aggregators publish in it, and they
-    # are worth reaching even though they are not the point.
-    "live music concerts {city} {month_year}",
+    # How a person actually asks, which reaches the municipal and city-guide
+    # listings the other four phrasings miss.
+    "cosa fare a {city} {month_year} spettacoli musicali eventi",
 ]
+
+
+# strftime("%B") answers in the process locale, which is C on both this box and
+# the container -- so it was putting "August 2026" inside otherwise-Italian
+# queries, the exact mistake the templates above exist to avoid. Spelled out
+# rather than fixed with setlocale, which is process-global and not thread-safe.
+_ITALIAN_MONTHS = (
+    "gennaio",
+    "febbraio",
+    "marzo",
+    "aprile",
+    "maggio",
+    "giugno",
+    "luglio",
+    "agosto",
+    "settembre",
+    "ottobre",
+    "novembre",
+    "dicembre",
+)
+
+
+def italian_month_year(when: datetime) -> str:
+    return f"{_ITALIAN_MONTHS[when.month - 1]} {when.year}"
 
 
 class Candidate(BaseModel):
@@ -66,7 +103,7 @@ class SweepResult(BaseModel):
 def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     """Dry-run discovery for one city. Never writes to the graph."""
     max_pages = max_pages or settings.sweep_max_pages
-    month_year = datetime.now().strftime("%B %Y")
+    month_year = italian_month_year(datetime.now())
 
     # One credit per call regardless of how many rows come back, so this counts
     # calls, not results. Recorded on the report because a monthly allowance
