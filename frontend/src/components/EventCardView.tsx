@@ -10,6 +10,7 @@ function formatWhen(
   startAt: string | null | undefined,
   language: string,
   timeKnown: boolean,
+  timeZone: string | null | undefined,
 ): string | null {
   if (!startAt) return null;
   const date = new Date(startAt);
@@ -17,12 +18,29 @@ function formatWhen(
   // A listing that gave only a date parses to midnight upstream. Printing
   // "00:00" would turn that default into a claim about when the doors open.
   const time = timeKnown ? ({ hour: "2-digit", minute: "2-digit" } as const) : {};
-  return new Intl.DateTimeFormat(language, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...time,
-  }).format(date);
+  // Doors open at 21:00 where the venue is, not where the reader is. Without
+  // this the same gig reads an hour earlier from Lisbon than from Berlin, and
+  // a late one changes date. Rows written before the writer resolved zones
+  // carry no zone; those fall back to the reader's clock, as they always did.
+  const zone = timeZone ? ({ timeZone } as const) : {};
+  try {
+    return new Intl.DateTimeFormat(language, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...time,
+      ...zone,
+    }).format(date);
+  } catch {
+    // An unknown zone throws a RangeError rather than degrading, and a card
+    // that renders no date at all is worse than one on the reader's clock.
+    return new Intl.DateTimeFormat(language, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      ...time,
+    }).format(date);
+  }
 }
 
 function formatPrice(card: EventCard, free: string): string | null {
@@ -45,7 +63,23 @@ const PILL =
   "relative inline-flex items-center rounded-full px-3 py-[9px] text-[11.5px] font-medium leading-none " +
   "transition-colors after:absolute after:inset-x-0 after:-top-[7px] after:h-11 after:content-['']";
 
-export function EventCardView({ card, language }: { card: EventCard; language: string }) {
+export function EventCardView({
+  card,
+  language,
+  saved,
+  onToggleSave,
+}: {
+  card: EventCard;
+  language: string;
+  saved?: boolean;
+  /**
+   * Omit and the card renders with no save control, which is what a
+   * signed-out reader gets. The card stays presentational — it already
+   * takes `language` rather than reading the provider — so the page owns
+   * one uid query for all N cards instead of N subscriptions.
+   */
+  onToggleSave?: (uid: string, next: boolean) => void;
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -53,7 +87,12 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
 
   // Rows written before the flag existed have no value and keep the old
   // behaviour, which was right for every seed event.
-  const when = formatWhen(card.start_at, language, card.start_time_known !== false);
+  const when = formatWhen(
+    card.start_at,
+    language,
+    card.start_time_known !== false,
+    card.timezone,
+  );
   const price = formatPrice(card, t.cards.free);
   const isFree = price === t.cards.free;
   const hasCoordinates =
@@ -66,6 +105,10 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   // Swept from a listing page rather than submitted by whoever is putting the
   // night on. Seed rows are ours and pro_submission rows came from a promoter.
   const fromSearch = card.source !== "seed" && card.source !== "pro_submission";
+  // Only a promoter submission is a claim by someone who can actually make it
+  // true. Seed rows are ours: real, but nobody at the door vouched for them,
+  // so they get neither mark rather than borrowing the promoter's.
+  const verified = card.source === "pro_submission";
   // What this card is actually missing, read off the card — never a guess about
   // why. An empty list is normal: a swept listing can be complete.
   const notStated = [
@@ -84,9 +127,33 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
   return (
     <article className="rounded-[20px] border border-hairline/[0.07] bg-card px-[15px] py-[13px]">
       <header className="flex items-baseline justify-between gap-2">
-        <h4 className="min-w-0 font-bebas text-[18px] leading-[1.05] tracking-[0.03em] text-card-foreground">
-          {card.name}
-        </h4>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h4 className="min-w-0 truncate font-bebas text-[18px] leading-[1.05] tracking-[0.03em] text-card-foreground">
+            {card.name}
+          </h4>
+          {(fromSearch || verified) && (
+            <button
+              type="button"
+              onClick={() => setShowProvenance(!showProvenance)}
+              aria-expanded={showProvenance}
+              aria-label={fromSearch ? t.cards.webAria : t.cards.verifiedAria}
+              // A title attribute is a hover, and a phone has no hover — the
+              // explanation has to be reachable by tapping. 44px of target
+              // under a 16px mark, the same trick the card pills use.
+              className={cn(
+                "relative flex-none transition-colors",
+                "after:absolute after:-inset-3 after:content-['']",
+                // Hover brightens rather than fades: --mark-unverified on the
+                // card ground is ~3.2:1, so any dimming drops the mark under
+                // the 3:1 floor for non-text contrast.
+                "hover:brightness-125",
+                fromSearch ? "text-mark-unverified" : "text-mark-verified",
+              )}
+            >
+              <Icon name={fromSearch ? "error" : "done"} className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         {price && (
           <span
             className={cn(
@@ -109,25 +176,33 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
         <p className="pt-1 text-[12.5px] leading-[1.45] text-muted-foreground">{meta}</p>
       )}
 
-      {fromSearch && (
-        <button
-          type="button"
-          onClick={() => setShowProvenance(!showProvenance)}
-          aria-expanded={showProvenance}
-          aria-label={t.cards.webAria}
-          // A title attribute is a hover, and a phone has no hover — the
-          // explanation has to be reachable by tapping.
-          className="mt-2 rounded-full border border-field-border px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.11em] text-ink-dim transition-colors hover:text-foreground"
-        >
-          {t.cards.web}
-        </button>
-      )}
-
       {showProvenance && (
-        <p className="pt-2 text-[12.5px] leading-[1.45] text-muted-foreground">
-          {t.cards.webTitle}
-          {notStated.length > 0 && ` ${t.cards.webMissing}: ${notStated.join(", ")}.`}
-        </p>
+        <div className="pt-2 text-[12.5px] leading-[1.45] text-muted-foreground">
+          {fromSearch ? (
+            <>
+              <p>
+                {t.cards.webTitle}
+                {notStated.length > 0 &&
+                  ` ${t.cards.webMissing}: ${notStated.join(", ")}.`}
+              </p>
+              {card.source_url && (
+                <p className="pt-1">
+                  <a
+                    href={card.source_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    {card.source_domain || t.cards.webSourceFallback}
+                  </a>
+                </p>
+              )}
+              <p className="pt-1">{t.cards.webClaim}</p>
+            </>
+          ) : (
+            <p>{t.cards.verifiedTitle}</p>
+          )}
+        </div>
       )}
 
       {expanded && card.description && (
@@ -183,6 +258,24 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
           >
             <Icon name="map" className="h-[15px] w-[15px]" />
             {showMap ? t.cards.hideMap : t.cards.map}
+          </button>
+        )}
+        {onToggleSave && (
+          <button
+            type="button"
+            onClick={() => onToggleSave(card.uid, !saved)}
+            aria-pressed={saved}
+            className={cn(
+              PILL,
+              "gap-1.5 bg-field-border hover:bg-muted",
+              // The sprite bookmark carries fill="none" on the symbol
+              // itself, which no rule in this document can reach, so the
+              // state is colour — and the label, so it is never colour alone.
+              saved ? "text-primary" : "text-white",
+            )}
+          >
+            <Icon name="saved" className="h-[15px] w-[15px]" />
+            {saved ? t.cards.saved : t.cards.save}
           </button>
         )}
         {card.ticket_url && (

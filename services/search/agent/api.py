@@ -18,10 +18,11 @@ from datetime import UTC, datetime
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from laiive_shared import EventDraft, install_internal_auth, register_health
+from laiive_shared.normalize import source_domain
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from agent import discovery, graph, reports
+from agent import discovery, graph, learning, reports
 from config import settings
 
 app = FastAPI(title="laiive search", version="0.1.0")
@@ -91,8 +92,13 @@ def _mark_failed(report_id: str, exc: Exception) -> None:
 
 
 @app.get("/reports")
-def get_reports(limit: int = 20):
-    return {"reports": reports.list_reports(min(max(limit, 1), 100))}
+def get_reports(limit: int = 20, status: str = "", city: str = ""):
+    """The review queue. `status` accepts one value or a comma-separated set."""
+    return {
+        "reports": reports.list_reports(
+            min(max(limit, 1), 100), status=status or None, city=city or None
+        )
+    }
 
 
 @app.get("/reports/{report_id}")
@@ -101,6 +107,36 @@ def get_report(report_id: str):
     if report is None:
         raise HTTPException(status_code=404, detail="No such report")
     return report
+
+
+class DismissRequest(BaseModel):
+    # Free text, for the admin's own benefit later. Never shown to a user.
+    note: str = ""
+
+
+@app.post("/reports/{report_id}/dismiss")
+def dismiss(report_id: str, body: DismissRequest, x_user_id: str = Header("")):
+    """Clear a report without writing any of it.
+
+    A sweep that found only junk had no exit before this: the queue could only
+    be emptied by approving, which is the wrong verb and the wrong side effect.
+    """
+    report = reports.get_report(report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="No such report")
+
+    reviewed_at = datetime.now(UTC).isoformat()
+    if not reports.dismiss_report(
+        report_id, _as_uuid(x_user_id), reviewed_at, body.note
+    ):
+        current = reports.get_report(report_id)
+        status = (current or {}).get("status") or "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Report is not dismissable (status: {status})",
+        )
+    logger.info(f"Report {report_id} dismissed by {x_user_id or 'unknown'}")
+    return {"report_id": report_id, "status": "dismissed"}
 
 
 class ApproveRequest(BaseModel):
@@ -141,9 +177,16 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     results = []
+    written_domains: list[str] = []
     for index, candidate in selected:
         draft = EventDraft(**(candidate.get("draft") or {}))
-        outcome = graph.write_event(draft)
+        # The page this was read off. It has been on the candidate since the
+        # sweep and was dropped here, which left the card promising a source
+        # it could not name.
+        source_url = candidate.get("source_url") or ""
+        outcome = graph.write_event(draft, source_url)
+        if outcome.status == "created":
+            written_domains.append(source_domain(source_url))
         results.append(
             {
                 "index": index,
@@ -156,6 +199,10 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         )
 
     created = sum(1 for r in results if r["status"] == "created")
+    # The only signal in the ranking that survives the writer's own duplicate
+    # and validity probes: a site whose listings parse but never write is not
+    # actually producing events.
+    learning.record_writes(written_domains)
     # The report is already marked approved by the claim above; this only records
     # what the writes did. The graph writes are committed, so a failure here must
     # not turn them into a 502 that hides what was written.

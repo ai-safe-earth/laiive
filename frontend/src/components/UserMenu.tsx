@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
 
 /**
@@ -18,6 +18,10 @@ export function UserMenu() {
   // a promoter is returned to the consumer chat, a different product.
   const { pathname } = useLocation();
   const wrapper = useRef<HTMLDivElement>(null);
+
+  // Admin satisfies a pro gate everywhere else in the app; it does here too.
+  const isPromoter = role === "pro" || role === "admin";
+  const onPromoterSurface = pathname.startsWith("/pro") || pathname.startsWith("/admin");
 
   // A menu that only closes on its own items strands the user on a phone,
   // where there is no Escape key and no obvious way back.
@@ -68,9 +72,29 @@ export function UserMenu() {
           >
             {t.menu.settings}
           </MenuLink>
-          <MenuLink to="/pro" icon="flyer" onNavigate={() => setOpen(false)}>
-            {t.menu.pro}
-          </MenuLink>
+          {/* The two surfaces are linked from here and nowhere else — a logo
+              that navigates to a different product is a door nobody means to
+              open. Only a promoter sees either: to somebody who is not one,
+              /pro is a refusal screen, and the ways to become one are on
+              /account and the promoter door at /auth?kind=pro. */}
+          {isPromoter && !onPromoterSurface && (
+            <MenuLink to="/pro" icon="flyer" onNavigate={() => setOpen(false)}>
+              {t.menu.pro}
+            </MenuLink>
+          )}
+          {isPromoter && onPromoterSurface && (
+            <MenuLink to="/" icon="back" onNavigate={() => setOpen(false)}>
+              {t.menu.toLaiive}
+            </MenuLink>
+          )}
+          {/* Untranslated on purpose — the admin surface behind it is
+              English-only, and a translated door onto an English room is worse
+              than neither. */}
+          {role === "admin" && (
+            <MenuLink to="/admin" icon="saved" onNavigate={() => setOpen(false)}>
+              Admin
+            </MenuLink>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -96,7 +120,7 @@ function MenuLink({
   children,
 }: {
   to: string;
-  icon: "settings" | "flyer";
+  icon: IconName;
   state?: { from: string };
   onNavigate: () => void;
   children: React.ReactNode;

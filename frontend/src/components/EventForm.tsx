@@ -49,6 +49,34 @@ function artistRows(draft: EventDraft): string[] {
   return artists.length > 0 ? [...artists] : [""];
 }
 
+/** Sentinel: `null` is a legitimate result (an empty field), so it cannot mean "bad". */
+export const INVALID_URL = Symbol("invalid-url");
+
+/**
+ * A ticket link is typed the way it is spoken — "dice.fm/event/xyz" — and
+ * stored verbatim it becomes a relative href, so the card's tickets pill would
+ * send a reader to laiive.com/dice.fm/… A missing scheme is the common case,
+ * not an error; anything that is still not a URL with one is.
+ */
+export function normalizeTicketUrl(raw: string | null | undefined): string | null | typeof INVALID_URL {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  // Any scheme at all, not just one with "//": `mailto:box@venue.it` prefixed
+  // with https parses as a URL whose userinfo is "mailto:box", which passes
+  // every check below and is not a ticket page.
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(value);
+  try {
+    const url = new URL(hasScheme ? value : `https://${value}`);
+    if (!/^https?:$/.test(url.protocol)) return INVALID_URL;
+    // A hostname with no dot is a typo or an intranet name; credentials in a
+    // link a stranger will click are never what a promoter meant to paste.
+    if (!url.hostname.includes(".") || url.username || url.password) return INVALID_URL;
+    return url.toString();
+  } catch {
+    return INVALID_URL;
+  }
+}
+
 /** Mono label; amber marks a field that still needs you, red one that is empty. */
 function FieldLabel({ children, required, missing }: {
   children: React.ReactNode;
@@ -91,6 +119,8 @@ export function EventForm({
   // Held separately from `values.artists` so a half-typed row survives: the
   // draft's list is the saved shape, this is what the user is editing.
   const [artists, setArtists] = useState<string[]>(() => artistRows(draft));
+  const [showTicketNote, setShowTicketNote] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
 
   // Each turn re-extracts over the whole conversation, so a later message can
   // fill a field the user has not touched — take the server's draft as truth.
@@ -124,7 +154,13 @@ export function EventForm({
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSave({ ...values, artists: filledArtists });
+        const ticket = normalizeTicketUrl(values.ticket_url);
+        if (ticket === INVALID_URL) {
+          setTicketError(t.form.ticketInvalid);
+          return;
+        }
+        setTicketError(null);
+        onSave({ ...values, ticket_url: ticket, artists: filledArtists });
       }}
       className="rounded-[20px] border-[1.5px] border-foreground/[0.32] bg-card px-6 py-[22px]"
     >
@@ -189,12 +225,34 @@ export function EventForm({
           const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
           const wasMissing = missing.includes(key);
           const required = (REQUIRED as readonly string[]).includes(key);
+          const isTicket = key === "ticket_url";
           return (
-            <label key={key} className="flex flex-col gap-[7px]">
-              <FieldLabel required={required} missing={isMissing}>
-                {t.form.labels[key]}
-              </FieldLabel>
+            // A div and an explicit htmlFor rather than a wrapping label: the
+            // ticket field carries a button, and a button inside a label
+            // focuses the input on every press.
+            <div key={key} className="flex flex-col gap-[7px]">
+              <span className="flex items-center gap-1.5">
+                <label htmlFor={`field-${key}`}>
+                  <FieldLabel required={required} missing={isMissing}>
+                    {t.form.labels[key]}
+                  </FieldLabel>
+                </label>
+                {isTicket && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTicketNote(!showTicketNote)}
+                    aria-expanded={showTicketNote}
+                    aria-label={t.form.ticketNoteAria}
+                    // A title attribute is a hover, and a phone has no hover.
+                    // Same 44px-under-a-small-mark trick the cards use.
+                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-3 after:content-[''] hover:text-pro-accent"
+                  >
+                    <Icon name="error" className="h-[13px] w-[13px]" />
+                  </button>
+                )}
+              </span>
               <Input
+                id={`field-${key}`}
                 type={type ?? "text"}
                 value={displayValue(values, key)}
                 onChange={(event) => update(key, event.target.value)}
@@ -204,7 +262,15 @@ export function EventForm({
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
                 )}
               />
-            </label>
+              {isTicket && showTicketNote && (
+                <p className="text-[12px] leading-[1.45] text-pro-muted">
+                  {t.form.ticketNote}
+                </p>
+              )}
+              {isTicket && ticketError && (
+                <p className="text-[12px] leading-[1.45] text-destructive">{ticketError}</p>
+              )}
+            </div>
           );
         })}
       </div>

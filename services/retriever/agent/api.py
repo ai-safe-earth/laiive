@@ -1,12 +1,13 @@
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from laiive_shared import (
     AudioTooLarge,
     Done,
     Error,
+    EventsResult,
     UnsupportedAudioFormat,
     install_internal_auth,
     register_health,
@@ -20,6 +21,11 @@ from starlette.concurrency import run_in_threadpool
 from config import settings
 
 from .clients.neo4j_client import neo4j_client
+from .executor import (
+    EVENT_LOOKUP_MAX_UIDS,
+    build_uid_query,
+    rows_to_cards,
+)
 from .pipeline import Pipeline, TurnResult
 from .utils.llm_utils import get_openai_client
 
@@ -95,6 +101,10 @@ class ChatRequestSSE(BaseModel):
 
     messages: List[Message]
     location: Optional[UserLocation] = None
+    # The asker's IANA zone, for resolving "today" and "tonight". Optional
+    # because a client that sends none is not broken -- it falls back to UTC,
+    # which is what every client did before this existed.
+    timezone: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -103,6 +113,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[Message]] = None
     location: Optional[UserLocation] = None
+    timezone: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -141,6 +152,7 @@ def root():
         "endpoints": {
             "health": "/health",
             "schema": "/schema",
+            "events": "/events?uids=… (GET) - cards by uid",
             "chat": "/chat (POST) - JSON response",
             "chat/stream": "/chat/stream (POST) - SSE streaming",
             "docs": "/docs",
@@ -183,6 +195,46 @@ def get_schema():
     except Exception as e:
         logger.error(f"Schema fetch failed: {e}")
         return {"schema": None, "status": "error", "error": str(e)}
+
+
+# ============== Events by uid ==============
+
+
+@app.get("/events", response_model=EventsResult)
+def events_by_uid(uids: str = Query(..., description="comma-separated event uids")):
+    """Fresh cards for a set of uids — the saved list's read path.
+
+    Deliberately off the pipeline: there is no question to classify, no plan
+    to route and nothing to compose, so this reaches the driver directly and
+    never calls get_pipeline(). That is also what keeps importing this module
+    free of an OpenAI client — the pipeline is still built by the first chat
+    turn, not by a saved list.
+
+    Unknown uids come back as nothing rather than an error: an event deleted
+    from the graph is a stale pointer in somebody's list, not a bad request.
+    """
+    wanted: list[str] = []
+    for raw in uids.split(","):
+        uid = raw.strip()
+        if uid and uid not in wanted:
+            wanted.append(uid)
+    if not wanted:
+        return EventsResult(events=[])
+    if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
+        # A truncated saved list is cards vanishing with no message, so the
+        # cap is refused rather than silently applied.
+        raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
+
+    cypher, params = build_uid_query(wanted)
+    try:
+        rows = neo4j_client.execute_read(cypher, params)
+    except Exception as e:
+        logger.error(f"uid lookup failed: {e}")
+        raise HTTPException(502, "Could not read the events.") from e
+
+    # Back in the order asked for, so the client's own ordering survives.
+    by_uid = {card.uid: card for card in rows_to_cards(rows)}
+    return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
 # ============== Voice input ==============
@@ -231,6 +283,7 @@ def chat(request: ChatRequest):
             request.message,
             _history_dicts(request.conversation_history),
             _location_dict(request.location),
+            timezone=request.timezone,
         )
         log_turn(
             request_id,
@@ -264,7 +317,7 @@ async def chat_stream(request: ChatRequestSSE):
     location = _location_dict(request.location)
 
     return StreamingResponse(
-        _generate(request_id, user_message, history, location),
+        _generate(request_id, user_message, history, location, request.timezone),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -280,6 +333,7 @@ def _generate(
     user_message: str,
     history: list[dict] | None,
     location: dict | None,
+    timezone: str | None = None,
 ):
     """Named-event frames from the shared protocol.
 
@@ -292,7 +346,7 @@ def _generate(
     result = TurnResult()
     try:
         for payload in get_pipeline().run_turn(
-            user_message, history, location, result=result
+            user_message, history, location, result=result, timezone=timezone
         ):
             yield sse_frame(payload)
     except Exception as e:

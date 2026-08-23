@@ -22,6 +22,15 @@ export interface StreamHandlers {
   onError?: (message: string) => void;
 }
 
+/** The reader's IANA zone, or null where Intl cannot name one. */
+function browserTimezone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * One chat turn against the retriever, through the gateway.
  *
@@ -44,6 +53,10 @@ export async function streamChat(
     body: JSON.stringify({
       messages: messages.map(({ role, content }) => ({ role, content })),
       location: location ?? null,
+      // "tonight" has to be resolved against the asker's clock, not the
+      // server's. Sent every turn because it is free and a laptop crossing a
+      // border between turns is exactly the case that would otherwise be wrong.
+      timezone: browserTimezone(),
     }),
   });
 

@@ -37,8 +37,28 @@ class Settings(BaseSettings):
     embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
 
     # Sweep bounds — a sweep is a synchronous admin call, keep it minutes not hours.
-    sweep_max_pages: int = Field(10, alias="SEARCH_SWEEP_MAX_PAGES")
-    sweep_results_per_query: int = Field(5, alias="SEARCH_RESULTS_PER_QUERY")
+    #
+    # These two bound different budgets and are easy to confuse. A Tavily call
+    # costs one credit whatever it returns, so results_per_query is free; only
+    # max_pages, applied after the calls, bounds the OpenAI extraction bill.
+    #
+    # results_per_query is free, so it sits at Tavily's practical ceiling.
+    # max_pages is the one that costs: it is pages x one gpt-4o-mini extraction.
+    # It has to scale with the number of query templates or the extra queries
+    # are paid for and then truncated away unread — five templates reaching
+    # five kinds of site is pointless if only the first one's results survive.
+    sweep_max_pages: int = Field(25, alias="SEARCH_SWEEP_MAX_PAGES")
+    sweep_results_per_query: int = Field(10, alias="SEARCH_RESULTS_PER_QUERY")
+    # Boosts a locale in Tavily's ranking (general topic only). Empty disables
+    # it. Both swept provinces are Italian.
+    sweep_country: str = Field("italy", alias="SEARCH_SWEEP_COUNTRY")
+    # How local a result is, for scoring a phrasing. The English templates hit
+    # 2-3 of 9 here against 7 of 9 for the Italian ones, which is what removed
+    # them; the learning loop now measures it per query instead of by hand.
+    sweep_local_tld: str = Field(".it", alias="SEARCH_SWEEP_LOCAL_TLD")
+    # Credits per city per run. One is always the trial slot, so raising this
+    # buys standing phrasings, not exploration.
+    sweep_query_slots: int = Field(5, alias="SEARCH_QUERY_SLOTS")
     page_max_chars: int = Field(12000, alias="SEARCH_PAGE_MAX_CHARS")
 
     # Cosine score above which a vector neighbour is flagged as a likely

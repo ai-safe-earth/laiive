@@ -44,6 +44,24 @@ class TurnResult:
         return bool(self.classification and self.classification.moment == "ambiguous")
 
 
+def verified_first(cards: list[EventCard]) -> None:
+    """Promoter submissions to the top of the turn's cards, in place.
+
+    A pro_submission is the only card somebody who can actually make it true
+    has vouched for — that is exactly what the card's green mark claims — so it
+    should not sit below a swept listing because a sub-query happened to return
+    first. `list.sort` is stable, so within each group the retrieval order
+    survives untouched: the template leg stays by date, the nearby leg stays by
+    distance with its centroid penalty intact.
+
+    The trade this accepts: on a "near me" ask a promoter's event 20 km out now
+    leads a swept one 500 m away, and the composer reads the same order. The
+    distance is printed on every card, and provenance is the signal the product
+    leads with, so the sort is unconditional rather than skipped for NEARBY.
+    """
+    cards.sort(key=lambda card: card.source != "pro_submission")
+
+
 class Pipeline:
     def __init__(self, neo4j_client):
         self.client = get_openai_client()
@@ -79,8 +97,12 @@ class Pipeline:
         history: list[dict] | None = None,
         location: dict | None = None,
         result: TurnResult | None = None,
+        timezone: str | None = None,
     ) -> Iterator[MessageDelta | EventsResult | Status]:
-        """Stream one turn. Pass a TurnResult to collect side data as it runs."""
+        """Stream one turn. Pass a TurnResult to collect side data as it runs.
+
+        `timezone` is the asker's IANA zone; it decides what "today" means.
+        """
         result = result if result is not None else TurnResult()
 
         result.unsafe = settings.enable_moderation and (
@@ -95,14 +117,14 @@ class Pipeline:
         else:
             yield Status(state="classifying")
             result.classification = self.classifier.classify(
-                user_message, history, has_location=bool(location)
+                user_message, history, has_location=bool(location), timezone=timezone
             )
             plans = route(result.classification, has_location=bool(location))
             if plans:
                 yield Status(state="searching")
                 seen: set = set()
                 for plan in plans:
-                    outcome = self.executor.execute(plan, location)
+                    outcome = self.executor.execute(plan, location, timezone)
                     if outcome.cypher:
                         result.cyphers.append(outcome.cypher)
                     if outcome.note:
@@ -116,6 +138,7 @@ class Pipeline:
                             seen.add(key)
                             result.cards.append(card)
                 # Cards go out the moment results exist, before any prose.
+                verified_first(result.cards)
                 yield EventsResult(events=result.cards)
 
         yield Status(state="composing")
@@ -135,9 +158,12 @@ class Pipeline:
         user_message: str,
         history: list[dict] | None = None,
         location: dict | None = None,
+        timezone: str | None = None,
     ) -> TurnResult:
         """Non-streaming variant for the JSON endpoint."""
         result = TurnResult()
-        for _ in self.run_turn(user_message, history, location, result=result):
+        for _ in self.run_turn(
+            user_message, history, location, result=result, timezone=timezone
+        ):
             pass
         return result

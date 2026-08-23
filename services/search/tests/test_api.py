@@ -164,6 +164,38 @@ def test_approve_source_is_admin_search(mock_reports_http, mock_neo4j):
     assert write_params["owner_id"] is None
 
 
+def test_approve_carries_the_source_page_into_the_graph(mock_reports_http, mock_neo4j):
+    """The candidate has carried source_url since the sweep, and approve used
+    to read only its draft — so an approved event could not name the page it
+    came from, while the card's own copy promised it could."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    client.post(f"/reports/{REPORT_ID}/approve", json={"indices": [0]})
+    write_params = next(
+        params
+        for q, params in mock_neo4j.fake_session.queries
+        if "CREATE (e:Event" in q
+    )
+    assert write_params["source_url"] == "https://example.com/agenda"
+    # Stored beside the URL because it is what per-source questions group by.
+    assert write_params["source_domain"] == "example.com"
+
+
+def test_approve_without_a_source_url_still_writes(mock_reports_http, mock_neo4j):
+    """A candidate from before source_url existed, or a hand-built report."""
+    report = stored_report()
+    del report["candidates"][0]["source_url"]
+    mock_reports_http.get.return_value = http_response(200, [report])
+    response = client.post(f"/reports/{REPORT_ID}/approve", json={"indices": [0]})
+    assert response.status_code == 200
+    write_params = next(
+        params
+        for q, params in mock_neo4j.fake_session.queries
+        if "CREATE (e:Event" in q
+    )
+    assert write_params["source_url"] == ""
+    assert write_params["source_domain"] == ""
+
+
 def test_approve_non_uuid_user_id_does_not_break_the_update(mock_reports_http):
     """approved_by is a uuid column — a stray header value becomes null."""
     mock_reports_http.get.return_value = http_response(200, [stored_report()])
@@ -278,3 +310,96 @@ def test_backfill_marks_a_city_centroid_answer_as_one(
         if "SET v.location" in query
     ]
     assert written and written[0]["precision"] == "city_centroid"
+
+
+# ── The review queue ────────────────────────────────────────────────────────
+
+
+def test_reports_can_be_narrowed_to_the_queue(mock_reports_http):
+    """A queue asks for what is still waiting; without a filter the client has
+    to pull every report ever run and sort it out itself."""
+    mock_reports_http.get.return_value = http_response(200, [])
+    client.get("/reports?status=dry_run&city=Bergamo")
+    params = mock_reports_http.get.call_args.kwargs["params"]
+    assert params["status"] == "eq.dry_run"
+    assert params["city"] == "eq.Bergamo"
+
+
+def test_a_status_set_is_passed_as_a_set(mock_reports_http):
+    mock_reports_http.get.return_value = http_response(200, [])
+    client.get("/reports?status=dry_run,failed")
+    assert mock_reports_http.get.call_args.kwargs["params"]["status"] == (
+        "in.(dry_run,failed)"
+    )
+
+
+def test_no_filter_still_lists_everything(mock_reports_http):
+    mock_reports_http.get.return_value = http_response(200, [])
+    client.get("/reports")
+    params = mock_reports_http.get.call_args.kwargs["params"]
+    assert "status" not in params and "city" not in params
+
+
+def test_the_listing_never_carries_the_candidates(mock_reports_http):
+    """Twenty reports would mean twenty candidate arrays; the detail read is
+    where those come from."""
+    mock_reports_http.get.return_value = http_response(200, [])
+    client.get("/reports")
+    assert (
+        "candidates" not in mock_reports_http.get.call_args.kwargs["params"]["select"]
+    )
+
+
+def test_the_listing_selects_only_columns_that_predate_every_migration():
+    """Naming a column PostgREST does not have yet 400s the whole listing. That
+    made reading the queue depend on being able to dismiss from it, which is
+    exactly backwards for a screen whose job is to unblock a backlog."""
+    from agent import reports as reports_module
+    import inspect
+
+    source = inspect.getsource(reports_module.list_reports)
+    for late_column in ("reviewed_at", "reviewed_by", "review_note"):
+        assert late_column not in source
+
+
+def test_a_report_can_be_dismissed_without_writing_anything(
+    mock_reports_http, mock_neo4j
+):
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    response = client.post(f"/reports/{REPORT_ID}/dismiss", json={"note": "all junk"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "dismissed"
+    # The whole point: nothing reached the graph.
+    assert not any("CREATE (e:Event" in q for q, _ in mock_neo4j.fake_session.queries)
+
+
+def test_dismissing_records_who_and_why(mock_reports_http):
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    client.post(
+        f"/reports/{REPORT_ID}/dismiss",
+        json={"note": "listings site, no real events"},
+        headers={"X-User-Id": "11111111-1111-1111-1111-111111111111"},
+    )
+    patched = mock_reports_http.patch.call_args
+    assert patched.kwargs["json"]["status"] == "dismissed"
+    assert patched.kwargs["json"]["review_note"] == "listings site, no real events"
+    # reviewed_*, not approved_* -- "who cleared this" is a different question
+    # from "who wrote these events".
+    assert patched.kwargs["json"]["reviewed_by"] == (
+        "11111111-1111-1111-1111-111111111111"
+    )
+    assert "approved_by" not in patched.kwargs["json"]
+
+
+def test_dismiss_races_approve_and_only_one_wins(mock_reports_http):
+    """Same compare-and-set as approve, so the second verb loses."""
+    mock_reports_http.get.return_value = http_response(200, [stored_report()])
+    mock_reports_http.patch.return_value = http_response(200, [])  # lost the CAS
+    response = client.post(f"/reports/{REPORT_ID}/dismiss", json={})
+    assert response.status_code == 409
+    assert "not dismissable" in response.json()["detail"]
+
+
+def test_dismissing_a_missing_report_is_404(mock_reports_http):
+    mock_reports_http.get.return_value = http_response(200, [])
+    assert client.post(f"/reports/{REPORT_ID}/dismiss", json={}).status_code == 404

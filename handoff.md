@@ -1,44 +1,43 @@
-# HANDOFF - laiive (updated 2026-08-21)
+# HANDOFF - laiive (updated 2026-08-23)
 
-State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`;
-refactor history `docs/refactor/` (closed).
+State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
 
-## Where things stand
+**laiive is live at https://laiive.com**, `v0.1.0` - Pages from `main`, gateway
+https://laiive-gateway.fly.dev, five Fly apps in `fra`. `main` is production, `develop` the trunk.
 
-**laiive is live at https://laiive.com**, tagged `v0.1.0` - Cloudflare Pages (production branch
-`main`, previews from `develop`; `laiive.pages.dev` still serves as fallback); gateway
-https://laiive-gateway.fly.dev, five Fly apps in `fra`, retriever/pusher/search on no public IPs.
+## One branch open
 
-**`main` is production, `develop` the trunk and default branch**; work branches PR into
-`develop`, `main` takes a release PR only and is protected. Ship with `make release`; model in
-`CONTRIBUTING.md`. Archives, never build on: `legacy/pre-refactor`, `experiment/k3s`.
+**#61, #62 and #63 are merged** - discovery on Torino and Bergamo with provenance and the
+learning loop, and the `/admin` review queue. Nothing else is open.
+**`feat/saved-events-and-ui-polish`** is six commits rebased onto `develop`, no PR yet; suites
+green at 77 / 25 / 173 / 118 (frontend, gateway, retriever, shared).
 
-**Brand v1 is shipped and serving**; `brand-guide.pdf` is still missing, so the decisions it may
-overrule stay under "Restyle" in the machine block - reverting is a token swap. **`develop` is
-four commits ahead of `main` and unreleased**: the promoter door, the sign-up hardening, the
-frontend test suite. PR #57 (deploy docs) is open on top.
+On it and nowhere else: **saved events end to end** (`saved_events` under RLS, retriever
+`GET /events?uids=`, gateway `/api/events` behind `requireRole("user")`, `/saved`), the card
+and chat polish, and a `/pro` onboarding panel whose 16/9 frame waits on a Claude Design piece.
 
-## The promoter door - finished, unclicked
+## The backlog that is the point of /admin
 
-`?kind=pro` is one form now: the organisation is a field on sign-up, `20260820000012` grants the
-role by trigger, the token is re-minted before `/pro` opens. OAuth returns to `/auth/callback`, a
-waiting room, so `/pro` never renders against a pre-grant token; a confirmation mail is survived
-by a `localStorage` intent keyed to the address (24 h). The frontend has tests now too - vitest +
-jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
+**12 reports sit in `dry_run` holding ~180 candidates**, including every Torino and Bergamo event
+found this week. A sweep writes a report to Supabase and stops; only `POST /reports/{id}/approve`
+moves it. The UI exists now, and nothing has been approved through it yet.
+
+## Discovery, as it now runs
+
+Bergamo and Torino provinces, weekly, five **Italian** query templates plus Tavily `/extract` for
+three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a test.
 
 ## Open
 
-- **The Supabase redirect allow-list is unverified** and gates Google sign-in in production: it
-  needs `<origin>/**`, not bare origins, now the return leg is `/auth/callback`. It cannot be
-  probed from outside - read it (`DEPLOY.md` section 5 step 2).
-- `origin/feat/promoter-onboarding-and-surface` is stale - a push recreated it after #56 merged
-  and deleted it; remote branch deletion is refused from here.
-- The **OG card** is `og-base-1200x630.png` bare; the composed version is still to make.
-- Google sign-in shows the Supabase project id rather than laiive - `DEPLOY.md` section 5b.
-- Never clicked: Google sign-in for real, the pro walk in es/ca, the new artist repeater.
-- Smaller: `lucide-react` unused in `package.json`; `20260819000011` applied but unwritten-to;
-  `.claude` deny rules unverified after restart; `main_protection` redundant; ingestion items in
-  `01-program.md` section 7.
+- **Three migrations unpushed**: `...13`, `...14`, `...15`. The first two fail soft; **`...15`
+  does not** - without `saved_events` every save is a 404. Push before the SPA ships, and deploy
+  the retriever and gateway first: `/api/events` does not exist until they do.
+- **`flows/serve.py` is not running**, so no schedule fires; every sweep so far was by hand.
+- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` hits production.
+- Deferred by decision: the venue welcome pack, and the Supabase confirmation email (yours).
+- Redirect allow-list unread (`DEPLOY.md` 5 step 2). `origin/feat/promoter-onboarding-and-surface`
+  stale. **OG card** bare. `lucide-react` unused. Never clicked: the pro walk in es/ca. Reference
+  artifacts: pipelines `04820bb1`, admin scope `a331b289`.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -46,7 +45,7 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-21",
+  "updated": "2026-08-23",
   "deadline": null,
   "people": [
     "oscar"
@@ -551,6 +550,26 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
         {
           "date": "2026-08-21",
           "text": "The promoter surface uses the pro.* palette brand-tokens.css already shipped, contradicting a comment in that same file. Owner chose the palette; the PDF may overrule it"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Saved events are pointers, not snapshots: saved_events holds uids under RLS and the card bodies are re-read from the graph on every open, so a corrected price or a moved door time reaches a saved card"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The by-uid lookup gets its own gateway prefix, /api/events behind requireRole(\"user\"), rather than riding the anonymous /api/chat - saving needs an account, and a rule that lives only in the SPA is a hope"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Both doors between the two surfaces live in UserMenu and are promoter-only; the /pro logo is no longer a link. A free user reaches /pro through /account or /auth?kind=pro"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The venue welcome pack and the confirmation email are deferred out of this batch - the pack needs mail, QR and PDF infrastructure the repo does not have"
         }
       ]
     },
@@ -588,20 +607,79 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
     },
     {
       "name": "Ingestion + self-improvement",
-      "status": "planned",
-      "start": null,
+      "status": "active",
+      "start": "2026-08-22",
       "end": null,
       "plan": "roadmap",
-      "decisions": []
+      "decisions": [
+        {
+          "date": "2026-08-22",
+          "text": "Event start times were stored as UTC while the listing meant local wall clock: parse_start_at returned a naive datetime and Cypher read it as UTC, so a 22:00 Bergamo gig became midnight the next day. The writer now resolves the venue IANA zone from the coordinate it already geocodes (timezonefinder, not a country table - Spain spans Madrid and Canary) and stores instant plus zone. 41 timed rows re-stamped; date-only rows left alone, their midnight is a parser default"
+        },
+        {
+          "date": "2026-08-22",
+          "text": "The query side had the same bug twice over: the classifier minted today from a naive datetime.now() (UTC in the container) and naive date windows were compared against zoned instants. A window is a wall-clock question, so localdatetime() reads both sides on the venue clock and the browser sends its IANA zone. Measured: tonight on 2026-08-28 went 5 to 6 events, PAPAYA CLUB WLW at 19:00 Barcelona had been falling in front of an 18:00Z start"
+        },
+        {
+          "date": "2026-08-22",
+          "text": "Candidate.source_url was dropped at approve (api.py read only the draft), so no discovered event could name its page while the card copy promised it could. It is now an argument to write_event rather than an EventDraft field - a field on the draft is a field the model can invent - and source_domain is stored beside it as the key per-source questions group by. All 57 existing rows recovered from search_reports.candidates"
+        },
+        {
+          "date": "2026-08-22",
+          "text": "Card provenance is two marks from the brand sprite: an exclamation for admin_search opening the source link plus an invitation to the promoter to claim the listing, the done mark for pro_submission. Seed rows get neither - they are ours and real, but nobody at the door vouched for them"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Discovery narrowed to Bergamo and Torino provinces; Girona and the Madrid/Barcelona/Berlin weekly sweep stopped, their events kept. A yield-learning source list is only trustworthy where the owner can tell a real local listing from a well-formed aggregator"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Two cities were quietly becoming one town. A Torino sweep named its city Torino 8 times and Turin 7, which is two City nodes and a search finding half its events; the geocoder answers in the local language so it now settles the spelling (also fixes Munich/Munchen). Separately a trailing two-letter province code is stripped, which fixes ponteranica BG already in the graph"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Query language picks the language of the sites reached. Measured on Torino, Italian domains in ten results: English query 3/9 (2/9 with the exonym), concerti Torino agosto 2026 gives 7/9. It is the keywords not the toponym, so the English template is gone. month_year also came from strftime in the C locale, so every Italian query was asking for August. Result: turinwhynot.com went from top source at 17/42 to absent, eventi.comune.torino.it and arci.it appeared"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Sweeps run five Italian templates, one per source type, with round-robin interleaving so max_pages cannot truncate away the narrow phrasings that reach the circuit. 6 to 16 pages with events, 15 to 42 candidates, past events skipped 37 to 4. max_pages 10 to 25 because it bounds OpenAI not Tavily, and results_per_query 5 to 10 because a Tavily credit is charged per call whatever it returns"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "search_sources and search_queries learn from yield alone, no human label - the default approve path takes every new candidate, so an approval-derived score would measure the dedup probe. Counters decay at 0.85 a sweep because straight totals would leave a three-week festival top of the ranking in December. Trusted domains narrow one of five slots and only above three of them: a search restricted to what it knows can only confirm it. One slot is always a trial phrasing, so the vocabulary grows"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Druso, Daste and Eppen vouched for as Bergamo sources, and fetched with Tavily /extract rather than searched for: restricted to those three domains search returned 106-156 characters a hit, extract returns 17,965 for the Eppen agenda and 102,313 for the Daste events page. Basic depth - half the price of advanced and the one that worked. Seeds declare their cities so province-wide sources cost one credit a week, not twenty. Bergamo 18 to 33 candidates, 33 of 33 complete"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Tavily budget is about 435 credits a month of the 1000 free plan, pinned by a test so it cannot drift silently, and every report carries its own credit count"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The Phase 5 human gate had no door: approving was a raw POST with an admin JWT, which is why 12 reports and about 180 candidates were sitting unreviewed. /admin is the queue and the report table. Dismissal added as a real state - dry_run could only go to approved, so a sweep that found junk had no exit - and reviewed_by is kept separate from approved_by because who cleared this and who wrote these events are different questions"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "The admin queue select names only columns that predate every migration. The first version asked for reviewed_at and PostgREST 400s the whole listing, so a screen whose job is unblocking a backlog could not open until an unrelated migration landed. Reading the queue needs no migration; only dismissing does"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Admin copy is English-only in src/admin/strings.ts, outside the four-language Translations interface - owner call for a surface with one reader, and the first place in the app to break that rule. RequireRole is the first route guard in the app; /pro and /account had each inlined their own"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
+        },
+        {
+          "date": "2026-08-23",
+          "text": "#61 (discovery on Torino and Bergamo, provenance, the learning loop), #62 and #63 (the /admin review queue) merged into develop; all three head branches deleted"
+        }
+      ]
     }
   ],
   "blockers": [
-    {
-      "text": "Google sign-in is wired and enabled but the real click-through has never been exercised",
-      "severity": "low",
-      "owner": "oscar",
-      "since": "2026-08-14"
-    },
     {
       "text": "The Aura free instance auto-pauses and its DNS record disappears while paused; on resume reads work but writes fail with 'No write service currently available'. Cost three aborted repair runs before it settled",
       "severity": "low",
@@ -619,9 +697,111 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-08-21"
+    },
+    {
+      "text": "Three migrations are unpushed: 20260823000013 (search_sources, search_queries), 20260823000014 (dismissed status) and 20260823000015 (saved_events). 13 and 14 fail soft; 15 does not - without the table every save is a PostgREST 404 and /saved shows its error state, so push before the SPA ships",
+      "severity": "high",
+      "owner": "oscar",
+      "since": "2026-08-23"
+    },
+    {
+      "text": "12 sweep reports sit in dry_run holding about 180 candidates, including every Torino and Bergamo event found this week. Nothing reaches the graph until they are approved through /admin",
+      "severity": "medium",
+      "owner": "oscar",
+      "since": "2026-08-23"
+    },
+    {
+      "text": "flows/serve.py is not running, so no schedule fires. Every sweep so far was triggered by hand; a next-run time shown anywhere is one that will not execute until that process is up",
+      "severity": "low",
+      "owner": "oscar",
+      "since": "2026-08-23"
     }
   ],
   "nextSteps": [
+    {
+      "title": "PR feat/saved-events-and-ui-polish into develop - rebased onto develop after #61, #62 and #63 merged, so it is six commits on a clean base",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Deploy order for saved events: push the migrations, then make fly-deploy-retriever and fly-deploy-gateway, then the SPA. The SPA calls /api/events, which does not exist until both ship",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Venue welcome pack: a printable QR sheet (small to A4) saying where to find that venue's events, mailed after email confirmation. Nothing exists yet - no mail provider, no edge functions, no QR or PDF dependency, and supabase/ has no functions/ on purpose",
+      "est": 3,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Turn on the Supabase confirmation email in the dashboard, and hand the walkthrough animation for the /pro onboarding panel to Claude Design - the frame is in place at 16/9",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "supabase db push for 20260823000013, 14 and 15 (one push applies all three in order), confirm with supabase migration list, then walk /admin signed in and approve the Bergamo and Torino backlog",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Admin phase 2 - one aggregated GET /api/admin/search/stats on the search service (it holds both the Neo4j driver and the service-role key, so it inherits the admin proxy), hand-rolled SVG charts, and add CREATE INDEX event_created_at. Scope: artifact a331b289",
+      "est": 2,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Admin phase 3 - Prefect read-only panel: deployment list, next and last run, launch a custom sweep, plus a serve.py liveness indicator so the panel cannot show a run that will never fire. Key stays server-side",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Raise the gateway rate limit per role before the dashboard ships: 60 req/min per user across all of /api/* with no admin exemption, and the sweep own 15s polling already spends from it",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Seed TORINO_PROVINCE sources in learning.SEED_SOURCES - torinogiovani.it and eventi.comune.torino.it both surfaced repeatedly and neither is reachable by search alone",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Write one extraction_hints row by hand (eventi.comune.torino.it is the candidate) and see whether extraction improves - the plumbing is in, nothing generates hints, and automating them should wait for evidence they help",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "named_place_max_diagonal_km is 60 and the Bergamo province geocodes to 98, so the named-place fallback refuses it. Only reachable when the city template returns zero rows",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Retrieval accuracy",
+      "plan": "roadmap"
+    },
+    {
+      "title": "localdatetime(e.start_at) is evaluated per row and cannot use the start_at index. Irrelevant at 71 events; the fix at scale is a stored local-wallclock property, not reverting the semantics",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Retrieval accuracy",
+      "plan": "roadmap"
+    },
     {
       "title": "Compose the OG card on og-base-1200x630.png - public/og-image.png is the bare ground today, with og:title and og:description carrying the words",
       "est": 1,
@@ -631,13 +811,6 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
     },
     {
       "title": "Drop lucide-react from frontend/package.json - no component imports it since the brand icon set landed",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Restyle - new visual direction",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Click through Google sign-in once with a real account, and walk the 4d multi-event walk in a browser including the es/ca strings",
       "est": 1,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
@@ -662,13 +835,6 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
       "est": 5,
       "owner": "oscar",
       "phase": "Retrieval accuracy",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Genre on newly swept events: infer genre at approve time, or fall back to unfiltered-plus-rank on zero rows. 55 of 57 existing events are reachable after the artist tagging, but a new sweep still arrives untagged",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
       "plan": "roadmap"
     },
     {
@@ -815,6 +981,20 @@ jsdom, 33 specs, run by CI. **Nobody has walked any of it in a browser.**
     },
     {
       "date": "2026-08-21",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-23",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-23",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",

@@ -11,6 +11,14 @@ dependencies = [
     # For the shared probe endpoints and the internal-key middleware. Every
     # consumer service already depends on fastapi, so this adds no wheel.
     "fastapi>=0.115",
+    # lat/lng -> IANA timezone, offline. A listing states a wall-clock time and
+    # nothing else, so the venue's own zone is the only thing that turns "21:00"
+    # into an instant. Country code is not enough: Spain alone spans two zones.
+    "timezonefinder>=6.5",
+    # zoneinfo reads the IANA database off the OS, and Windows ships none — the
+    # dev box here resolves nothing without this. Unconditional rather than
+    # platform-gated so the dev box and the Fly images agree on one tz version.
+    "tzdata>=2024.1",
 ]
 
 [dependency-groups]

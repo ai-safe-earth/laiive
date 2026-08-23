@@ -20,6 +20,8 @@ export interface Translations {
     placeholder: string;
     statusReading: string;
     statusSearching: string;
+    /** Sent verbatim, so these are queries in the reader's language, not labels. */
+    examples: string[];
     statusWriting: string;
     rateLimited: string;
     rateLimitedAnon: string; // markdown, links to /auth
@@ -90,6 +92,11 @@ export interface Translations {
     signInLink: string;
     emptyTitle: string;
     emptyHint: string;
+    onboardingTitle: string;
+    /** Shown until the walkthrough animation lands. */
+    onboardingPending: string;
+    onboardingSteps: string[];
+    onboardingDismiss: string;
     statusExtracting: string;
     readingFile: (name: string) => string;
     notPromoter: string;
@@ -110,6 +117,9 @@ export interface Translations {
     stillNeeded: (n: number) => string;
     labels: Record<DraftFieldKey, string>;
     missingPlaceholder: string;
+    ticketNoteAria: string;
+    ticketNote: string;
+    ticketInvalid: string;
     publish: string;
     publishing: string;
     fillHint: (fields: string) => string;
@@ -126,19 +136,36 @@ export interface Translations {
     openMaps: string;
     approximate: string;
     tickets: string;
-    web: string;
+    save: string;
+    saved: string;
     webTitle: string;
     webAria: string;
     webMissing: string;
+    webSourceFallback: string;
+    webClaim: string;
+    verifiedAria: string;
+    verifiedTitle: string;
     fieldTime: string;
     fieldPrice: string;
     fieldLocation: string;
+  };
+  /** The saved list. Named apart from menu.saved, which is the way in. */
+  savedPage: {
+    title: string;
+    empty: string;
+    emptyHint: string;
+    upcoming: string;
+    past: string;
+    failed: string;
+    retry: string;
+    back: string;
   };
   menu: {
     saved: string;
     account: string;
     settings: string;
     pro: string;
+    toLaiive: string;
     signOut: string;
     signIn: string;
     aria: string;
@@ -158,9 +185,14 @@ export interface Translations {
 export const translations: Record<Language, Translations> = {
   en: {
     chat: {
-      placeholder: "ask",
+      placeholder: "search your event here…",
       statusReading: "reading your question…",
-      statusSearching: "searching the graph…",
+      statusSearching: "searching for events…",
+      examples: [
+        "rock concerts this weekend near me",
+        "concerts today near me",
+        "rock concerts this week in Torino",
+      ],
       statusWriting: "writing…",
       rateLimited: "You are sending requests a little fast — give it a minute.",
       rateLimitedAnon: "That's the free quota for now. [Sign in →](/auth) for a higher limit.",
@@ -227,6 +259,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "sign in →",
       emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
       emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
+      onboardingTitle: "how this works",
+      onboardingPending: "walkthrough coming",
+      onboardingSteps: [
+        "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
+        "laiive reads it and fills the form. Every field is yours to correct.",
+        "Confirm, and the event is live.",
+        "Somebody searching laiive for a night like yours finds it.",
+      ],
+      onboardingDismiss: "don't show this again",
       statusExtracting: "reading what you sent…",
       readingFile: (name) => `reading ${name}…`,
       notPromoter: "Your account is not a promoter account yet.",
@@ -263,6 +304,10 @@ export const translations: Record<Language, Translations> = {
         description: "description",
       },
       missingPlaceholder: "the assistant could not find this",
+      ticketNoteAria: "about the ticket link",
+      ticketNote:
+        "laiive does not sell tickets yet — this link sends people straight to wherever you already sell them. Ticketing here is on its way.",
+      ticketInvalid: "that does not look like a web address",
       publish: "publish to laiive",
       publishing: "publishing…",
       fillHint: (fields) => `fill ${fields} — by typing here or just telling the assistant`,
@@ -279,8 +324,15 @@ export const translations: Record<Language, Translations> = {
       openMaps: "open in Google Maps",
       approximate: "Approximate — the exact address of this venue is not known yet.",
       tickets: "tickets",
-      web: "web",
-      webAria: "What does “web” mean?",
+      save: "save",
+      saved: "saved",
+      webAria: "Where did this come from?",
+      webSourceFallback: "see the original listing",
+      webClaim:
+        "Putting this night on? Add it from a promoter account and it becomes yours to correct.",
+      verifiedAria: "Who confirmed this?",
+      verifiedTitle:
+        "Confirmed by a promoter of this event, from their own account — the times, the price and the door are as they entered them.",
       webTitle:
         "We found this listing with our own web search. The promoter has not confirmed it, so anything the page did not state is left blank rather than guessed.",
       webMissing: "Not stated on the page",
@@ -288,12 +340,23 @@ export const translations: Record<Language, Translations> = {
       fieldPrice: "price",
       fieldLocation: "exact address",
     },
+    savedPage: {
+      title: "saved",
+      empty: "Nothing saved yet.",
+      emptyHint: "Save a card and it waits for you here.",
+      upcoming: "coming up",
+      past: "already happened",
+      failed: "could not load your saved events",
+      retry: "try again",
+      back: "back",
+    },
     menu: {
       account: "account",
       signOut: "sign out",
       signIn: "sign in",
       settings: "settings",
       pro: "laiive pro",
+      toLaiive: "back to laiive",
       saved: "saved",
       aria: "Account menu",
     },
@@ -310,9 +373,14 @@ export const translations: Record<Language, Translations> = {
   },
   es: {
     chat: {
-      placeholder: "pregunta",
+      placeholder: "busca tu evento aquí…",
       statusReading: "leyendo tu pregunta…",
-      statusSearching: "buscando en el grafo…",
+      statusSearching: "buscando eventos…",
+      examples: [
+        "conciertos de rock este fin de semana cerca de mí",
+        "conciertos hoy cerca de mí",
+        "conciertos de rock esta semana en Turín",
+      ],
       statusWriting: "escribiendo…",
       rateLimited: "Estás enviando mensajes muy rápido — dale un minuto.",
       rateLimitedAnon: "Ese es el límite gratuito por ahora. [Inicia sesión →](/auth) para un límite mayor.",
@@ -379,6 +447,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "inicia sesión →",
       emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
       emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
+      onboardingTitle: "cómo funciona",
+      onboardingPending: "guía en camino",
+      onboardingSteps: [
+        "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
+        "laiive lo lee y rellena el formulario. Todos los campos son tuyos para corregir.",
+        "Confirma, y el evento está publicado.",
+        "Alguien que busque en laiive una noche como la tuya lo encuentra.",
+      ],
+      onboardingDismiss: "no volver a mostrar",
       statusExtracting: "leyendo lo que has enviado…",
       readingFile: (name) => `leyendo ${name}…`,
       notPromoter: "Tu cuenta aún no es de promotor.",
@@ -415,6 +492,10 @@ export const translations: Record<Language, Translations> = {
         description: "descripción",
       },
       missingPlaceholder: "el asistente no pudo encontrarlo",
+      ticketNoteAria: "sobre el enlace de entradas",
+      ticketNote:
+        "laiive todavía no vende entradas — este enlace lleva directamente a donde ya las vendes. La venta aquí llegará.",
+      ticketInvalid: "eso no parece una dirección web",
       publish: "publicar en laiive",
       publishing: "publicando…",
       fillHint: (fields) => `rellena ${fields} — escribiendo aquí o diciéndoselo al asistente`,
@@ -431,8 +512,15 @@ export const translations: Record<Language, Translations> = {
       openMaps: "abrir en Google Maps",
       approximate: "Aproximado — todavía no se conoce la dirección exacta de este local.",
       tickets: "entradas",
-      web: "web",
-      webAria: "¿Qué significa “web”?",
+      save: "guardar",
+      saved: "guardado",
+      webAria: "¿De dónde sale esto?",
+      webSourceFallback: "ver el anuncio original",
+      webClaim:
+        "¿Organizas esta noche? Añádela desde una cuenta de promotor y podrás corregirla tú.",
+      verifiedAria: "¿Quién lo ha confirmado?",
+      verifiedTitle:
+        "Confirmado por un promotor de este evento, desde su propia cuenta: la hora, el precio y la puerta son los que él indicó.",
       webTitle:
         "Encontramos este anuncio con nuestra propia búsqueda web. El promotor no lo ha confirmado, así que lo que la página no decía se deja en blanco en vez de inventarlo.",
       webMissing: "La página no lo indicaba",
@@ -440,12 +528,23 @@ export const translations: Record<Language, Translations> = {
       fieldPrice: "precio",
       fieldLocation: "dirección exacta",
     },
+    savedPage: {
+      title: "guardados",
+      empty: "Aún no has guardado nada.",
+      emptyHint: "Guarda una tarjeta y te espera aquí.",
+      upcoming: "próximos",
+      past: "ya pasaron",
+      failed: "no se pudieron cargar tus guardados",
+      retry: "reintentar",
+      back: "atrás",
+    },
     menu: {
       account: "cuenta",
       signOut: "cerrar sesión",
       signIn: "inicia sesión",
       settings: "ajustes",
       pro: "laiive pro",
+      toLaiive: "volver a laiive",
       saved: "guardados",
       aria: "Menú de cuenta",
     },
@@ -462,9 +561,14 @@ export const translations: Record<Language, Translations> = {
   },
   it: {
     chat: {
-      placeholder: "chiedi",
+      placeholder: "cerca il tuo evento qui…",
       statusReading: "leggo la tua domanda…",
-      statusSearching: "cerco nel grafo…",
+      statusSearching: "cerco eventi…",
+      examples: [
+        "concerti rock questo fine settimana vicino a me",
+        "concerti oggi vicino a me",
+        "concerti rock questa settimana a Torino",
+      ],
       statusWriting: "scrivo…",
       rateLimited: "Stai inviando richieste un po' troppo in fretta — aspetta un minuto.",
       rateLimitedAnon: "Questo è il limite gratuito per ora. [Accedi →](/auth) per un limite più alto.",
@@ -531,6 +635,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "accedi →",
       emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
       emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
+      onboardingTitle: "come funziona",
+      onboardingPending: "guida in arrivo",
+      onboardingSteps: [
+        "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
+        "laiive lo legge e compila il modulo. Ogni campo è tuo da correggere.",
+        "Conferma, e l'evento è pubblicato.",
+        "Chi cerca su laiive una serata come la tua la trova.",
+      ],
+      onboardingDismiss: "non mostrare più",
       statusExtracting: "leggo quello che hai inviato…",
       readingFile: (name) => `leggo ${name}…`,
       notPromoter: "Il tuo account non è ancora un account promoter.",
@@ -567,6 +680,10 @@ export const translations: Record<Language, Translations> = {
         description: "descrizione",
       },
       missingPlaceholder: "l'assistente non è riuscito a trovarlo",
+      ticketNoteAria: "informazioni sul link dei biglietti",
+      ticketNote:
+        "laiive non vende ancora biglietti — questo link porta direttamente dove li vendi già. La vendita qui arriverà.",
+      ticketInvalid: "non sembra un indirizzo web",
       publish: "pubblica su laiive",
       publishing: "pubblico…",
       fillHint: (fields) => `completa ${fields} — scrivendo qui o dicendolo all'assistente`,
@@ -583,8 +700,15 @@ export const translations: Record<Language, Translations> = {
       openMaps: "apri in Google Maps",
       approximate: "Approssimativo — l'indirizzo esatto di questo locale non è ancora noto.",
       tickets: "biglietti",
-      web: "web",
-      webAria: "Cosa significa “web”?",
+      save: "salva",
+      saved: "salvato",
+      webAria: "Da dove arriva?",
+      webSourceFallback: "vedi l'annuncio originale",
+      webClaim:
+        "Organizzi tu questa serata? Aggiungila da un account promoter e potrai correggerla tu.",
+      verifiedAria: "Chi lo ha confermato?",
+      verifiedTitle:
+        "Confermato da un promoter di questo evento, dal suo account: orario, prezzo e ingresso sono quelli che ha inserito.",
       webTitle:
         "Abbiamo trovato questo annuncio con la nostra ricerca sul web. Il promoter non lo ha confermato, quindi ciò che la pagina non diceva resta vuoto invece di essere inventato.",
       webMissing: "Non indicato sulla pagina",
@@ -592,12 +716,23 @@ export const translations: Record<Language, Translations> = {
       fieldPrice: "prezzo",
       fieldLocation: "indirizzo esatto",
     },
+    savedPage: {
+      title: "salvati",
+      empty: "Non hai ancora salvato niente.",
+      emptyHint: "Salva una scheda e ti aspetta qui.",
+      upcoming: "in arrivo",
+      past: "già passati",
+      failed: "non è stato possibile caricare i salvati",
+      retry: "riprova",
+      back: "indietro",
+    },
     menu: {
       account: "account",
       signOut: "esci",
       signIn: "accedi",
       settings: "impostazioni",
       pro: "laiive pro",
+      toLaiive: "torna a laiive",
       saved: "salvati",
       aria: "Menu account",
     },
@@ -614,9 +749,14 @@ export const translations: Record<Language, Translations> = {
   },
   ca: {
     chat: {
-      placeholder: "pregunta",
+      placeholder: "cerca el teu esdeveniment aquí…",
       statusReading: "llegint la teva pregunta…",
-      statusSearching: "cercant al graf…",
+      statusSearching: "cercant esdeveniments…",
+      examples: [
+        "concerts de rock aquest cap de setmana a prop meu",
+        "concerts avui a prop meu",
+        "concerts de rock aquesta setmana a Torí",
+      ],
       statusWriting: "escrivint…",
       rateLimited: "Estàs enviant missatges molt ràpid — espera un minut.",
       rateLimitedAnon: "Aquest és el límit gratuït per ara. [Inicia sessió →](/auth) per a un límit més alt.",
@@ -683,6 +823,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "inicia sessió →",
       emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
       emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",
+      onboardingTitle: "com funciona",
+      onboardingPending: "guia en camí",
+      onboardingSteps: [
+        "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
+        "laiive ho llegeix i omple el formulari. Tots els camps són teus per corregir.",
+        "Confirma, i l'esdeveniment ja hi és.",
+        "Qui busqui a laiive una nit com la teva la troba.",
+      ],
+      onboardingDismiss: "no ho tornis a mostrar",
       statusExtracting: "llegint el que has enviat…",
       readingFile: (name) => `llegint ${name}…`,
       notPromoter: "El teu compte encara no és de promotor.",
@@ -719,6 +868,10 @@ export const translations: Record<Language, Translations> = {
         description: "descripció",
       },
       missingPlaceholder: "l'assistent no ho ha pogut trobar",
+      ticketNoteAria: "sobre l'enllaç d'entrades",
+      ticketNote:
+        "laiive encara no ven entrades — aquest enllaç porta directament on ja les vens. La venda aquí arribarà.",
+      ticketInvalid: "això no sembla una adreça web",
       publish: "publica a laiive",
       publishing: "publicant…",
       fillHint: (fields) => `omple ${fields} — escrivint aquí o dient-ho a l'assistent`,
@@ -735,8 +888,15 @@ export const translations: Record<Language, Translations> = {
       openMaps: "obre a Google Maps",
       approximate: "Aproximat — encara no es coneix l'adreça exacta d'aquesta sala.",
       tickets: "entrades",
-      web: "web",
-      webAria: "Què vol dir “web”?",
+      save: "desa",
+      saved: "desat",
+      webAria: "D'on surt això?",
+      webSourceFallback: "veure l'anunci original",
+      webClaim:
+        "Organitzes aquesta nit? Afegeix-la des d'un compte de promotor i podràs corregir-la tu.",
+      verifiedAria: "Qui ho ha confirmat?",
+      verifiedTitle:
+        "Confirmat per un promotor d'aquest esdeveniment, des del seu compte: l'hora, el preu i la porta són els que va indicar.",
       webTitle:
         "Hem trobat aquest anunci amb la nostra cerca web. El promotor no l'ha confirmat, així que allò que la pàgina no deia es deixa en blanc en lloc d'inventar-ho.",
       webMissing: "La pàgina no ho indicava",
@@ -744,12 +904,23 @@ export const translations: Record<Language, Translations> = {
       fieldPrice: "preu",
       fieldLocation: "adreça exacta",
     },
+    savedPage: {
+      title: "desats",
+      empty: "Encara no has desat res.",
+      emptyHint: "Desa una targeta i t'espera aquí.",
+      upcoming: "properament",
+      past: "ja han passat",
+      failed: "no s'han pogut carregar els desats",
+      retry: "torna-ho a provar",
+      back: "enrere",
+    },
     menu: {
       account: "compte",
       signOut: "tanca la sessió",
       signIn: "inicia sessió",
       settings: "configuració",
       pro: "laiive pro",
+      toLaiive: "torna a laiive",
       saved: "desats",
       aria: "Menú del compte",
     },
