@@ -20,6 +20,8 @@ export interface Translations {
     placeholder: string;
     statusReading: string;
     statusSearching: string;
+    /** Sent verbatim, so these are queries in the reader's language, not labels. */
+    examples: string[];
     statusWriting: string;
     rateLimited: string;
     rateLimitedAnon: string; // markdown, links to /auth
@@ -168,6 +170,11 @@ export const translations: Record<Language, Translations> = {
       placeholder: "search your event here…",
       statusReading: "reading your question…",
       statusSearching: "searching for events…",
+      examples: [
+        "rock concerts this weekend near me",
+        "concerts today near me",
+        "rock concerts this week in Torino",
+      ],
       statusWriting: "writing…",
       rateLimited: "You are sending requests a little fast — give it a minute.",
       rateLimitedAnon: "That's the free quota for now. [Sign in →](/auth) for a higher limit.",
@@ -330,6 +337,11 @@ export const translations: Record<Language, Translations> = {
       placeholder: "busca tu evento aquí…",
       statusReading: "leyendo tu pregunta…",
       statusSearching: "buscando eventos…",
+      examples: [
+        "conciertos de rock este fin de semana cerca de mí",
+        "conciertos hoy cerca de mí",
+        "conciertos de rock esta semana en Turín",
+      ],
       statusWriting: "escribiendo…",
       rateLimited: "Estás enviando mensajes muy rápido — dale un minuto.",
       rateLimitedAnon: "Ese es el límite gratuito por ahora. [Inicia sesión →](/auth) para un límite mayor.",
@@ -492,6 +504,11 @@ export const translations: Record<Language, Translations> = {
       placeholder: "cerca il tuo evento qui…",
       statusReading: "leggo la tua domanda…",
       statusSearching: "cerco eventi…",
+      examples: [
+        "concerti rock questo fine settimana vicino a me",
+        "concerti oggi vicino a me",
+        "concerti rock questa settimana a Torino",
+      ],
       statusWriting: "scrivo…",
       rateLimited: "Stai inviando richieste un po' troppo in fretta — aspetta un minuto.",
       rateLimitedAnon: "Questo è il limite gratuito per ora. [Accedi →](/auth) per un limite più alto.",
@@ -654,6 +671,11 @@ export const translations: Record<Language, Translations> = {
       placeholder: "cerca el teu esdeveniment aquí…",
       statusReading: "llegint la teva pregunta…",
       statusSearching: "cercant esdeveniments…",
+      examples: [
+        "concerts de rock aquest cap de setmana a prop meu",
+        "concerts avui a prop meu",
+        "concerts de rock aquesta setmana a Torí",
+      ],
       statusWriting: "escrivint…",
       rateLimited: "Estàs enviant missatges molt ràpid — espera un minut.",
       rateLimitedAnon: "Aquest és el límit gratuït per ara. [Inicia sessió →](/auth) per a un límit més alt.",

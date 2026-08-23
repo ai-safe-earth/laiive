@@ -57,8 +57,13 @@ export default function Chat() {
     setStatus(null);
   };
 
-  const send = async () => {
-    const text = input.trim();
+  /**
+   * `preset` is how the example chips ask: they cannot fill the composer
+   * and then call this, because the state they wrote is not readable until
+   * the next render.
+   */
+  const send = async (preset?: string) => {
+    const text = (preset ?? input).trim();
     if (!text || isStreaming) return;
 
     const detected = detectLanguageFromText(text);
@@ -169,10 +174,28 @@ export default function Chat() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
         {isEmpty ? (
-          <div className="flex h-full items-center justify-center" aria-hidden="true">
-            <span className="select-none font-bebas text-[26vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[9rem]">
+          <div className="flex h-full flex-col items-center justify-center gap-8">
+            <span
+              aria-hidden="true"
+              className="select-none font-bebas text-[26vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[9rem]"
+            >
               laiive
             </span>
+            {/* Three real queries, sent verbatim. An empty chat gives no
+                clue what it will understand, and a promoter's event is
+                only found if somebody asks in a shape that reaches it. */}
+            <div className="flex max-w-md flex-wrap justify-center gap-2">
+              {t.chat.examples.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => void send(example)}
+                  className="rounded-full bg-field-border px-3.5 py-2.5 text-[12.5px] leading-none text-white transition-colors hover:bg-muted"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="mx-auto flex max-w-3xl flex-col gap-3.5 py-4">
