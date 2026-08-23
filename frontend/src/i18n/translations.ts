@@ -92,6 +92,11 @@ export interface Translations {
     signInLink: string;
     emptyTitle: string;
     emptyHint: string;
+    onboardingTitle: string;
+    /** Shown until the walkthrough animation lands. */
+    onboardingPending: string;
+    onboardingSteps: string[];
+    onboardingDismiss: string;
     statusExtracting: string;
     readingFile: (name: string) => string;
     notPromoter: string;
@@ -254,6 +259,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "sign in →",
       emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
       emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
+      onboardingTitle: "how this works",
+      onboardingPending: "walkthrough coming",
+      onboardingSteps: [
+        "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
+        "laiive reads it and fills the form. Every field is yours to correct.",
+        "Confirm, and the event is live.",
+        "Somebody searching laiive for a night like yours finds it.",
+      ],
+      onboardingDismiss: "don't show this again",
       statusExtracting: "reading what you sent…",
       readingFile: (name) => `reading ${name}…`,
       notPromoter: "Your account is not a promoter account yet.",
@@ -433,6 +447,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "inicia sesión →",
       emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
       emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
+      onboardingTitle: "cómo funciona",
+      onboardingPending: "guía en camino",
+      onboardingSteps: [
+        "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
+        "laiive lo lee y rellena el formulario. Todos los campos son tuyos para corregir.",
+        "Confirma, y el evento está publicado.",
+        "Alguien que busque en laiive una noche como la tuya lo encuentra.",
+      ],
+      onboardingDismiss: "no volver a mostrar",
       statusExtracting: "leyendo lo que has enviado…",
       readingFile: (name) => `leyendo ${name}…`,
       notPromoter: "Tu cuenta aún no es de promotor.",
@@ -612,6 +635,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "accedi →",
       emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
       emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
+      onboardingTitle: "come funziona",
+      onboardingPending: "guida in arrivo",
+      onboardingSteps: [
+        "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
+        "laiive lo legge e compila il modulo. Ogni campo è tuo da correggere.",
+        "Conferma, e l'evento è pubblicato.",
+        "Chi cerca su laiive una serata come la tua la trova.",
+      ],
+      onboardingDismiss: "non mostrare più",
       statusExtracting: "leggo quello che hai inviato…",
       readingFile: (name) => `leggo ${name}…`,
       notPromoter: "Il tuo account non è ancora un account promoter.",
@@ -791,6 +823,15 @@ export const translations: Record<Language, Translations> = {
       signInLink: "inicia sessió →",
       emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
       emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",
+      onboardingTitle: "com funciona",
+      onboardingPending: "guia en camí",
+      onboardingSteps: [
+        "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
+        "laiive ho llegeix i omple el formulari. Tots els camps són teus per corregir.",
+        "Confirma, i l'esdeveniment ja hi és.",
+        "Qui busqui a laiive una nit com la teva la troba.",
+      ],
+      onboardingDismiss: "no ho tornis a mostrar",
       statusExtracting: "llegint el que has enviat…",
       readingFile: (name) => `llegint ${name}…`,
       notPromoter: "El teu compte encara no és de promotor.",

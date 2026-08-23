@@ -11,6 +11,7 @@ import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
 import { MicButton } from "@/components/MicButton";
+import { ProOnboarding } from "@/components/ProOnboarding";
 import { ProWatermark } from "@/components/ProWatermark";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
@@ -251,6 +252,10 @@ export default function ProSubmit() {
           what laiive says. Only the promoter's own lines are pills. */}
       <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
+          {/* Above the conversation and scrolling with it, after the role
+              refusal, so only an actual promoter ever sees it. */}
+          <ProOnboarding />
+
           {messages.length === 0 && !draft && (
             <div className="flex flex-col gap-1.5 pt-6">
               <p className="text-[15px] leading-[1.5] text-pro-fg">{t.pro.emptyTitle}</p>
