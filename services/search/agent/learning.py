@@ -98,16 +98,45 @@ BLOCK_MAX_YIELD = 0.05
 # being auto-blocked: if one of these stops yielding, that is an extraction
 # problem to look at, not a verdict on the source.
 #
+# `agenda` is fetched with Tavily's extract endpoint rather than found by
+# search, because search will not read these pages. Restricted to those three
+# domains it answered with 106-156 characters each; extract returns 17,965 for
+# Eppen's agenda and 102,313 for Daste's events page.
+#
+# `cities` is what keeps that affordable. These are province-wide sources, so
+# extracting them once while sweeping Bergamo is enough — doing it for all ten
+# towns in the province would be the same pages fetched ten times.
+#
 # Bergamo. Druso in Ranica is the province's main live club; Daste is the
 # cultural centre in the old Daste e Spalenga power station; Eppen is L'Eco di
 # Bergamo's events agenda, which is the paper's own domain rather than a
-# separate one — it covers the whole province, so it is the broadest of the
-# three.
-SEED_SOURCES = [
-    "drusobg.it",
-    "dastebergamo.com",
-    "ecodibergamo.it",
-]
+# separate one — it covers the whole province, so it is the broadest of them.
+SEED_SOURCES: dict[str, dict] = {
+    "drusobg.it": {
+        "cities": ["Bergamo"],
+        # The home page carries dates and ticket links; /livedruso/ is the
+        # upcoming list but only as titles, and /eventi/ is mostly footer.
+        "agenda": ["https://drusobg.it/", "https://drusobg.it/livedruso/"],
+    },
+    "dastebergamo.com": {
+        "cities": ["Bergamo"],
+        # /spazio-eventi/ is the venue-hire pitch, not a listing.
+        "agenda": ["https://www.dastebergamo.com/eventi/"],
+    },
+    "ecodibergamo.it": {
+        "cities": ["Bergamo"],
+        "agenda": ["https://www.ecodibergamo.it/eventi/eppen/"],
+    },
+}
+
+
+def agenda_urls(city: str) -> list[str]:
+    """Pages to fetch outright while sweeping this city."""
+    urls = []
+    for seed in SEED_SOURCES.values():
+        if city in seed.get("cities", []):
+            urls.extend(seed.get("agenda", []))
+    return urls
 
 
 def _source_status(row: dict) -> str:
@@ -236,7 +265,7 @@ def domain_filters(limit: int = 50) -> tuple[list[str], list[str]]:
     # The seeds hold from the first sweep, before anything has been recorded --
     # which is the whole point of vouching for them. Ordered first so a capped
     # include list never drops them.
-    include = SEED_SOURCES + [d for d in include if not _seeded(d)]
+    include = list(SEED_SOURCES) + [d for d in include if not _seeded(d)]
     exclude = [d for d in exclude if not _seeded(d)]
     return include, exclude
 

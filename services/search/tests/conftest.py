@@ -7,6 +7,10 @@ module-level client gets added to this list or tests hit the real API):
   agent.address_lookup._client — OpenAI venue-address lookup
   agent.reports._http      — Supabase PostgREST
   agent.learning._http     — Supabase PostgREST (source + query ranking)
+
+The Tavily fake dispatches on the endpoint: /search and /extract have different
+response shapes and different billing, so a test that conflates them measures
+nothing.
   agent.graph._openai      — embeddings
   agent.graph._driver      — Neo4j driver
   agent.graph._geocoder    — Nominatim
@@ -91,10 +95,36 @@ def mock_genre_lookup():
         yield client
 
 
+# What /extract answers with. A distinct URL from TAVILY_PAYLOAD's, because the
+# two endpoints reaching the same page would hide a dedup bug rather than
+# exercise one.
+TAVILY_EXTRACT_PAYLOAD = {
+    "results": [
+        {
+            "url": "https://drusobg.it/",
+            "raw_content": "DRUSO agenda - Test Night at Test Venue",
+        }
+    ],
+    "failed_results": [],
+}
+
+
 @pytest.fixture(autouse=True)
 def mock_tavily():
+    """Dispatches on the endpoint: /search and /extract are different calls
+    with different response shapes and different billing."""
     http = MagicMock()
     http.post.return_value = http_response(payload=TAVILY_PAYLOAD)
+
+    def post(url, *args, **kwargs):
+        if "extract" in url:
+            return http_response(payload=TAVILY_EXTRACT_PAYLOAD)
+        # Deferred rather than captured, so the established idiom still works:
+        # a test that sets post.return_value is changing the *search* answer,
+        # and side_effect would otherwise silently outrank it.
+        return http.post.return_value
+
+    http.post.side_effect = post
     with patch("agent.tavily._http", http):
         yield http
 

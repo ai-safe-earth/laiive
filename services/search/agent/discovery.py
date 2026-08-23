@@ -178,11 +178,25 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             kept.append(hit)
         per_template.append(kept)
 
+    # Pages someone vouched for, fetched outright rather than searched for.
+    # Search finds these sites and cannot read them, which is the whole reason
+    # they are here.
+    agenda: list[tavily.SearchHit] = []
+    extracted = tavily.extract(learning.agenda_urls(city))
+    for hit in extracted:
+        if hit.url in seen_urls:
+            continue
+        seen_urls.add(hit.url)
+        agenda.append(hit)
+    # Billed per successful extraction, so a page that could not be fetched
+    # costs nothing and must not be counted.
+    tavily_calls += tavily.extract_credits(len(extracted))
+
     # Round-robin rather than concatenation. max_pages truncates below, and
     # appending template after template spends the whole budget on the first
     # one's results — the later, narrower phrasings are what reach the circuit,
     # so they must not be the ones that fall off the end.
-    pages = [hit for row in zip_longest(*per_template) for hit in row if hit]
+    pages = agenda + [hit for row in zip_longest(*per_template) for hit in row if hit]
     # Bounds the LLM extraction below, never the Tavily spend above: the calls
     # have already been made and paid for by the time this runs.
     pages = pages[:max_pages]

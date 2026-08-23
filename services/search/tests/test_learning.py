@@ -229,7 +229,7 @@ class TestSteeringTheSweep:
         """The focused slot needs three trusted domains. The vouched seeds meet
         that on their own, so this checks the guard itself with none of them --
         one lucky domain must not be allowed to become the whole search."""
-        monkeypatch.setattr(learning, "SEED_SOURCES", [])
+        monkeypatch.setattr(learning, "SEED_SOURCES", {})
         store(
             mock_learning_http,
             sources=[{"domain": "good.example", "status": "trusted"}],
@@ -347,3 +347,71 @@ class TestSeedSources:
     def test_a_subdomain_of_a_vouched_source_counts_too(self):
         assert learning._seeded("eventi.ecodibergamo.it")
         assert not learning._seeded("notecodibergamo.it")
+
+
+class TestVouchedAgendas:
+    def test_a_vouched_agenda_is_fetched_not_searched_for(
+        self, mock_learning_http, mock_tavily
+    ):
+        """Search cannot read these pages -- restricted to the three domains it
+        answered with 106-156 characters each. Extract returns the agenda."""
+        discovery.sweep_city("Bergamo")
+        extracts = [
+            call
+            for call in mock_tavily.post.call_args_list
+            if "extract" in call.args[0]
+        ]
+        assert len(extracts) == 1
+        assert "https://drusobg.it/" in extracts[0].kwargs["json"]["urls"]
+        # Basic, not advanced: half the price, and advanced failed outright on
+        # drusobg.it/eventi/ where basic succeeded.
+        assert extracts[0].kwargs["json"]["extract_depth"] == "basic"
+
+    def test_a_city_with_no_vouched_source_does_not_extract(
+        self, mock_learning_http, mock_tavily
+    ):
+        """Torino has no seeds, and the credit must not be spent on nothing."""
+        discovery.sweep_city("Torino")
+        assert not any(
+            "extract" in call.args[0] for call in mock_tavily.post.call_args_list
+        )
+
+    def test_the_agenda_survives_the_page_budget(self, mock_learning_http, mock_openai):
+        """max_pages truncates, and a page someone vouched for is the last one
+        that should fall off the end."""
+        discovery.sweep_city("Bergamo", max_pages=1)
+        read = "".join(
+            call.kwargs["messages"][0]["content"]
+            for call in mock_openai.chat.completions.create.call_args_list
+        )
+        assert "drusobg.it" in read
+
+    def test_the_extract_is_billed_in_the_report(self, mock_learning_http):
+        """One credit per five successful extractions, on top of the five
+        search slots -- and only for the cities that have a vouched agenda."""
+        bergamo = discovery.sweep_city("Bergamo")
+        torino = discovery.sweep_city("Torino")
+        assert bergamo.stats["tavily_credits"] == 6
+        assert torino.stats["tavily_credits"] == 5
+
+    def test_a_page_that_cannot_be_fetched_is_not_billed(self, mock_tavily):
+        """Tavily bills successful extractions only."""
+        from agent import tavily
+
+        mock_tavily.post.side_effect = None
+        mock_tavily.post.return_value = http_response(
+            payload={
+                "results": [],
+                "failed_results": [{"url": "https://drusobg.it/", "error": "boom"}],
+            }
+        )
+        assert tavily.extract(["https://drusobg.it/"]) == []
+        assert tavily.extract_credits(0) == 0
+
+    def test_extract_credit_arithmetic(self):
+        from agent import tavily
+
+        assert tavily.extract_credits(1) == 1
+        assert tavily.extract_credits(5) == 1
+        assert tavily.extract_credits(6) == 2
+        assert tavily.extract_credits(6, "advanced") == 4

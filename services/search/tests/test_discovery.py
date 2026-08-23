@@ -147,19 +147,21 @@ def test_a_sweep_spends_one_tavily_credit_per_query_template(mock_tavily):
     a month. Templates x towns x weeks is the whole budget, so a change that
     adds a phrasing should be a deliberate one, priced here rather than on the
     bill: five templates over twenty towns is ~430 credits a month."""
-    discovery.sweep_city("Bergamo")
+    # Torino, because it has no vouched agenda: this is about the search
+    # budget, and a city with seeds spends on extract as well.
+    discovery.sweep_city("Torino")
     assert mock_tavily.post.call_count == len(discovery.QUERY_TEMPLATES) == 5
 
 
 def test_the_sweep_reports_what_it_spent(mock_tavily):
-    result = discovery.sweep_city("Bergamo")
+    result = discovery.sweep_city("Torino")
     assert result.stats["tavily_credits"] == len(discovery.QUERY_TEMPLATES)
 
 
 def test_max_pages_does_not_reduce_the_tavily_spend(mock_tavily):
     """It is applied after the calls, so it bounds the OpenAI extraction bill
     and nothing else. Easy to reach for as a cost control and wrong."""
-    discovery.sweep_city("Bergamo", max_pages=1)
+    discovery.sweep_city("Torino", max_pages=1)
     assert mock_tavily.post.call_count == len(discovery.QUERY_TEMPLATES)
 
 
@@ -201,7 +203,7 @@ def test_every_template_reaches_the_page_budget(mock_tavily, mock_openai):
         )
 
     mock_tavily.post.side_effect = three_hits_per_query
-    result = discovery.sweep_city("Bergamo", max_pages=3)
+    result = discovery.sweep_city("Torino", max_pages=3)
 
     assert result.stats["pages_searched"] == 3
     # Asserted on what was read, not on the candidates: the fake extractor
