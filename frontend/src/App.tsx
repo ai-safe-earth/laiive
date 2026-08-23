@@ -2,11 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/auth/AuthProvider";
+import { RequireRole } from "@/auth/RequireRole";
 import { PostAuthLanding } from "@/auth/PostAuthLanding";
 import { CALLBACK_PATH } from "@/auth/postAuth";
 import { IconSprite } from "@/components/IconSprite";
 import { LanguageProvider } from "@/i18n/useTranslation";
 import Account from "@/pages/Account";
+import AdminQueue from "@/pages/AdminQueue";
+import AdminReport from "@/pages/AdminReport";
 import Auth from "@/pages/Auth";
 import AuthCallback from "@/pages/AuthCallback";
 import Chat from "@/pages/Chat";
@@ -46,6 +49,26 @@ export default function App() {
               <Route path={CALLBACK_PATH} element={<AuthCallback />} />
               <Route path="/account" element={<Account />} />
               <Route path="/pro" element={<ProSubmit />} />
+              {/* The only role-gated routes in the app. /pro keeps its own
+                  refusal screen, which explains how to become a promoter —
+                  a redirect would just drop someone on the chat with no clue
+                  why. There is nothing to explain about /admin. */}
+              <Route
+                path="/admin"
+                element={
+                  <RequireRole minimum="admin">
+                    <AdminQueue />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/admin/reports/:id"
+                element={
+                  <RequireRole minimum="admin">
+                    <AdminReport />
+                  </RequireRole>
+                }
+              />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

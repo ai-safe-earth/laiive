@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
 
 /**
@@ -71,6 +71,14 @@ export function UserMenu() {
           <MenuLink to="/pro" icon="flyer" onNavigate={() => setOpen(false)}>
             {t.menu.pro}
           </MenuLink>
+          {/* The one role-conditional entry in the app. Untranslated on
+              purpose — the admin surface behind it is English-only, and a
+              translated door onto an English room is worse than neither. */}
+          {role === "admin" && (
+            <MenuLink to="/admin" icon="saved" onNavigate={() => setOpen(false)}>
+              Admin
+            </MenuLink>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -96,7 +104,7 @@ function MenuLink({
   children,
 }: {
   to: string;
-  icon: "settings" | "flyer";
+  icon: IconName;
   state?: { from: string };
   onNavigate: () => void;
   children: React.ReactNode;
