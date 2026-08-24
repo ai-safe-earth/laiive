@@ -1,41 +1,41 @@
-# HANDOFF - laiive (updated 2026-08-23)
+# HANDOFF - laiive (updated 2026-08-24)
 
 State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
 
-**laiive is live at https://laiive.com**, `v0.1.0` - Pages from `main`, gateway
+**laiive is live at https://laiive.com** - Pages from `main`, gateway
 https://laiive-gateway.fly.dev, five Fly apps in `fra`. `main` is production, `develop` the trunk.
 
-**PR #60 merged** (event times on the venue's clock). **#61 open** into `develop`: discovery
-refocused on Bergamo + Torino, provenance, the source/query learning loop. **#62 open**, stacked
-on #61: the `/admin` review queue. Both CI green. Merge #61, then
-`gh pr edit 62 --base develop`.
+## Merged and released, with a wire hanging
 
-## The backlog that is the point of #62
+**#64 (saved events + both-surface polish) merged; #65 released it to `main`; #66 merged back.**
+So production's SPA now calls `GET /api/events` and writes `saved_events` - **neither exists
+until the Fly retriever + gateway deploy and the `supabase db push` for `...13/14/15` happen**.
+If those did not ride the release, every save on laiive.com is a 404 right now.
 
-**12 reports sit in `dry_run` holding ~180 candidates**, including every Torino and Bergamo event
-found this week. A sweep never writes to the graph - it writes a report to Supabase and stops, and
-only `POST /reports/{id}/approve` moves it. That gate had no UI, which is how the queue grew;
-`/admin` is that UI, and nothing has been approved through it yet.
+## Two fix PRs open, both green
 
-## Discovery, as it now runs
+An adversarial review over #61-#64 confirmed 10 findings. **#67** fixes eight: admin dismiss
+fired on Cancel (one-way, no undo - and the queue walk is imminent); `Candidate.draft` was a
+hand-copied subset hiding address/description/ticket_url from the reviewer; the writer relabeled
+offset-bearing start times (19:00+00:00 stored two hours early); one aware draft aborted a whole
+sweep; Bergamo's seeds narrowed every city's first slot (Torino swept Bergamo-only domains);
+a promoted phrasing ran twice per sweep; `trial_query` mislabeled; `pages_with_events` hardcoded
+to 0 while decaying. **#68** fixes the order-sensitive saved-cards cache key (one unsave
+refetched every card). Deferred: `localdatetime` sargability (documented), `/sweep` locale guard.
 
-Bergamo and Torino provinces, weekly, five **Italian** query templates plus Tavily `/extract` for
-three vouched Bergamo sources (Druso, Daste, Eppen). ~435 Tavily credits a month of 1000, pinned
-by a test. `search_sources` / `search_queries` learn from yield with decaying counters; one query
-slot per sweep is always a trial phrasing.
+## The backlog behind /admin
+
+**12 reports in `dry_run`, ~180 candidates.** Only `POST /reports/{id}/approve` moves them.
+Merge #67 before walking the queue - until then, Cancel on the dismiss prompt still dismisses.
 
 ## Open
 
-- **Two migrations unpushed**: `...13` (learning tables) and `...14` (`dismissed`). Both fail
-  soft - sweeps and approve work without them.
-- **`flows/serve.py` is not running**, so no schedule fires; every sweep so far was by hand.
-- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` - including an
-  ad-hoc `python flows/city_sweep.py` - hits production, not the local stack.
-- Redirect allow-list still unread (`DEPLOY.md` 5 step 2), but Google sign-in has worked once:
-  `auth.identities` holds a `google` provider for the admin user.
-- `origin/feat/promoter-onboarding-and-surface` stale; remote deletion refused from here. **OG
-  card** bare. Google sign-in shows the Supabase project id (`DEPLOY.md` 5b). `lucide-react`
-  unused. Never clicked: the pro walk in es/ca.
+- **Migrations `...13/14/15` + Fly deploys**: see above; `...15` does not fail soft.
+- **`flows/serve.py` not running**; sweeps are by hand. **`GATEWAY_URL` in `.env` points at Fly**.
+- Stale remote branches to delete (refused from this machine): `feat/promoter-onboarding-and-
+  surface`, and `feat/saved-events-and-ui-polish` (resurrected by a post-merge push).
+- Deferred by decision: venue welcome pack; Supabase confirmation email (yours). OG card bare;
+  `lucide-react` unused; redirect allow-list unread (`DEPLOY.md` 5 step 2).
 - Reference artifacts: pipelines `04820bb1`, admin scope `a331b289`.
 
 <!-- pmctl:handoff v1 -->
@@ -44,7 +44,7 @@ slot per sweep is always a trial phrasing.
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-23",
+  "updated": "2026-08-24",
   "deadline": null,
   "people": [
     "oscar"
@@ -553,6 +553,10 @@ slot per sweep is always a trial phrasing.
         {
           "date": "2026-08-23",
           "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
+        },
+        {
+          "date": "2026-08-24",
+          "text": "PR #64 (saved events + both-surface polish) merged; released to main via #65, main merged back via #66"
         }
       ]
     },
@@ -654,6 +658,10 @@ slot per sweep is always a trial phrasing.
         {
           "date": "2026-08-23",
           "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
+        },
+        {
+          "date": "2026-08-24",
+          "text": "Adversarial review over #61-#64 confirmed 10 findings; 9 fixed across PR #67 (admin dismiss-on-Cancel, Candidate.draft redeclaration, writer tz relabeling, sweep-killing TypeError, Bergamo seeds narrowing every city, trial double-run, mislabeled trial_query, dead pages_with_events counter, dead fifth template) and PR #68 (order-sensitive saved-cards cache key). Deferred by decision: localdatetime sargability (documented) and an out-of-locale /sweep guard"
         }
       ]
     }
@@ -697,6 +705,27 @@ slot per sweep is always a trial phrasing.
     }
   ],
   "nextSteps": [
+    {
+      "title": "Merge PR #67 (review fixes: admin Cancel, seed locality, aware datetimes, trial slot, pages_with_events) and PR #68 (saved-cards cache key), both green into develop",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Verify the release actually shipped its dependencies: main carries the saved-events SPA, which 404s on every save until supabase db push applies ...13/14/15, and /api/events does not exist until the retriever and gateway deploy on Fly",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Delete the resurrected origin/feat/saved-events-and-ui-polish branch (re-created by a post-merge push; remote deletion is refused from this machine)",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
     {
       "title": "Merge PR #61 (discovery), then retarget PR #62 (admin) to develop with gh pr edit 62 --base develop",
       "est": 1,
@@ -838,13 +867,6 @@ slot per sweep is always a trial phrasing.
       "plan": "roadmap"
     },
     {
-      "title": "Release PR develop -> main: the promoter door, the sign-up hardening and the frontend test suite are unreleased. Then make release, deploy, and merge main back into develop so the tag is not stranded",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Restyle - new visual direction",
-      "plan": "roadmap"
-    },
-    {
       "title": "Delete origin/feat/promoter-onboarding-and-surface - recreated by a push after PR #56 merged and deleted it, and remote branch deletion is refused from this machine",
       "est": 1,
       "owner": "oscar",
@@ -946,6 +968,13 @@ slot per sweep is always a trial phrasing.
     },
     {
       "date": "2026-08-23",
+      "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-24",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",
