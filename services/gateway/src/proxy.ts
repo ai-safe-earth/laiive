@@ -74,7 +74,31 @@ export function registerProxies(app: FastifyInstance, config: GatewayConfig): vo
     });
   });
 
-  // /api/push/* → pusher /* — pro and admin only
+  // /api/venues, /api/artists → retriever lookups — pro only. The consumers
+  // are the pro event form and the coming org screen; the venue base stays
+  // off the anonymous surface.
+  app.register(async (scope) => {
+    scope.addHook("preHandler", requireRole("pro"));
+    scope.register(httpProxy, {
+      upstream: config.retrieverUrl,
+      prefix: "/api/venues",
+      rewritePrefix: "/venues",
+      replyOptions,
+    });
+    scope.register(httpProxy, {
+      upstream: config.retrieverUrl,
+      prefix: "/api/artists",
+      rewritePrefix: "/artists",
+      replyOptions,
+    });
+  });
+
+  // /api/push/* → pusher — pro and admin only, and EXPLICIT routes rather than
+  // a catch-all. The old `prefix: "/api/push", rewritePrefix: ""` exposed every
+  // pusher route, present and future, behind one pro gate — which turns into a
+  // hole the moment the pusher grows endpoints the gateway must authorize
+  // per-entity (the ownership edit routes). A new pusher endpoint now has to be
+  // named here to exist at all.
   app.register(async (scope) => {
     scope.addHook("preHandler", requireRole("pro"));
     scope.register(httpProxy, {
@@ -86,8 +110,23 @@ export function registerProxies(app: FastifyInstance, config: GatewayConfig): vo
     });
     scope.register(httpProxy, {
       upstream: config.pusherUrl,
-      prefix: "/api/push",
-      rewritePrefix: "",
+      prefix: "/api/push/validate-event",
+      rewritePrefix: "/validate-event",
+      replyOptions,
+    });
+    scope.register(httpProxy, {
+      upstream: config.pusherUrl,
+      prefix: "/api/push/ingest",
+      rewritePrefix: "/ingest",
+      replyOptions,
+    });
+    // Named because scripts/e2e-live.mjs probes it for readiness and for the
+    // role-gate checks — the catch-all used to expose it by accident, this
+    // keeps it by decision.
+    scope.register(httpProxy, {
+      upstream: config.pusherUrl,
+      prefix: "/api/push/health",
+      rewritePrefix: "/health",
       replyOptions,
     });
   });

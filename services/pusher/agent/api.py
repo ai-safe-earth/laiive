@@ -88,12 +88,20 @@ class ValidateEventRequest(BaseModel):
     draft: EventDraft
     # owner identity is the gateway's X-User-Id header; a body user_id is ignored
 
+    # An existing graph venue the form picked from /api/venues. Beside the
+    # draft rather than on it for the same reason source_url is a writer
+    # argument: drafts round-trip through an LLM mid-walk, and an invented
+    # uid must die on the writer's MATCH, not name a venue.
+    venue_uid: str | None = None
+
 
 # ============== Helpers ==============
 
 
-def _write_or_raise(draft: EventDraft, owner_id: str | None):
-    result = graph.write_event(draft, owner_id=owner_id)
+def _write_or_raise(
+    draft: EventDraft, owner_id: str | None, venue_uid: str | None = None
+):
+    result = graph.write_event(draft, owner_id=owner_id, venue_uid=venue_uid)
     if result.status == "invalid":
         raise HTTPException(422, result.message)
     if result.status == "duplicate":
@@ -273,7 +281,9 @@ async def validate_event(
     # The write blocks for a dedup probe, two geocodes (>=1 s each on a cache miss)
     # and the MERGE — off the event loop, or one submission stalls the whole
     # process. Same shape as `/chat/stream` above.
-    result = await asyncio.to_thread(_write_or_raise, draft, x_user_id)
+    result = await asyncio.to_thread(
+        _write_or_raise, draft, x_user_id, request.venue_uid
+    )
     return {
         "success": True,
         "event_id": result.uid,

@@ -1,6 +1,15 @@
 """Shared contracts and graph write path for laiive services."""
 
-from .cards import EventCard, EventDraft, REQUIRED_DRAFT_FIELDS, missing_required
+from .cards import (
+    ArtistHit,
+    ArtistLookupResult,
+    EventCard,
+    EventDraft,
+    REQUIRED_DRAFT_FIELDS,
+    VenueHit,
+    VenueLookupResult,
+    missing_required,
+)
 from .health import LIVENESS_PATH, READINESS_PATH, register_health
 from .internal_auth import install_internal_auth
 from .language import (
@@ -31,8 +40,12 @@ from .protocol import (
 )
 
 __all__ = [
+    "ArtistHit",
+    "ArtistLookupResult",
     "EventCard",
     "EventDraft",
+    "VenueHit",
+    "VenueLookupResult",
     "REQUIRED_DRAFT_FIELDS",
     "missing_required",
     "register_health",

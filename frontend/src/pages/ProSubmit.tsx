@@ -212,10 +212,10 @@ export default function ProSubmit() {
     }
   };
 
-  const publish = async (completed: EventDraft) => {
+  const publish = async (completed: EventDraft, venueUid: string | null) => {
     setSaving(true);
     try {
-      const result = await saveEvent(completed);
+      const result = await saveEvent(completed, venueUid);
       toast.success(t.pro.published(result.event_name ?? completed.name ?? "✓"));
       for (const warning of result.warnings ?? []) toast.warning(warning);
       setDraft(null);

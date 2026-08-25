@@ -1,4 +1,4 @@
-from laiive_shared.cards import EventDraft
+from laiive_shared.cards import EventDraft, missing_required
 from laiive_shared.geocode import GeocodeResult, NominatimGeocoder
 from laiive_shared.neo4j_writer import (
     has_explicit_time,
@@ -22,14 +22,18 @@ class FakeResult:
 
 
 class FakeSession:
-    """Answers the dedup probe, the write, and the backfill queries in order."""
+    """Answers the venue-by-uid resolve, the dedup probe, the write, and the
+    backfill queries in order."""
 
-    def __init__(self, dedup_hit=None):
+    def __init__(self, dedup_hit=None, venue_node=None):
         self.queries: list[tuple[str, dict]] = []
         self._dedup_hit = dedup_hit
+        self._venue_node = venue_node
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        if "MATCH (v:Venue {uid: $uid})" in query:
+            return FakeResult(single=self._venue_node)
         if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
             return FakeResult(single=self._dedup_hit)
         if "CREATE (e:Event" in query:
@@ -192,6 +196,134 @@ def test_created_event_carries_identity_and_provenance():
     assert write_params["source"] == "pro_submission"
     assert write_params["price_max"] == 22.0  # defaults to price_min
     assert write_params["artists"][0]["name_norm"] == "ana beck quartet"
+
+
+PICKED_NODE = {
+    "name": "Quasimodo",
+    "name_norm": "quasimodo",
+    "address": "Kantstra\u00dfe 12a",
+    "lat": 52.5058,
+    "lng": 13.323,
+    "city": "Berlin",
+    "country_code": "DE",
+}
+
+
+def test_a_picked_venue_skips_the_geocoder_and_keeps_the_nodes_identity():
+    """venue_uid resolves the node first: the graph's name, city and pin win
+    over whatever was typed, and a submission at a known venue costs zero
+    Nominatim round-trips."""
+    session = FakeSession(venue_node=PICKED_NODE)
+    geocoder = FakeGeocoder({})
+    draft = DRAFT.model_copy(
+        update={"venue": "quasimodo berlin", "address": None, "city": None}
+    )
+    result = write_event(
+        session, draft, source="pro_submission", geocoder=geocoder, venue_uid="v-1"
+    )
+    assert result.status == "created"
+    assert geocoder.calls == []
+
+    probe_params = session.queries[1][1]
+    assert probe_params["venue_norm"] == "quasimodo"
+
+    write_query, write_params = session.queries[2]
+    assert "MATCH (v:Venue {uid: $picked_uid})" in write_query
+    assert "coalesce(v.address" in write_query
+    # One row however many LOCATED_IN edges the node has grown — without the
+    # cap the CREATE runs per row and dies on the event_uid constraint.
+    assert "WITH v, c LIMIT 1" in write_query
+    assert write_params["picked_uid"] == "v-1"
+    assert write_params["venue"] == "Quasimodo"
+    assert write_params["country_code"] == "DE"
+
+
+def test_a_picked_venues_own_address_reaches_the_geocoder():
+    """A node with a street but no pin (a geocoder miss at write time) must be
+    pinned via that street, not name-only — the form deliberately sends no
+    draft address when the venue has one on file."""
+    node = dict(PICKED_NODE, lat=None, lng=None)
+    session = FakeSession(venue_node=node)
+    geocoder = FakeGeocoder(
+        {
+            # Only the full form answers, so a name-only lookup would miss and
+            # coalesce a city centroid onto the shared node forever.
+            "Quasimodo, Kantstra\u00dfe 12a, Berlin": GeocodeResult(
+                lat=52.5058, lng=13.323, country_code="DE", display_name="Quasimodo"
+            ),
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            ),
+        }
+    )
+    draft = DRAFT.model_copy(update={"address": None})
+    result = write_event(
+        session, draft, source="pro_submission", geocoder=geocoder, venue_uid="v-1"
+    )
+    assert result.status == "created"
+    assert "Quasimodo, Kantstra\u00dfe 12a, Berlin" in geocoder.calls
+    write_params = session.queries[2][1]
+    assert write_params["venue_lat"] == 52.5058
+    assert write_params["geocode_precision"] == "venue"
+
+
+def test_an_unknown_venue_uid_dies_on_the_match_not_as_a_new_venue():
+    """An invented uid (a model can invent a draft field, and the walk
+    round-trips drafts through one) must refuse, never fork a venue."""
+    session = FakeSession(venue_node=None)
+    result = write_event(
+        session, DRAFT.model_copy(), source="pro_submission", venue_uid="made-up"
+    )
+    assert result.status == "invalid"
+    assert result.missing == ["venue_uid"]
+    assert len(session.queries) == 1  # nothing probed, nothing written
+
+
+def test_a_picked_venue_without_an_address_still_demands_one():
+    node = dict(PICKED_NODE, address=None, lat=None, lng=None)
+    session = FakeSession(venue_node=node)
+    draft = DRAFT.model_copy(update={"address": None})
+    result = write_event(session, draft, source="pro_submission", venue_uid="v-1")
+    assert result.status == "invalid"
+    assert result.missing == ["address"]
+
+
+def test_a_missing_address_on_a_picked_venue_is_completed_set_if_absent():
+    """The promoter's address fills the hole and earns the venue its pin —
+    completing the record, never overwriting it (coalesce on every field)."""
+    node = dict(PICKED_NODE, address=None, lat=None, lng=None)
+    session = FakeSession(venue_node=node)
+    geocoder = FakeGeocoder(
+        {
+            "Quasimodo, Berlin": GeocodeResult(
+                lat=52.5058, lng=13.323, country_code="DE", display_name="Quasimodo"
+            ),
+            "Berlin": GeocodeResult(
+                lat=52.52, lng=13.405, country_code="DE", display_name="Berlin"
+            ),
+        }
+    )
+    result = write_event(
+        session,
+        DRAFT.model_copy(),
+        source="pro_submission",
+        geocoder=geocoder,
+        venue_uid="v-1",
+    )
+    assert result.status == "created"
+    assert geocoder.calls  # this time the pin had to be earned
+
+    write_query, write_params = session.queries[2]
+    assert "coalesce(v.location" in write_query
+    assert write_params["address"] == DRAFT.address
+    assert write_params["venue_lat"] == 52.5058
+    assert write_params["geocode_precision"] == "venue"
+
+
+def test_missing_required_waives_what_a_picked_venue_brings():
+    draft = EventDraft(artists=["X"], start_at="2026-09-01T20:00:00", price_min=10.0)
+    assert missing_required(draft) == ["venue", "address", "city"]
+    assert missing_required(draft, venue_known=True) == []
 
 
 def test_geocode_miss_falls_back_to_city_and_warns():

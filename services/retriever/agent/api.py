@@ -4,11 +4,15 @@ from typing import List, Literal, Optional
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from laiive_shared import (
+    ArtistHit,
+    ArtistLookupResult,
     AudioTooLarge,
     Done,
     Error,
     EventsResult,
     UnsupportedAudioFormat,
+    VenueHit,
+    VenueLookupResult,
     install_internal_auth,
     register_health,
     sse_frame,
@@ -23,7 +27,9 @@ from config import settings
 from .clients.neo4j_client import neo4j_client
 from .executor import (
     EVENT_LOOKUP_MAX_UIDS,
+    build_artist_search,
     build_uid_query,
+    build_venue_search,
     rows_to_cards,
 )
 from .pipeline import Pipeline, TurnResult
@@ -235,6 +241,52 @@ def events_by_uid(uids: str = Query(..., description="comma-separated event uids
     # Back in the order asked for, so the client's own ordering survives.
     by_uid = {card.uid: card for card in rows_to_cards(rows)}
     return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
+
+
+# ============== Entity lookup (venues, artists) ==============
+#
+# The first read paths in the product that answer with something other than an
+# Event. They exist for a picker: the pro form's venue combobox and the coming
+# org screen's claim search, which is why the gateway gates them on the pro
+# role. Off the pipeline for the same reason /events is.
+
+
+@app.get("/venues", response_model=VenueLookupResult)
+def venues_lookup(
+    q: str = Query(..., description="name fragment, at least 2 characters"),
+    city: str = Query("", description="optional city to scope the answer to"),
+):
+    """Venues by name fragment — a lookup for a picker, not a search."""
+    fragment = q.strip()
+    if len(fragment) < 2:
+        # One character matches half the base; refusing beats a churning list.
+        raise HTTPException(400, "q must be at least 2 characters")
+    cypher, params = build_venue_search(fragment, city.strip() or None)
+    try:
+        rows = neo4j_client.execute_read_once(cypher, params)
+    except Exception as e:
+        logger.error(f"venue lookup failed: {e}")
+        raise HTTPException(502, "Could not read the venues.") from e
+    return VenueLookupResult(venues=[VenueHit(**row) for row in rows if row.get("uid")])
+
+
+@app.get("/artists", response_model=ArtistLookupResult)
+def artists_lookup(
+    q: str = Query(..., description="name fragment, at least 2 characters"),
+):
+    """Artists by name fragment — same contract as /venues."""
+    fragment = q.strip()
+    if len(fragment) < 2:
+        raise HTTPException(400, "q must be at least 2 characters")
+    cypher, params = build_artist_search(fragment)
+    try:
+        rows = neo4j_client.execute_read_once(cypher, params)
+    except Exception as e:
+        logger.error(f"artist lookup failed: {e}")
+        raise HTTPException(502, "Could not read the artists.") from e
+    return ArtistLookupResult(
+        artists=[ArtistHit(**row) for row in rows if row.get("uid")]
+    )
 
 
 # ============== Voice input ==============
