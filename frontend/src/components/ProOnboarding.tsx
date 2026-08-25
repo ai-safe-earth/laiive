@@ -26,6 +26,20 @@ function seen(): boolean {
   }
 }
 
+/** Three-quarter speed: at 1x the cut outruns a first-time reader. */
+const SPEED = 0.75;
+
+/**
+ * Both rates, and a stable function so React sets them once. The media load
+ * algorithm resets `playbackRate` to `defaultPlaybackRate`, so setting only
+ * the former would snap back to 1x the moment the source finished loading.
+ */
+function setSpeed(node: HTMLVideoElement | null): void {
+  if (!node) return;
+  node.defaultPlaybackRate = SPEED;
+  node.playbackRate = SPEED;
+}
+
 function remember(): void {
   try {
     localStorage.setItem(STORAGE_KEY, "1");
@@ -52,6 +66,7 @@ export function ProOnboarding() {
       </h2>
 
       <video
+        ref={setSpeed}
         aria-hidden="true"
         className="aspect-[16/9] w-full rounded-[14px] border border-pro-border bg-pro-bg object-cover"
         src="/pro-walkthrough.mp4"
