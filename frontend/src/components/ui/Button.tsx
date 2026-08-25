@@ -14,7 +14,8 @@ type Variant =
   | "pro"
   | "cyan"
   | "neutralOutline"
-  | "proNeutralOutline";
+  | "proNeutralOutline"
+  | "proNeutral";
 type Size = "default" | "icon" | "sm";
 
 const VARIANTS: Record<Variant, string> = {
@@ -24,12 +25,15 @@ const VARIANTS: Record<Variant, string> = {
   ghost: "text-ink-dim hover:text-foreground",
   pro: "border border-pro-accent/45 bg-pro-accent/10 text-pro-accent hover:bg-pro-accent/20",
   cyan: "bg-pro-accent text-background hover:bg-pro-accent/90",
-  // The composer mics: warm-neutral outline on a transparent ground, one per
-  // surface's palette. The accent belongs to the send pill alone.
+  // The composer mics: warm-neutral outline, one per surface's palette. The
+  // accent belongs to the send pill alone.
   neutralOutline:
     "border-[1.5px] border-field-border bg-transparent text-muted-foreground hover:text-foreground",
+  // Pro fills its controls instead: the promoter ground carries the
+  // watermark, and an unfilled pill on it reads as a hole, not a button.
   proNeutralOutline:
-    "border-[1.5px] border-pro-border bg-transparent text-pro-muted hover:text-pro-fg",
+    "border-[1.5px] border-pro-border bg-pro-control text-pro-muted hover:text-pro-fg",
+  proNeutral: "border border-pro-border bg-pro-control text-pro-muted hover:text-pro-fg",
 };
 
 /** 44px floor on every target, including the icon buttons. */

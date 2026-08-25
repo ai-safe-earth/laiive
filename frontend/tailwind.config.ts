@@ -53,6 +53,7 @@ export default {
           elevated: "hsl(var(--pro-bg-elevated))",
           card: "hsl(var(--pro-bg-card))",
           border: "hsl(var(--pro-border))",
+          control: "hsl(var(--pro-control))",
           fg: "hsl(var(--pro-fg))",
           muted: "hsl(var(--pro-muted))",
           dim: "hsl(var(--pro-dim))",

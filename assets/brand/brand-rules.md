@@ -80,7 +80,10 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 - Fuchsia does not appear below the header. Cyan is the PRO badge, the focus
   ring, the card edge and “in review”.
 - The composer accent is cyan and lives on the filled send alone. The mic and
-  the attach control stay warm-neutral.
+  the attach control stay warm-neutral, and on this surface they are **filled**
+  (`#282220`, as is the field) rather than transparent: the promoter ground
+  carries the watermark, and an unfilled pill on it reads as a hole in the
+  lettering instead of a control.
 - Primary action (`publish to laiive`) is cream `#F4EDE2` with `#0C0A0A` ink.
 - Required-field markers are amber (`needs you`), missing fields go red on both
   label and border, and the publish button disables with a fill hint — this
