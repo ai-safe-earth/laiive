@@ -153,7 +153,16 @@ function Scheduler({ scheduler }: { scheduler: SearchStats["scheduler"] }) {
           >
             {when(deployment.next_run)}
           </span>
-          <Badge tone={deployment.last_run_state === "COMPLETED" ? "good" : "quiet"}>
+          <Badge
+            tone={
+              deployment.last_run_state === "COMPLETED"
+                ? "good"
+                : deployment.last_run_state === "FAILED" ||
+                    deployment.last_run_state === "CRASHED"
+                  ? "bad"
+                  : "quiet"
+            }
+          >
             {deployment.last_run_state?.toLowerCase() ?? A.stats.neverRan}
           </Badge>
         </div>

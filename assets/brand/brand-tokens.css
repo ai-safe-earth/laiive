@@ -62,9 +62,10 @@
 /* Pro screens use the CONSUMER ground (--background) with a flat conversation
    (no chat panel) and give the event-details form a cream frame:
    background #241B1B, radius 20px, border 1.5px rgba(244,237,226,.32).
-   Composer accents on pro are cyan (--pro-accent): outlined mic, filled send
-   with dark ink. Only the attach control stays warm-neutral (#1A1414 fill,
-   #3A2E2E border, #B5A6A6 glyph). */
+   On pro, --pro-accent is used only for the filled send, with dark ink.
+   The mic and attach controls use the warm-neutral --pro-control fill
+   (#282220). The attach control keeps the #3A2E2E border and
+   #B5A6A6 glyph. */
 
 /* Deleted from the previous system — do not reintroduce:
    --gradient-vibrant, --gradient-subtle, --gradient-glow,

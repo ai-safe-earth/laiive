@@ -163,6 +163,31 @@ describe("the numbers above the queue", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  it("colours a failed round red, not the same grey as never-ran", async () => {
+    // A crashed sweep and a deployment that has simply never fired are
+    // different news; one flat "quiet" badge told the same story for both.
+    renderStats(
+      payload({
+        scheduler: {
+          configured: true,
+          alive: true,
+          reason: null,
+          deployments: [
+            {
+              name: "bergamo-province-weekly",
+              status: "READY",
+              cron: "0 7 * * 2",
+              next_run: "2026-09-01T07:00:00+00:00",
+              last_run_state: "CRASHED",
+              last_run_at: "2026-08-25T07:00:04+00:00",
+            },
+          ],
+        },
+      }),
+    );
+    expect((await screen.findByText("crashed")).className).toContain("text-status-rejected");
+  });
+
   it("marks an unreachable graph instead of faking a zero", async () => {
     renderStats(payload({ graph: { error: "paused" } }));
     expect(await screen.findByText(A.stats.graphUnreachable)).toBeInTheDocument();
