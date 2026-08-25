@@ -20,6 +20,8 @@ export interface GatewayConfig {
   rateLimitWindowMs: number;
   rateLimitAnonMax: number;
   rateLimitUserMax: number;
+  rateLimitProMax: number;
+  rateLimitAdminMax: number;
   uploadMaxBytes: number;
   conversationLogging: boolean;
 }
@@ -70,6 +72,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     rateLimitWindowMs: Number(env.RATE_LIMIT_WINDOW_MS ?? 60_000),
     rateLimitAnonMax: Number(env.RATE_LIMIT_ANON_MAX ?? 10),
     rateLimitUserMax: Number(env.RATE_LIMIT_USER_MAX ?? 60),
+    // Pro carries the walk's turns plus the venue combobox; admin carries the
+    // dashboard plus a sweep's own 15s polling. One flat number starved both.
+    rateLimitProMax: Number(env.RATE_LIMIT_PRO_MAX ?? 120),
+    rateLimitAdminMax: Number(env.RATE_LIMIT_ADMIN_MAX ?? 240),
     // Uploads stream straight through to the services, so this header check is
     // the only thing that stops a large body from reaching a metered API.
     uploadMaxBytes: Number(env.UPLOAD_MAX_BYTES ?? 10 * 1024 * 1024),

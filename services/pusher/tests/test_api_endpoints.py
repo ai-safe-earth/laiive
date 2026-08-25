@@ -307,6 +307,29 @@ class TestValidateEventDraft:
         assert write_params["country_code"] == "DE"  # geocoded
         assert write_params["venue_lat"] == 52.52
 
+    def test_a_picked_venue_uid_reaches_the_writer(self, client, mock_neo4j):
+        """venue_uid rides beside the draft, never on it: the write matches the
+        node and the graph's own name wins over the typed spelling."""
+        mock_neo4j.fake_session.venue_node = {
+            "name": "Quasimodo",
+            "name_norm": "quasimodo",
+            "address": "Kantstr. 12a",
+            "lat": 52.5058,
+            "lng": 13.323,
+            "city": "Berlin",
+            "country_code": "DE",
+        }
+        draft = dict(self.DRAFT)
+        draft.pop("address", None)
+        response = client.post(
+            "/validate-event", json={"draft": draft, "venue_uid": "v-77"}
+        )
+        assert response.status_code == 200
+        write_query, write_params = mock_neo4j.fake_session.queries[2]
+        assert "MATCH (v:Venue {uid: $picked_uid})" in write_query
+        assert write_params["picked_uid"] == "v-77"
+        assert write_params["venue"] == "Quasimodo"
+
     def test_duplicate_is_409(self, client, mock_neo4j):
         mock_neo4j.fake_session.dedup_hit = {"uid": "dup-1", "name": "Jazz Night"}
         response = client.post("/validate-event", json={"draft": self.DRAFT})
@@ -357,10 +380,10 @@ class TestValidateEventDraft:
         original = pusher_api._write_or_raise
         started = threading.Event()
 
-        def slow_write(draft, owner_id):
+        def slow_write(draft, owner_id, venue_uid=None):
             started.set()
             time.sleep(0.3)
-            return original(draft, owner_id)
+            return original(draft, owner_id, venue_uid)
 
         async def exercise():
             # Watch how long the loop goes without getting a turn. A handler that

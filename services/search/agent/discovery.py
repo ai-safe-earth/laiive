@@ -71,6 +71,12 @@ QUERY_TEMPLATES = [
 # generic "concerti" query does not reach. Add to it freely: a new phrasing
 # costs nothing until the trial slot reaches it.
 TRIAL_TEMPLATES = [
+    # The fifth QUERY_TEMPLATES entry. plan_queries gives the file-fallback
+    # only slots-1 standing places, so with the default five slots this one
+    # never ran and — never having run — could never be promoted into the
+    # store. The trial slot is the door back in: if it earns its keep it
+    # stands on its own, which is what the comment above it always claimed.
+    "cosa fare a {city} {month_year} spettacoli musicali eventi",
     "{city} musica indipendente concerti emergenti",
     "{city} festival musicale rassegna {month_year}",
     "{city} locali musicali dal vivo jazz blues",
@@ -105,6 +111,19 @@ def italian_month_year(when: datetime) -> str:
     return f"{_ITALIAN_MONTHS[when.month - 1]} {when.year}"
 
 
+def _is_past(start_at: datetime) -> bool:
+    """Whether an extracted start time has already gone by.
+
+    The extraction prompt asks for naive ISO, but a prompt is an instruction
+    and not a guard: pages state offsets and the LLM repeats them, and
+    comparing an aware value against naive now() raised TypeError out of the
+    whole sweep — one offset-bearing draft lost every page's candidates.
+    """
+    if start_at.tzinfo is not None:
+        return start_at < datetime.now().astimezone()
+    return start_at < datetime.now()
+
+
 class Candidate(BaseModel):
     draft: EventDraft
     source_url: str
@@ -121,18 +140,26 @@ class SweepResult(BaseModel):
     stats: dict = {}
 
 
-def plan_queries() -> list[str]:
-    """The templates this sweep will spend its credits on.
+def plan_queries() -> tuple[list[str], str | None]:
+    """(templates this sweep will spend its credits on, the trial among them).
 
     Most slots go to the phrasings that have earned them and one is reserved
     for a trial, which is the whole reason the vocabulary can improve. Before
     anything has been learned the file's list is the answer, so a fresh
     database sweeps exactly as it did before this existed.
+
+    The trial is returned by name rather than by position: the stats used to
+    label `queries[-1]` as the trial, which pinned the badge on the last
+    standing phrasing whenever no trial was selected at all.
     """
     slots = settings.sweep_query_slots
     standing = learning.standing_templates(QUERY_TEMPLATES, slots - 1)
     trial = learning.select_trial(TRIAL_TEMPLATES)
-    return [*standing, trial] if trial else standing[:slots]
+    # select_trial refuses standing phrasings, but its store-read can fail and
+    # fall back — never run the identical query twice in one sweep.
+    if trial and trial in standing:
+        trial = None
+    return ([*standing, trial], trial) if trial else (standing[:slots], None)
 
 
 def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
@@ -140,8 +167,8 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     max_pages = max_pages or settings.sweep_max_pages
     month_year = italian_month_year(datetime.now())
 
-    templates = plan_queries()
-    include, exclude = learning.domain_filters()
+    templates, trial_template = plan_queries()
+    include, exclude = learning.domain_filters(city)
     hints = learning.extraction_hints()
 
     # One credit per call regardless of how many rows come back, so this counts
@@ -203,6 +230,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
 
     drafts: list[tuple[EventDraft, str]] = []
     pages_with_events = 0
+    events_per_query: dict[str, int] = {}
     # Per-page bookkeeping, folded into the store at the end of the sweep.
     observed: dict[str, dict] = {}
     for hit in pages:
@@ -222,6 +250,12 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         if found:
             pages_with_events += 1
             seen["pages_with_events"] += 1
+            # Credit the template that surfaced the page. Agenda pages have no
+            # template and rightly count for none. Display-only: the dashboard
+            # renders it; promotion reads candidates_new alone
+            # (learning._query_yield).
+            if template := url_query.get(hit.url):
+                events_per_query[template] = events_per_query.get(template, 0) + 1
         seen["drafts"] += len(found)
         drafts.extend((draft, hit.url) for draft in found)
 
@@ -232,8 +266,15 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         if not draft.city:
             draft.city = city  # the page was found searching this city
 
-        start_at = parse_start_at(draft.start_at or "")
-        if start_at is not None and start_at < datetime.now():
+        # One malformed draft is one lost candidate, never a lost sweep: the
+        # nearest handler above this loop marks the whole report failed, which
+        # once cost every page's candidates to a single odd start_at.
+        try:
+            start_at = parse_start_at(draft.start_at or "")
+        except Exception as e:
+            logger.warning(f"Unreadable draft from {url}: {e}")
+            continue
+        if start_at is not None and _is_past(start_at):
             skipped_past += 1
             continue
 
@@ -306,7 +347,10 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     by_query = {
         template: {
             "pages": read_per_query.get(template, 0),
-            "pages_with_events": 0,
+            # A hardcoded 0 here left the store's decayed counter zeroing
+            # forever while looking maintained — a lie the first ranking rule
+            # to read it would have believed.
+            "pages_with_events": events_per_query.get(template, 0),
             "candidates_new": new_per_query.get(template, 0),
             "local_domain_share": (
                 local_per_query.get(template, 0) / read_per_query[template]
@@ -332,7 +376,10 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         stats={
             "queries": len(queries),
             "tavily_credits": tavily_calls,
-            "trial_query": queries[-1] if queries else None,
+            # The actual trial, or null when none was on probation this sweep.
+            # queries[-1] here mislabeled an earned standing phrasing as the
+            # trial whenever select_trial came back empty.
+            "trial_query": trial_template,
             "domains": len(by_domain),
             "pages_searched": len(pages),
             "pages_with_events": pages_with_events,

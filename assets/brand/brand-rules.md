@@ -1,6 +1,7 @@
 # laiive brand rules — enforceable list
 
-Version 1 · direction **4a** (consumer) + **3b** (promoter) · august 2026.
+Version 1.1 · direction **4a** (consumer) + **3b** (promoter) · august 2026 ·
+composer + claim-invitation amendments 2026-08-25.
 Normative document: `brand-guide.pdf`. This file is the short version an agent
 can check work against. When this file and the PDF disagree, the PDF wins.
 
@@ -18,8 +19,14 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 - **Chat is the app.** No tab bar, no home screen, no titles row, no section
   headers, no onboarding copy, no explanatory text about the AI.
 - The entire chrome inventory: bare mark + `LAIIVE` top-left; saved then
-  account icon top-right (icons only, no labels); one `+` at the composer that
-  opens **voice input and nothing else**; the composer, placeholder `ask`.
+  account icon top-right (icons only, no labels); the composer, placeholder
+  `ask`.
+- **The composer, both surfaces**: warm-neutral outlined mic on the left, pill
+  field in the middle, filled accent send on the right — fuchsia on the
+  consumer side, cyan on pro, dark ink on every filled accent. The accent
+  belongs to the send alone; the mic never wears it. While a reply streams the
+  send slot is stop. Voice is the mic itself; there is no `+`. Attach exists on
+  pro only, warm-neutral, left of the mic.
 - Filters, city, date and price are **said**, not selected. An understood
   constraint is echoed in the answer, never rendered as a chip.
 - Language and preferences live in **settings, inside the account menu** — never
@@ -33,10 +40,10 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 
 | Colour | Means | Never |
 |---|---|---|
-| `#FF2AA0` fuchsia | brand, and “free” | a background for body text |
-| `#FFB100` amber | price, mic, tickets, the card rail | answer text, if it is also on pills |
-| `#00CFEA` cyan | promoter side only: PRO badge, focus, “in review” | anywhere in the consumer app |
-| `#E72828` red | errors, delete | a highlight |
+| `#FF2AA0` fuchsia | brand, “free”, and the consumer composer’s filled send | a background for body text; the mic |
+| `#FFB100` amber | price, tickets, the card rail | answer text, if it is also on pills |
+| `#00CFEA` cyan | promoter side only: PRO badge, focus, “in review”, the composer’s filled send | anywhere in the consumer app; the mic |
+| `#E72828` red | errors, delete; the web-sourced card mark and the claim invitation under it (the one exception) | a highlight |
 | `#F4EDE2` cream | every answer laiive gives | card titles (those are `#FFFFFF`) |
 
 - **Never white text on fuchsia or amber below 18px** — 3.45:1, fails. Use
@@ -72,7 +79,11 @@ can check work against. When this file and the PDF disagree, the PDF wins.
   20px radius, 1.5px `rgba(244,237,226,.32)`.
 - Fuchsia does not appear below the header. Cyan is the PRO badge, the focus
   ring, the card edge and “in review”.
-- Composer icons are warm-neutral, never accent-filled.
+- The composer accent is cyan and lives on the filled send alone. The mic and
+  the attach control stay warm-neutral, and on this surface they are **filled**
+  (`#282220`, as is the field) rather than transparent: the promoter ground
+  carries the watermark, and an unfilled pill on it reads as a hole in the
+  lettering instead of a control.
 - Primary action (`publish to laiive`) is cream `#F4EDE2` with `#0C0A0A` ink.
 - Required-field markers are amber (`needs you`), missing fields go red on both
   label and border, and the publish button disables with a fill hint — this

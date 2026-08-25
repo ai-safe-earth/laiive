@@ -1,6 +1,7 @@
 import type { EventCard } from "@shared/protocol";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
+import { claimTarget } from "@/auth/claimTarget";
 import { useSavedCards, useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
@@ -38,7 +39,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function Saved() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { language, t } = useTranslation();
 
   const { data: uids, isLoading: uidsLoading } = useSavedUids(user?.id);
@@ -63,6 +64,7 @@ export default function Saved() {
             card={card}
             language={language}
             saved
+            claimTo={claimTarget(Boolean(user), role)}
             // Unsaving from this page removes the card in front of you. That
             // is the whole point of being here, and the app has no undo
             // anywhere, so it does not pretend to have one now.

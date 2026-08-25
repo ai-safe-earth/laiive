@@ -1,43 +1,43 @@
-# HANDOFF - laiive (updated 2026-08-23)
+# HANDOFF - laiive (updated 2026-08-25)
 
 State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
+Evolution plan (six areas, phases A-G, owner-approved 2026-08-25):
+`C:\Users\OAV\.claude\plans\read-claude-md-and-handoff-md-sparkling-star.md`.
 
-**laiive is live at https://laiive.com**, `v0.1.0` - Pages from `main`, gateway
-https://laiive-gateway.fly.dev, five Fly apps in `fra`. `main` is production, `develop` the trunk.
+**laiive is live at https://laiive.com**, `v0.1.0` + 82 commits unreleased. `main` is
+production, `develop` the trunk, five Fly apps in `fra`.
 
-## One branch open
+## #69 merged; #70 and #71 open, updated onto develop
 
-**#61, #62 and #63 are merged** - discovery on Torino and Bergamo with provenance and the
-learning loop, and the `/admin` review queue. Nothing else is open.
-**`feat/saved-events-and-ui-polish`** is six commits rebased onto `develop`, no PR yet; suites
-green at 77 / 25 / 173 / 118 (frontend, gateway, retriever, shared).
+- **#69** (phase A, **merged 2026-08-25**): red claim door on web cards, one accent composer both surfaces
+  (fuchsia/cyan, mic left, send/stop right), pro watermark 6%, brand-rules v1.1. SPA only.
+- **#70** (phase C): venue combobox over the graph, `venue_uid` beside the draft, first
+  non-Event read paths (`/venues`, `/artists`, pro-gated), `/api/push` catch-all narrowed to
+  named routes, EventCard gains `venue_uid`/`venue_address`/`claimed` (inert). Deploy
+  retriever -> pusher -> gateway -> SPA. Develop merged in, all six suites green.
+- **#71** (phase B): `/admin` dashboard over one `GET /stats` (concurrent, shape-degrading
+  sections), reason-carrying scheduler verdict from Prefect Cloud REST, time-windowed credit
+  budget, per-role rate limits 60/120/240. At deploy: Aura index `event_created_at`; optional
+  `PREFECT_API_URL`/`PREFECT_API_KEY` in `.env` + `set-secrets.sh search` or the panel says
+  "not configured". Develop merged in (only conflicts: handoff, a duplicated
+  pages_with_events fix #67 also shipped).
 
-On it and nowhere else: **saved events end to end** (`saved_events` under RLS, retriever
-`GET /events?uids=`, gateway `/api/events` behind `requireRole("user")`, `/saved`), the card
-and chat polish, and a `/pro` onboarding panel whose 16/9 frame waits on a Claude Design piece.
+Phases D (orgs + claims, migration 16 designed in the plan), E (edits + verification + the
+card flip), F/G (discovery eval, JSON-LD, review-signal learning) wait on #70's contract.
 
-## The backlog that is the point of /admin
+## Verified against live stores this session
 
-**12 reports sit in `dry_run` holding ~180 candidates**, including every Torino and Bergamo event
-found this week. A sweep writes a report to Supabase and stops; only `POST /reports/{id}/approve`
-moves it. The UI exists now, and nothing has been approved through it yet.
-
-## Discovery, as it now runs
-
-Bergamo and Torino provinces, weekly, five **Italian** query templates plus Tavily `/extract` for
-three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a test.
+- Migrations 13/14/15 **are pushed** — the handoff blocker was stale. The learning loop
+  persists (17 sources, 3 trusted; `'now()'::timestamptz` parses — not a bug).
+- Query-level `pages_with_events` was hardcoded 0 on every live row — confirmed and fixed
+  in #71 (display-only; promotion reads `candidates_new`).
+- The review backlog is down to ~5 reports / ~5 candidates — approvals are flowing.
 
 ## Open
 
-- **Three migrations unpushed**: `...13`, `...14`, `...15`. The first two fail soft; **`...15`
-  does not** - without `saved_events` every save is a 404. Push before the SPA ships, and deploy
-  the retriever and gateway first: `/api/events` does not exist until they do.
-- **`flows/serve.py` is not running**, so no schedule fires; every sweep so far was by hand.
-- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` hits production.
-- Deferred by decision: the venue welcome pack, and the Supabase confirmation email (yours).
-- Redirect allow-list unread (`DEPLOY.md` 5 step 2). `origin/feat/promoter-onboarding-and-surface`
-  stale. **OG card** bare. `lucide-react` unused. Never clicked: the pro walk in es/ca. Reference
-  artifacts: pipelines `04820bb1`, admin scope `a331b289`.
+- `flows/serve.py` still not running; the #71 dashboard makes that visible instead of silent.
+- Redirect allow-list unread (`DEPLOY.md` 5 step 2). OG card bare. `lucide-react` unused.
+- Release PR develop -> main still pending (now also carries phases A/B/C once merged).
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -45,7 +45,7 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-23",
+  "updated": "2026-08-25",
   "deadline": null,
   "people": [
     "oscar"
@@ -556,20 +556,41 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
           "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
         },
         {
-          "date": "2026-08-23",
-          "text": "Saved events are pointers, not snapshots: saved_events holds uids under RLS and the card bodies are re-read from the graph on every open, so a corrected price or a moved door time reaches a saved card"
+          "date": "2026-08-24",
+          "text": "PR #64 (saved events + both-surface polish) merged; released to main via #65, main merged back via #66"
+        }
+      ]
+    },
+    {
+      "name": "Evolution - six areas",
+      "status": "active",
+      "start": "2026-08-25",
+      "end": null,
+      "plan": "roadmap",
+      "decisions": [
+        {
+          "date": "2026-08-25",
+          "text": "Six-area evolution plan approved after a three-agent exploration: phases A (quick UI) through G (review-signal learning), each one PR. Owner decisions locked: claiming grants edit immediately with admin revoke; the card flips to the verified mark only on a VERIFIED claim (acceptance stamps the graph node); ownership Supabase writes get gateway-native TS routes (logging.ts PostgREST precedent); consumer composer wears fuchsia and brand-rules.md is amended in the same PR"
         },
         {
-          "date": "2026-08-23",
-          "text": "The by-uid lookup gets its own gateway prefix, /api/events behind requireRole(\"user\"), rather than riding the anonymous /api/chat - saving needs an account, and a rule that lives only in the SPA is a hope"
+          "date": "2026-08-25",
+          "text": "venue_uid travels beside the draft, never on it - the same doctrine as source_url: mid-walk refinement round-trips drafts through an LLM, and an invented uid must die on the writer's MATCH rather than name a venue. In the writer a picked venue resolves to one _VenueIdentity whose name, city and pin win over the typed spelling; completion is set-if-absent only"
         },
         {
-          "date": "2026-08-23",
-          "text": "Both doors between the two surfaces live in UserMenu and are promoter-only; the /pro logo is no longer a link. A free user reaches /pro through /account or /auth?kind=pro"
+          "date": "2026-08-25",
+          "text": "The /api/push catch-all is gone: explicit proxies only, so a pusher endpoint has to be named in proxy.ts to exist - the precondition for per-entity authorization on the phase E edit routes. /api/push/health is named deliberately for e2e-live.mjs"
         },
         {
-          "date": "2026-08-23",
-          "text": "The venue welcome pack and the confirmation email are deferred out of this batch - the pack needs mail, QR and PDF infrastructure the repo does not have"
+          "date": "2026-08-25",
+          "text": "Verified against the live stores: migrations 13/14/15 are pushed (the handoff blocker was stale), the learning loop persists and 'now()' timestamps parse fine (suspected bug refuted), while query-level pages_with_events was confirmed hardcoded 0 on every row and is now attributed per template (display-only; promotion reads candidates_new alone)"
+        },
+        {
+          "date": "2026-08-25",
+          "text": "The scheduler verdict carries its reason (unconfigured/unreachable/no_deployments/stale_runs/not_ready) and staleness is judged by our clock - a run sitting Scheduled past start+15min - not Prefect's late-marker service. The 'nothing is polling' banner only fires when stale runs prove it"
+        },
+        {
+          "date": "2026-08-25",
+          "text": "PRs #69 (claim door, accent composers, pro ground), #70 (graph venue reuse), #71 (admin dashboard, per-role rate limits 60/120/240) opened into develop; every phase passed a /code-review high with all confirmed findings fixed pre-commit. #71 verified live on a local stack against real Supabase and Aura"
         }
       ]
     },
@@ -673,8 +694,8 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
           "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
         },
         {
-          "date": "2026-08-23",
-          "text": "#61 (discovery on Torino and Bergamo, provenance, the learning loop), #62 and #63 (the /admin review queue) merged into develop; all three head branches deleted"
+          "date": "2026-08-24",
+          "text": "Adversarial review over #61-#64 confirmed 10 findings; 9 fixed across PR #67 (admin dismiss-on-Cancel, Candidate.draft redeclaration, writer tz relabeling, sweep-killing TypeError, Bergamo seeds narrowing every city, trial double-run, mislabeled trial_query, dead pages_with_events counter, dead fifth template) and PR #68 (order-sensitive saved-cards cache key). Deferred by decision: localdatetime sargability (documented) and an out-of-locale /sweep guard"
         }
       ]
     }
@@ -699,19 +720,13 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "since": "2026-08-21"
     },
     {
-      "text": "Three migrations are unpushed: 20260823000013 (search_sources, search_queries), 20260823000014 (dismissed status) and 20260823000015 (saved_events). 13 and 14 fail soft; 15 does not - without the table every save is a PostgREST 404 and /saved shows its error state, so push before the SPA ships",
-      "severity": "high",
+      "text": "About 5 sweep reports sit in dry_run (down from 12 - approvals are flowing through /admin). Nothing reaches the graph until they are approved",
+      "severity": "low",
       "owner": "oscar",
       "since": "2026-08-23"
     },
     {
-      "text": "12 sweep reports sit in dry_run holding about 180 candidates, including every Torino and Bergamo event found this week. Nothing reaches the graph until they are approved through /admin",
-      "severity": "medium",
-      "owner": "oscar",
-      "since": "2026-08-23"
-    },
-    {
-      "text": "flows/serve.py is not running, so no schedule fires. Every sweep so far was triggered by hand; a next-run time shown anywhere is one that will not execute until that process is up",
+      "text": "flows/serve.py is not running, so no schedule fires. Every sweep so far was triggered by hand; the #71 dashboard shows this as a reasoned scheduler verdict instead of a silent next-run time",
       "severity": "low",
       "owner": "oscar",
       "since": "2026-08-23"
@@ -719,17 +734,31 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
   ],
   "nextSteps": [
     {
-      "title": "PR feat/saved-events-and-ui-polish into develop - rebased onto develop after #61, #62 and #63 merged, so it is six commits on a clean base",
+      "title": "Review and merge PRs #69, #70, #71 into develop (order free; each PR body carries its deploy order). #70 needs retriever -> pusher -> gateway -> SPA; #71 wants the Aura event_created_at index and, optionally, PREFECT_API_URL/KEY in .env + set-secrets.sh search",
       "est": 1,
       "owner": "oscar",
-      "phase": "Restyle - new visual direction",
+      "phase": "Evolution - six areas",
       "plan": "roadmap"
     },
     {
-      "title": "Deploy order for saved events: push the migrations, then make fly-deploy-retriever and fly-deploy-gateway, then the SPA. The SPA calls /api/events, which does not exist until both ship",
-      "est": 1,
+      "title": "Phase D (orgs + claims): migration 20260825000016 (claim status/revocation, entity_edits audit, create_organization RPC with pro floor, user_may_edit helper), gateway-native /api/orgs + /api/claims + /api/publish wrapper, /pro/org screen. Full design in the approved plan file",
+      "est": 3,
       "owner": "oscar",
-      "phase": "Restyle - new visual direction",
+      "phase": "Evolution - six areas",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Phase E (edits + verification): first update functions in laiive_shared.neo4j_writer, pusher edit routes behind gateway authz, /admin claims queue with verify/revoke, the card flips on the claim stamp, CTA deep-links to /pro/claim",
+      "est": 3,
+      "owner": "oscar",
+      "phase": "Evolution - six areas",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Phases F/G (discovery): frozen-page eval set first, JSON-LD before the LLM (verify Tavily raw_content keeps ld+json), chunking over truncation, Torino seeds + credit ceiling, review-signal columns + human-gated hint drafting (migration 17)",
+      "est": 4,
+      "owner": "oscar",
+      "phase": "Evolution - six areas",
       "plan": "roadmap"
     },
     {
@@ -747,35 +776,7 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "plan": "roadmap"
     },
     {
-      "title": "supabase db push for 20260823000013, 14 and 15 (one push applies all three in order), confirm with supabase migration list, then walk /admin signed in and approve the Bergamo and Torino backlog",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Admin phase 2 - one aggregated GET /api/admin/search/stats on the search service (it holds both the Neo4j driver and the service-role key, so it inherits the admin proxy), hand-rolled SVG charts, and add CREATE INDEX event_created_at. Scope: artifact a331b289",
-      "est": 2,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Admin phase 3 - Prefect read-only panel: deployment list, next and last run, launch a custom sweep, plus a serve.py liveness indicator so the panel cannot show a run that will never fire. Key stays server-side",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Raise the gateway rate limit per role before the dashboard ships: 60 req/min per user across all of /api/* with no admin exemption, and the sweep own 15s polling already spends from it",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Seed TORINO_PROVINCE sources in learning.SEED_SOURCES - torinogiovani.it and eventi.comune.torino.it both surfaced repeatedly and neither is reachable by search alone",
+      "title": "Seed TORINO_PROVINCE sources in learning.SEED_SOURCES - torinogiovani.it and eventi.comune.torino.it both surfaced repeatedly and neither is reachable by search alone (folded into phase F)",
       "est": 1,
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",
@@ -838,13 +839,6 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "plan": "roadmap"
     },
     {
-      "title": "Extraction optimizer: JSON-LD schema.org/Event before the LLM, chunking instead of truncation, schema-enforced output, per-domain adapters, and a frozen-page eval set with precision/recall",
-      "est": 4,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
       "title": "'Shakira Stadium' is a listing-page artefact, not a venue: 9.5 km from Madrid's centre, no address. Extraction quality, not geocoding",
       "est": 1,
       "owner": "oscar",
@@ -880,7 +874,7 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "plan": "roadmap"
     },
     {
-      "title": "Release PR develop -> main: the promoter door, the sign-up hardening and the frontend test suite are unreleased. Then make release, deploy, and merge main back into develop so the tag is not stranded",
+      "title": "Release PR develop -> main: the promoter door, saved events, and (once merged) phases A/B/C are unreleased. Then make release, deploy, and merge main back into develop so the tag is not stranded",
       "est": 1,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
@@ -994,8 +988,15 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "hours": null
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-24",
       "model": "opus-5",
+      "credits": null,
+      "person": "oscar",
+      "hours": null
+    },
+    {
+      "date": "2026-08-25",
+      "model": "fable-5",
       "credits": null,
       "person": "oscar",
       "hours": null

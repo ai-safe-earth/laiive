@@ -90,11 +90,6 @@ export interface Translations {
     needsPro: string;
     becomeProLink: string;
     signInLink: string;
-    emptyTitle: string;
-    emptyHint: string;
-    onboardingTitle: string;
-    /** Shown until the walkthrough animation lands. */
-    onboardingPending: string;
     onboardingSteps: string[];
     onboardingDismiss: string;
     statusExtracting: string;
@@ -126,6 +121,8 @@ export interface Translations {
     addArtist: string;
     removeArtist: string;
     artistPlaceholder: string;
+    addressOnFile: string;
+    venueSuggestionsAria: string;
   };
   cards: {
     free: string;
@@ -257,10 +254,6 @@ export const translations: Record<Language, Translations> = {
       needsPro: "Publishing events needs a promoter account.",
       becomeProLink: "set up your promoter details and publish →",
       signInLink: "sign in →",
-      emptyTitle: "Tell me about your event — type it, say it, or drop a flyer.",
-      emptyHint: "photo · PDF · Word · voice — all of it becomes the same form",
-      onboardingTitle: "how this works",
-      onboardingPending: "walkthrough coming",
       onboardingSteps: [
         "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
         "laiive reads it and fills the form. Every field is yours to correct.",
@@ -314,6 +307,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ add artist",
       removeArtist: "remove artist",
       artistPlaceholder: "artist or band name",
+      addressOnFile: "on file at laiive",
+      venueSuggestionsAria: "venues laiive already knows",
     },
     cards: {
       free: "free",
@@ -445,10 +440,6 @@ export const translations: Record<Language, Translations> = {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
       becomeProLink: "configura tus datos de promotor y publica →",
       signInLink: "inicia sesión →",
-      emptyTitle: "Cuéntame tu evento — escríbelo, dilo o suelta un cartel.",
-      emptyHint: "foto · PDF · Word · voz — todo acaba en el mismo formulario",
-      onboardingTitle: "cómo funciona",
-      onboardingPending: "guía en camino",
       onboardingSteps: [
         "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
         "laiive lo lee y rellena el formulario. Todos los campos son tuyos para corregir.",
@@ -502,6 +493,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ añadir artista",
       removeArtist: "quitar artista",
       artistPlaceholder: "nombre del artista o grupo",
+      addressOnFile: "registrada en laiive",
+      venueSuggestionsAria: "salas que laiive ya conoce",
     },
     cards: {
       free: "gratis",
@@ -633,10 +626,6 @@ export const translations: Record<Language, Translations> = {
       needsPro: "Per pubblicare eventi serve un account promoter.",
       becomeProLink: "inserisci i tuoi dati da promoter e pubblica →",
       signInLink: "accedi →",
-      emptyTitle: "Raccontami il tuo evento — scrivilo, dillo o trascina un volantino.",
-      emptyHint: "foto · PDF · Word · voce — tutto diventa lo stesso modulo",
-      onboardingTitle: "come funziona",
-      onboardingPending: "guida in arrivo",
       onboardingSteps: [
         "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
         "laiive lo legge e compila il modulo. Ogni campo è tuo da correggere.",
@@ -690,6 +679,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ aggiungi artista",
       removeArtist: "rimuovi artista",
       artistPlaceholder: "nome dell'artista o del gruppo",
+      addressOnFile: "registrato su laiive",
+      venueSuggestionsAria: "locali che laiive già conosce",
     },
     cards: {
       free: "gratis",
@@ -821,10 +812,6 @@ export const translations: Record<Language, Translations> = {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
       becomeProLink: "configura les teves dades de promotor i publica →",
       signInLink: "inicia sessió →",
-      emptyTitle: "Explica'm el teu esdeveniment — escriu-lo, digues-lo o deixa-hi un cartell.",
-      emptyHint: "foto · PDF · Word · veu — tot acaba al mateix formulari",
-      onboardingTitle: "com funciona",
-      onboardingPending: "guia en camí",
       onboardingSteps: [
         "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
         "laiive ho llegeix i omple el formulari. Tots els camps són teus per corregir.",
@@ -878,6 +865,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ afegir artista",
       removeArtist: "treure artista",
       artistPlaceholder: "nom de l'artista o del grup",
+      addressOnFile: "registrada a laiive",
+      venueSuggestionsAria: "sales que laiive ja coneix",
     },
     cards: {
       free: "gratuït",

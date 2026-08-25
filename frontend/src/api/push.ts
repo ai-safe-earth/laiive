@@ -89,11 +89,18 @@ export interface SavedEvent {
  * Publish the completed draft. The service does dedup, geocoding and the
  * embedding calculations on the way into the graph — the client never computes
  * an embedding or writes Cypher.
+ *
+ * `venueUid` is the graph venue the form picked from the lookup. It travels
+ * beside the draft, never on it: drafts round-trip through an LLM mid-walk,
+ * and the writer must be able to trust that a uid was a human's pick.
  */
-export async function saveEvent(draft: EventDraft): Promise<SavedEvent> {
+export async function saveEvent(
+  draft: EventDraft,
+  venueUid?: string | null,
+): Promise<SavedEvent> {
   const response = await apiFetch("/api/push/validate-event", {
     method: "POST",
-    body: JSON.stringify({ draft }),
+    body: JSON.stringify({ draft, ...(venueUid ? { venue_uid: venueUid } : {}) }),
   });
   return (await response.json()) as SavedEvent;
 }

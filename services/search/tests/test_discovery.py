@@ -220,6 +220,21 @@ def test_every_template_reaches_the_page_budget(mock_tavily, mock_openai):
     assert "t2.example" in read
 
 
+def test_query_yield_attributes_pages_with_events(mock_learning_http):
+    """The query-level yield column was hardcoded 0 while candidates flowed
+    beside it (confirmed against the live store). Display-only: the dashboard
+    renders it, while promotion reads candidates_new alone — a page whose
+    extraction found events now credits the template that surfaced it."""
+    discovery.sweep_city("Berlin")
+    upserted = [
+        call.kwargs.get("json")
+        for call in mock_learning_http.post.call_args_list
+        if isinstance(call.kwargs.get("json"), list)
+    ]
+    query_rows = next(rows for rows in upserted if rows and "template" in rows[0])
+    assert any(row["pages_with_events"] >= 1 for row in query_rows)
+
+
 def test_the_queries_are_italian_all_the_way_through(mock_tavily):
     """The templates are Italian because the query language picks the language
     of the sites reached -- measured 3/9 Italian domains for an English query
@@ -255,3 +270,69 @@ def test_italian_month_year_does_not_depend_on_the_process_locale():
     assert discovery.italian_month_year(dt(2026, 8, 23)) == "agosto 2026"
     assert discovery.italian_month_year(dt(2027, 1, 5)) == "gennaio 2027"
     assert discovery.italian_month_year(dt(2026, 12, 31)) == "dicembre 2026"
+
+
+def test_an_offset_bearing_start_at_is_compared_not_fatal(mock_openai):
+    """Pages state offsets and the LLM repeats them; the prompt's naive-ISO
+    hint is an instruction, not a guard. One aware draft used to raise
+    TypeError out of the whole sweep and mark the report failed."""
+    aware = json.dumps(
+        {
+            "events": [
+                {
+                    "artists": ["Aware"],
+                    "start_at": "2020-01-01T20:00:00+02:00",  # past, with offset
+                    "venue": "V",
+                    "city": "Berlin",
+                    "price_min": 5,
+                },
+                {
+                    "artists": ["Naive"],
+                    "start_at": "2027-04-01T21:00:00",
+                    "venue": "W",
+                    "city": "Berlin",
+                    "price_min": 5,
+                },
+            ]
+        }
+    )
+    mock_openai.chat.completions.create.return_value.choices[0].message.content = aware
+    result = discovery.sweep_city("Berlin")
+    # The aware past event is skipped like any other past event; the naive
+    # future one survives — nothing aborts.
+    assert result.stats["skipped_past"] == 1
+    assert len(result.candidates) == 1
+    assert result.candidates[0].draft.artists == ["Naive"]
+
+
+def test_pages_with_events_reaches_the_query_ledger(mock_learning_http):
+    """The fold hardcoded 0, so the store's decayed counter zeroed forever
+    while looking maintained."""
+    discovery.sweep_city("Berlin")
+    queries = [
+        row
+        for call in mock_learning_http.post.call_args_list
+        if call.args and "search_queries" in call.args[0]
+        for row in call.kwargs["json"]
+    ]
+    assert queries, "the sweep should record its queries"
+    # The one fixture page yields one event, searched by the first template.
+    assert sum(int(row.get("pages_with_events") or 0) for row in queries) == 1
+
+
+def test_the_trial_stat_is_null_when_nothing_is_on_probation(mock_learning_http):
+    """queries[-1] used to be labeled the trial even when select_trial chose
+    nothing — pinning probation on an earned standing phrasing."""
+    rows = [
+        {"template": t, "status": "retired", "runs": 3}
+        for t in discovery.TRIAL_TEMPLATES
+    ]
+
+    def get(url, *args, **kwargs):
+        if "search_queries" in url:
+            return http_response(200, rows)
+        return http_response(200, [])
+
+    mock_learning_http.get.side_effect = get
+    result = discovery.sweep_city("Berlin")
+    assert result.stats["trial_query"] is None

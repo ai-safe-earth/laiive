@@ -40,3 +40,14 @@ describe("fetching the bodies for a saved list", () => {
     expect(api.fetch).toHaveBeenCalledWith("/api/events?uids=a%2Cb");
   });
 });
+
+describe("the cards cache key", () => {
+  it("is the same for the same set in any order", async () => {
+    // The optimistic unsave rewrites the newest-first uid list; an
+    // order-sensitive key minted a fresh cache entry and refetched every
+    // remaining card to remove one already on screen.
+    const { savedKeys } = await import("./savedEvents");
+    expect(savedKeys.cards(["b", "a", "c"])).toEqual(savedKeys.cards(["c", "a", "b"]));
+    expect(savedKeys.cards(["a"])).not.toEqual(savedKeys.cards(["a", "b"]));
+  });
+});

@@ -6,15 +6,14 @@ import { ApiError } from "@/api/client";
 import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
+import { Composer } from "@/components/Composer";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
-import { MicButton } from "@/components/MicButton";
 import { UserMenu } from "@/components/UserMenu";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
+import { claimTarget } from "@/auth/claimTarget";
 import { detectLanguageFromText } from "@/i18n/detectLanguage";
 import { useTranslation, type Language } from "@/i18n/useTranslation";
 
@@ -27,7 +26,7 @@ export default function Chat() {
     searching: t.chat.statusSearching,
     composing: t.chat.statusWriting,
   };
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -230,16 +229,17 @@ export default function Chat() {
                     <div className="flex flex-col gap-2 border-l-2 border-secondary/50 pl-[11px]">
                       {message.events.map((card) => (
                         <EventCardView
-                key={card.uid}
-                card={card}
-                language={language}
-                saved={savedSet.has(card.uid)}
-                // No control at all when signed out, rather than a pill
-                // that breaks its promise once per card.
-                onToggleSave={
-                  user ? (uid, next) => toggleSaved.mutate({ uid, next }) : undefined
-                }
-              />
+                          key={card.uid}
+                          card={card}
+                          language={language}
+                          saved={savedSet.has(card.uid)}
+                          claimTo={claimTarget(Boolean(user), role)}
+                          // No control at all when signed out, rather than a pill
+                          // that breaks its promise once per card.
+                          onToggleSave={
+                            user ? (uid, next) => toggleSaved.mutate({ uid, next }) : undefined
+                          }
+                        />
                       ))}
                     </div>
                   )}
@@ -258,38 +258,19 @@ export default function Chat() {
       </div>
 
       <div className="flex-shrink-0 border-t border-rule px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 sm:px-5">
-        <div className="mx-auto flex max-w-3xl items-center gap-2.5">
-          <Input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && void send()}
-            placeholder={t.chat.placeholder}
-            aria-label={t.chat.placeholder}
-          />
-          {/* One amber control: stop while streaming, send once there is
-              something to send, and the mic the rest of the time. */}
-          {isStreaming ? (
-            <Button variant="amber" size="icon" onClick={stop} aria-label={t.chat.stop}>
-              <Icon name="close" />
-            </Button>
-          ) : input.trim() ? (
-            <Button
-              variant="amber"
-              size="icon"
-              onClick={() => void send()}
-              aria-label={t.chat.send}
-            >
-              <Icon name="send" className="h-[18px] w-[18px]" />
-            </Button>
-          ) : (
-            <MicButton
-              transcribe={transcribeRecording}
-              onTranscript={(text) =>
-                setInput((current) => (current ? `${current} ${text}` : text))
-              }
-            />
-          )}
-        </div>
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => void send()}
+          onStop={stop}
+          isStreaming={isStreaming}
+          accent="consumer"
+          placeholder={t.chat.placeholder}
+          transcribe={transcribeRecording}
+          onTranscript={(text) =>
+            setInput((current) => (current ? `${current} ${text}` : text))
+          }
+        />
       </div>
     </div>
   );

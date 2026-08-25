@@ -50,6 +50,10 @@
     --pro-bg-card: 10 14% 9%;       /* #191413 */
     --pro-bg-elevated: 10 12% 10%;  /* #1C1716 */
     --pro-border: 10 13% 18%;       /* #332927 */
+    /* The composer's own ground: field and round controls. Transparent
+       controls disappeared into the page — on the promoter side the ground
+       carries the watermark, so an unfilled pill reads as a hole in it. */
+    --pro-control: 10 10% 14%;      /* #282220  pro composer field + controls */
     --pro-fg: 17 21% 94%;           /* #F2EDEB */
     --pro-muted: 13 9% 60%;         /* #A2938F */
     --pro-dim: 13 7% 51%;           /* #8B7D79 */
@@ -58,8 +62,9 @@
     /* The two provenance marks on a card. Named rather than borrowing
        --status-published / --destructive: those are the promoter's own
        lifecycle and the delete-and-errors red, and this is a reader-facing
-       claim about who vouched for a listing. Red as a card mark is the one
-       deliberate exception to "red is errors and delete only". */
+       claim about who vouched for a listing. Red as a card mark — and as the
+       claim invitation under it, which is the same claim made actionable — is
+       the one deliberate exception to "red is errors and delete only". */
     --mark-verified: 147 61% 47%;   /* #2FBF71 */
     --mark-unverified: 0 78% 53%;   /* #E72828 */
 

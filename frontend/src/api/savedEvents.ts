@@ -19,7 +19,12 @@ export const LOOKUP_CHUNK = 50;
 
 export const savedKeys = {
   uids: (userId: string) => ["saved-uids", userId] as const,
-  cards: (uids: readonly string[]) => ["saved-cards", uids.join(",")] as const,
+  // Keyed on the SET of uids, not their order: the fetch depends on
+  // membership alone (Saved.tsx re-sorts by date anyway), and an
+  // order-sensitive key meant every save/unsave — which rewrites the
+  // newest-first list — minted a fresh key with an empty cache, refetching
+  // every remaining card to remove one that was already on screen.
+  cards: (uids: readonly string[]) => ["saved-cards", [...uids].sort().join(",")] as const,
 };
 
 /** Newest-saved first: the order the list is read in, decided by Postgres. */
@@ -93,14 +98,19 @@ export function useToggleSaved(userId: string | undefined) {
  * from the hook so the chunking can be tested without a QueryClient.
  */
 export async function fetchEventsByUid(uids: string[]): Promise<EventCard[]> {
-  const cards: EventCard[] = [];
+  const chunks: string[][] = [];
   for (let i = 0; i < uids.length; i += LOOKUP_CHUNK) {
-    const chunk = uids.slice(i, i + LOOKUP_CHUNK);
-    const response = await apiFetch(`/api/events?uids=${chunk.map(encodeURIComponent).join(",")}`);
-    const body = (await response.json()) as EventsResult;
-    cards.push(...body.events);
+    chunks.push(uids.slice(i, i + LOOKUP_CHUNK));
   }
-  return cards;
+  // In parallel: 150 saved events are three requests, and serial round trips
+  // would triple the wait for nothing — the page re-sorts by date anyway.
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const response = await apiFetch(`/api/events?uids=${chunk.map(encodeURIComponent).join(",")}`);
+      return ((await response.json()) as EventsResult).events;
+    }),
+  );
+  return results.flat();
 }
 
 export function useSavedCards(uids: string[] | undefined) {

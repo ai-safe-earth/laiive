@@ -316,6 +316,81 @@ class TestRequestValidation:
         assert "event: done" in response.text
 
 
+class TestEntityLookup:
+    """/venues and /artists: lookups for a picker (the pro form, the org
+    screen), not a search — and the first non-Event read paths."""
+
+    def test_venues_by_fragment_with_the_city_scope_intact(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {
+                    "uid": "v1",
+                    "name": "Razzmatazz",
+                    "venue_type": "club",
+                    "address": "Carrer dels Almogavers 122",
+                    "city": "Barcelona",
+                }
+            ]
+            response = client.get("/venues?q=razz&city=Barcelona")
+        assert response.status_code == 200
+        assert response.json()["venues"][0]["uid"] == "v1"
+        cypher, params = neo4j.execute_read_once.call_args[0]
+        assert params == {"q_norm": "razz", "city_norm": "barcelona"}
+        assert "c.name_norm = $city_norm" in cypher
+
+    def test_a_one_character_fragment_is_refused_before_the_graph(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            response = client.get("/venues?q=r")
+        assert response.status_code == 400
+        neo4j.execute_read_once.assert_not_called()
+
+    def test_a_row_without_a_uid_is_dropped_not_returned(self, client):
+        """A hit the client cannot reference is not a hit."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {
+                    "uid": None,
+                    "name": "Old Seed",
+                    "venue_type": None,
+                    "address": None,
+                    "city": "Berlin",
+                },
+            ]
+            response = client.get("/venues?q=old")
+        assert response.json()["venues"] == []
+
+    def test_a_driver_failure_is_a_502(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.side_effect = Exception("paused")
+            assert client.get("/venues?q=razz").status_code == 502
+
+    def test_lookups_take_the_unretried_read_path(self, client):
+        """The retry ladder is for answers worth waiting on; a typeahead
+        fragment is not one — the next keystroke is the retry."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            client.get("/venues?q=razz")
+            client.get("/artists?q=ana")
+        neo4j.execute_read.assert_not_called()
+
+    def test_artists_by_fragment_carry_their_genres(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {"uid": "a1", "name": "Ana Beck Quartet", "genres": ["Jazz"]},
+            ]
+            response = client.get("/artists?q=ana")
+        assert response.status_code == 200
+        assert response.json()["artists"][0]["genres"] == ["Jazz"]
+
+    def test_lookups_never_build_the_pipeline(self, client):
+        api_module._pipeline = None
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            client.get("/venues?q=razz")
+            client.get("/artists?q=ana")
+        assert api_module._pipeline is None
+
+
 class TestEventsByUid:
     """The saved list's read path: uids in, fresh cards out."""
 

@@ -11,9 +11,9 @@ import { useTranslation } from "@/i18n/useTranslation";
  * screen said what the four steps were. This is the deliberate exception, and
  * it is one panel, dismissible for good.
  *
- * The animation itself is a Claude Design piece and is not here yet; the frame
- * below is sized for it and holds its place, so landing it later changes this
- * component's contents and nothing else on the page.
+ * The walkthrough video ships from /public and plays silently on loop: it is
+ * illustration, so it is aria-hidden and the numbered steps below stay the
+ * accessible account of the same four moves.
  */
 const STORAGE_KEY = "laiive-pro-onboarding-seen";
 
@@ -24,6 +24,20 @@ function seen(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Three-quarter speed: at 1x the cut outruns a first-time reader. */
+const SPEED = 0.75;
+
+/**
+ * Both rates, and a stable function so React sets them once. The media load
+ * algorithm resets `playbackRate` to `defaultPlaybackRate`, so setting only
+ * the former would snap back to 1x the moment the source finished loading.
+ */
+function setSpeed(node: HTMLVideoElement | null): void {
+  if (!node) return;
+  node.defaultPlaybackRate = SPEED;
+  node.playbackRate = SPEED;
 }
 
 function remember(): void {
@@ -43,24 +57,20 @@ export function ProOnboarding() {
   if (!open) return null;
 
   return (
-    <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-bg-card px-5 py-[18px]">
-      {/* One control, and it says what it does. A close X beside it would
-          read as "hide for now" while quietly meaning "never again", and
-          two buttons would carry the same accessible name. */}
-      <h2 className="font-bebas text-[21px] leading-none tracking-[0.05em] text-pro-fg">
-        {t.pro.onboardingTitle}
-      </h2>
-
-      {/* Placeholder for the walkthrough animation. Its aspect ratio is the
-          contract with the artwork; everything else here is scaffolding. */}
-      <div
+    <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-card px-5 py-[18px]">
+      {/* No heading: the video opens the panel and shows what this is faster
+          than a line of copy naming it. The numbered steps under it carry the
+          same account for anyone who cannot see the video. */}
+      <video
+        ref={setSpeed}
         aria-hidden="true"
-        className="flex aspect-[16/9] w-full items-center justify-center rounded-[14px] border border-dashed border-pro-border bg-pro-bg"
-      >
-        <span className="font-mono text-[10px] uppercase tracking-[0.11em] text-pro-dim">
-          {t.pro.onboardingPending}
-        </span>
-      </div>
+        className="aspect-[16/9] w-full rounded-[14px] border border-pro-border bg-pro-bg object-cover"
+        src="/pro-walkthrough.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+      />
 
       <ol className="flex flex-col gap-1.5">
         {t.pro.onboardingSteps.map((step, index) => (

@@ -186,12 +186,17 @@ class TestSteeringTheSweep:
     def test_a_fresh_database_sweeps_exactly_as_before(self, mock_learning_http):
         """Nothing learned yet is the normal first-run state, and it must not
         change what the sweep does."""
-        assert discovery.plan_queries()[:4] == discovery.QUERY_TEMPLATES[:4]
+        templates, trial = discovery.plan_queries()
+        assert templates[:4] == discovery.QUERY_TEMPLATES[:4]
+        # The fifth file template now arrives through the trial slot, so a
+        # fresh store still runs all five phrasings the file promises.
+        assert trial == discovery.QUERY_TEMPLATES[4]
 
     def test_one_slot_is_always_a_trial(self, mock_learning_http):
-        planned = discovery.plan_queries()
+        planned, trial = discovery.plan_queries()
         assert len(planned) == 5
-        assert planned[-1] in discovery.TRIAL_TEMPLATES
+        assert planned[-1] == trial
+        assert trial in discovery.TRIAL_TEMPLATES
 
     def test_known_empty_domains_are_excluded_from_every_query(
         self, mock_learning_http, mock_tavily
@@ -309,7 +314,7 @@ class TestSeedSources:
     ):
         """The point of vouching: the ranking otherwise has to find a good site
         by accident before it can prefer it."""
-        include, _ = learning.domain_filters()
+        include, _ = learning.domain_filters("Bergamo")
         assert "drusobg.it" in include
         assert "dastebergamo.com" in include
         assert "ecodibergamo.it" in include
@@ -415,3 +420,43 @@ class TestVouchedAgendas:
         assert tavily.extract_credits(5) == 1
         assert tavily.extract_credits(6) == 2
         assert tavily.extract_credits(6, "advanced") == 4
+
+
+class TestTrialSlotIntegrity:
+    def test_a_promoted_phrasing_leaves_the_trial_pool(self, mock_learning_http):
+        """Standing already earns a slot; keeping it trial-eligible ran the
+        identical query twice in one sweep and double-counted its runs."""
+        store(
+            mock_learning_http,
+            queries=[
+                {"template": "a", "status": "standing", "runs": 1},
+                {"template": "b", "status": "candidate", "runs": 5},
+            ],
+        )
+        assert learning.select_trial(["a", "b"]) == "b"
+
+    def test_all_promoted_or_retired_means_no_trial(self, mock_learning_http):
+        store(
+            mock_learning_http,
+            queries=[
+                {"template": "a", "status": "standing", "runs": 1},
+                {"template": "b", "status": "retired", "runs": 9},
+            ],
+        )
+        assert learning.select_trial(["a", "b"]) is None
+
+
+class TestSeedsAreLocal:
+    def test_another_citys_seeds_do_not_narrow_this_sweep(self, mock_learning_http):
+        """All three seeds are Bergamo's. Prepending them for every city made
+        the first-slot focus fire everywhere, so Torino's best query ran
+        restricted to Bergamo-only sites — a guaranteed zero that then counted
+        against the phrasing's yield."""
+        include, _ = learning.domain_filters("Torino")
+        assert include == []
+
+    def test_a_citys_own_seeds_still_hold_from_the_first_sweep(
+        self, mock_learning_http
+    ):
+        include, _ = learning.domain_filters("Bergamo")
+        assert include[:3] == ["drusobg.it", "dastebergamo.com", "ecodibergamo.it"]

@@ -14,6 +14,10 @@ TS_SOURCE = (Path(__file__).parent.parent / "ts" / "protocol.ts").read_text(
 MIRRORED_MODELS = [
     cards.EventCard,
     cards.EventDraft,
+    cards.VenueHit,
+    cards.VenueLookupResult,
+    cards.ArtistHit,
+    cards.ArtistLookupResult,
     protocol.MessageDelta,
     protocol.EventsResult,
     protocol.FormExtracted,

@@ -20,6 +20,9 @@ repos:
         # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
         exclude: "tsconfig.*\\.json$|\\.vscode/"
       - id: check-added-large-files
+        # The pro walkthrough video is product media the SPA serves; it is the
+        # one deliberate exception to the 500 KB ceiling.
+        exclude: "^frontend/public/pro-walkthrough\\.mp4$"
       - id: end-of-file-fixer
         exclude: "^frontend/(dist|public)/|\\.svg$"
       - id: trailing-whitespace

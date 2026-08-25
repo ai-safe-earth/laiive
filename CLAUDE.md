@@ -80,7 +80,12 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
   a release PR from `develop`, and is protected (PR required, every check green, no force-push).
   Merge commits, never squash — the commit bodies are the reasoning.
   Shipping: release PR → `make release` (`cz bump` tags and writes `CHANGELOG.md`) → deploy →
-  merge `main` back into `develop` so the tag is not stranded.
+  merge `main` back into `develop` so the tag is not stranded — **locally**, never as a PR with
+  `main` as the head branch: `git fetch origin && git checkout develop && git pull --ff-only
+  origin develop && git merge origin/main && git push origin develop`. The repo deletes head
+  branches on merge, and the owner's role bypasses the "main is production" ruleset, so merging
+  that PR deletes production's branch: PR #66 did exactly that on 2026-08-23 and it went
+  unnoticed for two days.
   Two branches are archives, never build on them: `legacy/pre-refactor` (the pre-refactor tree,
   also tag `pre-refactor-main`) and `experiment/k3s` (the withdrawn D19 detour).
 - Two GitHub remotes — `origin` → `ai-safe-earth/laiive` (canonical, PRs here), `laiive` →

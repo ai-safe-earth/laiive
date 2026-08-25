@@ -6,16 +6,34 @@ import { cn } from "@/lib/cn";
  * filled accent carries `#0C0A0A` ink — white on fuchsia or amber is 3.45:1
  * and fails below 18px.
  */
-type Variant = "primary" | "amber" | "cream" | "neutral" | "ghost" | "pro";
+type Variant =
+  | "primary"
+  | "cream"
+  | "neutral"
+  | "ghost"
+  | "pro"
+  | "cyan"
+  | "neutralOutline"
+  | "proNeutralOutline"
+  | "proNeutral";
 type Size = "default" | "icon" | "sm";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-  amber: "bg-secondary text-secondary-foreground hover:bg-secondary/90",
   cream: "bg-foreground text-background hover:bg-foreground/90",
   neutral: "border border-field-border bg-control text-muted-foreground hover:text-foreground",
   ghost: "text-ink-dim hover:text-foreground",
   pro: "border border-pro-accent/45 bg-pro-accent/10 text-pro-accent hover:bg-pro-accent/20",
+  cyan: "bg-pro-accent text-background hover:bg-pro-accent/90",
+  // The composer mics: warm-neutral outline, one per surface's palette. The
+  // accent belongs to the send pill alone.
+  neutralOutline:
+    "border-[1.5px] border-field-border bg-transparent text-muted-foreground hover:text-foreground",
+  // Pro fills its controls instead: the promoter ground carries the
+  // watermark, and an unfilled pill on it reads as a hole, not a button.
+  proNeutralOutline:
+    "border-[1.5px] border-pro-border bg-pro-control text-pro-muted hover:text-pro-fg",
+  proNeutral: "border border-pro-border bg-pro-control text-pro-muted hover:text-pro-fg",
 };
 
 /** 44px floor on every target, including the icon buttons. */

@@ -1,8 +1,10 @@
 import type { EventCard } from "@shared/protocol";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { EventCardView } from "./EventCardView";
+import { claimTarget } from "@/auth/claimTarget";
 import { LanguageProvider } from "@/i18n/useTranslation";
 
 /** The Bergamo gig that started this: 22:00 at the door, 20:00 UTC. */
@@ -18,11 +20,14 @@ const BERGAMO: EventCard = {
   source: "pro_submission",
 };
 
-function renderCard(card: EventCard) {
+function renderCard(card: EventCard, claimTo = "/auth?kind=pro") {
+  // The claim invitation is a router link, so every render needs a router.
   return render(
-    <LanguageProvider>
-      <EventCardView card={card} language="en" />
-    </LanguageProvider>,
+    <MemoryRouter>
+      <LanguageProvider>
+        <EventCardView card={card} language="en" claimTo={claimTo} />
+      </LanguageProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -90,11 +95,24 @@ describe("where a card says it came from", () => {
     expect(link.getAttribute("rel")).toContain("noopener");
   });
 
-  it("invites the promoter to take the listing over", async () => {
+  it("invites the promoter to take the listing over, and the invitation is a door", async () => {
     const user = userEvent.setup();
     renderCard(WEB);
     await user.click(screen.getByRole("button", { name: /where did this come from/i }));
-    expect(screen.getByText(/promoter account/i)).toBeTruthy();
+    const claim = screen.getByRole("link", { name: /promoter account/i });
+    // Signed out (no claimTo passed): the promoter sign-up is the default.
+    expect(claim.getAttribute("href")).toBe("/auth?kind=pro");
+    // The mark's red, on the call to action itself.
+    expect(claim.className).toContain("text-mark-unverified");
+  });
+
+  it("points the invitation where the page says the reader belongs", async () => {
+    const user = userEvent.setup();
+    renderCard(WEB, "/pro");
+    await user.click(screen.getByRole("button", { name: /where did this come from/i }));
+    expect(screen.getByRole("link", { name: /promoter account/i }).getAttribute("href")).toBe(
+      "/pro",
+    );
   });
 
   it("marks a promoter submission as confirmed instead", async () => {
@@ -110,14 +128,30 @@ describe("where a card says it came from", () => {
     const user = userEvent.setup();
     renderCard({ ...WEB, source_url: null, source_domain: null });
     await user.click(screen.getByRole("button", { name: /where did this come from/i }));
-    expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText(/promoter account/i)).toBeTruthy();
+    // No source link, since the page was never recorded. The claim door stays.
+    expect(screen.queryByRole("link", { name: /ecodibergamo|original listing/i })).toBeNull();
+    expect(screen.getByRole("link", { name: /promoter account/i })).toBeTruthy();
   });
 
   it("gives a seed row neither mark", () => {
     renderCard({ ...BERGAMO, source: "seed" });
     expect(screen.queryByRole("button", { name: /where did this come from/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /who confirmed this/i })).toBeNull();
+  });
+});
+
+describe("where the claim invitation points", () => {
+  it("sends a signed-out reader to the promoter sign-up", () => {
+    expect(claimTarget(false, null)).toBe("/auth?kind=pro");
+  });
+
+  it("sends a signed-in reader to the account screen that grants the role", () => {
+    expect(claimTarget(true, "user")).toBe("/account");
+  });
+
+  it("sends a promoter to their own surface", () => {
+    expect(claimTarget(true, "pro")).toBe("/pro");
+    expect(claimTarget(true, "admin")).toBe("/pro");
   });
 });
 
@@ -133,9 +167,16 @@ describe("saving a card", () => {
     const user = userEvent.setup();
     const onToggleSave = vi.fn();
     render(
-      <LanguageProvider>
-        <EventCardView card={BERGAMO} language="en" onToggleSave={onToggleSave} />
-      </LanguageProvider>,
+      <MemoryRouter>
+        <LanguageProvider>
+          <EventCardView
+            card={BERGAMO}
+            language="en"
+            claimTo="/auth?kind=pro"
+            onToggleSave={onToggleSave}
+          />
+        </LanguageProvider>
+      </MemoryRouter>,
     );
 
     await user.click(screen.getByRole("button", { name: /^save$/i }));
@@ -146,9 +187,17 @@ describe("saving a card", () => {
     const user = userEvent.setup();
     const onToggleSave = vi.fn();
     render(
-      <LanguageProvider>
-        <EventCardView card={BERGAMO} language="en" saved onToggleSave={onToggleSave} />
-      </LanguageProvider>,
+      <MemoryRouter>
+        <LanguageProvider>
+          <EventCardView
+            card={BERGAMO}
+            language="en"
+            claimTo="/auth?kind=pro"
+            saved
+            onToggleSave={onToggleSave}
+          />
+        </LanguageProvider>
+      </MemoryRouter>,
     );
 
     const pill = screen.getByRole("button", { name: /^saved$/i, pressed: true });

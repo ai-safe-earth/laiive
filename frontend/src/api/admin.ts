@@ -6,11 +6,12 @@
  * of it. The gateway's `/api/admin/search/*` prefix is already gated on
  * `requireRole("admin")`, which is why none of this needs a new route.
  *
- * Note the gateway rate limit is 60 requests a minute per user across every
- * `/api/*` path, with no admin exemption — so these queries are deliberately
- * not on a refetch interval, and the report list is not re-fetched to render a
- * detail page.
+ * Note the gateway rate limit applies per user across every `/api/*` path
+ * (admins get a higher cap, not an exemption) — so these queries are
+ * deliberately not on a refetch interval, and the report list is not
+ * re-fetched to render a detail page.
  */
+import type { EventDraft } from "@shared/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 
@@ -37,16 +38,13 @@ export interface ReportSummary {
 }
 
 export interface Candidate {
-  draft: {
-    name?: string | null;
-    artists?: string[];
-    start_at?: string | null;
-    venue?: string | null;
-    city?: string | null;
-    price_min?: number | null;
-    price_currency?: string | null;
-    genre?: string | null;
-  };
+  /**
+   * The full protocol draft, not a subset: the search service serializes
+   * `EventDraft.model_dump()` and approve rehydrates the same model, so a
+   * hand-copied field list here only hides data the reviewer needs (it hid
+   * address, description and ticket_url until it did exactly that).
+   */
+  draft: Partial<EventDraft>;
   source_url: string;
   missing: string[];
   dedup_status: "new" | "exists" | "similar";
@@ -71,10 +69,102 @@ export interface WriteResult {
   warnings: string[];
 }
 
+export interface SchedulerDeployment {
+  name: string;
+  status: string;
+  cron: string | null;
+  next_run: string | null;
+  last_run_state: string | null;
+  last_run_at: string | null;
+}
+
+/** The one-call dashboard payload — GET /api/admin/search/stats. */
+export interface SearchStats {
+  generated_at: string;
+  window: number;
+  reports: {
+    by_status: Record<string, number>;
+    backlog: { count: number; candidates: number; oldest_created_at: string | null };
+    recent: {
+      id: string;
+      city: string | null;
+      kind: string;
+      status: string;
+      created_at: string;
+      approved_at: string | null;
+      stats: Record<string, unknown>;
+      write_summary: Record<string, number>;
+    }[];
+  };
+  credits: {
+    month_to_date: number;
+    budget: number;
+    projected_month_end: number;
+    by_week: { week: string; credits: number }[];
+  };
+  sources: {
+    counts_by_status: Record<string, number>;
+    top: {
+      domain: string;
+      status: string;
+      pages: number;
+      yield: number;
+      candidates_new: number;
+      events_written: number;
+    }[];
+  };
+  queries: {
+    standing: { template: string; runs: number; candidates_new: number }[];
+    trial: { template: string; runs: number; candidates_new: number }[];
+    retired_count: number;
+  };
+  graph: {
+    error?: string;
+    events?: number;
+    venues?: number;
+    artists?: number;
+    events_last_30d?: { day: string; count: number }[];
+    quality?: {
+      start_time_known_pct: number | null;
+      price_known_pct: number | null;
+    };
+  };
+  scheduler: {
+    configured: boolean;
+    alive: boolean;
+    /** Why alive is false — the banner must not claim "nothing is polling"
+     *  for a Prefect blip or an empty workspace. */
+    reason?:
+      | "unconfigured"
+      | "unreachable"
+      | "no_deployments"
+      | "stale_runs"
+      | "not_ready"
+      | null;
+    error?: string;
+    stale_runs?: number;
+    deployments: SchedulerDeployment[];
+  };
+}
+
 export const adminKeys = {
   reports: (status: string) => ["admin", "reports", status] as const,
   report: (id: string) => ["admin", "report", id] as const,
+  stats: ["admin", "stats"] as const,
 };
+
+export function useStats() {
+  return useQuery({
+    queryKey: adminKeys.stats,
+    // One call answers the whole dashboard; a minute of staleness is nothing
+    // for numbers that move once a sweep.
+    staleTime: 60_000,
+    queryFn: async (): Promise<SearchStats> => {
+      const response = await apiFetch(`${BASE}/stats`);
+      return (await response.json()) as SearchStats;
+    },
+  });
+}
 
 export function useReports(status: string) {
   return useQuery({

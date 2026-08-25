@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     # Shared with the gateway; empty disables the check (see internal_auth.py).
     internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
+    # Read-only Prefect Cloud access for the admin dashboard's scheduler
+    # panel. Unset leaves the panel saying "not configured" — the key stays
+    # server-side, per the standing decision that Prefect stays out of the
+    # browser.
+    prefect_api_url: str = Field("", alias="PREFECT_API_URL")
+    prefect_api_key: str = Field("", alias="PREFECT_API_KEY")
+
 
 try:
     settings = Settings()

@@ -34,6 +34,8 @@ RETURN e.uid AS uid, e.name AS name, e.description AS description,
        e.ticket_url AS ticket_url, e.source AS source,
        e.source_url AS source_url, e.source_domain AS source_domain,
        v.name AS venue, v.venue_type AS venue_type, c.name AS city,
+       v.uid AS venue_uid, v.address AS venue_address,
+       coalesce(e.claim_verified, false) AS claimed,
        v.location.latitude AS lat, v.location.longitude AS lng,
        v.geocode_precision AS geocode_precision,
        collect(DISTINCT art.name) AS artists{extra_return}
@@ -278,6 +280,47 @@ def build_vector_query(c: Constraints) -> tuple[str, dict]:
     return cypher, params
 
 
+# Lookup answers are for a picker, not a listing: ten is a dropdown, and a
+# fragment matching more than ten means "keep typing", not "page through".
+ENTITY_LOOKUP_LIMIT = 10
+
+
+def build_venue_search(q: str, city: str | None) -> tuple[str, dict]:
+    """Venues whose normalized name contains the typed fragment.
+
+    CONTAINS over `venue_name_norm` is a scan, which is fine at venue counts —
+    a venue base large enough to hurt here earns a full-text index first.
+    Prefix matches sort ahead so "raz" puts Razzmatazz above Sala Razzmatazz 1.
+    """
+    cypher = (
+        "MATCH (v:Venue)-[:LOCATED_IN]->(c:City)\n"
+        "WHERE v.name_norm CONTAINS $q_norm\n"
+        + ("AND c.name_norm = $city_norm\n" if city else "")
+        + "RETURN v.uid AS uid, v.name AS name, v.venue_type AS venue_type,\n"
+        "       v.address AS address, c.name AS city\n"
+        "ORDER BY v.name_norm STARTS WITH $q_norm DESC, v.name\n"
+        f"LIMIT {ENTITY_LOOKUP_LIMIT}"
+    )
+    params: dict = {"q_norm": norm(q)}
+    if city:
+        params["city_norm"] = norm(city)
+    return cypher, params
+
+
+def build_artist_search(q: str) -> tuple[str, dict]:
+    """Artists whose normalized name contains the typed fragment."""
+    cypher = (
+        "MATCH (a:Artist)\n"
+        "WHERE a.name_norm CONTAINS $q_norm\n"
+        "OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)\n"
+        "RETURN a.uid AS uid, a.name AS name,\n"
+        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres\n"
+        "ORDER BY a.name_norm STARTS WITH $q_norm DESC, a.name\n"
+        f"LIMIT {ENTITY_LOOKUP_LIMIT}"
+    )
+    return cypher, {"q_norm": norm(q)}
+
+
 # A saved list is fetched by uid in one call. The cap is protocol, not tuning:
 # it bounds the query string the gateway forwards and the rows one request can
 # pull. Anything longer is the client's to page through.
@@ -322,6 +365,8 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 name=row.get("name") or "",
                 artists=[a for a in (row.get("artists") or []) if a],
                 venue=row.get("venue"),
+                venue_uid=row.get("venue_uid"),
+                venue_address=row.get("venue_address"),
                 venue_type=row.get("venue_type"),
                 city=row.get("city"),
                 start_at=row.get("start_at"),
@@ -338,6 +383,7 @@ def rows_to_cards(rows: list[dict]) -> list[EventCard]:
                 source=row.get("source") or "unknown",
                 source_url=row.get("source_url"),
                 source_domain=row.get("source_domain"),
+                claimed=bool(row.get("claimed")),
                 distance_km=round(distance_m / 1000, 2)
                 if distance_m is not None
                 else None,

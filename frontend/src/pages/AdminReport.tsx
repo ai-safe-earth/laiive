@@ -73,13 +73,24 @@ function CandidateRow({
         {draft.artists && draft.artists.length > 0 && (
           <div className="text-[12px] text-pro-dim">{draft.artists.join(", ")}</div>
         )}
+        {/* The page swore this data was invisible for a while: the payload is
+            the full protocol draft, but a hand-copied type hid everything
+            below. A reviewer approving an event needs to see what was read. */}
+        {draft.description && (
+          <div className="max-w-md truncate pt-1 text-[11.5px] text-pro-dim" title={draft.description}>
+            {draft.description}
+          </div>
+        )}
         {doomed && (
           <div className="pt-1 text-[11.5px] text-status-rejected">
             {A.report.willBeRefused}
           </div>
         )}
       </td>
-      <td className="py-3 pr-3 text-[12.5px] text-pro-muted">{draft.venue || "—"}</td>
+      <td className="py-3 pr-3 text-[12.5px] text-pro-muted">
+        {draft.venue || "—"}
+        {draft.address && <div className="text-[11.5px] text-pro-dim">{draft.address}</div>}
+      </td>
       <td className="py-3 pr-3 text-[12.5px] tabular-nums text-pro-muted">
         {startsAt(draft.start_at)}
       </td>
@@ -95,6 +106,18 @@ function CandidateRow({
           </a>
         ) : (
           <span className="text-pro-dim">—</span>
+        )}
+        {draft.ticket_url && (
+          <div>
+            <a
+              href={draft.ticket_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-[11.5px] text-pro-dim underline underline-offset-2 hover:text-pro-accent"
+            >
+              tickets
+            </a>
+          </div>
         )}
       </td>
       <td className="py-3 pr-4">
@@ -153,7 +176,11 @@ export default function AdminReport() {
   };
 
   const onDismiss = async () => {
-    const note = window.prompt(A.report.dismissPrompt) ?? "";
+    const note = window.prompt(A.report.dismissPrompt);
+    // Cancel/Esc returns null; an empty note is "" and still a decision. The
+    // transition is one-way (dry_run -> dismissed, no undo endpoint), so a
+    // backed-out prompt must not dismiss anything.
+    if (note === null) return;
     try {
       await dismiss.mutateAsync(note);
       toast.success(A.status.dismissed);
