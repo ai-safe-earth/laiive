@@ -237,8 +237,8 @@ def record_writes(domains: list[str]) -> None:
         logger.warning(f"Could not record writes by source: {e}")
 
 
-def domain_filters(limit: int = 50) -> tuple[list[str], list[str]]:
-    """(include, exclude) for the next Tavily call.
+def domain_filters(city: str, limit: int = 50) -> tuple[list[str], list[str]]:
+    """(include, exclude) for the next Tavily call, for this city's sweep.
 
     Include is deliberately capped and never used alone — the caller keeps
     unrestricted slots, or the list ossifies around whatever it found first.
@@ -264,8 +264,15 @@ def domain_filters(limit: int = 50) -> tuple[list[str], list[str]]:
     exclude = [r["domain"] for r in rows if r.get("status") == "blocked"]
     # The seeds hold from the first sweep, before anything has been recorded --
     # which is the whole point of vouching for them. Ordered first so a capped
-    # include list never drops them.
-    include = list(SEED_SOURCES) + [d for d in include if not _seeded(d)]
+    # include list never drops them. But only THIS city's seeds: every seed is
+    # vouched for somewhere, and prepending all of them made the first-slot
+    # focus guard fire for every city, so Torino's best-earning query ran
+    # restricted to Bergamo-only sites — a guaranteed zero that then counted
+    # against the phrasing's yield.
+    local_seeds = [
+        d for d, seed in SEED_SOURCES.items() if city in seed.get("cities", [])
+    ]
+    include = local_seeds + [d for d in include if not _seeded(d)]
     exclude = [d for d in exclude if not _seeded(d)]
     return include, exclude
 
@@ -386,7 +393,16 @@ def select_trial(candidates: list[str]) -> str | None:
     except Exception as e:
         logger.warning(f"Could not read query pool: {e}")
         return candidates[0]
-    live = [c for c in candidates if (rows.get(c) or {}).get("status") != "retired"]
+    # Not retired — that phrasing lost its probation — and not standing
+    # either: a promoted phrasing already earns a standing slot, and keeping
+    # it eligible here ran the identical query twice in one sweep (the second
+    # call's results all fell to seen_urls, so it was a credit spent on
+    # nothing) and double-counted its runs against its yield.
+    live = [
+        c
+        for c in candidates
+        if (rows.get(c) or {}).get("status") not in ("retired", "standing")
+    ]
     if not live:
         return None
     return min(live, key=lambda c: int((rows.get(c) or {}).get("runs") or 0))

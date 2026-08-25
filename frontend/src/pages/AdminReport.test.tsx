@@ -123,3 +123,67 @@ describe("the report screen", () => {
     expect(screen.queryByRole("button", { name: /dismiss report/i })).toBeNull();
   });
 });
+
+describe("dismissing a report", () => {
+  it("does nothing when the note prompt is cancelled", async () => {
+    // Cancel returns null. Dismissing is one-way (dry_run -> dismissed, no
+    // undo), so a backed-out prompt must not move the report.
+    const user = userEvent.setup();
+    vi.spyOn(window, "prompt").mockReturnValue(null);
+    renderReport();
+    await screen.findByText("BobSin");
+
+    await user.click(screen.getByRole("button", { name: /dismiss report/i }));
+
+    expect(api.fetch.mock.calls.find(([path]) => String(path).includes("/dismiss"))).toBeUndefined();
+  });
+
+  it("dismisses with an empty note when the prompt is confirmed empty", async () => {
+    // "" is a decision; null is a retreat. The two must not be conflated.
+    const user = userEvent.setup();
+    vi.spyOn(window, "prompt").mockReturnValue("");
+    api.fetch.mockResolvedValue({ json: async () => REPORT });
+    renderReport();
+    await screen.findByText("BobSin");
+
+    await user.click(screen.getByRole("button", { name: /dismiss report/i }));
+
+    await waitFor(() => {
+      expect(api.fetch.mock.calls.find(([path]) => String(path).includes("/dismiss"))).toBeTruthy();
+    });
+  });
+});
+
+describe("what a candidate row shows", () => {
+  it("renders the description, address and ticket link the payload carries", async () => {
+    // These fields were in the payload all along; a hand-copied Candidate
+    // type hid them from the screen that decides what enters the graph.
+    api.fetch.mockResolvedValue({
+      json: async () => ({
+        ...REPORT,
+        candidates: [
+          {
+            draft: {
+              name: "BobSin",
+              venue: "Druso",
+              address: "Via Galimberti 15",
+              description: "Post-punk night with two openers",
+              ticket_url: "https://dice.fm/event/bobsin",
+              start_at: "2026-09-04T21:00:00+02:00",
+            },
+            source_url: "https://www.drusobg.it/",
+            missing: [],
+            dedup_status: "new",
+          },
+        ],
+      }),
+    });
+    renderReport();
+
+    expect(await screen.findByText("Via Galimberti 15")).toBeTruthy();
+    expect(screen.getByText("Post-punk night with two openers")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "tickets" }).getAttribute("href")).toBe(
+      "https://dice.fm/event/bobsin",
+    );
+  });
+});
