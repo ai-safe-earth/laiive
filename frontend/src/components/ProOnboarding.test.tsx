@@ -19,13 +19,17 @@ describe("the promoter walkthrough", () => {
   it("shows on a first visit", () => {
     // setup.ts clears storage between tests, so this is a fresh promoter.
     renderPanel();
-    expect(screen.getByText(en.pro.onboardingTitle)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: en.pro.onboardingDismiss }),
+    ).toBeInTheDocument();
   });
 
   it("paints its own panel ground", () => {
     // bg-pro-bg-card was never a generated class; the panel sat transparent.
     renderPanel();
-    const section = screen.getByText(en.pro.onboardingTitle).closest("section");
+    const section = screen
+      .getByRole("button", { name: en.pro.onboardingDismiss })
+      .closest("section");
     expect(section?.className).toContain("bg-pro-card");
   });
 
@@ -43,12 +47,16 @@ describe("the promoter walkthrough", () => {
     const { unmount } = renderPanel();
 
     await user.click(screen.getByRole("button", { name: en.pro.onboardingDismiss }));
-    expect(screen.queryByText(en.pro.onboardingTitle)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: en.pro.onboardingDismiss }),
+    ).not.toBeInTheDocument();
 
     // The point of the flag: a reload must not bring it back.
     unmount();
     renderPanel();
-    expect(screen.queryByText(en.pro.onboardingTitle)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: en.pro.onboardingDismiss }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows anyway when storage refuses to answer", async () => {
@@ -63,7 +71,9 @@ describe("the promoter walkthrough", () => {
     };
     try {
       renderPanel();
-      expect(screen.getByText(en.pro.onboardingTitle)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: en.pro.onboardingDismiss }),
+      ).toBeInTheDocument();
     } finally {
       Storage.prototype.getItem = original;
     }

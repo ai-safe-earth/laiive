@@ -50,6 +50,10 @@
     --pro-bg-card: 10 14% 9%;       /* #191413 */
     --pro-bg-elevated: 10 12% 10%;  /* #1C1716 */
     --pro-border: 10 13% 18%;       /* #332927 */
+    /* The composer's own ground: field and round controls. Transparent
+       controls disappeared into the page — on the promoter side the ground
+       carries the watermark, so an unfilled pill reads as a hole in it. */
+    --pro-control: 10 10% 14%;      /* #282220  pro composer field + controls */
     --pro-fg: 17 21% 94%;           /* #F2EDEB */
     --pro-muted: 13 9% 60%;         /* #A2938F */
     --pro-dim: 13 7% 51%;           /* #8B7D79 */

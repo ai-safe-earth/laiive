@@ -42,9 +42,11 @@ describe("the mic's outline variants", () => {
   });
 
   it("outlines pro-neutral for the pro composer, no accent", () => {
+    // Filled on this surface, unlike the consumer mic: the promoter ground
+    // carries the watermark, and a transparent pill reads as a hole in it.
     const mic = renderMic("proNeutralOutline");
     expect(mic.className).toContain("border-pro-border");
-    expect(mic.className).toContain("bg-transparent");
+    expect(mic.className).toContain("bg-pro-control");
     expect(mic.className).not.toContain("border-pro-accent");
   });
 

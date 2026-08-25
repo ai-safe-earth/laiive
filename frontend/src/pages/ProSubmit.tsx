@@ -351,7 +351,7 @@ export default function ProSubmit() {
                 }}
               />
               <Button
-                variant="neutral"
+                variant="proNeutral"
                 size="icon"
                 onClick={() => fileInput.current?.click()}
                 disabled={busy}

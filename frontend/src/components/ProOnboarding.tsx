@@ -58,13 +58,9 @@ export function ProOnboarding() {
 
   return (
     <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-card px-5 py-[18px]">
-      {/* One control, and it says what it does. A close X beside it would
-          read as "hide for now" while quietly meaning "never again", and
-          two buttons would carry the same accessible name. */}
-      <h2 className="font-bebas text-[21px] leading-none tracking-[0.05em] text-pro-fg">
-        {t.pro.onboardingTitle}
-      </h2>
-
+      {/* No heading: the video opens the panel and shows what this is faster
+          than a line of copy naming it. The numbered steps under it carry the
+          same account for anyone who cannot see the video. */}
       <video
         ref={setSpeed}
         aria-hidden="true"
