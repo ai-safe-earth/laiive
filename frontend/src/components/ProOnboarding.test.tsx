@@ -22,6 +22,13 @@ describe("the promoter walkthrough", () => {
     expect(screen.getByText(en.pro.onboardingTitle)).toBeInTheDocument();
   });
 
+  it("paints its own panel ground", () => {
+    // bg-pro-bg-card was never a generated class; the panel sat transparent.
+    renderPanel();
+    const section = screen.getByText(en.pro.onboardingTitle).closest("section");
+    expect(section?.className).toContain("bg-pro-card");
+  });
+
   it("stays gone after it is dismissed", async () => {
     const user = userEvent.setup();
     const { unmount } = renderPanel();

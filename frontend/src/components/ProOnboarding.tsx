@@ -43,7 +43,7 @@ export function ProOnboarding() {
   if (!open) return null;
 
   return (
-    <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-bg-card px-5 py-[18px]">
+    <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-card px-5 py-[18px]">
       {/* One control, and it says what it does. A close X beside it would
           read as "hide for now" while quietly meaning "never again", and
           two buttons would carry the same accessible name. */}
