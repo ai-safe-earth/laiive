@@ -21,9 +21,10 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 - The entire chrome inventory: bare mark + `LAIIVE` top-left; saved then
   account icon top-right (icons only, no labels); the composer, placeholder
   `ask`.
-- **The composer, both surfaces**: outlined accent mic on the left, pill field
-  in the middle, filled accent send on the right — fuchsia on the consumer
-  side, cyan on pro, dark ink on every filled accent. While a reply streams the
+- **The composer, both surfaces**: warm-neutral outlined mic on the left, pill
+  field in the middle, filled accent send on the right — fuchsia on the
+  consumer side, cyan on pro, dark ink on every filled accent. The accent
+  belongs to the send alone; the mic never wears it. While a reply streams the
   send slot is stop. Voice is the mic itself; there is no `+`. Attach exists on
   pro only, warm-neutral, left of the mic.
 - Filters, city, date and price are **said**, not selected. An understood
@@ -39,9 +40,9 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 
 | Colour | Means | Never |
 |---|---|---|
-| `#FF2AA0` fuchsia | brand, “free”, and the consumer composer (outlined mic, filled send) | a background for body text |
+| `#FF2AA0` fuchsia | brand, “free”, and the consumer composer’s filled send | a background for body text; the mic |
 | `#FFB100` amber | price, tickets, the card rail | answer text, if it is also on pills |
-| `#00CFEA` cyan | promoter side only: PRO badge, focus, “in review”, the composer (outlined mic, filled send) | anywhere in the consumer app |
+| `#00CFEA` cyan | promoter side only: PRO badge, focus, “in review”, the composer’s filled send | anywhere in the consumer app; the mic |
 | `#E72828` red | errors, delete; the web-sourced card mark and the claim invitation under it (the one exception) | a highlight |
 | `#F4EDE2` cream | every answer laiive gives | card titles (those are `#FFFFFF`) |
 
@@ -78,8 +79,8 @@ can check work against. When this file and the PDF disagree, the PDF wins.
   20px radius, 1.5px `rgba(244,237,226,.32)`.
 - Fuchsia does not appear below the header. Cyan is the PRO badge, the focus
   ring, the card edge and “in review”.
-- Composer accents are cyan — the outlined mic and the filled send. Only the
-  attach control stays warm-neutral.
+- The composer accent is cyan and lives on the filled send alone. The mic and
+  the attach control stay warm-neutral.
 - Primary action (`publish to laiive`) is cream `#F4EDE2` with `#0C0A0A` ink.
 - Required-field markers are amber (`needs you`), missing fields go red on both
   label and border, and the publish button disables with a fill hint — this

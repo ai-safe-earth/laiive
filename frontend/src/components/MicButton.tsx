@@ -11,8 +11,8 @@ import { cn } from "@/lib/cn";
  * transcript means: in consumer chat it becomes the message, in the pro flow it
  * becomes another line of the conversation the extractor reads.
  *
- * The mic wears the surface's accent outlined — fuchsia on the consumer side,
- * cyan on pro — and the variant is the caller's (the Composer's) call.
+ * The mic wears its surface's neutral outline — the accent stays on the send —
+ * and the variant is the caller's (the Composer's) call.
  */
 export function MicButton({
   onTranscript,

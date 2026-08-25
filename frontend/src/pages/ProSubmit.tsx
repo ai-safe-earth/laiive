@@ -282,13 +282,6 @@ export default function ProSubmit() {
               refusal, so only an actual promoter ever sees it. */}
           <ProOnboarding />
 
-          {messages.length === 0 && !draft && (
-            <div className="flex flex-col gap-1.5 pt-6">
-              <p className="text-[15px] leading-[1.5] text-pro-fg">{t.pro.emptyTitle}</p>
-              <p className="font-mono text-[11px] text-pro-dim">{t.pro.emptyHint}</p>
-            </div>
-          )}
-
           {messages.map((message, index) =>
             message.role === "user" ? (
               <p

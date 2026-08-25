@@ -8,9 +8,9 @@ import { cn } from "@/lib/cn";
 
 /**
  * The one composer, both surfaces: mic on the left, field in the middle, send
- * on the right. The mic is the accent outlined, the send is the accent filled
- * — fuchsia on the consumer side, cyan on pro — and while a reply streams the
- * send slot becomes stop. brand-rules.md carries the spec.
+ * on the right. The mic is neutral outlined; only the send carries the accent,
+ * filled with dark ink — fuchsia on the consumer side, cyan on pro — and while
+ * a reply streams the send slot becomes stop. brand-rules.md carries the spec.
  */
 export function Composer({
   value,
@@ -46,7 +46,7 @@ export function Composer({
     <div className={cn("mx-auto flex max-w-3xl items-center", pro ? "gap-3" : "gap-2.5")}>
       {attachSlot}
       <MicButton
-        variant={pro ? "cyanOutline" : "fuchsiaOutline"}
+        variant={pro ? "proNeutralOutline" : "neutralOutline"}
         transcribe={transcribe}
         onTranscript={onTranscript}
         disabled={disabled || isStreaming}

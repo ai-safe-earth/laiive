@@ -13,8 +13,8 @@ type Variant =
   | "ghost"
   | "pro"
   | "cyan"
-  | "fuchsiaOutline"
-  | "cyanOutline";
+  | "neutralOutline"
+  | "proNeutralOutline";
 type Size = "default" | "icon" | "sm";
 
 const VARIANTS: Record<Variant, string> = {
@@ -24,9 +24,12 @@ const VARIANTS: Record<Variant, string> = {
   ghost: "text-ink-dim hover:text-foreground",
   pro: "border border-pro-accent/45 bg-pro-accent/10 text-pro-accent hover:bg-pro-accent/20",
   cyan: "bg-pro-accent text-background hover:bg-pro-accent/90",
-  // The composer mics: full-strength accent outline on a transparent ground.
-  fuchsiaOutline: "border-[1.5px] border-primary bg-transparent text-primary hover:bg-primary/10",
-  cyanOutline: "border-[1.5px] border-pro-accent bg-transparent text-pro-accent hover:bg-pro-accent/10",
+  // The composer mics: warm-neutral outline on a transparent ground, one per
+  // surface's palette. The accent belongs to the send pill alone.
+  neutralOutline:
+    "border-[1.5px] border-field-border bg-transparent text-muted-foreground hover:text-foreground",
+  proNeutralOutline:
+    "border-[1.5px] border-pro-border bg-transparent text-pro-muted hover:text-pro-fg",
 };
 
 /** 44px floor on every target, including the icon buttons. */
