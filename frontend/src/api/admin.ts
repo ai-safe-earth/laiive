@@ -11,6 +11,7 @@
  * not on a refetch interval, and the report list is not re-fetched to render a
  * detail page.
  */
+import type { EventDraft } from "@shared/protocol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 
@@ -37,16 +38,13 @@ export interface ReportSummary {
 }
 
 export interface Candidate {
-  draft: {
-    name?: string | null;
-    artists?: string[];
-    start_at?: string | null;
-    venue?: string | null;
-    city?: string | null;
-    price_min?: number | null;
-    price_currency?: string | null;
-    genre?: string | null;
-  };
+  /**
+   * The full protocol draft, not a subset: the search service serializes
+   * `EventDraft.model_dump()` and approve rehydrates the same model, so a
+   * hand-copied field list here only hides data the reviewer needs (it hid
+   * address, description and ticket_url until it did exactly that).
+   */
+  draft: Partial<EventDraft>;
   source_url: string;
   missing: string[];
   dedup_status: "new" | "exists" | "similar";

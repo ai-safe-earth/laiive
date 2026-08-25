@@ -310,7 +310,14 @@ def write_event(
         ident.lng if already_pinned else (venue_geo.lng if venue_geo else None),
     )
     if timezone is not None:
-        start_at = start_at.replace(tzinfo=ZoneInfo(timezone))
+        if start_at.tzinfo is None:
+            start_at = start_at.replace(tzinfo=ZoneInfo(timezone))
+        else:
+            # fromisoformat keeps an explicit offset ("...+02:00", "...Z"), and
+            # replace() on an aware value would relabel the digits into the
+            # venue zone and shift the stored instant. The draft already stated
+            # an instant; keep it, and only re-express it on the venue's clock.
+            start_at = start_at.astimezone(ZoneInfo(timezone))
     else:
         # Storing it as UTC is what this did for every event written before
         # this existed. Keep that rather than refuse the write, but say so and

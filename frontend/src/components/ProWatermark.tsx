@@ -31,7 +31,7 @@ export function ProWatermark() {
         {Array.from({ length: ROWS }, (_, row) => (
           <span
             key={row}
-            className="whitespace-nowrap font-bebas text-[28px] leading-none tracking-[0.04em] text-pro-fg/[0.035]"
+            className="whitespace-nowrap font-bebas text-[28px] leading-none tracking-[0.04em] text-pro-fg/[0.06]"
             // Half a word of offset on odd rows: a straight grid reads as a
             // table, a brick course reads as texture.
             style={{ transform: `translateX(${row % 2 === 0 ? "-2%" : "-9%"})` }}

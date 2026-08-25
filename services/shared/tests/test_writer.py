@@ -609,6 +609,43 @@ def test_start_time_is_read_in_the_venues_zone_not_as_utc():
     assert write_params["timezone"] == "Europe/Rome"
 
 
+def test_a_draft_that_states_its_offset_keeps_its_instant():
+    """fromisoformat keeps an explicit offset, and replace() on an aware value
+    would relabel the digits into the venue zone and shift the instant: a
+    19:00+00:00 Rome show would store as 19:00+02:00 = 17:00 UTC, two hours
+    early. A stated instant is kept and only re-expressed at the door."""
+    session = FakeSession()
+    geocoder = FakeGeocoder(
+        {
+            "Druso, Bergamo": GeocodeResult(
+                lat=45.695, lng=9.67, country_code="IT", display_name="Druso"
+            ),
+            "Bergamo": GeocodeResult(
+                lat=45.6983, lng=9.6773, country_code="IT", display_name="Bergamo"
+            ),
+        }
+    )
+    result = write_event(
+        session,
+        EventDraft(
+            artists=["BobSin"],
+            start_at="2026-08-28T19:00:00+00:00",
+            venue="Druso",
+            address="Via Portico 71",
+            city="Bergamo",
+            price_min=5.0,
+        ),
+        source="pro_submission",
+        geocoder=geocoder,
+    )
+    assert result.status == "created"
+
+    write_params = session.queries[1][1]
+    # 19:00 UTC is 21:00 at the door in August Rome — the same instant.
+    assert write_params["start_at"] == "2026-08-28T21:00:00+02:00"
+    assert write_params["timezone"] == "Europe/Rome"
+
+
 def test_zone_is_resolved_from_the_city_when_the_venue_is_not_found():
     """The venue falls back to the city centroid, and the zone follows that
     pin — a centroid is imprecise about the street, not about the hour."""
