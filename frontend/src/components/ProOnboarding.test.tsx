@@ -29,6 +29,15 @@ describe("the promoter walkthrough", () => {
     expect(section?.className).toContain("bg-pro-card");
   });
 
+  it("plays the walkthrough at three-quarter speed", () => {
+    // Both rates: the media load algorithm resets playbackRate to
+    // defaultPlaybackRate, so pinning only playbackRate snaps back to 1x.
+    const { container } = renderPanel();
+    const video = container.querySelector("video");
+    expect(video?.playbackRate).toBe(0.75);
+    expect(video?.defaultPlaybackRate).toBe(0.75);
+  });
+
   it("stays gone after it is dismissed", async () => {
     const user = userEvent.setup();
     const { unmount } = renderPanel();
