@@ -17,7 +17,7 @@ beforeEach(() => {
   recorder.state.isRecording = false;
 });
 
-function renderMic(variant: "fuchsiaOutline" | "cyanOutline", disabled = false) {
+function renderMic(variant: "neutralOutline" | "proNeutralOutline", disabled = false) {
   render(
     <LanguageProvider>
       <MicButton
@@ -34,20 +34,22 @@ function renderMic(variant: "fuchsiaOutline" | "cyanOutline", disabled = false) 
 }
 
 describe("the mic's outline variants", () => {
-  it("outlines fuchsia for the consumer composer", () => {
-    const mic = renderMic("fuchsiaOutline");
-    expect(mic.className).toContain("border-primary");
+  it("outlines warm-neutral for the consumer composer, no accent", () => {
+    const mic = renderMic("neutralOutline");
+    expect(mic.className).toContain("border-field-border");
     expect(mic.className).toContain("bg-transparent");
+    expect(mic.className).not.toContain("border-primary");
   });
 
-  it("outlines cyan for the pro composer", () => {
-    const mic = renderMic("cyanOutline");
-    expect(mic.className).toContain("border-pro-accent");
+  it("outlines pro-neutral for the pro composer, no accent", () => {
+    const mic = renderMic("proNeutralOutline");
+    expect(mic.className).toContain("border-pro-border");
     expect(mic.className).toContain("bg-transparent");
+    expect(mic.className).not.toContain("border-pro-accent");
   });
 
   it("rests when the caller says so", () => {
-    expect(renderMic("fuchsiaOutline", true)).toBeDisabled();
+    expect(renderMic("neutralOutline", true)).toBeDisabled();
   });
 
   it("keeps a recording in progress stoppable even while resting", () => {
@@ -55,6 +57,6 @@ describe("the mic's outline variants", () => {
     // Now it stays mounted and disabled — but a disabled button over a live
     // recording is a trapped recording, so recording overrides disabled.
     recorder.state.isRecording = true;
-    expect(renderMic("fuchsiaOutline", true)).toBeEnabled();
+    expect(renderMic("neutralOutline", true)).toBeEnabled();
   });
 });

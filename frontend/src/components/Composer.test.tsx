@@ -73,22 +73,22 @@ describe("the shared composer", () => {
     expect(screen.getByRole("button", { name: en.voice.speak })).toBeDisabled();
   });
 
-  it("wears fuchsia on the consumer side", () => {
+  it("keeps the fuchsia on the send alone on the consumer side", () => {
     renderComposer({ value: "x" });
     expect(screen.getByRole("button", { name: en.chat.send }).className).toContain("bg-primary");
-    expect(screen.getByRole("button", { name: en.voice.speak }).className).toContain(
-      "border-primary",
-    );
+    const mic = screen.getByRole("button", { name: en.voice.speak });
+    expect(mic.className).toContain("border-field-border");
+    expect(mic.className).not.toContain("border-primary");
   });
 
-  it("wears cyan on pro", () => {
+  it("keeps the cyan on the send alone on pro", () => {
     renderComposer({ value: "x", accent: "pro", placeholder: en.pro.placeholder });
     expect(screen.getByRole("button", { name: en.pro.send }).className).toContain(
       "bg-pro-accent",
     );
-    expect(screen.getByRole("button", { name: en.voice.speak }).className).toContain(
-      "border-pro-accent",
-    );
+    const mic = screen.getByRole("button", { name: en.voice.speak });
+    expect(mic.className).toContain("border-pro-border");
+    expect(mic.className).not.toContain("border-pro-accent");
   });
 
   it("renders an attach slot only when the surface brings one", () => {
