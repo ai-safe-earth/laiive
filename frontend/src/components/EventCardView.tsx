@@ -63,7 +63,23 @@ const PILL =
   "relative inline-flex items-center rounded-full px-3 py-[9px] text-[11.5px] font-medium leading-none " +
   "transition-colors after:absolute after:inset-x-0 after:-top-[7px] after:h-11 after:content-['']";
 
-export function EventCardView({ card, language }: { card: EventCard; language: string }) {
+export function EventCardView({
+  card,
+  language,
+  saved,
+  onToggleSave,
+}: {
+  card: EventCard;
+  language: string;
+  saved?: boolean;
+  /**
+   * Omit and the card renders with no save control, which is what a
+   * signed-out reader gets. The card stays presentational — it already
+   * takes `language` rather than reading the provider — so the page owns
+   * one uid query for all N cards instead of N subscriptions.
+   */
+  onToggleSave?: (uid: string, next: boolean) => void;
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -127,9 +143,11 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
               className={cn(
                 "relative flex-none transition-colors",
                 "after:absolute after:-inset-3 after:content-['']",
-                fromSearch
-                  ? "text-ink-dim hover:text-foreground"
-                  : "text-primary hover:text-primary/80",
+                // Hover brightens rather than fades: --mark-unverified on the
+                // card ground is ~3.2:1, so any dimming drops the mark under
+                // the 3:1 floor for non-text contrast.
+                "hover:brightness-125",
+                fromSearch ? "text-mark-unverified" : "text-mark-verified",
               )}
             >
               <Icon name={fromSearch ? "error" : "done"} className="h-4 w-4" />
@@ -240,6 +258,24 @@ export function EventCardView({ card, language }: { card: EventCard; language: s
           >
             <Icon name="map" className="h-[15px] w-[15px]" />
             {showMap ? t.cards.hideMap : t.cards.map}
+          </button>
+        )}
+        {onToggleSave && (
+          <button
+            type="button"
+            onClick={() => onToggleSave(card.uid, !saved)}
+            aria-pressed={saved}
+            className={cn(
+              PILL,
+              "gap-1.5 bg-field-border hover:bg-muted",
+              // The sprite bookmark carries fill="none" on the symbol
+              // itself, which no rule in this document can reach, so the
+              // state is colour — and the label, so it is never colour alone.
+              saved ? "text-primary" : "text-white",
+            )}
+          >
+            <Icon name="saved" className="h-[15px] w-[15px]" />
+            {saved ? t.cards.saved : t.cards.save}
           </button>
         )}
         {card.ticket_url && (

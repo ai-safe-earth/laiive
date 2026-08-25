@@ -58,6 +58,10 @@ export default {
           dim: "hsl(var(--pro-dim))",
           accent: "hsl(var(--pro-accent))",
         },
+        mark: {
+          verified: "hsl(var(--mark-verified))",
+          unverified: "hsl(var(--mark-unverified))",
+        },
         status: {
           review: "hsl(var(--status-review))",
           published: "hsl(var(--status-published))",

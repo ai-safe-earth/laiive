@@ -24,7 +24,9 @@ can check work against. When this file and the PDF disagree, the PDF wins.
   constraint is echoed in the answer, never rendered as a chip.
 - Language and preferences live in **settings, inside the account menu** — never
   in a header.
-- `saved` has no feature behind it yet; the icon ships anyway so the bar is final.
+- `saved` opens the saved list. The same glyph is the pill on a card; saved is carried
+  by colour and by the label, never by a filled bookmark — the symbol sets `fill="none"`
+  on itself, which no rule in the page can reach.
 - Touch targets ≥ 44px. Nothing square: pills 999px, event cards 20px, sheets 26px.
 
 ## Colour means something

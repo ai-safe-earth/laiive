@@ -686,8 +686,8 @@ Merge #67 before walking the queue - until then, Cancel on the dismiss prompt st
       "since": "2026-08-21"
     },
     {
-      "text": "Two migrations are unpushed: 20260823000013 (search_sources, search_queries) and 20260823000014 (dismissed status). Until 13 lands every sweep logs 404s and learns nothing; until 14 lands the admin dismiss button 400s. Both fail soft - sweeps and approve work regardless",
-      "severity": "medium",
+      "text": "Three migrations are unpushed: 20260823000013 (search_sources, search_queries), 20260823000014 (dismissed status) and 20260823000015 (saved_events). 13 and 14 fail soft; 15 does not - without the table every save is a PostgREST 404 and /saved shows its error state, so push before the SPA ships",
+      "severity": "high",
       "owner": "oscar",
       "since": "2026-08-23"
     },
@@ -730,11 +730,32 @@ Merge #67 before walking the queue - until then, Cancel on the dismiss prompt st
       "title": "Merge PR #61 (discovery), then retarget PR #62 (admin) to develop with gh pr edit 62 --base develop",
       "est": 1,
       "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
+      "phase": "Restyle - new visual direction",
       "plan": "roadmap"
     },
     {
-      "title": "supabase db push for 20260823000013 and 20260823000014, then walk /admin signed in and approve the Bergamo and Torino backlog",
+      "title": "Deploy order for saved events: push the migrations, then make fly-deploy-retriever and fly-deploy-gateway, then the SPA. The SPA calls /api/events, which does not exist until both ship",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Venue welcome pack: a printable QR sheet (small to A4) saying where to find that venue's events, mailed after email confirmation. Nothing exists yet - no mail provider, no edge functions, no QR or PDF dependency, and supabase/ has no functions/ on purpose",
+      "est": 3,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Turn on the Supabase confirmation email in the dashboard, and hand the walkthrough animation for the /pro onboarding panel to Claude Design - the frame is in place at 16/9",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "supabase db push for 20260823000013, 14 and 15 (one push applies all three in order), confirm with supabase migration list, then walk /admin signed in and approve the Bergamo and Torino backlog",
       "est": 1,
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",

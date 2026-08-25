@@ -246,6 +246,30 @@ describe("identity headers", () => {
   });
 });
 
+describe("the by-uid event lookup", () => {
+  it("refuses an anonymous caller", async () => {
+    // Saving needs an account, so the rule lives here and not only in a
+    // client we ship.
+    const res = await app.inject({ method: "GET", url: "/api/events?uids=e1" });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("lets any signed-in account through, query string intact", async () => {
+    const token = await supabase.signToken({ sub: "user-4", role: "user" });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/events?uids=e1,e2",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const upstream = JSON.parse(res.body) as SeenRequest;
+    // The rewrite drops the prefix and nothing else — losing the query here
+    // would look like "the graph has no saved events".
+    expect(upstream.url).toBe("/events?uids=e1,e2");
+    expect(upstream.headers["x-user-id"]).toBe("user-4");
+  });
+});
+
 describe("cors", () => {
   it("allows the configured origin and refuses others", async () => {
     const ok = await app.inject({
