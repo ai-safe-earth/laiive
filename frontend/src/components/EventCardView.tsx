@@ -1,5 +1,6 @@
 import type { EventCard } from "@shared/protocol";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
@@ -68,10 +69,18 @@ export function EventCardView({
   language,
   saved,
   onToggleSave,
+  claimTo,
 }: {
   card: EventCard;
   language: string;
   saved?: boolean;
+  /**
+   * Where the claim invitation points — auth/claimTarget computes it. Required
+   * rather than defaulted: the card stays presentational (it never reads the
+   * auth provider), and a surface that forgot it would silently send a
+   * signed-in promoter to the sign-up form.
+   */
+  claimTo: string;
   /**
    * Omit and the card renders with no save control, which is what a
    * signed-out reader gets. The card stays presentational — it already
@@ -197,7 +206,14 @@ export function EventCardView({
                   </a>
                 </p>
               )}
-              <p className="pt-1">{t.cards.webClaim}</p>
+              {/* The ownership call to action — the mark's red, made a door.
+                  Brighten on hover, never dim: same 3:1 floor as the mark. */}
+              <Link
+                to={claimTo}
+                className="block pt-1 font-medium text-mark-unverified underline underline-offset-2 hover:brightness-125"
+              >
+                {t.cards.webClaim}
+              </Link>
             </>
           ) : (
             <p>{t.cards.verifiedTitle}</p>

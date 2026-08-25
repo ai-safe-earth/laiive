@@ -7,19 +7,20 @@ Evolution plan (six areas, phases A-G, owner-approved 2026-08-25):
 **laiive is live at https://laiive.com**, `v0.1.0` + 82 commits unreleased. `main` is
 production, `develop` the trunk, five Fly apps in `fra`.
 
-## Three PRs open, none merged
+## #69 merged; #70 and #71 open, updated onto develop
 
-- **#69** (phase A): red claim door on web cards, one accent composer both surfaces
+- **#69** (phase A, **merged 2026-08-25**): red claim door on web cards, one accent composer both surfaces
   (fuchsia/cyan, mic left, send/stop right), pro watermark 6%, brand-rules v1.1. SPA only.
 - **#70** (phase C): venue combobox over the graph, `venue_uid` beside the draft, first
   non-Event read paths (`/venues`, `/artists`, pro-gated), `/api/push` catch-all narrowed to
   named routes, EventCard gains `venue_uid`/`venue_address`/`claimed` (inert). Deploy
-  retriever -> pusher -> gateway -> SPA.
+  retriever -> pusher -> gateway -> SPA. Develop merged in, all six suites green.
 - **#71** (phase B): `/admin` dashboard over one `GET /stats` (concurrent, shape-degrading
   sections), reason-carrying scheduler verdict from Prefect Cloud REST, time-windowed credit
   budget, per-role rate limits 60/120/240. At deploy: Aura index `event_created_at`; optional
   `PREFECT_API_URL`/`PREFECT_API_KEY` in `.env` + `set-secrets.sh search` or the panel says
-  "not configured".
+  "not configured". Develop merged in (only conflicts: handoff, a duplicated
+  pages_with_events fix #67 also shipped).
 
 Phases D (orgs + claims, migration 16 designed in the plan), E (edits + verification + the
 card flip), F/G (discovery eval, JSON-LD, review-signal learning) wait on #70's contract.
@@ -555,20 +556,8 @@ card flip), F/G (discovery eval, JSON-LD, review-signal learning) wait on #70's 
           "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
         },
         {
-          "date": "2026-08-23",
-          "text": "Saved events are pointers, not snapshots: saved_events holds uids under RLS and the card bodies are re-read from the graph on every open, so a corrected price or a moved door time reaches a saved card"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "The by-uid lookup gets its own gateway prefix, /api/events behind requireRole(\"user\"), rather than riding the anonymous /api/chat - saving needs an account, and a rule that lives only in the SPA is a hope"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "Both doors between the two surfaces live in UserMenu and are promoter-only; the /pro logo is no longer a link. A free user reaches /pro through /account or /auth?kind=pro"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "The venue welcome pack and the confirmation email are deferred out of this batch - the pack needs mail, QR and PDF infrastructure the repo does not have"
+          "date": "2026-08-24",
+          "text": "PR #64 (saved events + both-surface polish) merged; released to main via #65, main merged back via #66"
         }
       ]
     },
@@ -705,8 +694,8 @@ card flip), F/G (discovery eval, JSON-LD, review-signal learning) wait on #70's 
           "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
         },
         {
-          "date": "2026-08-23",
-          "text": "#61 (discovery on Torino and Bergamo, provenance, the learning loop), #62 and #63 (the /admin review queue) merged into develop; all three head branches deleted"
+          "date": "2026-08-24",
+          "text": "Adversarial review over #61-#64 confirmed 10 findings; 9 fixed across PR #67 (admin dismiss-on-Cancel, Candidate.draft redeclaration, writer tz relabeling, sweep-killing TypeError, Bergamo seeds narrowing every city, trial double-run, mislabeled trial_query, dead pages_with_events counter, dead fifth template) and PR #68 (order-sensitive saved-cards cache key). Deferred by decision: localdatetime sargability (documented) and an out-of-locale /sweep guard"
         }
       ]
     }
@@ -999,7 +988,7 @@ card flip), F/G (discovery eval, JSON-LD, review-signal learning) wait on #70's 
       "hours": null
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-24",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",

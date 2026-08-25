@@ -58,8 +58,9 @@
     /* The two provenance marks on a card. Named rather than borrowing
        --status-published / --destructive: those are the promoter's own
        lifecycle and the delete-and-errors red, and this is a reader-facing
-       claim about who vouched for a listing. Red as a card mark is the one
-       deliberate exception to "red is errors and delete only". */
+       claim about who vouched for a listing. Red as a card mark — and as the
+       claim invitation under it, which is the same claim made actionable — is
+       the one deliberate exception to "red is errors and delete only". */
     --mark-verified: 147 61% 47%;   /* #2FBF71 */
     --mark-unverified: 0 78% 53%;   /* #E72828 */
 

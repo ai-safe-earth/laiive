@@ -6,16 +6,15 @@ import type { ChatMessage } from "@/api/chat";
 import { ApiError } from "@/api/client";
 import { ingestFile } from "@/api/ingest";
 import { saveEvent, streamSubmission } from "@/api/push";
+import { Composer } from "@/components/Composer";
 import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
-import { MicButton } from "@/components/MicButton";
 import { ProOnboarding } from "@/components/ProOnboarding";
 import { ProWatermark } from "@/components/ProWatermark";
 import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/auth/AuthProvider";
 import { useTranslation } from "@/i18n/useTranslation";
 
@@ -67,7 +66,11 @@ export default function ProSubmit() {
   const [missing, setMissing] = useState<string[]>(restored?.missing ?? []);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // `busy` covers the whole turn, ingest included; `streaming` only the part a
+  // stop can actually abort, so the composer never offers a stop that is a lie.
+  const [streaming, setStreaming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -117,6 +120,10 @@ export default function ProSubmit() {
   ) => {
     setMessages(history);
     setBusy(true);
+    setStreaming(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     let answer = "";
     let started = false;
@@ -124,6 +131,7 @@ export default function ProSubmit() {
     try {
       await streamSubmission(history, {
         walk: walkEcho,
+        signal: controller.signal,
         handlers: {
           onStatus: (state) =>
             setStatus(state === "extracting" ? t.pro.statusExtracting : state),
@@ -150,15 +158,28 @@ export default function ProSubmit() {
         },
       });
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) {
+      if (controller.signal.aborted) {
+        // The promoter pressed stop; whatever streamed so far stands.
+      } else if (error instanceof ApiError && error.status === 403) {
         toast.error(t.pro.notPromoter);
       } else {
         toast.error(error instanceof Error ? error.message : t.pro.genericError);
       }
     } finally {
+      abortRef.current = null;
       setBusy(false);
+      setStreaming(false);
       setStatus(null);
     }
+  };
+
+  const stopStreaming = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    // Clear eagerly, as Chat's stop() does — waiting for the rejection to
+    // reach finally leaves a stop button pressed against a dead stream.
+    setStreaming(false);
+    setStatus(null);
   };
 
   const walkEcho = walk ? { drafts: walk.drafts, cursor: walk.cursor } : null;
@@ -202,13 +223,18 @@ export default function ProSubmit() {
 
       if (walk && walk.cursor + 1 < walk.total) {
         // Mid-walk: keep the promoter's final edits in the echoed set, tell
-        // the server we advanced, and let it introduce the next event.
+        // the server we advanced, and let it introduce the next event. The
+        // cursor is client-owned, so advance it here and now — advancing only
+        // when the server echoes walk.state let a stopped turn strand the
+        // cursor on the event just published.
         const drafts = walk.drafts.map((d, i) => (i === walk.cursor ? completed : d));
+        const advanced = { ...walk, drafts, cursor: walk.cursor + 1 };
+        setWalk(advanced);
         const name = result.event_name ?? completed.name ?? "the event";
-        const marker = t.pro.publishedMarker(name, walk.cursor + 1, walk.total);
+        const marker = t.pro.publishedMarker(name, advanced.cursor, walk.total);
         await runTurn([...messages, { role: "user", content: marker }], {
           drafts,
-          cursor: walk.cursor + 1,
+          cursor: advanced.cursor,
         });
       } else {
         // End of the walk: reset the draft state but leave a completion
@@ -300,60 +326,50 @@ export default function ProSubmit() {
         </div>
       </div>
 
-      {/* Composer icons are warm-neutral here, never accent-filled. */}
+      {/* Cyan accents per brand-rules.md: outlined mic, filled send. Only the
+          attach control stays warm-neutral, so the accent means "speak or send". */}
       <div className="flex-shrink-0 border-t border-pro-border px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <input
-            ref={fileInput}
-            type="file"
-            accept={ACCEPTED}
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void attach(file);
-            }}
-          />
-          <Button
-            variant="neutral"
-            size="icon"
-            onClick={() => fileInput.current?.click()}
-            disabled={busy}
-            aria-label={t.pro.attach}
-            title={t.pro.attach}
-          >
-            <Icon name="attach" />
-          </Button>
-
-          <MicButton
-            variant="neutral"
-            transcribe={async (recording) => {
-              const file = new File([recording], "recording.webm", { type: "audio/webm" });
-              const { text } = await ingestFile(file);
-              return text;
-            }}
-            onTranscript={(text) => setInput((current) => (current ? `${current} ${text}` : text))}
-            disabled={busy}
-          />
-
-          <Input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && send(input)}
-            placeholder={t.pro.placeholder}
-            className="focus-visible:ring-pro-accent"
-          />
-
-          <Button
-            variant="neutral"
-            size="icon"
-            onClick={() => send(input)}
-            disabled={busy || !input.trim()}
-            aria-label={t.pro.send}
-          >
-            <Icon name="send" className="h-[18px] w-[18px]" />
-          </Button>
-        </div>
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => send(input)}
+          onStop={stopStreaming}
+          isStreaming={streaming}
+          disabled={busy || saving}
+          accent="pro"
+          placeholder={t.pro.placeholder}
+          transcribe={async (recording) => {
+            const file = new File([recording], "recording.webm", { type: "audio/webm" });
+            const { text } = await ingestFile(file);
+            return text;
+          }}
+          onTranscript={(text) => setInput((current) => (current ? `${current} ${text}` : text))}
+          attachSlot={
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={ACCEPTED}
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void attach(file);
+                }}
+              />
+              <Button
+                variant="neutral"
+                size="icon"
+                onClick={() => fileInput.current?.click()}
+                disabled={busy}
+                aria-label={t.pro.attach}
+                title={t.pro.attach}
+              >
+                <Icon name="attach" />
+              </Button>
+            </>
+          }
+        />
       </div>
     </div>
   );
