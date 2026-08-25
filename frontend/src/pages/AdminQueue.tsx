@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useReports, type ReportSummary } from "@/api/admin";
+import { AdminStats } from "@/admin/AdminStats";
 import { A } from "@/admin/strings";
 import { AdminButton, Badge, Empty, Label, Panel, statusTone } from "@/admin/ui";
 import { Icon } from "@/components/Icon";
@@ -71,6 +72,8 @@ export default function AdminQueue() {
       </header>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-4 p-5">
+        <AdminStats />
+
         <div className="flex gap-2">
           <AdminButton
             variant={onlyWaiting ? "primary" : "quiet"}

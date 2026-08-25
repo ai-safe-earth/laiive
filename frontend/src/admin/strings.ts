@@ -75,6 +75,35 @@ export const A = {
       `${created} of ${total} written to the graph`,
   },
 
+  stats: {
+    failed: "The numbers did not load — the queue below still works.",
+    schedulerDown:
+      "Schedules are registered but nothing is polling — the next run will not fire until flows/serve.py is up.",
+    schedulerUnconfigured: "scheduler not configured (PREFECT_API_URL unset)",
+    prefectUnreachable:
+      "Prefect Cloud is unreachable — the scheduler may be fine, but this panel cannot see it right now.",
+    eventsDaily: "events added · last 30 days",
+    waitingReports: "waiting reports",
+    waitingCandidates: (n: number) => `${n} candidates to review`,
+    creditsMonth: "tavily this month",
+    projected: (n: number) => `projected ${n} by month end`,
+    graphEvents: "events in the graph",
+    graphUnreachable: "graph unreachable (Aura paused?)",
+    artistsVenues: (artists: number, venues: number) =>
+      `${artists} artists · ${venues} venues`,
+    quality: "start time known",
+    priceKnown: (pct: number) => `price known ${pct}%`,
+    creditsWeekly: "credits per week",
+    perSweep: "new candidates per sweep",
+    noSweeps: "No sweeps in the window yet.",
+    sources: "top sources by new candidates",
+    queriesStanding: (standing: number, trial: number) =>
+      `${standing} standing · ${trial} trial phrasings`,
+    upcoming: "scheduled rounds",
+    noDeployments: "No deployments registered in Prefect Cloud.",
+    neverRan: "never ran",
+  },
+
   status: {
     dry_run: "waiting",
     approved: "approved",

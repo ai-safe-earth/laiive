@@ -6,6 +6,7 @@ module-level client gets added to this list or tests hit the real API):
   agent.extraction._client — OpenAI extraction
   agent.address_lookup._client — OpenAI venue-address lookup
   agent.reports._http      — Supabase PostgREST
+  agent.stats._prefect     — Prefect Cloud (scheduler panel)
   agent.learning._http     — Supabase PostgREST (source + query ranking)
 
 The Tavily fake dispatches on the endpoint: /search and /extract have different
@@ -162,6 +163,15 @@ def mock_reports_http():
         200, [{"id": "00000000-0000-0000-0000-000000000001", "status": "approved"}]
     )
     with patch("agent.reports._http", http):
+        yield http
+
+
+@pytest.fixture(autouse=True)
+def mock_prefect_http():
+    """No Prefect Cloud from tests, whatever lands in the root .env."""
+    http = MagicMock()
+    http.post.return_value = http_response(200, [])
+    with patch("agent.stats._prefect", http):
         yield http
 
 

@@ -94,6 +94,29 @@ def list_reports(
     return response.json()
 
 
+def stats_rows(limit: int = 500, since: str | None = None) -> list[dict]:
+    """The dashboard's window: reports since a floor, plus every report still
+    waiting whatever its age — a row cap alone silently undercounts the credit
+    budget once a month holds more sweeps than the cap. Without the heavy
+    candidates jsonb; write_results is a base-schema column, so this select
+    cannot 400 on an unpushed migration."""
+    params = {
+        "select": "id,city,status,kind,error,stats,created_at,approved_at,write_results",
+        "order": "created_at.desc",
+        "limit": str(limit),
+    }
+    if since:
+        params["or"] = f"(created_at.gte.{since},status.eq.dry_run)"
+    response = _http.get(
+        _url(),
+        headers=_headers(),
+        params=params,
+    )
+    if response.status_code != 200:
+        raise ReportStoreError(f"Could not read report stats ({response.status_code})")
+    return response.json()
+
+
 def claim_report(report_id: str, approved_by: str | None, approved_at: str) -> bool:
     """Flip dry_run → approved, returning False if someone already did.
 

@@ -66,7 +66,12 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
   await app.register(rateLimit, {
     global: true,
     timeWindow: config.rateLimitWindowMs,
-    max: (request) => (request.user ? config.rateLimitUserMax : config.rateLimitAnonMax),
+    max: (request) => {
+      if (!request.user) return config.rateLimitAnonMax;
+      if (request.user.role === "admin") return config.rateLimitAdminMax;
+      if (request.user.role === "pro") return config.rateLimitProMax;
+      return config.rateLimitUserMax;
+    },
     keyGenerator: (request) => request.user?.id ?? request.ip,
     allowList: (request) => PROBE_PATHS.has(request.url),
     redis,
