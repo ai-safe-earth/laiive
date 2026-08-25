@@ -22,6 +22,10 @@ export interface EventCard {
   name: string;
   artists: string[];
   venue?: string | null;
+  // The venue's graph identity and address — what the ownership screens
+  // reference. Null on rows read by paths that do not select them.
+  venue_uid?: string | null;
+  venue_address?: string | null;
   venue_type?: string | null;
   city?: string | null;
   start_at?: string | null;
@@ -49,6 +53,34 @@ export interface EventCard {
   // event. A centroid means "somewhere in this city", so the map must not
   // draw it as a street address.
   geocode_precision?: string | null;
+  // true once an organization's verified claim stamped the graph node — the
+  // card treats it as vouched, like a promoter's own submission.
+  claimed?: boolean;
+}
+
+// GET /api/venues — one venue in a lookup answer, enough to pick it and
+// prefill the event form.
+export interface VenueHit {
+  uid: string;
+  name: string;
+  venue_type?: string | null;
+  address?: string | null;
+  city?: string | null;
+}
+
+export interface VenueLookupResult {
+  venues: VenueHit[];
+}
+
+// GET /api/artists
+export interface ArtistHit {
+  uid: string;
+  name: string;
+  genres: string[];
+}
+
+export interface ArtistLookupResult {
+  artists: ArtistHit[];
 }
 
 export interface EventDraft {

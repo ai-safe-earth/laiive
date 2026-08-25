@@ -1,5 +1,6 @@
-import type { EventDraft } from "@shared/protocol";
-import { useEffect, useState } from "react";
+import type { EventDraft, VenueHit } from "@shared/protocol";
+import { useEffect, useRef, useState } from "react";
+import { foldName, useVenueLookup } from "@/api/lookup";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,12 +11,16 @@ import { cn } from "@/lib/cn";
 /** Fields the graph write refuses without (laiive_shared.REQUIRED_DRAFT_FIELDS). */
 const REQUIRED = ["artists", "start_at", "venue", "address", "city", "price_min"] as const;
 
-/** `artists` is rendered on its own — it is a list, not a text field. */
-const FIELDS: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
+/**
+ * `artists` is rendered on its own (a list, not a text field), and `venue` +
+ * `address` leave the generic grid too: the venue is a combobox over the
+ * graph, and the address input only exists while no picked venue answers it.
+ */
+const FIELDS_LEAD: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
   { key: "name" },
   { key: "start_at", type: "datetime-local" },
-  { key: "venue" },
-  { key: "address" },
+];
+const FIELDS_REST: { key: DraftFieldKey & keyof EventDraft; type?: string }[] = [
   { key: "city" },
   { key: "price_min", type: "number" },
   { key: "price_max", type: "number" },
@@ -111,7 +116,8 @@ export function EventForm({
 }: {
   draft: EventDraft;
   missing: string[];
-  onSave: (draft: EventDraft) => void;
+  /** The second argument is the picked graph venue's uid, when there is one. */
+  onSave: (draft: EventDraft, venueUid: string | null) => void;
   saving: boolean;
 }) {
   const { t } = useTranslation();
@@ -119,15 +125,81 @@ export function EventForm({
   // Held separately from `values.artists` so a half-typed row survives: the
   // draft's list is the saved shape, this is what the user is editing.
   const [artists, setArtists] = useState<string[]>(() => artistRows(draft));
+  // The graph venue the promoter picked from the lookup. Client-side state
+  // only — the uid goes up beside the draft at publish, never inside it.
+  const [pick, setPick] = useState<VenueHit | null>(null);
+  const [venueOpen, setVenueOpen] = useState(false);
+  const [activeHit, setActiveHit] = useState(0);
   const [showTicketNote, setShowTicketNote] = useState(false);
   const [ticketError, setTicketError] = useState<string | null>(null);
+  // Read by the draft-refresh effect without retriggering it, and by unpick.
+  const pickRef = useRef<VenueHit | null>(null);
+  pickRef.current = pick;
+  // What the promoter had typed into the address before a pick answered it —
+  // dropping the pick must give their words back, not an empty field.
+  const stashedAddress = useRef<string | null>(null);
 
   // Each turn re-extracts over the whole conversation, so a later message can
   // fill a field the user has not touched — take the server's draft as truth.
+  // Except the venue while a pick stands: the server never saw the pick and
+  // respells freely, so the settled identity survives any refresh that still
+  // names it. Containment, not equality — the pick was found BY a typed
+  // fragment ("razz" found "Razzmatazz") the server keeps re-emitting.
   useEffect(() => {
-    setValues(draft);
+    const current = pickRef.current;
+    const extracted = foldName(draft.venue ?? "");
+    const pickedName = current ? foldName(current.name) : "";
+    const kept =
+      current !== null &&
+      extracted !== "" &&
+      (pickedName.includes(extracted) || extracted.includes(pickedName))
+        ? current
+        : null;
+    setPick(kept);
+    setValues(
+      kept
+        ? { ...draft, venue: kept.name, address: kept.address ?? draft.address }
+        : draft,
+    );
     setArtists(artistRows(draft));
   }, [draft]);
+
+  const lookup = useVenueLookup(
+    values.venue ?? "",
+    values.city,
+    venueOpen && pick === null,
+  );
+  const hits = lookup.data?.venues ?? [];
+  const suggestionsOpen = venueOpen && !pick && hits.length > 0;
+
+  useEffect(() => setActiveHit(0), [hits]);
+
+  const choose = (hit: VenueHit) => {
+    stashedAddress.current = values.address ?? null;
+    setPick(hit);
+    setVenueOpen(false);
+    setValues((current) => ({
+      ...current,
+      venue: hit.name,
+      city: current.city || hit.city || null,
+      venue_type: current.venue_type ?? hit.venue_type ?? null,
+      // The on-file address rides INTO the draft rather than being nulled:
+      // the walk's own missing_required then sees it (so the chat stops
+      // asking for an address the graph already has), and the writer's
+      // coalesce makes the round-trip a no-op on the node.
+      address: hit.address ?? current.address,
+    }));
+  };
+
+  const unpick = () => {
+    const current = pickRef.current;
+    if (!current) return;
+    setPick(null);
+    if (current.address != null) {
+      // The pick's on-file address is not the promoter's to submit unpicked.
+      setValues((values_) => ({ ...values_, address: stashedAddress.current }));
+    }
+  };
 
   const filledArtists = artists.map((name) => name.trim()).filter(Boolean);
 
@@ -150,6 +222,65 @@ export function EventForm({
   const setArtist = (index: number, name: string) =>
     setArtists((current) => current.map((value, i) => (i === index ? name : value)));
 
+  const renderField = ({
+    key,
+    type,
+  }: {
+    key: DraftFieldKey & keyof EventDraft;
+    type?: string;
+  }) => {
+          const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
+          const wasMissing = missing.includes(key);
+          const required = (REQUIRED as readonly string[]).includes(key);
+          const isTicket = key === "ticket_url";
+          return (
+            // A div and an explicit htmlFor rather than a wrapping label: the
+            // ticket field carries a button, and a button inside a label
+            // focuses the input on every press.
+            <div key={key} className="flex flex-col gap-[7px]">
+              <span className="flex items-center gap-1.5">
+                <label htmlFor={`field-${key}`}>
+                  <FieldLabel required={required} missing={isMissing}>
+                    {t.form.labels[key]}
+                  </FieldLabel>
+                </label>
+                {isTicket && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTicketNote(!showTicketNote)}
+                    aria-expanded={showTicketNote}
+                    aria-label={t.form.ticketNoteAria}
+                    // A title attribute is a hover, and a phone has no hover.
+                    // Same 44px-under-a-small-mark trick the cards use.
+                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-3 after:content-[''] hover:text-pro-accent"
+                  >
+                    <Icon name="error" className="h-[13px] w-[13px]" />
+                  </button>
+                )}
+              </span>
+              <Input
+                id={`field-${key}`}
+                type={type ?? "text"}
+                value={displayValue(values, key)}
+                onChange={(event) => update(key, event.target.value)}
+                placeholder={wasMissing ? t.form.missingPlaceholder : ""}
+                className={cn(
+                  FIELD,
+                  isMissing && "border-destructive/60 focus-visible:ring-destructive",
+                )}
+              />
+              {isTicket && showTicketNote && (
+                <p className="text-[12px] leading-[1.45] text-pro-muted">
+                  {t.form.ticketNote}
+                </p>
+              )}
+              {isTicket && ticketError && (
+                <p className="text-[12px] leading-[1.45] text-destructive">{ticketError}</p>
+              )}
+            </div>
+          );
+  };
+
   return (
     <form
       onSubmit={(event) => {
@@ -160,7 +291,10 @@ export function EventForm({
           return;
         }
         setTicketError(null);
-        onSave({ ...values, ticket_url: ticket, artists: filledArtists });
+        onSave(
+          { ...values, ticket_url: ticket, artists: filledArtists },
+          pick?.uid ?? null,
+        );
       }}
       className="rounded-[20px] border-[1.5px] border-foreground/[0.32] bg-card px-6 py-[22px]"
     >
@@ -221,58 +355,109 @@ export function EventForm({
       </div>
 
       <div className="grid gap-x-5 gap-y-3.5 pt-3.5 sm:grid-cols-2">
-        {FIELDS.map(({ key, type }) => {
-          const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
-          const wasMissing = missing.includes(key);
-          const required = (REQUIRED as readonly string[]).includes(key);
-          const isTicket = key === "ticket_url";
-          return (
-            // A div and an explicit htmlFor rather than a wrapping label: the
-            // ticket field carries a button, and a button inside a label
-            // focuses the input on every press.
-            <div key={key} className="flex flex-col gap-[7px]">
-              <span className="flex items-center gap-1.5">
-                <label htmlFor={`field-${key}`}>
-                  <FieldLabel required={required} missing={isMissing}>
-                    {t.form.labels[key]}
-                  </FieldLabel>
-                </label>
-                {isTicket && (
+        {FIELDS_LEAD.map(renderField)}
+
+        {/* Venue: a combobox over the graph. Picking an existing venue reuses
+            its identity (and its address below); typing past a pick clears it,
+            because the text no longer names what was picked. */}
+        <div className="relative flex flex-col gap-[7px]">
+          <label htmlFor="field-venue">
+            <FieldLabel required missing={stillMissing.includes("venue")}>
+              {t.form.labels.venue}
+            </FieldLabel>
+          </label>
+          <Input
+            id="field-venue"
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={suggestionsOpen}
+            aria-controls="venue-suggestions"
+            aria-activedescendant={
+              suggestionsOpen && hits[activeHit]
+                ? `venue-option-${hits[activeHit]!.uid}`
+                : undefined
+            }
+            value={values.venue ?? ""}
+            onChange={(event) => {
+              update("venue", event.target.value);
+              unpick();
+              setVenueOpen(true);
+            }}
+            onFocus={() => setVenueOpen(true)}
+            onBlur={() => setVenueOpen(false)}
+            onKeyDown={(event) => {
+              if (!suggestionsOpen) return;
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActiveHit((i) => Math.min(i + 1, hits.length - 1));
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActiveHit((i) => Math.max(i - 1, 0));
+              } else if (event.key === "Enter") {
+                // Picks instead of submitting the form — only while the list
+                // is open, so Enter on a settled field still publishes.
+                event.preventDefault();
+                choose(hits[activeHit] ?? hits[0]!);
+              } else if (event.key === "Escape") {
+                setVenueOpen(false);
+              }
+            }}
+            placeholder={missing.includes("venue") ? t.form.missingPlaceholder : ""}
+            className={cn(
+              FIELD,
+              stillMissing.includes("venue") &&
+                "border-destructive/60 focus-visible:ring-destructive",
+            )}
+          />
+          {suggestionsOpen && (
+            <ul
+              id="venue-suggestions"
+              role="listbox"
+              aria-label={t.form.venueSuggestionsAria}
+              className="absolute top-full z-10 mt-1 w-full overflow-hidden rounded-[14px] border border-pro-border bg-pro-elevated"
+            >
+              {hits.map((hit, index) => (
+                <li key={hit.uid}>
                   <button
                     type="button"
-                    onClick={() => setShowTicketNote(!showTicketNote)}
-                    aria-expanded={showTicketNote}
-                    aria-label={t.form.ticketNoteAria}
-                    // A title attribute is a hover, and a phone has no hover.
-                    // Same 44px-under-a-small-mark trick the cards use.
-                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-3 after:content-[''] hover:text-pro-accent"
+                    role="option"
+                    id={`venue-option-${hit.uid}`}
+                    aria-selected={index === activeHit}
+                    // Keep focus in the input, so blur cannot close the list
+                    // before this click lands.
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => choose(hit)}
+                    className={cn(
+                      "w-full px-4 py-2.5 text-left transition-colors hover:bg-pro-card",
+                      index === activeHit && "bg-pro-card",
+                    )}
                   >
-                    <Icon name="error" className="h-[13px] w-[13px]" />
+                    <span className="text-[13.5px] text-pro-fg">{hit.name}</span>
+                    {hit.city && (
+                      <span className="font-mono text-[10.5px] text-pro-dim"> · {hit.city}</span>
+                    )}
                   </button>
-                )}
-              </span>
-              <Input
-                id={`field-${key}`}
-                type={type ?? "text"}
-                value={displayValue(values, key)}
-                onChange={(event) => update(key, event.target.value)}
-                placeholder={wasMissing ? t.form.missingPlaceholder : ""}
-                className={cn(
-                  FIELD,
-                  isMissing && "border-destructive/60 focus-visible:ring-destructive",
-                )}
-              />
-              {isTicket && showTicketNote && (
-                <p className="text-[12px] leading-[1.45] text-pro-muted">
-                  {t.form.ticketNote}
-                </p>
-              )}
-              {isTicket && ticketError && (
-                <p className="text-[12px] leading-[1.45] text-destructive">{ticketError}</p>
-              )}
-            </div>
-          );
-        })}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {pick?.address ? (
+          <div className="flex flex-col gap-[7px]">
+            <FieldLabel>{t.form.labels.address}</FieldLabel>
+            {/* The graph already knows this venue's street — show it, never
+                re-ask. Correcting a stated address is an owner's edit, not a
+                submission field. */}
+            <p className="flex min-h-11 items-center rounded-full border border-pro-border bg-pro-bg px-4 font-mono text-[11.5px] leading-[1.4] text-pro-muted">
+              {pick.address} · {t.form.addressOnFile}
+            </p>
+          </div>
+        ) : (
+          renderField({ key: "address" })
+        )}
+
+        {FIELDS_REST.map(renderField)}
       </div>
 
       <div className="flex flex-wrap items-center gap-3.5 pt-5">

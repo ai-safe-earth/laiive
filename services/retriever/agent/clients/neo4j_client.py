@@ -100,8 +100,10 @@ class Neo4jClient:
             for q in setup_queries:
                 session.run(q)
 
-    @neo4j_retry
-    def execute_read(self, cypher: str, params: dict | None = None) -> list[dict]:
+    def execute_read_once(self, cypher: str, params: dict | None = None) -> list[dict]:
+        """One attempt, no retry ladder — for typeahead lookups, where the next
+        keystroke IS the retry and three backoff attempts would pin a
+        threadpool slot answering a fragment nobody wants any more."""
         start = time.perf_counter()
         try:
             with self._driver.session(
@@ -113,6 +115,9 @@ class Neo4jClient:
             logger.debug(
                 f"Neo4j read took {int((time.perf_counter() - start) * 1000)}ms"
             )
+
+    # Chat reads ride the retry ladder; the answer is worth waiting for there.
+    execute_read = neo4j_retry(execute_read_once)
 
     def get_schema(self, force_refresh: bool = False) -> str:
         if self._schema_cache is not None and not force_refresh:

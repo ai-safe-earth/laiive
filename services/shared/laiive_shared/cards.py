@@ -13,6 +13,12 @@ class EventCard(BaseModel):
     name: str
     artists: list[str] = []
     venue: str | None = None
+    # The venue's graph identity and address. A card that can only name its
+    # venue by display string cannot be used to claim or edit it -- the uid is
+    # what the ownership screens reference. None on rows read by paths that do
+    # not select them.
+    venue_uid: str | None = None
+    venue_address: str | None = None
     venue_type: str | None = None
     city: str | None = None
     start_at: str | None = None  # ISO 8601
@@ -44,6 +50,35 @@ class EventCard(BaseModel):
     # reaches a card at all -- its coordinates are dropped, since a known-wrong
     # pin drawn on a map is a confident lie. See laiive_shared.geocode.
     geocode_precision: str | None = None
+    # True once an organization's claim on this event was verified by an admin
+    # (the claim stamp on the graph node). The card treats it as vouched, the
+    # same trust a promoter's own submission gets. False until then --
+    # including while a claim is merely pending.
+    claimed: bool = False
+
+
+class VenueHit(BaseModel):
+    """One venue in a lookup answer — enough to pick it and prefill a form."""
+
+    uid: str
+    name: str
+    venue_type: str | None = None
+    address: str | None = None
+    city: str | None = None
+
+
+class VenueLookupResult(BaseModel):
+    venues: list[VenueHit] = []
+
+
+class ArtistHit(BaseModel):
+    uid: str
+    name: str
+    genres: list[str] = []
+
+
+class ArtistLookupResult(BaseModel):
+    artists: list[ArtistHit] = []
 
 
 class EventDraft(BaseModel):
@@ -83,9 +118,25 @@ REQUIRED_DRAFT_FIELDS = (
 # are no artists to derive one from.
 ADMIN_SEARCH_REQUIRED_FIELDS = ("name", "start_at", "venue", "city")
 
+# What a resolved venue node supplies on its own: the fields missing_required
+# waives when the caller passes venue_known. Declared beside the required
+# tuples it filters, so a rename there is visibly a rename here.
+VENUE_SUPPLIED_FIELDS = ("venue", "address", "city")
 
-def missing_required(draft: EventDraft, source: str = "pro_submission") -> list[str]:
-    """Names of required fields that are still empty on this draft."""
+
+def missing_required(
+    draft: EventDraft,
+    source: str = "pro_submission",
+    *,
+    venue_known: bool = False,
+) -> list[str]:
+    """Names of required fields that are still empty on this draft.
+
+    ``venue_known`` means the caller resolved an existing graph venue by uid:
+    the node brings its own name, address and city, so those are not the
+    promoter's to re-type. The writer still refuses the write when the picked
+    venue itself has no address on file and the draft offers none.
+    """
     required = (
         ADMIN_SEARCH_REQUIRED_FIELDS
         if source == "admin_search"
@@ -96,4 +147,6 @@ def missing_required(draft: EventDraft, source: str = "pro_submission") -> list[
         value = getattr(draft, field)
         if value is None or value == [] or value == "":
             missing.append(field)
+    if venue_known:
+        missing = [f for f in missing if f not in VENUE_SUPPLIED_FIELDS]
     return missing

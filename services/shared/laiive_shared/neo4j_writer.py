@@ -13,6 +13,7 @@ import logging
 import re
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -44,6 +45,23 @@ _DATE_FORMATS = [
     "%d/%m/%Y",
     "%d-%m-%Y %H:%M",
 ]
+
+
+@dataclass(frozen=True)
+class _VenueIdentity:
+    """The venue as this write will treat it — read off the node when the
+    caller picked one, off the draft otherwise. One value, resolved once, so
+    the dedup probe, the geocoder gate, the timezone and the write clause
+    cannot disagree about which venue they are talking about."""
+
+    uid: str | None  # the graph uid when picked, else None
+    name: str
+    name_norm: str
+    city: str
+    country_code: str  # "" when nothing has resolved it yet
+    address: str | None
+    lat: float | None
+    lng: float | None
 
 
 class WriteResult(BaseModel):
@@ -125,6 +143,7 @@ def write_event(
     geocoder: NominatimGeocoder | None = None,
     address_resolver: AddressResolver | None = None,
     source_url: str = "",
+    venue_uid: str | None = None,
 ) -> WriteResult:
     """Write one event (plus its artists/venue/city/genre) to the graph.
 
@@ -142,8 +161,12 @@ def write_event(
             Deliberately an argument rather than an EventDraft field: it is
             what the caller knows, not something extracted from the page, and
             a field on the draft is a field the model can invent.
+        venue_uid: an existing graph venue the client picked from a lookup.
+            An argument for the same reason source_url is one — mid-walk
+            refinement round-trips drafts through an LLM, and a uid a model
+            invented dies on the MATCH below rather than forking a venue.
     """
-    missing = missing_required(draft, source)
+    missing = missing_required(draft, source, venue_known=bool(venue_uid))
     if missing:
         return WriteResult(
             status="invalid",
@@ -159,11 +182,60 @@ def write_event(
             message=f"Could not parse start_at: {draft.start_at!r}",
         )
 
-    name = draft.name or f"{draft.artists[0]} live at {draft.venue}"
-    # Resolved once and used for the node, the MERGE key and the geocoder
-    # alike: a promoter typing "Ponteranica, BG" must not create a second City
-    # beside the one every search actually reaches.
-    city = clean_city_name(draft.city or "")
+    # ── A picked venue: resolve the node first, and let the graph win ────────
+    # The node is the truth when a uid was picked: the draft's spelling of the
+    # venue or its city must not fork a second identity beside it.
+    if venue_uid:
+        picked = session.run(
+            """
+            MATCH (v:Venue {uid: $uid})-[:LOCATED_IN]->(c:City)
+            RETURN v.name AS name, v.name_norm AS name_norm,
+                   v.address AS address,
+                   v.location.latitude AS lat, v.location.longitude AS lng,
+                   c.name AS city, c.country_code AS country_code
+            LIMIT 1
+            """,
+            uid=venue_uid,
+        ).single()
+        if picked is None:
+            return WriteResult(
+                status="invalid",
+                missing=["venue_uid"],
+                message="No venue with that uid — pick it again or type the venue.",
+            )
+        if not picked["address"] and not draft.address:
+            return WriteResult(
+                status="invalid",
+                missing=["address"],
+                message="This venue has no address on file yet — please add one.",
+            )
+        ident = _VenueIdentity(
+            uid=venue_uid,
+            name=picked["name"],
+            name_norm=picked["name_norm"],
+            city=picked["city"],
+            country_code=picked["country_code"] or "",
+            address=picked["address"],
+            lat=picked["lat"],
+            lng=picked["lng"],
+        )
+    else:
+        # Resolved once and used for the node, the MERGE key and the geocoder
+        # alike: a promoter typing "Ponteranica, BG" must not create a second
+        # City beside the one every search actually reaches.
+        ident = _VenueIdentity(
+            uid=None,
+            name=draft.venue,
+            name_norm=norm(draft.venue),
+            city=clean_city_name(draft.city or ""),
+            country_code="",
+            address=draft.address,
+            lat=None,
+            lng=None,
+        )
+
+    name = draft.name or f"{draft.artists[0]} live at {ident.name}"
+    city = ident.city
     warnings: list[str] = []
 
     # ── Dedup probe: same name + calendar day + venue → refuse to duplicate ──
@@ -174,7 +246,7 @@ def write_event(
         RETURN e.uid AS uid, e.name AS name LIMIT 1
         """,
         name_norm=norm(name),
-        venue_norm=norm(draft.venue),
+        venue_norm=ident.name_norm,
         start_at=start_at.isoformat(),
     ).single()
     if existing:
@@ -195,18 +267,24 @@ def write_event(
     # are only approximately right. A centroid fallback is not NULL, so without
     # this flag it is indistinguishable from a real venue location.
     precision = None
-    if geocoder is not None:
+    already_pinned = ident.lat is not None
+    if geocoder is not None and not already_pinned:
         city_geo = geocoder.geocode(city)
-        if city_geo is not None:
+        if city_geo is not None and ident.uid is None:
             # The geocoder answers in the local language, so this collapses the
             # exonym split before the name becomes a MERGE key: one Torino
             # sweep returned eight candidates saying Torino and seven saying
             # Turin, which is two City nodes and a search that finds half its
             # events. Done before the venue lookup so both ask for one place.
+            # A picked venue keeps its node's city — that identity is settled.
             city = canonical_city_name(city_geo.display_name) or city
         venue_geo = geocoder.geocode_venue(
-            draft.venue,
-            draft.address,
+            ident.name,
+            # A picked venue may carry its street while the draft does not
+            # (the form shows the on-file address rather than re-asking): the
+            # node's address must reach the geocoder, or a name-only miss
+            # coalesces a city centroid onto a venue whose street we knew.
+            draft.address or ident.address,
             city,
             near=city_geo,
             address_resolver=address_resolver,
@@ -217,7 +295,7 @@ def write_event(
             venue_geo = city_geo  # fall back to the city centroid
             precision = "city_centroid"
             warnings.append("Venue could not be geocoded; using city centroid.")
-    if venue_geo is None:
+    if venue_geo is None and not already_pinned:
         warnings.append(
             "No venue location — this event will not appear in nearby search."
         )
@@ -228,8 +306,8 @@ def write_event(
     # once it is read in the venue's zone, so that happens here, after geocoding
     # has produced a coordinate and before the write.
     timezone = resolve_timezone(
-        venue_geo.lat if venue_geo else None,
-        venue_geo.lng if venue_geo else None,
+        ident.lat if already_pinned else (venue_geo.lat if venue_geo else None),
+        ident.lng if already_pinned else (venue_geo.lng if venue_geo else None),
     )
     if timezone is not None:
         if start_at.tzinfo is None:
@@ -247,8 +325,9 @@ def write_event(
         warnings.append(
             "Could not resolve the venue's timezone; the start time is stored as UTC."
         )
-    country_code = (city_geo.country_code if city_geo else "") or (
-        venue_geo.country_code if venue_geo else ""
+    country_code = ident.country_code or (
+        (city_geo.country_code if city_geo else "")
+        or (venue_geo.country_code if venue_geo else "")
     )
     if not country_code:
         warnings.append("Could not resolve the city's country code.")
@@ -263,9 +342,25 @@ def write_event(
         {"name": a, "name_norm": norm(a), "uid": str(uuid.uuid4())}
         for a in draft.artists
     ]
-    try:
-        record = session.run(
-            """
+    # A picked venue is matched by uid and only ever completed, never
+    # overwritten: filling an empty address (and the pin that follows it) is
+    # finishing the record, while changing a stated one is an owner's edit and
+    # goes through a different door entirely.
+    venue_clause = (
+        """
+            MATCH (v:Venue {uid: $picked_uid})-[:LOCATED_IN]->(c:City)
+            // One row however many LOCATED_IN edges the node has grown (the
+            // seed can attach a second city): without this, the CREATE below
+            // runs once per row and dies on the event_uid constraint.
+            WITH v, c LIMIT 1
+            SET v.address = coalesce(v.address, $address),
+                v.location = coalesce(v.location,
+                    CASE WHEN $venue_lat IS NULL THEN NULL
+                         ELSE point({latitude: $venue_lat, longitude: $venue_lng}) END),
+                v.geocode_precision = coalesce(v.geocode_precision, $geocode_precision)
+        """
+        if ident.uid is not None
+        else """
             MERGE (c:City {name_norm: $city_norm, country_code: $country_code})
             ON CREATE SET c.name = $city,
                           c.location = CASE WHEN $city_lat IS NULL THEN NULL
@@ -279,7 +374,12 @@ def write_event(
                           v.geocode_precision = $geocode_precision,
                           v.source = $source, v.owner_id = $owner_id,
                           v.created_at = datetime()
-
+        """
+    )
+    try:
+        record = session.run(
+            venue_clause
+            + """
             CREATE (e:Event {
                 uid: $event_uid, name: $name, name_norm: $name_norm,
                 description: $description, start_at: datetime($start_at),
@@ -316,13 +416,14 @@ def write_event(
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
                    v.uid AS venue_uid
             """,
+            picked_uid=ident.uid,
             city=city,
             city_norm=norm(city),
             country_code=country_code,
             city_lat=city_geo.lat if city_geo else None,
             city_lng=city_geo.lng if city_geo else None,
-            venue=draft.venue,
-            venue_norm=norm(draft.venue),
+            venue=ident.name,
+            venue_norm=ident.name_norm,
             venue_uid=str(uuid.uuid4()),
             venue_type=draft.venue_type,
             address=draft.address,
