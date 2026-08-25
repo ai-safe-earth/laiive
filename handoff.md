@@ -1,43 +1,42 @@
-# HANDOFF - laiive (updated 2026-08-23)
+# HANDOFF - laiive (updated 2026-08-24)
 
 State only. Rules and machine gotchas: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`.
 
-**laiive is live at https://laiive.com**, `v0.1.0` - Pages from `main`, gateway
+**laiive is live at https://laiive.com** - Pages from `main`, gateway
 https://laiive-gateway.fly.dev, five Fly apps in `fra`. `main` is production, `develop` the trunk.
 
-## One branch open
+## Merged and released, with a wire hanging
 
-**#61, #62 and #63 are merged** - discovery on Torino and Bergamo with provenance and the
-learning loop, and the `/admin` review queue. Nothing else is open.
-**`feat/saved-events-and-ui-polish`** is six commits rebased onto `develop`, no PR yet; suites
-green at 77 / 25 / 173 / 118 (frontend, gateway, retriever, shared).
+**#64 (saved events + both-surface polish) merged; #65 released it to `main`; #66 merged back.**
+So production's SPA now calls `GET /api/events` and writes `saved_events` - **neither exists
+until the Fly retriever + gateway deploy and the `supabase db push` for `...13/14/15` happen**.
+If those did not ride the release, every save on laiive.com is a 404 right now.
 
-On it and nowhere else: **saved events end to end** (`saved_events` under RLS, retriever
-`GET /events?uids=`, gateway `/api/events` behind `requireRole("user")`, `/saved`), the card
-and chat polish, and a `/pro` onboarding panel whose 16/9 frame waits on a Claude Design piece.
+## Two fix PRs open, both green
 
-## The backlog that is the point of /admin
+An adversarial review over #61-#64 confirmed 10 findings. **#67** fixes eight: admin dismiss
+fired on Cancel (one-way, no undo - and the queue walk is imminent); `Candidate.draft` was a
+hand-copied subset hiding address/description/ticket_url from the reviewer; the writer relabeled
+offset-bearing start times (19:00+00:00 stored two hours early); one aware draft aborted a whole
+sweep; Bergamo's seeds narrowed every city's first slot (Torino swept Bergamo-only domains);
+a promoted phrasing ran twice per sweep; `trial_query` mislabeled; `pages_with_events` hardcoded
+to 0 while decaying. **#68** fixes the order-sensitive saved-cards cache key (one unsave
+refetched every card). Deferred: `localdatetime` sargability (documented), `/sweep` locale guard.
 
-**12 reports sit in `dry_run` holding ~180 candidates**, including every Torino and Bergamo event
-found this week. A sweep writes a report to Supabase and stops; only `POST /reports/{id}/approve`
-moves it. The UI exists now, and nothing has been approved through it yet.
+## The backlog behind /admin
 
-## Discovery, as it now runs
-
-Bergamo and Torino provinces, weekly, five **Italian** query templates plus Tavily `/extract` for
-three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a test.
+**12 reports in `dry_run`, ~180 candidates.** Only `POST /reports/{id}/approve` moves them.
+Merge #67 before walking the queue - until then, Cancel on the dismiss prompt still dismisses.
 
 ## Open
 
-- **Three migrations unpushed**: `...13`, `...14`, `...15`. The first two fail soft; **`...15`
-  does not** - without `saved_events` every save is a 404. Push before the SPA ships, and deploy
-  the retriever and gateway first: `/api/events` does not exist until they do.
-- **`flows/serve.py` is not running**, so no schedule fires; every sweep so far was by hand.
-- **`GATEWAY_URL` in `.env` points at Fly**, so anything using `flows/auth.py` hits production.
-- Deferred by decision: the venue welcome pack, and the Supabase confirmation email (yours).
-- Redirect allow-list unread (`DEPLOY.md` 5 step 2). `origin/feat/promoter-onboarding-and-surface`
-  stale. **OG card** bare. `lucide-react` unused. Never clicked: the pro walk in es/ca. Reference
-  artifacts: pipelines `04820bb1`, admin scope `a331b289`.
+- **Migrations `...13/14/15` + Fly deploys**: see above; `...15` does not fail soft.
+- **`flows/serve.py` not running**; sweeps are by hand. **`GATEWAY_URL` in `.env` points at Fly**.
+- Stale remote branches to delete (refused from this machine): `feat/promoter-onboarding-and-
+  surface`, and `feat/saved-events-and-ui-polish` (resurrected by a post-merge push).
+- Deferred by decision: venue welcome pack; Supabase confirmation email (yours). OG card bare;
+  `lucide-react` unused; redirect allow-list unread (`DEPLOY.md` 5 step 2).
+- Reference artifacts: pipelines `04820bb1`, admin scope `a331b289`.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -45,7 +44,7 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-23",
+  "updated": "2026-08-24",
   "deadline": null,
   "people": [
     "oscar"
@@ -556,20 +555,8 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
           "text": "Google sign-in has been used: auth.identities holds both an email and a google provider on the same user id for the admin account, last signed in 2026-08-19. The never-clicked item and the redirect allow-list blocker are narrower than they read - the return leg demonstrably worked at least once"
         },
         {
-          "date": "2026-08-23",
-          "text": "Saved events are pointers, not snapshots: saved_events holds uids under RLS and the card bodies are re-read from the graph on every open, so a corrected price or a moved door time reaches a saved card"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "The by-uid lookup gets its own gateway prefix, /api/events behind requireRole(\"user\"), rather than riding the anonymous /api/chat - saving needs an account, and a rule that lives only in the SPA is a hope"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "Both doors between the two surfaces live in UserMenu and are promoter-only; the /pro logo is no longer a link. A free user reaches /pro through /account or /auth?kind=pro"
-        },
-        {
-          "date": "2026-08-23",
-          "text": "The venue welcome pack and the confirmation email are deferred out of this batch - the pack needs mail, QR and PDF infrastructure the repo does not have"
+          "date": "2026-08-24",
+          "text": "PR #64 (saved events + both-surface polish) merged; released to main via #65, main merged back via #66"
         }
       ]
     },
@@ -673,8 +660,8 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
           "text": "Prefect schedules stay read-only in the admin UI (owner call). serve() re-asserts its hardcoded crons on every restart, so a cron edited through the API reverts silently; making them editable would mean moving the schedule into the database and having serve.py read it at startup. Dropped rather than built"
         },
         {
-          "date": "2026-08-23",
-          "text": "#61 (discovery on Torino and Bergamo, provenance, the learning loop), #62 and #63 (the /admin review queue) merged into develop; all three head branches deleted"
+          "date": "2026-08-24",
+          "text": "Adversarial review over #61-#64 confirmed 10 findings; 9 fixed across PR #67 (admin dismiss-on-Cancel, Candidate.draft redeclaration, writer tz relabeling, sweep-killing TypeError, Bergamo seeds narrowing every city, trial double-run, mislabeled trial_query, dead pages_with_events counter, dead fifth template) and PR #68 (order-sensitive saved-cards cache key). Deferred by decision: localdatetime sargability (documented) and an out-of-locale /sweep guard"
         }
       ]
     }
@@ -719,7 +706,28 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
   ],
   "nextSteps": [
     {
-      "title": "PR feat/saved-events-and-ui-polish into develop - rebased onto develop after #61, #62 and #63 merged, so it is six commits on a clean base",
+      "title": "Merge PR #67 (review fixes: admin Cancel, seed locality, aware datetimes, trial slot, pages_with_events) and PR #68 (saved-cards cache key), both green into develop",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Verify the release actually shipped its dependencies: main carries the saved-events SPA, which 404s on every save until supabase db push applies ...13/14/15, and /api/events does not exist until the retriever and gateway deploy on Fly",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Delete the resurrected origin/feat/saved-events-and-ui-polish branch (re-created by a post-merge push; remote deletion is refused from this machine)",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Restyle - new visual direction",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Merge PR #61 (discovery), then retarget PR #62 (admin) to develop with gh pr edit 62 --base develop",
       "est": 1,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
@@ -880,13 +888,6 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "plan": "roadmap"
     },
     {
-      "title": "Release PR develop -> main: the promoter door, the sign-up hardening and the frontend test suite are unreleased. Then make release, deploy, and merge main back into develop so the tag is not stranded",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Restyle - new visual direction",
-      "plan": "roadmap"
-    },
-    {
       "title": "Delete origin/feat/promoter-onboarding-and-surface - recreated by a push after PR #56 merged and deleted it, and remote branch deletion is refused from this machine",
       "est": 1,
       "owner": "oscar",
@@ -994,7 +995,7 @@ three vouched Bergamo sources. ~435 Tavily credits a month of 1000, pinned by a 
       "hours": null
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-24",
       "model": "opus-5",
       "credits": null,
       "person": "oscar",
