@@ -220,6 +220,21 @@ def test_every_template_reaches_the_page_budget(mock_tavily, mock_openai):
     assert "t2.example" in read
 
 
+def test_query_yield_attributes_pages_with_events(mock_learning_http):
+    """The query-level yield column was hardcoded 0 while candidates flowed
+    beside it (confirmed against the live store). Display-only: the dashboard
+    renders it, while promotion reads candidates_new alone — a page whose
+    extraction found events now credits the template that surfaced it."""
+    discovery.sweep_city("Berlin")
+    upserted = [
+        call.kwargs.get("json")
+        for call in mock_learning_http.post.call_args_list
+        if isinstance(call.kwargs.get("json"), list)
+    ]
+    query_rows = next(rows for rows in upserted if rows and "template" in rows[0])
+    assert any(row["pages_with_events"] >= 1 for row in query_rows)
+
+
 def test_the_queries_are_italian_all_the_way_through(mock_tavily):
     """The templates are Italian because the query language picks the language
     of the sites reached -- measured 3/9 Italian domains for an English query

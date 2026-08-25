@@ -137,6 +137,8 @@ export function testConfig(overrides: Partial<GatewayConfig> & { supabaseUrl: st
     rateLimitWindowMs: 60_000,
     rateLimitAnonMax: 1000,
     rateLimitUserMax: 1000,
+    rateLimitProMax: 1000,
+    rateLimitAdminMax: 1000,
     // Small on purpose: the oversize test sends a few kB rather than 10 MB.
     uploadMaxBytes: 4096,
     conversationLogging: false,

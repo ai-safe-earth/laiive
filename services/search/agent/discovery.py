@@ -205,6 +205,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     pages_with_events = 0
     # Per-page bookkeeping, folded into the store at the end of the sweep.
     observed: dict[str, dict] = {}
+    events_per_query: dict[str, int] = {}
     for hit in pages:
         domain = source_domain(hit.url)
         seen = observed.setdefault(
@@ -222,6 +223,12 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         if found:
             pages_with_events += 1
             seen["pages_with_events"] += 1
+            # Attributed via url_query like candidates_new below — this was a
+            # hardcoded 0 for every template (confirmed against the live
+            # store). Display-only: the dashboard renders it; promotion reads
+            # candidates_new alone (learning._query_yield).
+            if template := url_query.get(hit.url):
+                events_per_query[template] = events_per_query.get(template, 0) + 1
         seen["drafts"] += len(found)
         drafts.extend((draft, hit.url) for draft in found)
 
@@ -306,7 +313,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     by_query = {
         template: {
             "pages": read_per_query.get(template, 0),
-            "pages_with_events": 0,
+            "pages_with_events": events_per_query.get(template, 0),
             "candidates_new": new_per_query.get(template, 0),
             "local_domain_share": (
                 local_per_query.get(template, 0) / read_per_query[template]
