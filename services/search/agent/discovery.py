@@ -251,7 +251,9 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             pages_with_events += 1
             seen["pages_with_events"] += 1
             # Credit the template that surfaced the page. Agenda pages have no
-            # template and rightly count for none.
+            # template and rightly count for none. Display-only: the dashboard
+            # renders it; promotion reads candidates_new alone
+            # (learning._query_yield).
             if template := url_query.get(hit.url):
                 events_per_query[template] = events_per_query.get(template, 0) + 1
         seen["drafts"] += len(found)

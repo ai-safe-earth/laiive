@@ -58,6 +58,8 @@ describe("rate limits", () => {
         retrieverUrl: retriever.url,
         rateLimitAnonMax: 2,
         rateLimitUserMax: 4,
+        rateLimitProMax: 8,
+        rateLimitAdminMax: 16,
       }),
     );
     await app.ready();
@@ -73,6 +75,24 @@ describe("rate limits", () => {
 
     // same IP, but authenticated: keyed by sub with the higher cap
     const token = await supabase.signToken({ sub: "user-limits" });
+    // The cap climbs with the role: pro carries the walk plus the venue
+    // combobox, admin carries the dashboard plus sweep polling.
+    const pro = await supabase.signToken({ sub: "pro-limits", role: "pro" });
+    const proRes = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { authorization: `Bearer ${pro}` },
+      payload: {},
+    });
+    expect(String(proRes.headers["x-ratelimit-limit"])).toBe("8");
+    const admin = await supabase.signToken({ sub: "admin-limits", role: "admin" });
+    const adminRes = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { authorization: `Bearer ${admin}` },
+      payload: {},
+    });
+    expect(String(adminRes.headers["x-ratelimit-limit"])).toBe("16");
     for (let i = 0; i < 4; i++) {
       const res = await app.inject({
         method: "POST",

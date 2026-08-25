@@ -22,7 +22,7 @@ from laiive_shared.normalize import source_domain
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from agent import discovery, graph, learning, reports
+from agent import discovery, graph, learning, reports, stats
 from config import settings
 
 app = FastAPI(title="laiive search", version="0.1.0")
@@ -234,6 +234,14 @@ def _as_uuid(value: str) -> str | None:
 
 class BackfillRequest(BaseModel):
     max_venues: int = Field(25, ge=1, le=200)
+
+
+@app.get("/stats")
+def dashboard_stats():
+    """Everything the admin dashboard renders, in one call — the gateway rate
+    limit is per-user across all of /api/*, so the dashboard gets one request,
+    not one per section."""
+    return stats.build()
 
 
 @app.post("/backfill", status_code=202)

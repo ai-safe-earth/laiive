@@ -47,6 +47,9 @@ PUSHER_KEYS="NEO4J_URI NEO4J_USERNAME NEO4J_PASSWORD NEO4J_DATABASE OPENAI_API_K
 SEARCH_KEYS="NEO4J_URI NEO4J_USERNAME NEO4J_PASSWORD NEO4J_DATABASE OPENAI_API_KEY TAVILY_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY INTERNAL_API_KEY"
 # Tracing is optional -- set only when LANGFUSE_ENABLED is true in the file.
 RETRIEVER_OPTIONAL="LANGFUSE_ENABLED LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_HOST"
+# The admin dashboard's read-only scheduler panel -- set only when configured,
+# or the deployed panel says "not configured" forever while serve.py is dead.
+SEARCH_OPTIONAL="PREFECT_API_URL PREFECT_API_KEY"
 
 keys_for() {
   case "$1" in
@@ -82,6 +85,7 @@ echo "all required keys present in $ENV_FILE"
 for app in $APPS; do
   keys=$(keys_for "$app")
   [ "$app" = "retriever" ] && [ "$(read_key LANGFUSE_ENABLED)" = "true" ] && keys="$keys $RETRIEVER_OPTIONAL"
+  [ "$app" = "search" ] && [ -n "$(read_key PREFECT_API_URL)" ] && keys="$keys $SEARCH_OPTIONAL"
 
   set -- # rebuild the argument list as KEY=value pairs, values never echoed
   for key in $keys; do

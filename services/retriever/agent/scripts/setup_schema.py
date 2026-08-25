@@ -30,6 +30,8 @@ constraints = [
 
 indexes = [
     "CREATE INDEX event_start_at   IF NOT EXISTS FOR (e:Event)  ON (e.start_at)",
+    # The admin dashboard's events-per-day trend groups by this.
+    "CREATE INDEX event_created_at IF NOT EXISTS FOR (e:Event)  ON (e.created_at)",
     "CREATE INDEX event_status     IF NOT EXISTS FOR (e:Event)  ON (e.status)",
     "CREATE INDEX event_source     IF NOT EXISTS FOR (e:Event)  ON (e.source)",
     "CREATE INDEX event_name_norm  IF NOT EXISTS FOR (e:Event)  ON (e.name_norm)",
