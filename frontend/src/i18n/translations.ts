@@ -126,6 +126,8 @@ export interface Translations {
     addArtist: string;
     removeArtist: string;
     artistPlaceholder: string;
+    addressOnFile: string;
+    venueSuggestionsAria: string;
   };
   cards: {
     free: string;
@@ -314,6 +316,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ add artist",
       removeArtist: "remove artist",
       artistPlaceholder: "artist or band name",
+      addressOnFile: "on file at laiive",
+      venueSuggestionsAria: "venues laiive already knows",
     },
     cards: {
       free: "free",
@@ -502,6 +506,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ añadir artista",
       removeArtist: "quitar artista",
       artistPlaceholder: "nombre del artista o grupo",
+      addressOnFile: "registrada en laiive",
+      venueSuggestionsAria: "salas que laiive ya conoce",
     },
     cards: {
       free: "gratis",
@@ -690,6 +696,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ aggiungi artista",
       removeArtist: "rimuovi artista",
       artistPlaceholder: "nome dell'artista o del gruppo",
+      addressOnFile: "registrato su laiive",
+      venueSuggestionsAria: "locali che laiive già conosce",
     },
     cards: {
       free: "gratis",
@@ -878,6 +886,8 @@ export const translations: Record<Language, Translations> = {
       addArtist: "+ afegir artista",
       removeArtist: "treure artista",
       artistPlaceholder: "nom de l'artista o del grup",
+      addressOnFile: "registrada a laiive",
+      venueSuggestionsAria: "sales que laiive ja coneix",
     },
     cards: {
       free: "gratuït",

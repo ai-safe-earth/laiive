@@ -95,12 +95,15 @@ class FakeNeo4jSession:
     """Understands the shared writer's query sequence: dedup probe → write →
     embedding-backfill selects."""
 
-    def __init__(self, dedup_hit=None):
+    def __init__(self, dedup_hit=None, venue_node=None):
         self.queries = []
         self.dedup_hit = dedup_hit
+        self.venue_node = venue_node
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        if "MATCH (v:Venue {uid: $uid})" in query:
+            return FakeNeo4jResult(single=self.venue_node)
         if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
             return FakeNeo4jResult(single=self.dedup_hit)
         if "CREATE (e:Event" in query:

@@ -50,6 +50,7 @@ def write_event(
     draft: EventDraft,
     owner_id: str | None = None,
     source: str = "pro_submission",
+    venue_uid: str | None = None,
 ) -> WriteResult:
     with _driver.session(database=settings.neo4j_database) as session:
         return _shared_write_event(
@@ -60,4 +61,5 @@ def write_event(
             embed_texts=_embed_texts,
             embedding_model=settings.embedding_model,
             geocoder=_geocoder,
+            venue_uid=venue_uid,
         )

@@ -108,6 +108,63 @@ describe("auth", () => {
     expect(upstream.headers["x-user-role"]).toBe("pro");
   });
 
+  it("refuses pusher routes the gateway does not name (no catch-all)", async () => {
+    // The old /api/push catch-all exposed every pusher route, present and
+    // future, behind one pro gate. Explicit routes mean a new pusher endpoint
+    // has to be named in proxy.ts to exist at all — pinned here so a future
+    // "convenient" catch-all fails this test.
+    const token = await supabase.signToken({ role: "pro" });
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/api/push/venues/v1",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("still answers the health probe the live e2e script relies on", async () => {
+    const token = await supabase.signToken({ role: "pro" });
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/push/health",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((JSON.parse(res.body) as SeenRequest).url).toBe("/health");
+  });
+
+  it("keeps anonymous and plain users away from the entity lookups", async () => {
+    const anon = await app.inject({ method: "GET", url: "/api/venues?q=razz" });
+    expect(anon.statusCode).toBe(401);
+    const token = await supabase.signToken({ role: "user" });
+    const user = await app.inject({
+      method: "GET",
+      url: "/api/venues?q=razz",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(user.statusCode).toBe(403);
+  });
+
+  it("routes a pro's venue and artist lookups to the retriever, query intact", async () => {
+    const token = await supabase.signToken({ role: "pro" });
+    const venues = await app.inject({
+      method: "GET",
+      url: "/api/venues?q=razz&city=Barcelona",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(venues.statusCode).toBe(200);
+    expect((JSON.parse(venues.body) as SeenRequest).url).toBe("/venues?q=razz&city=Barcelona");
+
+    const artists = await app.inject({
+      method: "GET",
+      url: "/api/artists?q=ana",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(artists.statusCode).toBe(200);
+    expect((JSON.parse(artists.body) as SeenRequest).url).toBe("/artists?q=ana");
+  });
+
   it("keeps admins out of nothing and pros out of admin search", async () => {
     const pro = await supabase.signToken({ role: "pro" });
     const admin = await supabase.signToken({ role: "admin" });
