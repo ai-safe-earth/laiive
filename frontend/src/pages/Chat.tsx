@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
-import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
+import { sendFeedback, streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { Composer } from "@/components/Composer";
@@ -102,7 +102,7 @@ export default function Chat() {
     };
 
     try {
-      await streamChat(history, {
+      const requestId = await streamChat(history, {
         location,
         signal: controller.signal,
         handlers: {
@@ -126,6 +126,16 @@ export default function Chat() {
           onError: (message) => toast.error(message),
         },
       });
+      // Stamped after the stream ends: the id's presence is also what tells
+      // the UI this turn is finished and can take feedback.
+      if (requestId) {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          return last?.role === "assistant"
+            ? [...prev.slice(0, -1), { ...last, requestId }]
+            : prev;
+        });
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       handleFailure(error);
@@ -243,6 +253,7 @@ export default function Chat() {
                       ))}
                     </div>
                   )}
+                  {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
               ),
             )}
@@ -273,5 +284,79 @@ export default function Chat() {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Thumbs-down with an optional reason (eval phase 1). No thumbs-up — the
+ * down is the informative event. The click posts immediately so an abandoned
+ * reason box still counts; a typed reason goes out as a second post for the
+ * same request_id.
+ */
+export function TurnFeedback({ requestId }: { requestId: string }) {
+  const { t } = useTranslation();
+  const [stage, setStage] = useState<"idle" | "asking" | "done">("idle");
+  const [reason, setReason] = useState("");
+
+  const down = () => {
+    setStage("asking");
+    sendFeedback(requestId).catch(() => {
+      setStage("idle");
+      toast.error(t.chat.genericError);
+    });
+  };
+
+  const submit = () => {
+    const text = reason.trim();
+    setStage("done");
+    if (text) sendFeedback(requestId, text).catch(() => undefined);
+  };
+
+  if (stage === "done") {
+    return (
+      <p className="font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
+        {t.chat.feedbackThanks}
+      </p>
+    );
+  }
+
+  if (stage === "asking") {
+    return (
+      <input
+        autoFocus
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit();
+        }}
+        placeholder={t.chat.feedbackReasonPlaceholder}
+        maxLength={2000}
+        className="w-full max-w-sm rounded-full border border-rule bg-transparent px-3.5 py-2 text-[12.5px] text-foreground placeholder:text-ink-dim focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={down}
+      aria-label={t.chat.feedbackDown}
+      title={t.chat.feedbackDown}
+      className="self-start text-ink-dim transition-colors hover:text-foreground"
+    >
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M17 14V2" />
+        <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+      </svg>
+    </button>
   );
 }

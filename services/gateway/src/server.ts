@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
 import { registerAuth } from "./auth.js";
 import type { GatewayConfig } from "./config.js";
+import { registerFeedback } from "./feedback.js";
 import { registerConversationLogging } from "./logging.js";
 import { registerProxies } from "./proxy.js";
 import "./types.js";
@@ -131,6 +132,7 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
     }
   });
 
+  registerFeedback(app, config);
   registerProxies(app, config);
   registerConversationLogging(app, config);
 

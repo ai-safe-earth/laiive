@@ -7,6 +7,9 @@ export interface ChatMessage {
   content: string;
   /** Cards that arrived with this answer (assistant turns only). */
   events?: EventCard[];
+  /** The gateway's x-request-id for the turn that produced this answer —
+   * the join key for feedback (assistant turns only, set once done). */
+  requestId?: string;
 }
 
 export interface UserLocation {
@@ -44,7 +47,7 @@ export async function streamChat(
     signal?: AbortSignal;
     handlers?: StreamHandlers;
   } = {},
-): Promise<void> {
+): Promise<string | null> {
   const { location, signal, handlers = {} } = options;
 
   const response = await apiFetch("/api/chat/stream", {
@@ -63,6 +66,21 @@ export async function streamChat(
   for await (const frame of readProtocolStream(response)) {
     dispatch(frame, handlers);
   }
+  return response.headers.get("x-request-id");
+}
+
+/**
+ * Thumbs-down on an assistant turn. The click fires immediately with no
+ * reason — abandoning the reason box must not lose the signal — and a typed
+ * reason arrives as a second post for the same request_id. Server-side, the
+ * id joins the full conversation (conversation_logs) and the answer
+ * (eval_records).
+ */
+export async function sendFeedback(requestId: string, reason?: string): Promise<void> {
+  await apiFetch("/api/chat/feedback", {
+    method: "POST",
+    body: JSON.stringify({ request_id: requestId, reason: reason ?? null }),
+  });
 }
 
 function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {

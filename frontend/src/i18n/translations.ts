@@ -29,6 +29,9 @@ export interface Translations {
     genericError: string;
     stop: string;
     send: string;
+    feedbackDown: string;
+    feedbackReasonPlaceholder: string;
+    feedbackThanks: string;
   };
   auth: {
     signInTitle: string;
@@ -197,6 +200,9 @@ export const translations: Record<Language, Translations> = {
       genericError: "Something went wrong.",
       stop: "Stop",
       send: "Send",
+      feedbackDown: "Not helpful",
+      feedbackReasonPlaceholder: "What went wrong? (optional)",
+      feedbackThanks: "Thanks for the feedback",
     },
     auth: {
       signInTitle: "sign in",
@@ -383,6 +389,9 @@ export const translations: Record<Language, Translations> = {
       genericError: "Algo ha ido mal.",
       stop: "Detener",
       send: "Enviar",
+      feedbackDown: "No útil",
+      feedbackReasonPlaceholder: "¿Qué ha fallado? (opcional)",
+      feedbackThanks: "Gracias por tu opinión",
     },
     auth: {
       signInTitle: "inicia sesión",
@@ -569,6 +578,9 @@ export const translations: Record<Language, Translations> = {
       genericError: "Qualcosa è andato storto.",
       stop: "Interrompi",
       send: "Invia",
+      feedbackDown: "Non utile",
+      feedbackReasonPlaceholder: "Cosa non andava? (facoltativo)",
+      feedbackThanks: "Grazie per il feedback",
     },
     auth: {
       signInTitle: "accedi",
@@ -755,6 +767,9 @@ export const translations: Record<Language, Translations> = {
       genericError: "Alguna cosa ha anat malament.",
       stop: "Atura",
       send: "Envia",
+      feedbackDown: "Poc útil",
+      feedbackReasonPlaceholder: "Què ha fallat? (opcional)",
+      feedbackThanks: "Gràcies pel feedback",
     },
     auth: {
       signInTitle: "inicia sessió",

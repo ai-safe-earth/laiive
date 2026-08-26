@@ -22,6 +22,7 @@ export async function startSupabaseStub() {
   const { publicKey, privateKey } = await generateKeyPair("ES256");
   const jwk = { ...(await exportJWK(publicKey)), kid: "test-key", alg: "ES256", use: "sig" };
   const logInserts: unknown[] = [];
+  const feedbackInserts: unknown[] = [];
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     if (req.url === "/auth/v1/.well-known/jwks.json") {
@@ -29,11 +30,15 @@ export async function startSupabaseStub() {
       res.end(JSON.stringify({ keys: [jwk] }));
       return;
     }
-    if (req.url === "/rest/v1/conversation_logs" && req.method === "POST") {
+    if (
+      (req.url === "/rest/v1/conversation_logs" || req.url === "/rest/v1/turn_feedback") &&
+      req.method === "POST"
+    ) {
+      const sink = req.url === "/rest/v1/turn_feedback" ? feedbackInserts : logInserts;
       const chunks: Buffer[] = [];
       req.on("data", (chunk: Buffer) => chunks.push(chunk));
       req.on("end", () => {
-        logInserts.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        sink.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
         res.statusCode = 201;
         res.end();
       });
@@ -49,6 +54,7 @@ export async function startSupabaseStub() {
   return {
     url,
     logInserts,
+    feedbackInserts,
     signToken: (opts: { sub?: string; role?: string; expiresIn?: string } = {}) =>
       new SignJWT(opts.role === undefined ? {} : { user_role: opts.role })
         .setProtectedHeader({ alg: "ES256", kid: "test-key" })
