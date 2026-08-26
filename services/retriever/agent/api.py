@@ -375,7 +375,7 @@ def chat(request: ChatRequest, raw: Request):
             needs_more_info=result.needs_more_info,
         )
     except Exception as e:
-        logger.error(f"[{request_id}] Chat error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
         raise HTTPException(500, "An internal error occurred. Please try again.")
 
 
@@ -425,7 +425,7 @@ def _generate(
         ):
             yield sse_frame(payload)
     except Exception as e:
-        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] SSE stream error: {}", request_id, e)
         yield sse_frame(Error(code="internal_error", message="Something went wrong."))
     finally:
         log_turn(
