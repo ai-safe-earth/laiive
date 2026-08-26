@@ -103,7 +103,6 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
 
 - `uv run uvicorn …` and `uv run pytest` both fail here with "Failed to canonicalize script
   path". Use `uv sync` then `uv run --no-sync python -m uvicorn …` / `python -m pytest -q`.
-  The `make start-*` targets still carry the broken form.
 - `npm run dev -- --port 8081` silently loses the flag in PowerShell (Vite starts on 5173 and
   treats `8081` as a directory). Use `npx vite --port 8081 --strictPort`.
 - `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services (`agent` is not
@@ -121,10 +120,9 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
   session served the *deleted* app on :8081. Before debugging anything you did not start:
   `Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
 - Background dev servers survive their launcher; kill by PID.
-- Other projects squat these ports (an `A02_VaiVia` uvicorn on :8000, a
-  `laiive-global-workspace` container on :8002/:8003). Everything is env-overridable, so shift
-  rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`, and
-  inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
+- Another project squats :8000 (an `A02_VaiVia` uvicorn). Everything is env-overridable, so
+  shift rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`,
+  and inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
 
 **Commits**
 
