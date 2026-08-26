@@ -8,7 +8,7 @@ Like `neo4j_writer`, this module owns no API client: the caller passes its own,
 which keeps each service's test patching in one place.
 """
 
-from typing import Any, Protocol
+from typing import Any
 
 # Whisper's own hard limit is 25 MB. We stop well short of it: a minute of
 # webm/opus from a browser is ~1 MB, and anonymous transcription is a metered
@@ -38,12 +38,6 @@ class UnsupportedAudioFormat(ValueError):
     """Filename does not carry a suffix Whisper accepts."""
 
 
-class SupportsTranscription(Protocol):
-    """The slice of the OpenAI client this module uses."""
-
-    audio: Any
-
-
 def validate_audio(audio_bytes: bytes, filename: str) -> None:
     """Raise before spending an API call on something that cannot work."""
     if not audio_bytes:
@@ -61,7 +55,7 @@ def validate_audio(audio_bytes: bytes, filename: str) -> None:
 
 
 def transcribe(
-    client: SupportsTranscription,
+    client: Any,
     audio_bytes: bytes,
     filename: str = "audio.webm",
     model: str = "whisper-1",
