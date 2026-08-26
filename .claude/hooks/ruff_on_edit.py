@@ -1,7 +1,12 @@
-"""PostToolUse hook: run ruff on edited Python files under services/.
+"""PostToolUse hook: run `ruff format` on edited Python files under services/.
 
-Reads the hook payload on stdin, extracts the edited file path, and runs
-`ruff check --fix` then `ruff format` on it if it is a .py file under services/.
+Reads the hook payload on stdin, extracts the edited file path, and formats it
+if it is a .py file under services/.
+
+Formatting only -- deliberately NOT `ruff check --fix`. Autofix deletes an
+import the instant it is momentarily unused, which mid-edit means before its
+first use has been written. That has cost real time here; lint fixes belong at
+commit time, where the whole change is visible at once.
 
 Written as a script rather than a shell one-liner because `jq` is not installed
 on this machine and the hook shell differs between platforms. Always exits 0 --
@@ -37,11 +42,10 @@ def main() -> int:
     if not ruff:
         return 0
 
-    for args in (["check", "--fix", path], ["format", path]):
-        try:
-            subprocess.run([ruff, *args], capture_output=True, timeout=30)
-        except Exception:
-            return 0
+    try:
+        subprocess.run([ruff, "format", path], capture_output=True, timeout=30)
+    except Exception:
+        return 0
     return 0
 
 

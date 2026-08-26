@@ -10,9 +10,9 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 - Be terse. No end-of-turn summaries.
 - Propose a plan before implementing.
 - Explain tradeoffs when there's a real design choice.
-- When a task ends and the next steps don't need the conversation's prior context: update the
-  root `handoff.md` first (see *Handoff file* below), then ask me to `/clear` (Claude can't clear
-  its own context), and continue fresh from the handoff.
+- I clear often, at roughly 40% context. The flow is mine to trigger: I type `/handoff`, then
+  `/clear`. Don't propose it every turn. If I'm about to clear and something from this session
+  isn't in `handoff.md` yet, say so in one line.
 
 ## Environment
 
@@ -160,12 +160,15 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
 - Browser automation: `computer`'s `type` action does not reach this app's inputs — use
   `form_input` with a ref from `read_page`, and click by `ref` rather than coordinates.
 
-## Handoff file (read by the project tracker)
+## State files (read by the project tracker)
 
-Read `handoff.md` once, at the start of a session, before the first plan or code change. Do not
-re-read it later in the same session — the conversation is the fresher source. Re-read only after
-a `/clear`, a `/compact`, or if I say the repo moved outside this session. If it conflicts with
-the repo, trust the repo and say so.
+`handoff.md` is the moving picture; this file is the stable rules. Read `handoff.md` once, at
+the start of a session, before the first plan or code change. Do not re-read it later — the
+conversation is fresher. Re-read after a `/clear` or `/compact`. If it conflicts with the repo,
+trust the repo and say so.
 
-Keep it to state, 40 lines maximum, no narrative and no history — git log keeps that. Non-code
-progress (branding, strategy, artwork) goes to `product-status.md` instead.
+Never read `docs/pm-log.jsonl`. It is append-only history for the project tracker; reading it
+puts 50 KB of settled decisions into context for no benefit. If you need to know why something
+was decided, ask me or read the code.
+
+Writing any of this is the `/handoff` skill's job, on my command only.
