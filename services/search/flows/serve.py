@@ -41,15 +41,15 @@ if __name__ == "__main__":
         city_sweep.to_deployment(
             name="bergamo-province-weekly",
             parameters={"cities": BERGAMO_PROVINCE},
-            schedule=Cron("0 7 * * 2", timezone="Europe/Madrid"),
+            schedule=Cron("0 4 * * 3", timezone="Europe/Madrid"),
         ),
         city_sweep.to_deployment(
             name="torino-province-weekly",
             parameters={"cities": TORINO_PROVINCE},
-            schedule=Cron("0 7 * * 4", timezone="Europe/Madrid"),
+            schedule=Cron("0 7 * * 3", timezone="Europe/Madrid"),
         ),
         backfill.to_deployment(
             name="backfill-nightly",
-            schedule=Cron("30 4 * * *", timezone="Europe/Madrid"),
+            schedule=Cron("30 4 * * 1", timezone="Europe/Madrid"),
         ),
     )

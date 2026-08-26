@@ -20,7 +20,6 @@
       "Read(./supabase/.temp/**)",
       "Read(**/logs/**)",
       "Read(**/*.jsonl)",
-      "Read(./.agents/**)",
       "Read(**/*.png)",
       "Read(**/*.jpg)",
       "Read(**/*.jpeg)",
@@ -30,7 +29,11 @@
       "Read(**/*.woff)",
       "Read(**/*.woff2)",
       "Read(**/*.ttf)",
-      "Read(**/*.pdf)"
+      "Read(**/*.pdf)",
+      "Read(./docs/pm-log.jsonl)"
     ]
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true
   }
 }
