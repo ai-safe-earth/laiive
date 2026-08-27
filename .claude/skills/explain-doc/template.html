@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TOPIC — laiive</title>
 <style>
-  /* Keep this CSS verbatim across explain docs — consistency is the point.
-     --p0/--p1 are per-phase accent pairs; add --p2 the same way if a doc
-     explains three units. */
+  /* --p0/--p1 are per-unit accent pairs; add --p2 (and .b2/.d2) the same way
+     for a third unit. A one-unit doc uses --p0 only and drops the legend. */
   :root{
     --bg:#faf9f7; --panel:#ffffff; --fg:#1c1c22; --muted:#6b6b76; --rule:#e3e1dc;
     --code-bg:#f2f0ec; --code-fg:#2a2a30; --comment:#8b8b95;
@@ -145,6 +144,10 @@
 </div>
 <p class="figcap">Fig. 1 — Caption stating what the figure shows and what is deliberately omitted.</p>
 
+<!-- Only markup-novel pieces are stubbed below; the full per-unit chain is in
+     SKILL.md. Copy sequence-figure and status-table patterns from the newest
+     doc in docs/explain/. -->
+
 <h3>N.3 · How the data moves and transforms</h3>
 
 <div class="file"><span><b>path/to/file.py</b>:12–24 — what this snippet is doing in the flow</span><span class="badge b0">P0</span></div>
@@ -155,12 +158,10 @@
   <li><b class="num">①</b><strong>The decision.</strong> Why; what was rejected; what it costs.</li>
 </ul>
 
-<h3>N.7 · Key takeaways</h3>
 <div class="take"><h4>Key takeaways — unit</h4><ul><li>…</li></ul></div>
 
-<!-- Final section: status table (goodtag/warntag for done/open), then numbered
-     recommendations. When one is acted on later, flip warntag → goodtag and
-     rewrite past-tense; never delete. -->
+<!-- Final section: status table (goodtag/warntag for done/open) when the work
+     sits in a phased plan, then numbered recommendations. -->
 
 <p class="sub" style="margin-top:48px">Sources: … Line numbers as of <code>BRANCH</code> @ <code>abc1234</code>.</p>
 
