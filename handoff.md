@@ -1,43 +1,41 @@
-# HANDOFF - laiive (updated 2026-08-26)
+# HANDOFF - laiive (updated 2026-08-27)
 
 State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Evolution plan
 (six areas, A-G, approved 2026-08-25): `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md`.
 
-**laiive is live at https://laiive.com**, `v0.2.0` shipped 2026-08-25. `main` == `develop`,
-no open PRs, tag back-merged. Phases A/B/C (#69/#70/#71) and the release (#76) are all in.
+**laiive is live at https://laiive.com**, `v0.2.0` shipped 2026-08-25. PR #79
+(over-engineering audit) merged into `develop`. Nothing deployed since v0.2.0.
 
-## Uncommitted on `feat/source-prospecting` (local only; branch == origin/develop)
+## Open PR
 
-- `supabase/migrations/20260825000017_search_source_prospecting.sql` — `search_sources`
-  gains cities, agenda_urls, venues_covered, fields_filled, vouched_by/at (GIN on cities);
-  `search_reports` kind check widened. 16 is reserved for phase D, so phase G's
-  review-signal columns move to 18. Its measurement: ranking a source by `candidates_new`
-  puts songkick 24 bare listings over ecodibergamo 9 complete ones; `fields_filled` stops it.
-- `flows/serve.py` — schedules moved: bergamo Wed 04:00, torino Wed 07:00, backfill Mon only.
-- `.claude/` tooling, `CLAUDE.md`, `assets/Laiive_Pro_Walkthrough_hq.mp4`.
+**#80 `feat/eval-records` -> develop, 11 commits.** Eval phases 0+1: retriever adopts the
+gateway `x-request-id` and writes `eval_records` (migration 18); thumbs-down ->
+`turn_feedback` via a native gateway route (migration 19); thumbs-up as an inert stored
+label (migration 21, **unapplied**; retention and the phase-3 query filter to downs;
+apply 21 before deploying the gateway or every feedback post 502s); `make dev` one-terminal stack
+plus the two bugs it uncovered (Makefile env whitespace, loguru `exc_info` silencing SSE
+errors); feedback route excluded from conversation logging; telemetry retention (migration
+20, **unapplied**); `docs/explain/` + the `explain-doc` skill; programme-wide status doc
+`docs/explain/program-status-2026-08.html` (whole-plan status, evidence-checked).
 
-## Eval audit, 2026-08-26 — analysis only, no code changed
+## Eval state
 
-Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13 findings).
-
-- **Answers are never stored.** `gateway/src/logging.ts` captures the request side only —
-  123 chat turns, 111 payloads, 6 users, zero labelable outputs.
-- **The two halves cannot be joined.** Gateway injects `x-request-id` (`proxy.ts:23`); the
-  retriever ignores it and mints `uuid4()` (`api.py:363`). Both fixes land together.
-- Capture belongs retriever-side: `_generate()`'s `finally:` block already holds the whole
-  `TurnResult`. A gateway tee would touch the streaming path that has regressed twice.
-- The 12 eval cases on disk are imported by nothing and quarantined from lint; the 7 safety
-  ones are deterministic and can gate CI in half a day.
-- Roadmap §3 builds the harness and judge rubric before the corpus they should come from.
-  Corrected: capture → cheap label → wire existing cases → error analysis → judges → harness.
-- `learning.py` ranks query phrasings on `candidates_new / runs` — novelty, not correctness.
-  Migration 17 fixes this for *sources*; *phrasings* still see no human verdict.
+Phases 0 (capture) and 1 (cheap label) built; migrations 18+19 **applied** (verified
+2026-08-27), corpus accumulating on its own. One `request_id` joins `conversation_logs`
+(request), `eval_records` (answer), `turn_feedback` (label). Deep-dive with schemas and
+decisions: `docs/explain/eval-phases-0-1.html`. Corrected order holds: capture -> cheap
+label -> wire existing cases (phase 2, next) -> error analysis -> judges.
 
 ## Open
 
-- `flows/serve.py` still not served, so no schedule fires. Sweep backlog grew to 17 reports
-  in `dry_run` (11 approved, 9 done), zero ever dismissed.
-- Redirect allow-list unread (`DEPLOY.md` 5 step 2). OG card bare. `lucide-react` unused.
+- Migration `20260827000020` (nightly pg_cron prune of the two telemetry tables past 90
+  days, turn_feedback-referenced turns exempt) awaits owner-run `supabase db push`;
+  confirm the 90-day window is the wanted policy while pushing.
+- Phase D/G migrations must renumber (D -> 22, G -> 23; rating took 21): the plan file's
+  20260825000016/17 slots now sort before applied history and `db push` skips them.
+- `flows/serve.py` still not served, so no schedule fires. 17 reports in `dry_run`, zero
+  ever dismissed. Redirect allow-list unread (`DEPLOY.md` 5 step 2). OG card bare.
+- `assets/Laiive_Pro_Walkthrough_hq.mp4` (7.4 MB) untracked - needs a home decision.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -45,7 +43,7 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-08-26",
+  "updated": "2026-08-27",
   "deadline": null,
   "people": [
     "oscar"
@@ -86,8 +84,8 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
     },
     {
       "name": "Evals + observability",
-      "status": "planned",
-      "start": null,
+      "status": "active",
+      "start": "2026-08-26",
       "end": null,
       "plan": "roadmap"
     },
@@ -121,7 +119,7 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
       "since": "2026-08-21"
     },
     {
-      "text": "17 sweep reports sit in dry_run (11 approved, 9 done) - the backlog grew from about 5 on 2026-08-25. Nothing reaches the graph until they are approved, and zero reports have ever been dismissed, so either every sweep was clean or the reject path has friction the approve path does not",
+      "text": "17 sweep reports sit in dry_run (11 approved, 9 done) - the backlog grew from about 5 on 2026-08-25. Nothing reaches the graph until they are approved, and zero reports have ever been dismissed, so either every sweep was clean or the reject path has friction the approve path does not. Triage before building G: its approval-ratio learning trains one-sided on an approve-only corpus",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-08-23"
@@ -139,7 +137,7 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
       "since": "2026-08-18"
     },
     {
-      "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time and needs a github-laiive-pat Secret block; moot under the local serve() shape, relevant again only when the managed pool is revived",
+      "text": "prefect.yaml git-clones main of ai-safe-earth/laiive at run time and needs a github-laiive-pat Secret block; moot under the local serve() shape, relevant again only when the managed pool is revived. Kept in the repo deliberately - PR #79 considered deleting it and held",
       "severity": "low",
       "owner": "oscar",
       "since": "2026-08-14"
@@ -147,35 +145,28 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
   ],
   "nextSteps": [
     {
-      "title": "Commit and PR the source-prospecting work sitting uncommitted on feat/source-prospecting: migration 20260825000017 (search_sources gains cities, agenda_urls, venues_covered, fields_filled, vouched_by/at; search_reports kind check widened) plus the flows/serve.py schedule moves. The branch is local only and identical to origin/develop",
-      "est": 2,
-      "owner": "oscar",
-      "phase": "Ingestion + self-improvement",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Eval phase 0 - capture the answer and give it a joinable id. Read x-request-id in retriever chat_stream and chat instead of minting uuid4 (api.py:363), add an eval_records migration (final_text, card_uids, cyphers, query_type, moment, retrieval_notes, row_count, latency_ms, errors; service-role RLS), and write the record from the existing finally: block in _generate(). Keep the write off the yield path or the done frame is delayed",
+      "title": "Apply migrations 20260827000020 + 21 with supabase db push - owner-run, and BEFORE the next gateway deploy (the gateway now sends rating on every feedback insert); confirm the 90-day retention window is the wanted policy while pushing",
       "est": 1,
       "owner": "oscar",
       "phase": "Evals + observability",
       "plan": "roadmap"
     },
     {
-      "title": "Eval phase 2 - make the 12 quarantined cases run. A parametrized loader in services/retriever/tests, hard assertions for the 7 deterministic safety cases, should_not_contain kept as a real gate and expected_patterns xfailed until execute-and-compare replaces regex, re-check the 5 cypher cases against today prompt, lift the pre-commit exclude, flip langfuse_enabled default to False (config.py:37 says True while .example.env says false), rewrite evals/README.md",
+      "title": "Eval phase 2 - make the 12 quarantined cases run. A parametrized loader in services/retriever/tests, hard assertions for the 7 deterministic safety cases, should_not_contain kept as a real gate and expected_patterns xfailed until execute-and-compare replaces regex, re-check the 5 cypher cases against today prompt, lift the pre-commit exclude, flip langfuse_enabled default to False (config.py:42 says True while .example.env says false), rewrite evals/README.md",
       "est": 1,
       "owner": "oscar",
       "phase": "Evals + observability",
       "plan": "roadmap"
     },
     {
-      "title": "Eval phase 1 - a thumbs-down with an optional reason on the assistant message, a turn_feedback table and a POST /api/chat/feedback route on the gateway. No thumbs-up: the down is the informative event. Depends on nothing and compounds while the rest is built",
+      "title": "Eval phase 3 - error analysis: read the corpus weekly (downs joined to conversation and answer, the query in docs/explain/eval-phases-0-1.html section 5) and name the failure modes by hand; the judge rubric comes from these labels, not before them",
       "est": 1,
       "owner": "oscar",
       "phase": "Evals + observability",
       "plan": "roadmap"
     },
     {
-      "title": "Phase D (orgs + claims): migration 20260825000016 (claim status/revocation, entity_edits audit, create_organization RPC with pro floor, user_may_edit helper), gateway-native /api/orgs + /api/claims + /api/publish wrapper, /pro/org screen. Full design in the approved plan file",
+      "title": "Phase D (orgs + claims): migration renumbered to 20260827000022 (the plan file's 20260825000016 now sorts before applied history and db push would skip it; 21 is the feedback rating) - claim status/revocation, entity_edits audit, create_organization RPC with pro floor, user_may_edit helper; gateway-native /api/orgs + /api/claims + /api/publish wrapper, /pro/org screen. Full design in the approved plan file",
       "est": 3,
       "owner": "oscar",
       "phase": "Evolution - six areas",
@@ -189,14 +180,14 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
       "plan": "roadmap"
     },
     {
-      "title": "Phases F/G (discovery): frozen-page eval set first, JSON-LD before the LLM (verify Tavily raw_content keeps ld+json), chunking over truncation, Torino seeds + credit ceiling, review-signal columns + human-gated hint drafting (migration 18 now that 17 is taken)",
+      "title": "Phases F/G (discovery): frozen-page eval set first, JSON-LD before the LLM (verify Tavily raw_content keeps ld+json), chunking over truncation, Torino seeds + credit ceiling, review-signal columns + human-gated hint drafting (migration 23 now that rating takes 21 and D 22). Migration 17's columns are read by no service until this lands, and both approve paths must gate on kind first",
       "est": 4,
       "owner": "oscar",
       "phase": "Evolution - six areas",
       "plan": "roadmap"
     },
     {
-      "title": "Verify the Supabase redirect allow-list carries <origin>/** for laiive.com, www, laiive.pages.dev and the develop alias, and that Site URL is https://laiive.com - read it, do not infer it (DEPLOY.md section 5 step 2)",
+      "title": "Verify the Supabase redirect allow-list carries <origin>/** for laiive.com, www, laiive.pages.dev and the develop alias, and that Site URL is https://laiive.com - read it, do not infer it (DEPLOY.md section 5 step 2). Closing this closes the Restyle phase",
       "est": 1,
       "owner": "oscar",
       "phase": "Restyle - new visual direction",
@@ -205,22 +196,22 @@ Report: https://claude.ai/code/artifact/a4c78e31-b905-457a-ba20-c9252372c9d7 (13
   ],
   "sessions": [
     {
-      "date": "2026-08-24",
+      "date": "2026-08-26",
       "model": "opus-5",
       "person": "oscar",
       "credits": null,
       "hours": null
     },
     {
-      "date": "2026-08-25",
+      "date": "2026-08-27",
       "model": "fable-5",
       "person": "oscar",
       "credits": null,
       "hours": null
     },
     {
-      "date": "2026-08-26",
-      "model": "opus-5",
+      "date": "2026-08-27",
+      "model": "fable-5",
       "person": "oscar",
       "credits": null,
       "hours": null
