@@ -29,6 +29,7 @@ export interface Translations {
     genericError: string;
     stop: string;
     send: string;
+    feedbackUp: string;
     feedbackDown: string;
     feedbackReasonPlaceholder: string;
     feedbackThanks: string;
@@ -200,6 +201,7 @@ export const translations: Record<Language, Translations> = {
       genericError: "Something went wrong.",
       stop: "Stop",
       send: "Send",
+      feedbackUp: "Helpful",
       feedbackDown: "Not helpful",
       feedbackReasonPlaceholder: "What went wrong? (optional)",
       feedbackThanks: "Thanks for the feedback",
@@ -389,6 +391,7 @@ export const translations: Record<Language, Translations> = {
       genericError: "Algo ha ido mal.",
       stop: "Detener",
       send: "Enviar",
+      feedbackUp: "Útil",
       feedbackDown: "No útil",
       feedbackReasonPlaceholder: "¿Qué ha fallado? (opcional)",
       feedbackThanks: "Gracias por tu opinión",
@@ -578,6 +581,7 @@ export const translations: Record<Language, Translations> = {
       genericError: "Qualcosa è andato storto.",
       stop: "Interrompi",
       send: "Invia",
+      feedbackUp: "Utile",
       feedbackDown: "Non utile",
       feedbackReasonPlaceholder: "Cosa non andava? (facoltativo)",
       feedbackThanks: "Grazie per il feedback",
@@ -767,6 +771,7 @@ export const translations: Record<Language, Translations> = {
       genericError: "Alguna cosa ha anat malament.",
       stop: "Atura",
       send: "Envia",
+      feedbackUp: "Útil",
       feedbackDown: "Poc útil",
       feedbackReasonPlaceholder: "Què ha fallat? (opcional)",
       feedbackThanks: "Gràcies pel feedback",

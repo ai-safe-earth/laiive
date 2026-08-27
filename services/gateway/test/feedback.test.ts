@@ -33,6 +33,7 @@ describe("POST /api/chat/feedback", () => {
       request_id: "req-1",
       user_id: null,
       reason: null,
+      rating: "down",
     });
     // Nothing was proxied to the retriever.
     expect(retriever.seen.filter((r) => r.url.includes("feedback"))).toHaveLength(0);
@@ -51,7 +52,37 @@ describe("POST /api/chat/feedback", () => {
       request_id: "req-2",
       user_id: "d3b07384-d9a0-4c9a-8f4e-000000000001",
       reason: "wrong city",
+      rating: "down",
     });
+  });
+
+  it("stores a thumbs-up when the client says so", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat/feedback",
+      payload: { request_id: "req-up", rating: "up" },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(supabase.feedbackInserts).toContainEqual({
+      request_id: "req-up",
+      user_id: null,
+      reason: null,
+      rating: "up",
+    });
+  });
+
+  it("rejects a rating that is neither up nor down", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat/feedback",
+      payload: { request_id: "req-bad", rating: "sideways" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(
+      supabase.feedbackInserts.filter(
+        (r) => (r as { request_id: string }).request_id === "req-bad",
+      ),
+    ).toHaveLength(0);
   });
 
   it("rejects a missing request_id and an oversized reason", async () => {

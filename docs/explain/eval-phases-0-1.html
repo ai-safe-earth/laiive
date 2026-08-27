@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eval Phases 0 &amp; 1 — laiive</title>
+<style>
+  :root{
+    --bg:#faf9f7; --panel:#ffffff; --fg:#1c1c22; --muted:#6b6b76; --rule:#e3e1dc;
+    --code-bg:#f2f0ec; --code-fg:#2a2a30; --comment:#8b8b95;
+    --p0:#0e7490; --p0-bg:#e3f3f7; --p0-line:#0e7490;
+    --p1:#bd2a80; --p1-bg:#fbe6f2; --p1-line:#bd2a80;
+    --infra:#8f8c96; --good:#177245; --warn:#9a6a06;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101014; --panel:#17171c; --fg:#e8e6e3; --muted:#9a97a0; --rule:#2b2b33;
+      --code-bg:#1c1c23; --code-fg:#d8d6d3; --comment:#7e7e8a;
+      --p0:#53c9dd; --p0-bg:#0d3540; --p0-line:#53c9dd;
+      --p1:#ff5cb8; --p1-bg:#3e1130; --p1-line:#ff5cb8;
+      --infra:#77747e; --good:#5fce8d; --warn:#e3b341;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  main{max-width:980px; margin:0 auto; padding:0 28px 90px}
+  header.doc{max-width:980px; margin:0 auto; padding:56px 28px 8px}
+  h1{font-size:30px; line-height:1.2; margin:0 0 6px}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 4px}
+  h2{font-size:22px; margin:60px 0 12px; padding-top:18px; border-top:1px solid var(--rule)}
+  h3{font-size:16.5px; margin:30px 0 8px}
+  p{margin:10px 0}
+  a{color:var(--p0); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    font:12.8px/1.55 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-fg); border:1px solid var(--rule);
+    border-radius:0 0 8px 8px; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  }
+  pre code{background:none; padding:0; font-size:12.8px}
+  .file{
+    display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+    background:var(--panel); border:1px solid var(--rule); border-bottom:none;
+    border-radius:8px 8px 0 0; padding:7px 16px; margin-top:16px;
+    font:12px ui-monospace,Consolas,monospace; color:var(--muted);
+  }
+  .file b{color:var(--fg); font-weight:600}
+  .cm{color:var(--comment)}
+  .badge{
+    display:inline-block; font:700 10.5px/1 ui-monospace,Consolas,monospace;
+    padding:4px 7px; border-radius:99px; vertical-align:2px; letter-spacing:.05em;
+  }
+  .b0{background:var(--p0-bg); color:var(--p0)}
+  .b1{background:var(--p1-bg); color:var(--p1)}
+  .fig{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:18px 14px 8px; margin:20px 0 8px; overflow-x:auto;
+  }
+  .fig svg{display:block; margin:0 auto; min-width:720px}
+  .figcap{color:var(--muted); font-size:13px; margin:6px 4px 22px; text-align:center}
+  table{border-collapse:collapse; width:100%; margin:14px 0 20px; font-size:13.5px}
+  th,td{border:1px solid var(--rule); padding:7px 10px; text-align:left; vertical-align:top}
+  th{background:var(--code-bg); font-weight:600}
+  td code{font-size:12px}
+  ul,ol{padding-left:24px; margin:10px 0}
+  li{margin:5px 0}
+  .take{
+    background:var(--panel); border:1px solid var(--rule); border-left:4px solid var(--p0);
+    border-radius:8px; padding:12px 18px; margin:22px 0;
+  }
+  .take.t1{border-left-color:var(--p1)}
+  .take h4{margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+  .take ul{margin:6px 0 2px}
+  .dec b.num{
+    display:inline-block; min-width:20px; text-align:center; border-radius:99px;
+    font:700 11px/20px ui-monospace,Consolas,monospace; margin-right:6px;
+  }
+  .dec.d0 b.num{background:var(--p0-bg); color:var(--p0)}
+  .dec.d1 b.num{background:var(--p1-bg); color:var(--p1)}
+  nav.toc{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:14px 22px; margin:22px 0 0; font-size:14px;
+  }
+  nav.toc ol{margin:6px 0; columns:2; column-gap:40px}
+  .warntag{color:var(--warn); font-weight:600}
+  .goodtag{color:var(--good); font-weight:600}
+  .svgt{font:12px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--fg)}
+  .svgs{font:10.5px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--muted)}
+  .svgm{font:11px ui-monospace,Consolas,monospace; fill:var(--fg)}
+  .svgmd{font:10.5px ui-monospace,Consolas,monospace; fill:var(--muted)}
+</style>
+</head>
+<body>
+<header class="doc">
+  <h1>Eval phases 0 &amp; 1 — capture the answer, catch the complaint</h1>
+  <p class="sub">laiive · branch <code>feat/eval-records</code> · commits <code>1fcb630</code> (phase 0), <code>5b3dc75</code> (phase 1) · written 2026-08-27</p>
+  <p class="sub">Legend used throughout: <span class="badge b0">P0</span> eval-record capture &nbsp;·&nbsp; <span class="badge b1">P1</span> turn feedback &nbsp;·&nbsp; grey = pre-existing infrastructure</p>
+  <nav class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#context">Why these phases exist</a></li>
+      <li><a href="#system">The system, and where the phases land</a></li>
+      <li><a href="#phase0">Phase 0 — capture the answer</a></li>
+      <li><a href="#phase1">Phase 1 — the thumbs-down</a></li>
+      <li><a href="#join">The join: one key, three tables</a></li>
+      <li><a href="#next">What comes next + recommendations</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+
+<!-- ============================================================ 1 -->
+<h2 id="context">1 · Why these phases exist</h2>
+
+<p>The roadmap's rule is <em>evals before optimisation</em>: accuracy, cost and voice work are
+all claims until a harness can tell whether a change helped. The eval audit of 2026-08-26
+found the system could not even begin, for two concrete reasons:</p>
+
+<ul>
+  <li><strong>Answers were never stored.</strong> The gateway's <code>conversation_logs</code>
+  captured the request side only — 123 turns, zero labelable outputs. You cannot label, grade,
+  or regress-test an answer that no longer exists once the SSE stream closes.</li>
+  <li><strong>The two halves could not be joined.</strong> The gateway injected
+  <code>x-request-id</code> into every proxied request (<code>services/gateway/src/proxy.ts:23</code>),
+  but the retriever ignored it and minted its own <code>uuid4()</code>. Even if answers had been
+  stored, no key connected an answer to its request.</li>
+</ul>
+
+<p>The audit also corrected the build order. Roadmap §3 wanted the harness and judge rubric
+first; the corrected sequence is <strong>capture → cheap label → wire existing cases → error
+analysis → judges</strong> — you need a corpus before a rubric means anything. Phase 0 is the
+capture. Phase 1 is the cheap label: a thumbs-down from the person who just read the answer,
+the one signal that costs nothing to produce and compounds while everything else is built.</p>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>Phase 0 fixes a <em>plumbing</em> gap (shared key + stored answer), not an eval-quality gap. It makes every later phase possible.</li>
+    <li>Phase 1 was deliberately scheduled early because it depends on nothing and its value is cumulative — every day without it is labels lost forever.</li>
+    <li>Both phases are pure telemetry: no user-visible behaviour of chat changed, except one small button.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 2 -->
+<h2 id="system">2 · The system, and where the phases land</h2>
+
+<p>laiive is four services behind one published surface. The SPA talks only to the gateway
+(:8000); the gateway authenticates, rate-limits and proxies to the Python services, which trust
+its identity headers because they are otherwise unreachable (<code>X-Internal-Key</code>).
+The retriever answers chat turns by reading the Neo4j graph through a
+classify&nbsp;→&nbsp;route&nbsp;→&nbsp;execute&nbsp;→&nbsp;compose pipeline and streaming real
+tokens back as named-event SSE. Chat is stateless: the client resends the full history each turn.</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 600" role="img" aria-label="System architecture with phase 0 and 1 additions highlighted">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+    <marker id="ar1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <!-- SPA -->
+  <rect x="20" y="60" width="200" height="150" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="36" y="86" class="svgt" font-weight="600">Frontend SPA</text>
+  <text x="36" y="103" class="svgs">React + Vite · Cloudflare Pages</text>
+  <text x="36" y="128" class="svgm">Chat.tsx · streamChat()</text>
+  <rect x="30" y="140" width="180" height="24" rx="6" fill="var(--p1-bg)"/>
+  <text x="38" y="156" class="svgm" fill="var(--p1)">TurnFeedback  [P1]</text>
+  <text x="36" y="186" class="svgs">client-carried history (stateless chat)</text>
+
+  <!-- Gateway -->
+  <rect x="330" y="20" width="250" height="266" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="346" y="46" class="svgt" font-weight="600">Gateway :8000 · Fastify</text>
+  <text x="346" y="63" class="svgs">the only published surface</text>
+  <rect x="342" y="74" width="226" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="350" y="90" class="svgmd">JWT auth · rate limits (Redis)</text>
+  <rect x="342" y="104" width="226" height="38" rx="6" fill="var(--code-bg)"/>
+  <text x="350" y="119" class="svgmd">proxy /api/chat/* → retriever</text>
+  <text x="350" y="133" class="svgmd">strip + inject x-request-id  ①</text>
+  <rect x="342" y="148" width="226" height="24" rx="6" fill="var(--p1-bg)"/>
+  <text x="350" y="164" class="svgm" fill="var(--p1)">POST /api/chat/feedback  [P1]</text>
+  <rect x="342" y="178" width="226" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="350" y="194" class="svgmd">conversation logging (onResponse)</text>
+  <rect x="342" y="208" width="226" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="350" y="224" class="svgmd">/api/push/* · /api/admin/search/*</text>
+  <text x="346" y="264" class="svgs">feedback.ts · proxy.ts · logging.ts</text>
+
+  <!-- Retriever -->
+  <rect x="690" y="20" width="250" height="230" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="706" y="46" class="svgt" font-weight="600">Retriever :8002 · FastAPI</text>
+  <text x="706" y="63" class="svgs">reads the graph, streams SSE</text>
+  <rect x="702" y="74" width="226" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="710" y="90" class="svgmd">classify → route → execute → compose</text>
+  <rect x="702" y="104" width="226" height="38" rx="6" fill="var(--code-bg)"/>
+  <text x="710" y="119" class="svgmd">/chat/stream · _generate()</text>
+  <text x="710" y="133" class="svgmd">adopts x-request-id  ②</text>
+  <rect x="702" y="148" width="226" height="38" rx="6" fill="var(--p0-bg)"/>
+  <text x="710" y="163" class="svgm" fill="var(--p0)">eval_records.py  [P0]</text>
+  <text x="710" y="177" class="svgm" fill="var(--p0)">finally: → daemon thread  ③</text>
+  <text x="706" y="228" class="svgs">api.py · pipeline.py · eval_records.py</text>
+
+  <!-- Neo4j + OpenAI -->
+  <rect x="690" y="300" width="115" height="52" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="706" y="322" class="svgt">Neo4j Aura</text>
+  <text x="706" y="338" class="svgs">the graph</text>
+  <rect x="825" y="300" width="115" height="52" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="841" y="322" class="svgt">OpenAI</text>
+  <text x="841" y="338" class="svgs">LLM + Whisper</text>
+
+  <!-- Supabase -->
+  <rect x="200" y="400" width="420" height="170" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="216" y="426" class="svgt" font-weight="600">Supabase Postgres</text>
+  <text x="216" y="443" class="svgs">auth + telemetry tables · all three tables are service-role-only (RLS on, no policies)</text>
+  <rect x="216" y="456" width="180" height="42" rx="6" fill="var(--code-bg)"/>
+  <text x="224" y="472" class="svgm">conversation_logs</text>
+  <text x="224" y="488" class="svgmd">request side (existing)</text>
+  <rect x="416" y="456" width="180" height="42" rx="6" fill="var(--p0-bg)"/>
+  <text x="424" y="472" class="svgm" fill="var(--p0)">eval_records  [P0]</text>
+  <text x="424" y="488" class="svgmd">answer side · migration 18</text>
+  <rect x="216" y="510" width="180" height="42" rx="6" fill="var(--p1-bg)"/>
+  <text x="224" y="526" class="svgm" fill="var(--p1)">turn_feedback  [P1]</text>
+  <text x="224" y="542" class="svgmd">label side · migration 19</text>
+  <text x="424" y="534" class="svgm" font-weight="700">⋈ request_id</text>
+
+  <!-- arrows -->
+  <path d="M220 110 L326 110" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <text x="228" y="103" class="svgs">POST /api/chat/stream</text>
+  <path d="M580 116 L686 116" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <text x="592" y="109" class="svgs">+ x-request-id</text>
+  <path d="M686 140 L580 140" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <path d="M326 152 L220 152" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <text x="240" y="145" class="svgs">SSE + X-Request-ID header</text>
+
+  <path d="M220 172 L330 168" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#ar1)" stroke-dasharray="none"/>
+  <text x="226" y="182" class="svgs" fill="var(--p1)">POST feedback {request_id, reason}</text>
+
+  <path d="M760 250 L748 296" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <path d="M860 250 L878 296" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+
+  <path d="M420 286 L330 456" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <text x="300" y="360" class="svgs">insert (fire-and-forget)</text>
+  <path d="M470 286 L360 508" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#ar1)"/>
+  <path d="M790 254 L560 462" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="600" y="386" class="svgs" fill="var(--p0)">PostgREST insert, daemon thread</text>
+</svg>
+</div>
+<p class="figcap">Fig. 1 — Where the phases land. ①–③ are decisions explained in §3. Pusher (:8003) and search (:8004) are untouched by these phases and omitted.</p>
+
+<p>Both phases are deliberately <em>additive at the edges</em>: phase 0 lives in the retriever's
+turn-finalisation path and a new table; phase 1 lives in one React component, one native gateway
+route, and a second table. The pipeline, the protocol, and the proxy behaviour for chat are
+unchanged.</p>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>The gateway was already the single place every request passes through — the eval design leans on that instead of adding a collector service.</li>
+    <li>Supabase Postgres was already in the stack for auth and <code>conversation_logs</code>; both new tables reuse it. No new infrastructure was introduced for evals.</li>
+    <li>Each new table sits at the trust boundary nearest the data it records: the answer is written by the service that produced it, the label by the surface that received it.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 3 -->
+<h2 id="phase0">3 · Phase 0 — capture the answer <span class="badge b0">P0</span></h2>
+
+<h3>3.1 · Goal</h3>
+<p>Give every chat turn a durable, joinable record of <em>what the system answered and how it
+got there</em>: final text, the cards shown, the Cypher that ran, the classification, latency
+and errors — keyed by the same <code>x-request-id</code> the gateway already logs the request
+under. After this phase, a production turn is an eval candidate by default.</p>
+
+<h3>3.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 640" role="img" aria-label="Phase 0 sequence diagram">
+  <defs>
+    <marker id="sar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--fg)"/></marker>
+    <marker id="sar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+    <marker id="sarg" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+  </defs>
+  <!-- lifelines -->
+  <g class="svgt" font-weight="600" text-anchor="middle">
+    <text x="90" y="30">Browser</text>
+    <text x="300" y="30">Gateway</text>
+    <text x="530" y="30">Retriever</text>
+    <text x="730" y="30">daemon thread</text>
+    <text x="890" y="30">Supabase</text>
+  </g>
+  <g stroke="var(--rule)" stroke-width="1.4">
+    <line x1="90" y1="42" x2="90" y2="610"/>
+    <line x1="300" y1="42" x2="300" y2="610"/>
+    <line x1="530" y1="42" x2="530" y2="610"/>
+    <line x1="730" y1="440" x2="730" y2="560" stroke="var(--p0-line)" stroke-dasharray="4 3"/>
+    <line x1="890" y1="42" x2="890" y2="610"/>
+  </g>
+
+  <path d="M90 70 L296 70" stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#sar)"/>
+  <text x="100" y="62" class="svgm">POST /api/chat/stream  {messages: full history}</text>
+
+  <rect x="210" y="86" width="240" height="46" rx="6" fill="var(--code-bg)"/>
+  <text x="220" y="103" class="svgmd">strip client x-request-id / x-user-* ①</text>
+  <text x="220" y="118" class="svgmd">inject x-request-id = request.id</text>
+
+  <path d="M300 150 L526 150" stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#sar)"/>
+  <text x="310" y="142" class="svgm">/chat/stream + x-request-id + x-internal-key</text>
+
+  <rect x="440" y="166" width="260" height="46" rx="6" fill="var(--p0-bg)"/>
+  <text x="450" y="183" class="svgmd" fill="var(--p0)">_request_id() adopts the header ②</text>
+  <text x="450" y="198" class="svgmd" fill="var(--p0)">response header X-Request-ID echoed back</text>
+
+  <path d="M526 236 L94 236" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#sarg)"/>
+  <text x="104" y="228" class="svgm" fill="var(--muted)">SSE: token · cards · … (real streaming, sync generator in threadpool)</text>
+  <path d="M526 262 L94 262" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#sarg)"/>
+
+  <rect x="440" y="286" width="260" height="62" rx="6" fill="var(--p0-bg)"/>
+  <text x="450" y="304" class="svgmd" fill="var(--p0)">finally:  (runs on success, error,</text>
+  <text x="450" y="319" class="svgmd" fill="var(--p0)">and client disconnect)</text>
+  <text x="450" y="337" class="svgmd" fill="var(--p0)">log_turn + _write_eval_record ③</text>
+
+  <path d="M530 372 L726 372 L726 436" stroke="var(--p0-line)" stroke-width="1.8" fill="none" marker-end="url(#sar0)"/>
+  <text x="546" y="364" class="svgm" fill="var(--p0)">spawn daemon thread (TurnResult, latency_ms)</text>
+
+  <path d="M526 404 L94 404" stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#sar)"/>
+  <text x="104" y="396" class="svgm">done {request_id}  — yielded after finally, never waits for the insert ③</text>
+
+  <path d="M730 470 L886 470" stroke="var(--p0-line)" stroke-width="1.8" fill="none" marker-end="url(#sar0)"/>
+  <text x="700" y="462" class="svgm" fill="var(--p0)">POST /rest/v1/eval_records  (service role) ④</text>
+  <text x="740" y="490" class="svgs">failure → logged, swallowed ⑤</text>
+
+  <path d="M300 540 L886 540" stroke="var(--infra)" stroke-width="1.6" fill="none" marker-end="url(#sarg)"/>
+  <text x="310" y="532" class="svgm" fill="var(--muted)">onResponse: POST conversation_logs {request_id, payload, status, duration_ms}  (existing)</text>
+
+  <text x="20" y="600" class="svgs">Same shape for the non-stream POST /chat (api.py:350): run_turn_collected → _write_eval_record → JSON response.</text>
+</svg>
+</div>
+<p class="figcap">Fig. 2 — One streamed turn under phase 0. Circled numbers = decisions in §3.4.</p>
+
+<h3>3.3 · How the data moves and transforms</h3>
+
+<p>The join key is born at the gateway. Fastify assigns <code>request.id</code>; the proxy
+strips every client-sent copy of the headers it asserts, then injects its own — so by the time
+the retriever sees <code>x-request-id</code>, it is trustworthy:</p>
+
+<div class="file"><span><b>services/gateway/src/proxy.ts</b>:18–24 — the key is minted and the header made trustworthy</span><span>existing, pre-phase-0</span></div>
+<pre><code>rewriteRequestHeaders: (request, headers) =&gt; {
+  const out = { ...headers };
+  delete out["x-user-id"];
+  delete out["x-user-role"];
+  delete out["x-request-id"];      <span class="cm">// client copies dropped first ①</span>
+  delete out["x-internal-key"];
+  delete out.authorization;
+  out["x-request-id"] = String(request.id);
+  ...</code></pre>
+
+<p>The retriever previously minted <code>uuid4()</code> here — the audit's un-joinable halves.
+Now both chat endpoints adopt the inbound header, falling back to a local uuid only for direct
+calls (tests, curl against :8002):</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:64–68 — adopt, don't mint</span><span class="badge b0">P0</span></div>
+<pre><code>def _request_id(raw: Request) -&gt; str:
+    <span class="cm">"""The gateway's id, so the record joins conversation_logs; the gateway
+    strips client-sent copies, so the header is trustworthy. Minted locally
+    only for direct calls (tests, curl against 8002)."""</span>
+    return raw.headers.get("x-request-id") or str(uuid.uuid4())</code></pre>
+
+<p>The capture point is the stream generator's <code>finally:</code>. The pipeline already
+accumulates everything about the turn into a <code>TurnResult</code> as it streams — so when
+the generator winds down (success, error, <em>or client disconnect</em>), the full answer is
+sitting in one object and no extra bookkeeping was added to the hot path:</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:405–439 — <code>_generate</code>: stream, then capture</span><span class="badge b0">P0</span></div>
+<pre><code>def _generate(request_id, user_message, history, location, timezone=None):
+    <span class="cm"># Deliberately a *sync* generator: run_turn blocks (OpenAI + Neo4j), and an
+    # async generator would hold the event loop between yields — no streaming.
+    # Starlette runs sync iterators in a threadpool.</span>
+    result = TurnResult()
+    start = time.perf_counter()
+    try:
+        for payload in get_pipeline().run_turn(
+            user_message, history, location, result=result, timezone=timezone
+        ):
+            yield sse_frame(payload)
+    except Exception as e:
+        logger.opt(exception=True).error("[{}] SSE stream error: {}", request_id, e)
+        yield sse_frame(Error(code="internal_error", message="Something went wrong."))
+    finally:
+        log_turn(request_id, user_message, ...)
+        _write_eval_record(request_id, result, start)   <span class="cm"># ③ non-blocking</span>
+    yield sse_frame(Done(request_id=request_id))        <span class="cm"># after finally — must not wait</span></code></pre>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:71–78 — off the yield path</span><span class="badge b0">P0</span></div>
+<pre><code>def _write_eval_record(request_id: str, result: TurnResult, start: float) -&gt; None:
+    <span class="cm">"""Fire-and-forget on a daemon thread: in the SSE path the finally: runs
+    before the done frame is yielded, so a blocking POST there would delay it."""</span>
+    threading.Thread(
+        target=eval_records.write,
+        args=(request_id, result, int((time.perf_counter() - start) * 1000)),
+        daemon=True,
+    ).start()</code></pre>
+
+<p>The writer flattens the in-memory <code>TurnResult</code> (Pydantic objects, card models,
+classification) into one flat row — the transformation from live pipeline state to eval
+corpus:</p>
+
+<div class="file"><span><b>services/retriever/agent/eval_records.py</b>:29–56 — TurnResult → row</span><span class="badge b0">P0</span></div>
+<pre><code>def write(request_id: str, result: TurnResult, latency_ms: int) -&gt; None:
+    if not settings.supabase_url:      <span class="cm"># ⑥ empty URL disables (tests, local runs)</span>
+        return
+    c = result.classification
+    response = _http.post(_url(), headers=_headers(), json={
+        "request_id": request_id,
+        "final_text": result.text,                     <span class="cm"># the streamed answer, reassembled</span>
+        "card_uids": [card.uid for card in result.cards],  <span class="cm"># cards → just their graph uids</span>
+        "cyphers": result.cyphers,                     <span class="cm"># every query the executor ran</span>
+        "query_type": c.query_type if c else None,     <span class="cm"># classifier output, flattened</span>
+        "moment": c.moment if c else None,
+        "retrieval_notes": result.notes,
+        "row_count": len(result.cards),
+        "latency_ms": latency_ms,                      <span class="cm"># pipeline-side wall clock</span>
+        "errors": result.errors,
+    })
+    <span class="cm"># non-201 and exceptions: logged and swallowed ⑤ — telemetry must never
+    # break a turn</span></code></pre>
+
+<div class="file"><span><b>supabase/migrations/20260826000018_eval_records.sql</b> — the answer side</span><span class="badge b0">P0</span></div>
+<pre><code>create table public.eval_records (
+    id bigint generated always as identity primary key,
+    request_id text not null,
+    final_text text,
+    card_uids text[], cyphers text[],
+    query_type text, moment text,
+    retrieval_notes text[],
+    row_count integer, latency_ms integer, errors text[],
+    created_at timestamptz not null default now()
+);
+create index eval_records_request_idx on public.eval_records (request_id);
+create index eval_records_created_idx on public.eval_records (created_at desc);
+alter table public.eval_records enable row level security;   <span class="cm">-- ⑦ no policies = service-role only</span></code></pre>
+
+<p>Note what is <em>not</em> stored here: the user's message and history. Those already live in
+<code>conversation_logs.payload</code>, written by the gateway — storing them twice would be
+duplication, and the shared key makes it unnecessary.</p>
+
+<h3>3.4 · Decisions, and why</h3>
+<ul class="dec d0">
+  <li><b class="num">①</b><strong>Trust the header because the gateway makes it trustworthy.</strong> The proxy strips client-sent copies of <code>x-request-id</code> before injecting its own, and direct calls to :8002 are rejected by <code>INTERNAL_API_KEY</code>. The retriever can adopt the header without validating provenance itself.</li>
+  <li><b class="num">②</b><strong>Adopt, don't mint.</strong> One line (<code>api.py:68</code>) turns two disconnected logs into a joinable pair. The uuid fallback keeps tests and ad-hoc curls working unchanged.</li>
+  <li><b class="num">③</b><strong>Capture retriever-side, in <code>finally:</code>, off the yield path.</strong> The audit considered a gateway tee of the response stream and rejected it: the streaming path has regressed to fake-streaming twice, and the retriever's <code>finally:</code> already holds the complete <code>TurnResult</code> for free. The daemon thread exists because <code>finally:</code> runs <em>before</em> the trailing <code>done</code> frame — a blocking POST there would delay the frame every client waits for. Bonus: the capture fires even when the client disconnects mid-stream, which is exactly the kind of turn an eval corpus wants.</li>
+  <li><b class="num">④</b><strong>Plain PostgREST over httpx, no SDK.</strong> Same shape as <code>services/search/agent/reports.py</code> — an existing in-repo pattern reused rather than a new dependency.</li>
+  <li><b class="num">⑤</b><strong>Telemetry semantics: log and swallow.</strong> A turn must never fail because the record write did. The trade: silent data loss if Supabase is down — visible only in service logs.</li>
+  <li><b class="num">⑥</b><strong>Empty <code>SUPABASE_URL</code> disables the write.</strong> The kill switch doubles as test isolation: <code>tests/conftest.py</code> blanks it, because the root <code>.env</code>'s real URL would have made every endpoint test insert live rows.</li>
+  <li><b class="num">⑦</b><strong>Service-role-only RLS</strong>, identical to <code>conversation_logs</code>: RLS enabled with zero user policies, so no anon or authenticated client can read or write it.</li>
+  <li><b class="num">⑧</b><strong>Migration numbering is coordination.</strong> The file takes 18, so phase G's review-signal columns (which migration 17's notes pointed at 18) move to 19 — recorded in the migration header and the commit body, because the collision would otherwise surface months later.</li>
+</ul>
+
+<h3>3.5 · For a scalable system</h3>
+<ul>
+  <li><strong>Thread-per-turn has a ceiling.</strong> Every turn spawns one daemon thread and one HTTP POST. At current volume (~hundreds of turns/day) this is free; at hundreds of turns/<em>minute</em> it becomes unbounded concurrency against PostgREST. Upgrade path when it matters: a bounded in-process queue with one writer thread, batching inserts. The 15&nbsp;s httpx timeout already bounds each hung post.</li>
+  <li><strong>Daemon threads die with the process.</strong> A Fly deploy or crash mid-write loses that record. Acceptable for telemetry; do not later hang anything transactional off this path.</li>
+  <li><strong>Growth is append-only and prunable.</strong> <code>final_text</code> plus three arrays per turn; <code>eval_records_created_idx</code> exists precisely so a retention job can prune by age cheaply. Decide retention before the table is big, not after.</li>
+  <li><strong>No unique constraint on <code>request_id</code> — deliberately.</strong> The gateway mints a fresh id per request, so duplicates don't occur in the proxied path, and enforcing uniqueness would make a legitimate retry a hard failure in a path that must never fail.</li>
+  <li><strong>Columns are loose (<code>text</code>, not enums)</strong> so classifier vocabulary can evolve without migrations. The eval harness, not the schema, is where strictness belongs.</li>
+</ul>
+
+<h3>3.6 · Security</h3>
+<ul>
+  <li><strong>The service-role key now lives in a second service.</strong> The retriever joins the gateway (and search) as a holder of the full-RLS-bypass key. Compromise of any one service is compromise of the whole database. Acceptable at this size; the eventual mitigation is a scoped Postgres role (insert-only on the telemetry tables) rather than the master key everywhere.</li>
+  <li><strong>Header spoofing is closed at the boundary</strong> (decision ①): clients cannot choose their <code>request_id</code>, so they cannot write records that impersonate another turn — in the proxied path. Direct service calls are gated by <code>INTERNAL_API_KEY</code>.</li>
+  <li><strong>The corpus is attacker-influenceable by construction.</strong> <code>final_text</code> derives from user-shaped conversations, and users know it. Anything that later <em>reads</em> this table — admin UIs (escape it), LLM judges (prompt-injection surface) — must treat every column as untrusted input.</li>
+  <li><strong>RLS-on-no-policies</strong> means a leaked anon key still reads nothing. The only read path is the service role.</li>
+  <li><strong>PII lives here now.</strong> Answers can echo user text and location. This table joins <code>conversation_logs</code> in any future data-deletion or retention obligation — see recommendations in §6.</li>
+</ul>
+
+<div class="take">
+  <h4>Key takeaways — phase 0</h4>
+  <ul>
+    <li>The whole phase is: <em>adopt one header, flatten one object that already existed, insert one row from a place that already ran.</em> The design work was choosing that place.</li>
+    <li>The two invariants that shaped everything: the done frame is never delayed, and a turn never fails because telemetry did.</li>
+    <li>Capture lives where the data lives. The gateway logs what it has (the request); the retriever logs what it has (the answer); nobody buffers anybody else's stream.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 4 -->
+<h2 id="phase1">4 · Phase 1 — the thumbs-down <span class="badge b1">P1</span></h2>
+
+<h3>4.1 · Goal</h3>
+<p>Attach the cheapest possible quality label to finished turns: a thumbs-down from the person
+who just read the answer, with an optional typed reason. No thumbs-up — the down is the
+informative event. This is the "cheap label" step of the corrected eval order, and it was
+scheduled early because it depends on nothing and compounds while the rest is built: roadmap §7's
+self-improvement loop has no signal without it.</p>
+
+<h3>4.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 470" role="img" aria-label="Phase 1 flow: UI state machine and gateway write path">
+  <defs>
+    <marker id="far" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--fg)"/></marker>
+    <marker id="far1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <text x="20" y="30" class="svgt" font-weight="600">Browser — Chat.tsx</text>
+
+  <rect x="20" y="46" width="270" height="58" rx="8" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="34" y="68" class="svgm">stream resolves →</text>
+  <text x="34" y="86" class="svgm">requestId = response.headers[x-request-id] ⓐ</text>
+
+  <path d="M155 104 L155 132" stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#far)"/>
+
+  <rect x="20" y="136" width="270" height="56" rx="8" fill="var(--p1-bg)"/>
+  <text x="34" y="158" class="svgm" fill="var(--p1)">stamp requestId on last assistant msg</text>
+  <text x="34" y="176" class="svgm" fill="var(--p1)">presence = "turn finished, can rate" ⓑ</text>
+
+  <path d="M155 192 L155 220" stroke="var(--fg)" stroke-width="1.6" fill="none" marker-end="url(#far)"/>
+
+  <!-- state machine -->
+  <rect x="20" y="224" width="86" height="40" rx="20" fill="var(--panel)" stroke="var(--p1-line)"/>
+  <text x="63" y="248" class="svgm" text-anchor="middle" fill="var(--p1)">idle 👎</text>
+  <path d="M106 244 L162 244" stroke="var(--p1-line)" stroke-width="1.8" fill="none" marker-end="url(#far1)"/>
+  <text x="112" y="236" class="svgs">click</text>
+  <rect x="166" y="224" width="106" height="40" rx="20" fill="var(--panel)" stroke="var(--p1-line)"/>
+  <text x="219" y="248" class="svgm" text-anchor="middle" fill="var(--p1)">asking (input)</text>
+  <path d="M272 244 L330 244" stroke="var(--p1-line)" stroke-width="1.8" fill="none" marker-end="url(#far1)"/>
+  <text x="278" y="236" class="svgs">Enter</text>
+  <rect x="334" y="224" width="82" height="40" rx="20" fill="var(--panel)" stroke="var(--p1-line)"/>
+  <text x="375" y="248" class="svgm" text-anchor="middle" fill="var(--p1)">done ✓</text>
+
+  <path d="M130 264 Q210 320 450 322" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#far1)"/>
+  <text x="120" y="304" class="svgm" fill="var(--p1)">POST #1 on click ⓒ {request_id, reason: null}</text>
+  <path d="M300 268 Q360 350 450 352" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#far1)"/>
+  <text x="278" y="346" class="svgm" fill="var(--p1)">POST #2 if typed {request_id, reason}</text>
+
+  <!-- gateway -->
+  <rect x="456" y="240" width="250" height="160" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="472" y="264" class="svgt" font-weight="600">Gateway · feedback.ts</text>
+  <text x="472" y="284" class="svgmd">static route /api/chat/feedback</text>
+  <text x="472" y="299" class="svgmd">beats /api/chat/* proxy wildcard ⓓ</text>
+  <rect x="468" y="310" width="226" height="40" rx="6" fill="var(--code-bg)"/>
+  <text x="476" y="326" class="svgmd">validate: request_id ≤128 chars</text>
+  <text x="476" y="341" class="svgmd">reason null | string ≤2000 ⓔ</text>
+  <text x="472" y="372" class="svgmd">user_id from verified JWT, else null ⓕ</text>
+  <text x="472" y="390" class="svgmd">anonymous allowed — chat is ⓕ</text>
+
+  <path d="M706 320 L800 320" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#far1)"/>
+  <text x="712" y="312" class="svgs" fill="var(--p1)">service role</text>
+
+  <!-- table -->
+  <rect x="804" y="240" width="140" height="160" rx="10" fill="var(--p1-bg)"/>
+  <text x="818" y="264" class="svgm" fill="var(--p1)" font-weight="700">turn_feedback</text>
+  <text x="818" y="290" class="svgmd">row 1:</text>
+  <text x="818" y="305" class="svgmd">reason = null</text>
+  <text x="818" y="330" class="svgmd">row 2 (same</text>
+  <text x="818" y="345" class="svgmd">request_id):</text>
+  <text x="818" y="360" class="svgmd">reason = "…" ⓖ</text>
+  <text x="818" y="388" class="svgmd">RLS: service only</text>
+
+  <text x="20" y="440" class="svgs">ⓐ works cross-origin because x-request-id is in the gateway's CORS exposedHeaders (server.ts:36).</text>
+  <text x="20" y="456" class="svgs">Escape/blur with an empty box: the down from POST #1 already counts — abandoning the reason loses nothing.</text>
+</svg>
+</div>
+<p class="figcap">Fig. 3 — The feedback path. Circled letters = decisions in §4.4.</p>
+
+<h3>4.3 · How the data moves and transforms</h3>
+
+<p>The key crosses from phase 0 to phase 1 in a response header. <code>streamChat</code> now
+returns it after the stream is fully consumed, and the page stamps it onto the message it just
+finished rendering:</p>
+
+<div class="file"><span><b>frontend/src/api/chat.ts</b>:47–70 — the stream now returns its id</span><span class="badge b1">P1</span></div>
+<pre><code>export async function streamChat(...): Promise&lt;string | null&gt; {
+  const response = await apiFetch("/api/chat/stream", { ... });
+  for await (const frame of readProtocolStream(response)) {
+    dispatch(frame, handlers);
+  }
+  return response.headers.get("x-request-id");   <span class="cm">// ⓐ set by the retriever, echoed by the proxy</span>
+}</code></pre>
+
+<div class="file"><span><b>frontend/src/pages/Chat.tsx</b>:129–137 — id presence gates the UI</span><span class="badge b1">P1</span></div>
+<pre><code><span class="cm">// Stamped after the stream ends: the id's presence is also what tells
+// the UI this turn is finished and can take feedback.  ⓑ</span>
+if (requestId) {
+  setMessages((prev) =&gt; {
+    const last = prev[prev.length - 1];
+    return last?.role === "assistant"
+      ? [...prev.slice(0, -1), { ...last, requestId }]
+      : prev;
+  });
+}</code></pre>
+
+<p>The component is a three-state machine, and the ordering of its side effects is the design:
+the signal is sent <em>before</em> the reason is asked for:</p>
+
+<div class="file"><span><b>frontend/src/pages/Chat.tsx</b>:296–313 — click first, ask second</span><span class="badge b1">P1</span></div>
+<pre><code>const down = () =&gt; {
+  setStage("asking");
+  sendFeedback(requestId).catch(() =&gt; {   <span class="cm">// ⓒ POST #1: the down itself, immediately</span>
+    setStage("idle");
+    toast.error(t.chat.genericError);
+  });
+};
+
+const submit = () =&gt; {
+  const text = reason.trim();
+  setStage("done");
+  if (text) sendFeedback(requestId, text).catch(() =&gt; undefined);  <span class="cm">// ⓖ POST #2: same id</span>
+};</code></pre>
+
+<p>Server-side, the route is native to the gateway — no proxying, no service hop — and does
+boundary validation before writing with the service role:</p>
+
+<div class="file"><span><b>services/gateway/src/feedback.ts</b>:19–44 — validate, then write</span><span class="badge b1">P1</span></div>
+<pre><code>app.post("/api/chat/feedback", async (request, reply) =&gt; {
+  const requestId = body?.request_id;
+  const reason = body?.reason ?? null;
+  if (typeof requestId !== "string" || requestId.length === 0 || requestId.length &gt; 128)
+    return reply.code(400).send({ error: "request_id required" });          <span class="cm">// ⓔ</span>
+  if (reason !== null &amp;&amp; (typeof reason !== "string" || reason.length &gt; 2000))
+    return reply.code(400).send({ error: "reason must be a string of at most 2000 chars" });
+
+  const response = await fetch(endpoint, {   <span class="cm">// PostgREST, service role</span>
+    method: "POST", headers,
+    body: JSON.stringify({
+      request_id: requestId,
+      user_id: request.user?.id ?? null,     <span class="cm">// ⓕ from the verified JWT, never the body</span>
+      reason,
+    }),
+  });
+  if (!response.ok) return reply.code(502).send({ error: "feedback not recorded" });
+  return reply.code(204).send();
+});</code></pre>
+
+<div class="file"><span><b>supabase/migrations/20260826000019_turn_feedback.sql</b> — the label side</span><span class="badge b1">P1</span></div>
+<pre><code>create table public.turn_feedback (
+    id bigint generated always as identity primary key,
+    request_id text not null,
+    user_id uuid,
+    reason text,
+    created_at timestamptz not null default now()
+);
+create index turn_feedback_request_idx on public.turn_feedback (request_id);
+alter table public.turn_feedback enable row level security;</code></pre>
+
+<h3>4.4 · Decisions, and why</h3>
+<ul class="dec d1">
+  <li><b class="num">ⓐ</b><strong>Carry the key in the response header, not a frame.</strong> The retriever already set <code>X-Request-ID</code> on the streaming response (phase 0); the proxy passes response headers through, and the gateway's CORS config already listed it in <code>exposedHeaders</code> (<code>server.ts:36</code>) — so the browser can read it cross-origin with zero protocol changes. The typed SSE protocol stays untouched.</li>
+  <li><b class="num">ⓑ</b><strong>The id doubles as the "finished" flag.</strong> <code>streamChat</code> only returns after the stream is consumed, so <code>message.requestId</code> being set means the turn completed — one field instead of a separate <code>isStreaming</code> flag, and the button can never target a half-finished answer.</li>
+  <li><b class="num">ⓒ</b><strong>Post on click, not on submit.</strong> Most users will never type a reason. If the signal waited for the reason box, an abandoned box would silently discard the down — the common case would lose the data. The click is the datum; the reason is a bonus.</li>
+  <li><b class="num">ⓓ</b><strong>Native gateway route, registered before the proxies.</strong> Feedback is a pure Postgres write with no retrieval logic, so it earns no service hop. Fastify's router prefers the static <code>/api/chat/feedback</code> over the <code>/api/chat/*</code> proxy wildcard, so it slots into the existing URL namespace without touching the proxy.</li>
+  <li><b class="num">ⓔ</b><strong>Boundary validation stays even though the endpoint is "just telemetry".</strong> Type and length checks (128 / 2000) bound every row an anonymous stranger can create.</li>
+  <li><b class="num">ⓕ</b><strong>Anonymous allowed, identity taken only from the verified JWT.</strong> Chat is anonymous by decision (D7); its feedback must be too, or the anonymous majority's signal is lost. <code>user_id</code> comes from <code>request.user</code> — never from the body — so it cannot be spoofed.</li>
+  <li><b class="num">ⓖ</b><strong>The reason is a second row, not an update.</strong> Append-only keeps the gateway stateless (no row id round-trip, no PATCH path, no RLS update policy) and both timestamps survive. The cost is pushed to read time: analysis groups by <code>request_id</code> and coalesces.</li>
+  <li><b class="num">·</b><strong>No thumbs-up.</strong> Ups are noise (politeness, misclicks) that would dominate the table without informing anything. One button, one meaning.</li>
+</ul>
+
+<h3>4.5 · For a scalable system</h3>
+<ul>
+  <li><strong>Spam is bounded by the existing global rate limit</strong> (Redis-backed, per-identity, shared across replicas) — no new limiter was added, and none is needed until feedback abuse actually shows up.</li>
+  <li><strong>Junk <code>request_id</code>s are accepted by design</strong> (any string ≤128). Validating existence against <code>eval_records</code> would add a read per click for no analytical gain — junk rows join to nothing and fall out of every query. Revisit only if the table fills with garbage.</li>
+  <li><strong>Double-downs are prevented by UI state, not the database.</strong> The state machine hides the button after a click; a reload wipes the (stateless, client-carried) conversation entirely, button included. If feedback ever needs to survive reloads, dedup becomes the server's job — a unique index on <code>(request_id, user_id)</code> won't work for anonymous rows, so it would be a read-time <code>distinct</code>.</li>
+  <li><strong>Volume is self-limiting</strong> — at most a few rows per human per turn. This table will stay small long after <code>eval_records</code> needs retention.</li>
+</ul>
+
+<h3>4.6 · Security</h3>
+<ul>
+  <li><strong>An anonymous, unauthenticated endpoint that writes with the service role</strong> is the sharpest edge here. It is safe because the route constructs the row itself from three validated values — the client cannot name columns, and <code>user_id</code> comes from the JWT. Any future column added to this insert must keep that property (no body spread into the PostgREST payload).</li>
+  <li><strong><code>reason</code> is hostile free text, stored raw.</strong> Correct at write time — but every future reader (admin dashboard, LLM error-analysis, judge prompts) must escape or fence it. A feedback box is a prompt-injection mailbox for anyone who suspects an LLM will read it.</li>
+  <li><strong>Failure responses leak nothing:</strong> a PostgREST error is logged with its status but the client gets a flat 502.</li>
+  <li><strong>Nothing is readable back.</strong> Same RLS posture as the other two tables; the SPA can write a down but no client can enumerate feedback.</li>
+  <li><strong>Feedback links identity to opinion:</strong> a signed-in user's <code>user_id</code> plus free text is personal data. It inherits the same retention question as the other tables.</li>
+</ul>
+
+<div class="take t1">
+  <h4>Key takeaways — phase 1</h4>
+  <ul>
+    <li>The entire feature is ~90 frontend lines, ~45 gateway lines, one table — because phase 0 had already put the join key in the browser's hands via a response header.</li>
+    <li>The two UX-shaped data decisions (post on click; reason as second row) both follow one rule: never let the optional part of an interaction destroy the mandatory part's data.</li>
+    <li>Asymmetric feedback (down only) is an eval decision, not a UX one: store only events that change what you'd do next.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 5 -->
+<h2 id="join">5 · The join: one key, three tables</h2>
+
+<p>What the two phases actually built is a three-way join. Chat is stateless — the client
+resends the whole history each turn — which has a lucky consequence: the gateway's request-side
+log of a turn contains the <em>entire conversation up to that point</em>, not just the last
+message. One key therefore links complaint, conversation, and output:</p>
+
+<div class="fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="Three tables joined on request_id">
+  <g stroke="var(--rule)" stroke-width="1.6">
+    <line x1="380" y1="165" x2="150" y2="88"/>
+    <line x1="380" y1="165" x2="610" y2="88"/>
+    <line x1="380" y1="165" x2="380" y2="238"/>
+  </g>
+  <circle cx="380" cy="165" r="52" fill="var(--code-bg)" stroke="var(--fg)" stroke-width="1.6"/>
+  <text x="380" y="160" text-anchor="middle" class="svgm" font-weight="700">request_id</text>
+  <text x="380" y="178" text-anchor="middle" class="svgs">born in proxy.ts:23</text>
+
+  <rect x="20" y="20" width="260" height="88" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="36" y="44" class="svgm" font-weight="700">conversation_logs</text>
+  <text x="36" y="62" class="svgs">the request — written by the gateway</text>
+  <text x="36" y="78" class="svgmd">payload = full client-sent history,</text>
+  <text x="36" y="93" class="svgmd">user_role, status, duration_ms (edge)</text>
+
+  <rect x="480" y="20" width="260" height="88" rx="10" fill="var(--p0-bg)"/>
+  <text x="496" y="44" class="svgm" font-weight="700" fill="var(--p0)">eval_records  [P0]</text>
+  <text x="496" y="62" class="svgs">the answer — written by the retriever</text>
+  <text x="496" y="78" class="svgmd">final_text, card_uids, cyphers,</text>
+  <text x="496" y="93" class="svgmd">query_type, moment, latency_ms (pipeline)</text>
+
+  <rect x="250" y="242" width="260" height="72" rx="10" fill="var(--p1-bg)"/>
+  <text x="266" y="266" class="svgm" font-weight="700" fill="var(--p1)">turn_feedback  [P1]</text>
+  <text x="266" y="284" class="svgs">the label — written by the gateway</text>
+  <text x="266" y="300" class="svgmd">user_id?, reason? (second row)</text>
+</svg>
+</div>
+<p class="figcap">Fig. 4 — The eval corpus is this join, not any single table.</p>
+
+<div class="file"><span><b>example</b> — the error-analysis query these phases were built for</span></div>
+<pre><code><span class="cm">-- every complaint, with the conversation that led to it and the answer it got</span>
+select f.created_at,
+       max(f.reason)                          as reason,      <span class="cm">-- coalesce the two-row model</span>
+       c.payload -&gt; 'messages'                as conversation,
+       e.final_text, e.query_type, e.cyphers, e.row_count, e.latency_ms, e.errors,
+       c.duration_ms - e.latency_ms           as edge_overhead_ms  <span class="cm">-- free metric from the join</span>
+from turn_feedback f
+join eval_records       e using (request_id)
+left join conversation_logs c on c.request_id = f.request_id
+where f.rating = 'down'                       <span class="cm">-- ups are labels, not complaints (migration 21)</span>
+group by f.request_id, f.created_at, c.payload, e.final_text, e.query_type,
+         e.cyphers, e.row_count, e.latency_ms, e.errors, c.duration_ms
+order by f.created_at desc;</code></pre>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>Each writer records only what it uniquely holds; the key does the assembly. No service buffers another's data, no capture pipeline exists.</li>
+    <li>Stateless chat turned out to be an eval asset: the request log <em>is</em> the full conversation snapshot at that turn.</li>
+    <li>Two latency figures for free: pipeline time (retriever) vs edge time (gateway) — their difference is proxy + queue overhead, measured per turn without any new instrumentation.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ 6 -->
+<h2 id="next">6 · What comes next, and observations from writing this</h2>
+
+<h3>6.1 · The remaining eval phases</h3>
+
+<p>The corrected order is <strong>capture ✓ → cheap label ✓ → wire existing cases → error
+analysis → judges</strong>. Concretely:</p>
+
+<table>
+  <tr><th>phase</th><th>what it is</th><th>status</th></tr>
+  <tr><td><b>0 — capture</b></td><td><code>eval_records</code> + shared request id (this document)</td><td class="goodtag">built, this branch</td></tr>
+  <tr><td><b>1 — cheap label</b></td><td>thumbs-down → <code>turn_feedback</code> (this document)</td><td class="goodtag">built, this branch</td></tr>
+  <tr><td><b>2 — wire existing cases</b></td><td>Make the 12 quarantined test cases run: a parametrized loader in <code>services/retriever/tests</code>, hard assertions for the 7 deterministic safety cases, <code>should_not_contain</code> kept as a real gate, <code>expected_patterns</code> xfailed until execute-and-compare replaces regex, the 5 cypher cases re-checked against today's prompt, the pre-commit exclude lifted, <code>langfuse_enabled</code> default flipped to False (<code>config.py:37</code> says True, <code>.example.env</code> says false), <code>evals/README.md</code> rewritten.</td><td>next up</td></tr>
+  <tr><td><b>3 — error analysis</b></td><td>A human reads the corpus §5 produces — every down joined to its conversation and answer — and names the failure modes. This is where the rubric <em>comes from</em>; it is not written in advance.</td><td>after corpus accumulates</td></tr>
+  <tr><td><b>4 — harness + judges</b></td><td>Roadmap §3 as written, now in its correct place: <code>python -m evals.run --suite &lt;name&gt;</code> over six suites (routing, classifier, cypher, retrieval, answer-quality, safety), deterministic tier in CI, LLM tiers nightly; Langfuse "one turn, one trace" with spans for classify→route→execute→compose; judge rubrics derived from phase 3's labels; the 2026-08-18 baselines as the numbers to beat.</td><td>planned</td></tr>
+</table>
+
+<h3>6.2 · Recommendations and observations</h3>
+
+<ol>
+  <li><strong><span class="goodtag">Feedback reasons were stored twice — fixed on this branch.</span></strong> <code>LOGGED_ROUTES</code> in <code>logging.ts</code> matched <code>/api/chat/feedback</code> (the regex is <code>^\/api\/chat(\/|$)</code>), so every feedback POST also landed in <code>conversation_logs</code> — under the feedback request's own fresh <code>request.id</code>, duplicating potentially personal free text into a second table. The route is now excluded from conversation logging, with a test pinning it.</li>
+  <li><strong><span class="goodtag">Retention — decided and scheduled on this branch.</span></strong> Migration <code>20260827000020_telemetry_retention.sql</code>: two nightly pg_cron jobs prune <code>conversation_logs</code> and <code>eval_records</code> older than 90 days, <em>except</em> turns thumbed down (<code>rating = 'down'</code>; migration 21's ups do not pin) — down-labeled turns are the corpus and are kept indefinitely, as is <code>turn_feedback</code> itself. pg_cron so the schedule lives in the database and needs no running service. <code>eval_records_created_idx</code> makes the age scan cheap.</li>
+  <li><strong>The stale comment in <code>logging.ts</code></strong> still says response-side capture "is Phase 6's eval-record work" — that work now exists, retriever-side. One-line docstring fix next time the file is touched.</li>
+  <li><strong>Thread-per-turn is marked as a known ceiling</strong> (§3.5) — worth a <code>ponytail:</code>-style comment in <code>_write_eval_record</code> naming the upgrade path (bounded queue + single writer) so the shortcut is tracked, not rediscovered under load.</li>
+  <li><strong>Build the reading habit before the harness.</strong> The corpus only pays for itself when someone reads it. The §5 query (or two or three variants: downs-with-reasons, error turns, slowest turns) belongs in a small <code>docs/</code> or <code>scripts/</code> snippet file so error analysis (phase 3) starts as a weekly five-minute habit, not a project.</li>
+  <li><strong>When judges arrive, the corpus is adversarial input.</strong> Both <code>final_text</code> and <code>reason</code> are user-influenceable and will eventually be interpolated into judge prompts. Fence them (delimiters + explicit "data, not instructions" framing) from the first judge prompt onwards — retrofitting this after a prompt-injection incident is the expensive order.</li>
+  <li><strong>Consider a scoped insert-only Postgres role</strong> for the telemetry writers once phase D/E raise the stakes: three services now hold the master service-role key, and none of them needs more than INSERT on two tables and SELECT on none.</li>
+</ol>
+
+<div class="take">
+  <h4>Key takeaways — the plan</h4>
+  <ul>
+    <li>Phases 0+1 close the audit's two blockers: answers exist, and everything joins. The eval corpus now grows by itself with zero marginal effort.</li>
+    <li>The next cheap win (phase 2) is test plumbing, not new capability — 12 written cases are sitting in quarantine.</li>
+    <li>The expensive parts (rubrics, judges) stay parked until the corpus has taught what to grade — which is the whole point of the corrected order.</li>
+  </ul>
+</div>
+
+<p class="sub" style="margin-top:48px">Sources: <code>handoff.md</code> (eval audit findings), <code>docs/roadmap/01-program.md</code> §3, commits <code>1fcb630</code> / <code>5b3dc75</code> / <code>04ea9ba</code>, and the files cited inline. Line numbers as of <code>feat/eval-records</code> @ <code>04ea9ba</code>.</p>
+
+</main>
+</body>
+</html>

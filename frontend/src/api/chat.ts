@@ -76,10 +76,14 @@ export async function streamChat(
  * id joins the full conversation (conversation_logs) and the answer
  * (eval_records).
  */
-export async function sendFeedback(requestId: string, reason?: string): Promise<void> {
+export async function sendFeedback(
+  requestId: string,
+  reason?: string,
+  rating: "up" | "down" = "down",
+): Promise<void> {
   await apiFetch("/api/chat/feedback", {
     method: "POST",
-    body: JSON.stringify({ request_id: requestId, reason: reason ?? null }),
+    body: JSON.stringify({ request_id: requestId, reason: reason ?? null, rating }),
   });
 }
 

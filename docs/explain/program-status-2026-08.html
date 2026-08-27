@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programme status 2026-08 — laiive</title>
+<style>
+  /* --p0/--p1 are per-unit accent pairs; add --p2 (and .b2/.d2) the same way
+     for a third unit. A one-unit doc uses --p0 only and drops the legend. */
+  :root{
+    --bg:#faf9f7; --panel:#ffffff; --fg:#1c1c22; --muted:#6b6b76; --rule:#e3e1dc;
+    --code-bg:#f2f0ec; --code-fg:#2a2a30; --comment:#8b8b95;
+    --p0:#0e7490; --p0-bg:#e3f3f7; --p0-line:#0e7490;
+    --p1:#bd2a80; --p1-bg:#fbe6f2; --p1-line:#bd2a80;
+    --infra:#8f8c96; --good:#177245; --warn:#9a6a06;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101014; --panel:#17171c; --fg:#e8e6e3; --muted:#9a97a0; --rule:#2b2b33;
+      --code-bg:#1c1c23; --code-fg:#d8d6d3; --comment:#7e7e8a;
+      --p0:#53c9dd; --p0-bg:#0d3540; --p0-line:#53c9dd;
+      --p1:#ff5cb8; --p1-bg:#3e1130; --p1-line:#ff5cb8;
+      --infra:#77747e; --good:#5fce8d; --warn:#e3b341;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  main{max-width:980px; margin:0 auto; padding:0 28px 90px}
+  header.doc{max-width:980px; margin:0 auto; padding:56px 28px 8px}
+  h1{font-size:30px; line-height:1.2; margin:0 0 6px}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 4px}
+  h2{font-size:22px; margin:60px 0 12px; padding-top:18px; border-top:1px solid var(--rule)}
+  h3{font-size:16.5px; margin:30px 0 8px}
+  p{margin:10px 0}
+  a{color:var(--p0); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    font:12.8px/1.55 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-fg); border:1px solid var(--rule);
+    border-radius:0 0 8px 8px; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  }
+  pre code{background:none; padding:0; font-size:12.8px}
+  .file{
+    display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+    background:var(--panel); border:1px solid var(--rule); border-bottom:none;
+    border-radius:8px 8px 0 0; padding:7px 16px; margin-top:16px;
+    font:12px ui-monospace,Consolas,monospace; color:var(--muted);
+  }
+  .file b{color:var(--fg); font-weight:600}
+  .cm{color:var(--comment)}
+  .badge{
+    display:inline-block; font:700 10.5px/1 ui-monospace,Consolas,monospace;
+    padding:4px 7px; border-radius:99px; vertical-align:2px; letter-spacing:.05em;
+  }
+  .b0{background:var(--p0-bg); color:var(--p0)}
+  .b1{background:var(--p1-bg); color:var(--p1)}
+  .fig{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:18px 14px 8px; margin:20px 0 8px; overflow-x:auto;
+  }
+  .fig svg{display:block; margin:0 auto; min-width:720px}
+  .figcap{color:var(--muted); font-size:13px; margin:6px 4px 22px; text-align:center}
+  table{border-collapse:collapse; width:100%; margin:14px 0 20px; font-size:13.5px}
+  th,td{border:1px solid var(--rule); padding:7px 10px; text-align:left; vertical-align:top}
+  th{background:var(--code-bg); font-weight:600}
+  td code{font-size:12px}
+  ul,ol{padding-left:24px; margin:10px 0}
+  li{margin:5px 0}
+  .take{
+    background:var(--panel); border:1px solid var(--rule); border-left:4px solid var(--p0);
+    border-radius:8px; padding:12px 18px; margin:22px 0;
+  }
+  .take.t1{border-left-color:var(--p1)}
+  .take h4{margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+  .take ul{margin:6px 0 2px}
+  .dec b.num{
+    display:inline-block; min-width:20px; text-align:center; border-radius:99px;
+    font:700 11px/20px ui-monospace,Consolas,monospace; margin-right:6px;
+  }
+  .dec.d0 b.num{background:var(--p0-bg); color:var(--p0)}
+  .dec.d1 b.num{background:var(--p1-bg); color:var(--p1)}
+  nav.toc{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:14px 22px; margin:22px 0 0; font-size:14px;
+  }
+  nav.toc ol{margin:6px 0; columns:2; column-gap:40px}
+  .warntag{color:var(--warn); font-weight:600}
+  .goodtag{color:var(--good); font-weight:600}
+  .svgt{font:12px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--fg)}
+  .svgs{font:10.5px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--muted)}
+  .svgm{font:11px ui-monospace,Consolas,monospace; fill:var(--fg)}
+  .svgmd{font:10.5px ui-monospace,Consolas,monospace; fill:var(--muted)}
+</style>
+</head>
+<body>
+<header class="doc">
+  <h1>The general plan, and where it stands — 2026-08-27</h1>
+  <p class="sub">laiive · branch <code>feat/eval-records</code> · working tree @ <code>22049b5</code> · written 2026-08-27</p>
+  <p class="sub">Legend used throughout: <span class="badge b0">P0</span> programme (roadmap 01, seven phases) &nbsp;·&nbsp; <span class="badge b1">P1</span> evolution plan (six areas, phases A–G) &nbsp;·&nbsp; grey = pre-existing infrastructure</p>
+  <nav class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#context">Why this exists</a></li>
+      <li><a href="#system">The system, and where the work lands</a></li>
+      <li><a href="#ship">Ship state: main, develop, the open branch</a></li>
+      <li><a href="#programme">The programme, phase by phase</a></li>
+      <li><a href="#evolution">The evolution plan, A through G</a></li>
+      <li><a href="#next">What comes next, and recommendations</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+
+<h2 id="context">1 · Why this exists</h2>
+
+<p>Three planning artifacts govern this repo, written at different altitudes on different
+days: the <b>programme</b> (<code>docs/roadmap/01-program.md</code>, seven ordered phases,
+agreed 2026-08-19 the day <code>refactor/foundation</code> merged), the <b>ownership
+doctrine</b> (<code>docs/roadmap/02-ownership.md</code>, same day), and the <b>evolution
+plan</b> (six areas as phases A–G, approved 2026-08-25 with four locked owner decisions,
+in <code>~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md</code>). Since
+then, two release cycles of work have landed <em>across</em> all three at once, and the
+answer to "where is the general plan, actually?" lives scattered between
+<code>handoff.md</code>'s moving picture, the plan file's spec, and the merge history.</p>
+
+<p>This doc is that answer, consolidated and checked against the working tree: every
+"landed" claim below is backed by a file and line that exists at <code>22049b5</code>,
+not by what a plan said would exist. The one track deliberately <em>not</em> re-explained
+here is evals — phases 0 and 1 of that plan have their own deep-dive in
+<a href="eval-phases-0-1.html">eval-phases-0-1.html</a>, and this doc only places them in
+the larger picture.</p>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>Two plans run at once: the seven-phase programme (the spine) and the A–G evolution plan (a six-area graft approved 2026-08-25). Both are live; neither is finished.</li>
+    <li>Status here is evidence-checked against the tree at <code>22049b5</code>, not read off the plan files.</li>
+    <li>Evals are a third, separately documented track — linked, not restated.</li>
+  </ul>
+</div>
+
+<h2 id="system">2 · The system, and where the work lands</h2>
+
+<p>The architecture itself has not changed shape since v0.1.0 — same five services, same
+stores, gateway still the only published surface. What changed is what runs <em>inside</em>
+each box. Fig. 1 places every landed and pending unit of both plans on the real system.</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 620" role="img" aria-label="laiive architecture with landed and pending work located per service">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+    <marker id="ar1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <!-- Frontend -->
+  <rect x="280" y="14" width="400" height="116" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="296" y="38" class="svgt" font-weight="600">Frontend SPA — Cloudflare Pages</text>
+  <text x="296" y="58" class="svgs"><tspan fill="var(--good)">✓</tspan> Composer.tsx unifies both bars; claim CTA is a door <tspan fill="var(--p1)">(A)</tspan></text>
+  <text x="296" y="74" class="svgs"><tspan fill="var(--good)">✓</tspan> thumbs-down on assistant turns <tspan fill="var(--p0)">(#80, open PR)</tspan></text>
+  <text x="296" y="90" class="svgs"><tspan fill="var(--warn)">○</tspan> pending: /pro/org, claim + edit screens <tspan fill="var(--p1)">(D, E)</tspan></text>
+  <text x="296" y="106" class="svgs">constraints held: protocol types imported, i18n ×4</text>
+
+  <!-- Frontend -> Gateway -->
+  <path d="M480 130 L480 186" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="492" y="158" class="svgs">Supabase JWT · /api/*</text>
+
+  <!-- Gateway -->
+  <rect x="280" y="186" width="400" height="132" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="296" y="210" class="svgt" font-weight="600">Gateway :8000 — the only published surface</text>
+  <text x="296" y="230" class="svgs"><tspan fill="var(--good)">✓</tspan> explicit /api/push/* routes — catch-all deleted <tspan fill="var(--p1)">(C4)</tspan></text>
+  <text x="296" y="246" class="svgs"><tspan fill="var(--good)">✓</tspan> role rate limits: anon / user / pro / admin <tspan fill="var(--p1)">(B4)</tspan></text>
+  <text x="296" y="262" class="svgs"><tspan fill="var(--good)">✓</tspan> POST /api/chat/feedback → turn_feedback <tspan fill="var(--p0)">(#80)</tspan></text>
+  <text x="296" y="278" class="svgs"><tspan fill="var(--warn)">○</tspan> pending: /api/orgs, /api/claims, publish wrapper <tspan fill="var(--p1)">(D)</tspan>; PATCH authz <tspan fill="var(--p1)">(E)</tspan></text>
+  <text x="296" y="298" class="svgs">verified X-User-Id / X-User-Role + X-Internal-Key downstream</text>
+
+  <!-- Gateway -> services -->
+  <path d="M360 318 L170 388" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="140" y="348" class="svgs">chat SSE</text>
+  <path d="M480 318 L480 388" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#ar1)"/>
+  <text x="492" y="352" class="svgs">named push routes only (pro)</text>
+  <path d="M600 318 L790 388" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="720" y="348" class="svgs">admin proxy</text>
+
+  <!-- Retriever -->
+  <rect x="18" y="388" width="294" height="124" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="34" y="412" class="svgt" font-weight="600">Retriever :8002 — reads</text>
+  <text x="34" y="432" class="svgs"><tspan fill="var(--good)">✓</tspan> /venues, /artists lookups <tspan fill="var(--p1)">(C2)</tspan></text>
+  <text x="34" y="448" class="svgs"><tspan fill="var(--good)">✓</tspan> eval_records per turn <tspan fill="var(--p0)">(#80)</tspan></text>
+  <text x="34" y="464" class="svgs"><tspan fill="var(--warn)">○</tspan> parallel legs + RRF fusion <tspan fill="var(--p0)">(prog §5)</tspan> ①</text>
+  <text x="34" y="480" class="svgs">— untouched until evals produce numbers</text>
+
+  <!-- Pusher -->
+  <rect x="333" y="388" width="294" height="124" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="349" y="412" class="svgt" font-weight="600">Pusher :8003 — writes</text>
+  <text x="349" y="432" class="svgs"><tspan fill="var(--good)">✓</tspan> by-uid venue writes, set-if-absent address <tspan fill="var(--p1)">(C3)</tspan></text>
+  <text x="349" y="448" class="svgs"><tspan fill="var(--warn)">○</tspan> edit routes /venues|/events|/artists <tspan fill="var(--p1)">(E)</tspan> ②</text>
+  <text x="349" y="464" class="svgs">ownership governs edit, never create</text>
+
+  <!-- Search -->
+  <rect x="648" y="388" width="294" height="124" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="664" y="412" class="svgt" font-weight="600">Search :8004 — discovery</text>
+  <text x="664" y="432" class="svgs"><tspan fill="var(--good)">✓</tspan> stats + scheduler verdict <tspan fill="var(--p1)">(B)</tspan></text>
+  <text x="664" y="448" class="svgs"><tspan fill="var(--good)">✓</tspan> province sweep-days <tspan fill="var(--p0)">(#78)</tspan></text>
+  <text x="664" y="464" class="svgs"><tspan fill="var(--warn)">○</tspan> JSON-LD, chunking <tspan fill="var(--p1)">(F)</tspan> · review learning <tspan fill="var(--p1)">(G)</tspan></text>
+  <text x="664" y="480" class="svgs">reports → human approve → graph (gate untouched)</text>
+
+  <!-- Services -> stores -->
+  <path d="M110 512 L110 548" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="118" y="536" class="svgs">eval INSERT</text>
+  <path d="M260 512 L400 548" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="272" y="530" class="svgs">Cypher reads</text>
+  <path d="M480 512 L480 548" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="492" y="536" class="svgs">MERGE via shared writer</text>
+
+  <!-- Stores -->
+  <rect x="18" y="548" width="294" height="58" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="34" y="570" class="svgt" font-weight="600">Supabase Postgres</text>
+  <text x="34" y="588" class="svgs">18/19 applied · 20 pending · slot 16 = D's, unwritten</text>
+  <rect x="333" y="548" width="294" height="58" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="349" y="570" class="svgt" font-weight="600">Neo4j Aura</text>
+  <text x="349" y="588" class="svgs">graph model unchanged · event created_at index <tspan fill="var(--p1)">(B)</tspan></text>
+  <rect x="648" y="548" width="294" height="58" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="664" y="570" class="svgt" font-weight="600">Redis · Langfuse</text>
+  <text x="664" y="588" class="svgs">geocode cache only <tspan fill="var(--p0)">(prog §6)</tspan> · tracing retriever-only</text>
+</svg>
+</div>
+<p class="figcap">Fig. 1 — The running system at 2026-08-27. <span class="badge b1">P1</span> items A–C are all in production (v0.2.0); <span class="badge b0">P0</span> items sit on merged-but-undeployed #78 or open #80; ○ marks where the next planned work lands. Search→Supabase report edges and the chat request path are drawn in the <a href="eval-phases-0-1.html">eval doc's</a> Figs. 1–3 and not repeated. ①② are decisions below.</p>
+
+<h3>2.1 · The decisions that shape the status</h3>
+<ul class="dec d0">
+  <li><b class="num">①</b><strong>Evals before optimisation.</strong> The programme's framing decision: accuracy, cost and voice work are claims until a harness can score them. This is why programme phases 4–6 sit untouched below — it is discipline, not drift. The eval track itself was then <em>reordered</em> on the audit's findings (capture → cheap label → wire cases → error analysis → judges), which the eval doc argues in full.</li>
+  <li><b class="num">②</b><strong>Ownership governs who may edit, never who may create.</strong> The doctrine in <code>docs/roadmap/02-ownership.md</code>: no confirmation flows, no venue veto, no dispute arbitration — a large amount of machinery deliberately not built. Phases D and E implement the small version: claim grants edit, admin revokes, everything audited.</li>
+  <li><b class="num">③</b><strong>One phase, one PR into develop, merge commits.</strong> Both plans ship this way, which is what makes this status countable: A=#69, C=#70, B=#71, prospecting=#78, evals 0+1=#80. The commit bodies are the reasoning; nothing here is archaeology.</li>
+</ul>
+
+<div class="take">
+  <h4>Key takeaways — the system</h4>
+  <ul>
+    <li>Same architecture as v0.1.0; the change is in the boxes: evolution A–C in production, eval capture on the open branch, D/E/F/G located and specced but unbuilt.</li>
+    <li>Phases 4–6 of the programme are empty on purpose (①): they are gated on eval numbers that don't exist yet.</li>
+    <li>The pending gateway work (D's native routes, E's PATCH authz) is the first time the gateway grows beyond proxy + gate — bounded deliberately to Supabase writes, one authz RPC, and an audit insert.</li>
+  </ul>
+</div>
+
+<h2 id="ship">3 · Ship state: main, develop, the open branch</h2>
+
+<p>Production is <code>v0.2.0</code>, tagged and deployed 2026-08-25. Everything since
+lives on <code>develop</code> (two merges) or on the open PR #80 (eight commits). Nothing
+has been deployed since the tag.</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 260" role="img" aria-label="Timeline from v0.1.0 to the open PR 80">
+  <line x1="40" y1="150" x2="930" y2="150" stroke="var(--infra)" stroke-width="2"/>
+
+  <circle cx="90" cy="150" r="6" fill="var(--good)"/>
+  <text x="90" y="96" class="svgt" text-anchor="middle" font-weight="600">v0.1.0 tagged</text>
+  <text x="90" y="112" class="svgs" text-anchor="middle">programme + ownership doctrine agreed</text>
+  <text x="90" y="172" class="svgmd" text-anchor="middle">08-19</text>
+
+  <text x="250" y="196" class="svgmd" text-anchor="middle">#60–#68 — timezones, provenance+learning,</text>
+  <text x="250" y="212" class="svgmd" text-anchor="middle">admin queue, saved events</text>
+
+  <circle cx="410" cy="150" r="6" fill="var(--p1)"/>
+  <text x="410" y="62" class="svgt" text-anchor="middle" font-weight="600">evolution plan approved</text>
+  <text x="410" y="78" class="svgs" text-anchor="middle">4 locked owner decisions</text>
+
+  <circle cx="470" cy="150" r="5" fill="var(--p1)"/>
+  <circle cx="500" cy="150" r="5" fill="var(--p1)"/>
+  <circle cx="530" cy="150" r="5" fill="var(--p1)"/>
+  <text x="500" y="106" class="svgt" text-anchor="middle">A · C · B merged</text>
+  <text x="500" y="122" class="svgmd" text-anchor="middle">#69 #70 #71 — one phase, one PR ③</text>
+
+  <circle cx="575" cy="150" r="5" fill="var(--infra)"/>
+  <text x="575" y="196" class="svgmd" text-anchor="middle">#72–#77 — pro video,</text>
+  <text x="575" y="212" class="svgmd" text-anchor="middle">composer accents, scheduler badge</text>
+
+  <line x1="640" y1="150" x2="640" y2="60" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <circle cx="640" cy="150" r="7" fill="var(--good)"/>
+  <text x="640" y="38" class="svgt" text-anchor="middle" font-weight="600">v0.2.0 — released + deployed</text>
+  <text x="640" y="54" class="svgs" text-anchor="middle" fill="var(--good)" font-weight="600">PRODUCTION POINTS HERE</text>
+  <text x="640" y="172" class="svgmd" text-anchor="middle">08-25</text>
+
+  <circle cx="730" cy="150" r="6" fill="var(--p0)"/>
+  <text x="730" y="96" class="svgs" text-anchor="middle">#78 source prospecting</text>
+  <text x="730" y="172" class="svgmd" text-anchor="middle">08-26</text>
+
+  <circle cx="790" cy="150" r="6" fill="var(--infra)"/>
+  <text x="790" y="118" class="svgs" text-anchor="middle">#79 audit deletions</text>
+
+  <circle cx="880" cy="150" r="7" fill="none" stroke="var(--p0)" stroke-width="2" stroke-dasharray="3 3"/>
+  <text x="880" y="76" class="svgt" text-anchor="middle" font-weight="600">#80 eval phases 0+1 — OPEN</text>
+  <text x="880" y="92" class="svgs" text-anchor="middle">8 commits · migration 20 unapplied</text>
+  <text x="880" y="172" class="svgmd" text-anchor="middle">08-26→27</text>
+
+  <path d="M700 200 L700 210 L910 210 L910 200" stroke="var(--warn)" fill="none" stroke-width="1.5"/>
+  <text x="805" y="230" class="svgs" text-anchor="middle" fill="var(--warn)" font-weight="600">merged or open, not deployed — deploy debt</text>
+</svg>
+</div>
+<p class="figcap">Fig. 2 — Twelve working days from v0.1.0 to now. All of the evolution plan's shipped phases (A, C, B) merged on approval day and made it into v0.2.0 the same evening.</p>
+
+<p>The database tells the same story in migration numbers. Note the gap at 16 and the
+dormant 17 — both matter in §5 and §6:</p>
+
+<div class="file"><span><b>supabase/migrations/</b> — trimmed listing as of 2026-08-27</span><span class="badge b0">P0</span></div>
+<pre><code>20260813000001 … 20260823000015        <span class="cm">← applied; the v0.1.0→v0.2.0 era (profiles → saved_events)</span>
+                                       <span class="cm">← no 20260825000016 — phase D's planned slot, unwritten</span>
+20260825000017_search_source_prospecting.sql   <span class="cm">← #78; columns read by no service yet (G is the reader)</span>
+20260826000018_eval_records.sql        <span class="cm">← #80; applied, verified 2026-08-27</span>
+20260826000019_turn_feedback.sql       <span class="cm">← #80; applied, verified 2026-08-27</span>
+20260827000020_telemetry_retention.sql <span class="cm">← #80; UNAPPLIED — awaits owner-run db push</span></code></pre>
+
+<div class="take">
+  <h4>Key takeaways — ship state</h4>
+  <ul>
+    <li>Production = v0.2.0, which already contains all three shipped evolution phases (A, B, C) — the plan approved on the morning of 2026-08-25 was one-third deployed by that night.</li>
+    <li>Deploy debt is real but small: #78 + #79 on develop, #80 open. #78's province sweep-days do nothing until search redeploys <em>and</em> <code>flows/serve.py</code> runs.</li>
+    <li>Migrations 18/19 are live and the eval corpus is accumulating in production; 20 (retention) is the one unapplied piece of #80.</li>
+  </ul>
+</div>
+
+<h2 id="programme">4 · The programme, phase by phase</h2>
+
+<p>The seven phases of <code>docs/roadmap/01-program.md</code>, scored against the tree.
+"Not started" for 4–6 is the plan working as designed — see ① — not slippage.</p>
+
+<table>
+  <tr><th>#</th><th>phase</th><th>status</th><th>evidence / delta from the plan</th></tr>
+  <tr><td>1</td><td>Deploy</td><td><span class="goodtag">done</span></td><td>laiive.com live; v0.2.0 in production. Residuals: redirect allow-list still unverified (handoff blocker since 08-21); the two items the roadmap deferred "until a public gateway exists" — managed Prefect pool, CI deploy workflow — are now unblocked but undone.</td></tr>
+  <tr><td>2</td><td>Visual direction</td><td><span class="goodtag">landed, tail open</span></td><td>Restyle + composer unification shipped via evolution A and #72–#77. The feedback control the phase demanded now exists on #80 (<code>Chat.tsx:291</code>). Open: OG card bare; allow-list errand filed under this phase in the tracker.</td></tr>
+  <tr><td>3</td><td>Evals + observability</td><td><span class="warntag">in flight, reordered</span></td><td>Capture + cheap label built on open #80; corpus already accumulating. The roadmap's harness-first shape was corrected to capture-first — argued in <a href="eval-phases-0-1.html">the eval doc</a>. Tracing is still retriever-only (§4.1).</td></tr>
+  <tr><td>4</td><td>Multi-provider routing</td><td><span class="warntag">not started</span></td><td>No <code>laiive_shared/llm.py</code>; six modules across pusher and search still construct bare OpenAI clients (§4.1).</td></tr>
+  <tr><td>5</td><td>Retrieval accuracy</td><td><span class="warntag">not started</span></td><td>By design: "no change here ships without a recall or precision number from phase 3." Adjacent-but-distinct: C2's lookup endpoints are pickers, not retrieval.</td></tr>
+  <tr><td>6</td><td>Guardrails, cache, language, voice</td><td><span class="warntag">not started</span></td><td>Redis still holds only the geocode cache; safety guard still regex-based.</td></tr>
+  <tr><td>7</td><td>Ingestion + self-improvement</td><td><span class="warntag">partial, out of order</span></td><td>Landed early via evolution B (learning-loop bug fixes, stats, scheduler verdict at <code>stats.py:213</code>) and #78 (province sweep-days; prospecting schema, dormant). F/G planned. The loop's signal side was born in #80. Open: serve.py idle, 17 dry_run reports, zero ever dismissed.</td></tr>
+</table>
+
+<h3>4.1 · The observability gap phase 3 still carries</h3>
+
+<p>The roadmap's "one turn, one trace" wants all three Python services on the same
+Langfuse wrapper. Today the wrapper exists in exactly one place:</p>
+
+<div class="file"><span><b>services/retriever/agent/utils/llm_utils.py</b>:12–14 — the only wrapped client factory in the stack</span><span class="badge b0">P0</span></div>
+<pre><code>def get_openai_client() -&gt; OpenAI:
+    """The one OpenAI client factory (Langfuse-wrapped when tracing is on)."""
+    if settings.langfuse_enabled:</code></pre>
+
+<p>Pusher (<code>conversation.py</code>, <code>converters.py</code>, <code>graph.py</code>)
+and search (<code>address_lookup.py</code>, <code>extraction.py</code>,
+<code>genre_lookup.py</code>) all build bare clients. That is fine — programme phase 4's
+shared <code>llm.py</code> is the vehicle for wrapping them once, and wrapping them
+piecemeal now would just move the pusher's conftest patch list twice. One real drift to
+carry meanwhile:</p>
+
+<div class="file"><span><b>services/retriever/config.py</b>:42 — default says on, <code>.example.env</code> says off</span><span class="badge b0">P0</span></div>
+<pre><code>    langfuse_enabled: bool = Field(True, alias="LANGFUSE_ENABLED")</code></pre>
+
+<p>The flip to a <code>False</code> default is already queued inside the eval phase-2
+next-step; note the handoff cites it as <code>config.py:37</code> and the line has since
+moved to 42.</p>
+
+<div class="take">
+  <h4>Key takeaways — the programme</h4>
+  <ul>
+    <li>Score: one phase done, two in flight (2 nearly closed, 3 reordered and moving), one being eaten early and out of order (7), three untouched by design (4–6).</li>
+    <li>The single decision doing the most work is still ①: everything untouched is waiting on eval numbers, and the eval track is now built to produce them cheaply.</li>
+    <li>Phase 7 keeps landing ahead of schedule because its pieces (B, #78) don't depend on eval numbers — the plan predicted exactly this interleaving.</li>
+  </ul>
+</div>
+
+<h2 id="evolution">5 · The evolution plan, A through G</h2>
+
+<p>Six areas, seven phases, each one PR. The four locked owner decisions and full specs
+live in the plan file; the ownership model they implement is
+<code>docs/roadmap/02-ownership.md</code>. Status:</p>
+
+<table>
+  <tr><th>phase</th><th>PR</th><th>what it is</th><th>status</th></tr>
+  <tr><td><b>A</b> — composer, claim CTA, pro ground</td><td>#69</td><td>Shared <code>Composer.tsx</code> replaces both input bars; the dead claim <code>&lt;p&gt;</code> becomes a role-aware door; watermark + brand rules amended.</td><td><span class="goodtag">in production</span></td></tr>
+  <tr><td><b>B</b> — admin search dashboard</td><td>#71</td><td>Learning-loop bug fixes verified-then-fixed; <code>GET /stats</code> with Prefect-Cloud scheduler verdict; dashboard (landed as <code>AdminStats.tsx</code>, not the planned <code>AdminDashboard.tsx</code>); role-aware rate limits (<code>server.ts:67–74</code>).</td><td><span class="goodtag">in production</span></td></tr>
+  <tr><td><b>C</b> — graph entity foundation</td><td>#70</td><td>Cards carry <code>venue_uid</code>/<code>claimed</code>; first non-Event lookups; the pro form reuses the graph (no re-asking addresses); push catch-all narrowed.</td><td><span class="goodtag">in production</span></td></tr>
+  <tr><td><b>D</b> — orgs + claims</td><td>—</td><td>Migration (claim status/revocation, <code>entity_edits</code>, <code>create_organization</code> RPC, <code>user_may_edit</code>), gateway-native org/claim routes, publish wrapper, <code>/pro/org</code>.</td><td><span class="warntag">next in queue after eval 2/3 · est 3</span></td></tr>
+  <tr><td><b>E</b> — edits + verification</td><td>—</td><td>First update functions in the shared writer, pusher edit routes behind gateway authz, admin claims queue, the card flips ✓ on the stamp.</td><td><span class="warntag">after D · est 3</span></td></tr>
+  <tr><td><b>F</b>/<b>G</b> — discovery quality + review learning</td><td>—</td><td>Frozen-page eval set, JSON-LD before the LLM, chunking, Torino seeds + credit ceiling; review-signal columns + human-gated hint drafting.</td><td><span class="warntag">after E · est 4</span></td></tr>
+</table>
+
+<h3>5.1 · The evidence in the tree</h3>
+
+<p>A — the invitation that used to be a dead paragraph is a router link with role-aware
+targeting:</p>
+
+<div class="file"><span><b>frontend/src/components/EventCardView.tsx</b>:209–216 — A1, the claim door</span><span class="badge b1">P1</span></div>
+<pre><code>{/* The ownership call to action — the mark's red, made a door.
+    Brighten on hover, never dim: same 3:1 floor as the mark. */}
+&lt;Link
+  to={claimTo}
+  className="block pt-1 font-medium text-mark-unverified underline underline-offset-2 hover:brightness-125"
+&gt;
+  {t.cards.webClaim}
+&lt;/Link&gt;</code></pre>
+
+<p>C — the card knows its venue's graph identity, which is what every ownership screen
+will reference:</p>
+
+<div class="file"><span><b>services/shared/ts/protocol.ts</b>:20–28 — C1, identity on the card (mirrored from <code>cards.py</code>, drift-guarded)</span><span class="badge b1">P1</span></div>
+<pre><code>export interface EventCard {
+  uid: string;
+  name: string;
+  artists: string[];
+  venue?: string | null;
+  // The venue's graph identity and address — what the ownership screens
+  // reference. Null on rows read by paths that do not select them.
+  venue_uid?: string | null;
+  venue_address?: string | null;</code></pre>
+
+<p>And C4, the security prerequisite for everything E will build — the pusher is no longer
+reachable by prefix, only by name:</p>
+
+<div class="file"><span><b>services/gateway/src/proxy.ts</b>:96–107 — C4, the narrowed surface E depends on</span><span class="badge b1">P1</span></div>
+<pre><code>// /api/push/* → pusher — pro and admin only, and EXPLICIT routes rather than
+// a catch-all. The old `prefix: "/api/push", rewritePrefix: ""` exposed every
+// pusher route, present and future, behind one pro gate — which turns into a
+// hole the moment the pusher grows endpoints the gateway must authorize
+// per-entity (the ownership edit routes). A new pusher endpoint now has to be
+// named here to exist at all.
+app.register(async (scope) =&gt; {
+  scope.addHook("preHandler", requireRole("pro"));</code></pre>
+
+<p>C2's lookups already anticipate D — the docstring names the org screen that does not
+exist yet:</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:268–275 — C2, pickers built for D's claim search</span><span class="badge b1">P1</span></div>
+<pre><code># The first read paths in the product that answer with something other than an
+# Event. They exist for a picker: the pro form's venue combobox and the coming
+# org screen's claim search, which is why the gateway gates them on the pro
+# role. Off the pipeline for the same reason /events is.
+
+
+@app.get("/venues", response_model=VenueLookupResult)
+def venues_lookup(</code></pre>
+
+<h3>5.2 · The D→E chain, and a migration-numbering trap</h3>
+
+<p>C→D→E is a strict chain and C is done, so D is unblocked the moment the eval
+next-steps clear. One mechanical trap has appeared since the plan was written: the plan
+names D's migration <code>20260825000016_ownership_claims.sql</code> and G's
+<code>20260825000017_search_review_signal.sql</code>. Both timestamps are now <em>behind</em>
+applied history — 17 was taken by #78's prospecting schema, and 18–20 are #80's. A new
+file numbered <code>…0016</code> would sort before migrations Supabase has already applied;
+<code>db push</code> applies in filename order and skips or refuses out-of-order files
+unless forced. The handoff already renumbers G's to 21; D's needs the same treatment
+(§6, rec 1).</p>
+
+<div class="take t1">
+  <h4>Key takeaways — the evolution plan</h4>
+  <ul>
+    <li>Three of seven phases shipped on approval day and are in production; the plan's independence claims (A, B, C parallel; C→D→E strict) held exactly.</li>
+    <li>Everything remaining (D, E, F, G) is fully specced in the plan file, including test lists — the open work is execution, not design.</li>
+    <li>The plan's migration numbers for D and G are stale; renumber past 20 before writing them.</li>
+  </ul>
+</div>
+
+<h2 id="next">6 · What comes next, and recommendations</h2>
+
+<p>The queue as the handoff orders it — cited, not restated: merge #80 and apply migration
+20 (owner-run), then eval phases 2 and 3, then D, E, F/G; in parallel the owner errands
+(redirect allow-list read, <code>serve.py</code>, the dry-run backlog). What follows is
+what <em>writing this doc</em> surfaced, beyond that list:</p>
+
+<ol>
+  <li><strong>Renumber phase D's migration to ≥ <code>20260827000021</code> before writing it</strong> (and G's after it). The plan's <code>20260825000016</code>/<code>...017</code> slots now sort before applied history; an out-of-order file either gets skipped or needs a forced push. Zero cost now, a confusing owner-run failure later (§5.2).</li>
+  <li><strong>The roadmap's two "once a public gateway exists" deferrals are now unblocked — decide them deliberately.</strong> The gateway has been public since 08-21. The CI deploy workflow is worth revisiting: Fig. 2's deploy-debt bracket (two merges + one open PR, nothing shipped since v0.2.0) is exactly the gap it closes. The managed Prefect pool stays parked by standing decision (the handoff keeps <code>prefect.yaml</code> deliberately) — accepted.</li>
+  <li><strong>Triage the dry-run backlog before building G.</strong> 17 reports, zero ever dismissed. G's decayed approval ratio learns from approve <em>and</em> dismiss; if the dismiss path has friction the approve path lacks, G will train on a one-sided signal. Finding that friction is a prerequisite for review-signal learning, not just hygiene.</li>
+  <li><strong>Close the "Restyle" phase in the tracker at the next <code>/handoff</code>.</strong> Its only remaining item is the redirect allow-list read — a deploy errand, not restyle work. The tracker currently shows four active phases; three are real.</li>
+  <li><strong>Migration 17's prospecting columns remain reader-less until G lands</strong> — accepted, because the schema shipped with #78's sweep-day change and G is specced as its reader; noted here so it stays visible rather than becoming another <code>ownerships</code> (DDL nothing writes — the exact failure mode 02-ownership warns about).</li>
+  <li><strong><code>langfuse_enabled</code> default drift</strong>: <code>config.py:42</code> says <code>True</code>, <code>.example.env</code> says false — already queued in eval phase 2; the handoff's line pointer (37) is stale. One-line fix when touched (§4.1).</li>
+  <li><strong><code>assets/Laiive_Pro_Walkthrough_hq.mp4</code> (7.4&nbsp;MB, untracked) still needs a home</strong> — accepted as an open owner decision (handoff); the only wrong answer is committing it to git untracked-then-forgotten.</li>
+</ol>
+
+<div class="take">
+  <h4>Key takeaways — the whole picture</h4>
+  <ul>
+    <li>Status in one line: production is v0.2.0 with evolution A–C inside it; evals 0+1 sit on the open PR; D is the next big build; 4–6 of the programme wait on eval numbers by design.</li>
+    <li>Both plans are being executed in their stated order, with one deliberate exception: phase-7 pieces keep landing early because nothing gates them.</li>
+    <li>The two cheapest risks to defuse now are mechanical: renumber D's migration, and decide the CI deploy workflow while deploy debt is three items, not ten.</li>
+  </ul>
+</div>
+
+<p class="sub" style="margin-top:48px">Sources: <code>docs/roadmap/01-program.md</code>, <code>docs/roadmap/02-ownership.md</code>, the approved evolution plan (<code>~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md</code>), <code>handoff.md</code> (which carries uncommitted edits at the time of writing), <a href="eval-phases-0-1.html">docs/explain/eval-phases-0-1.html</a>, and the merge history (#69–#80, tags v0.1.0/v0.2.0). Line numbers as of <code>feat/eval-records</code> @ <code>22049b5</code>.</p>
+
+</main>
+</body>
+</html>
