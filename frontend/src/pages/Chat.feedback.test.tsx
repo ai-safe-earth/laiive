@@ -18,13 +18,13 @@ describe("TurnFeedback", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackDown }));
-    expect(api.sendFeedback).toHaveBeenCalledWith("req-9");
+    expect(api.sendFeedback).toHaveBeenCalledWith("req-9", "down");
 
     const input = await screen.findByPlaceholderText(en.chat.feedbackReasonPlaceholder);
     fireEvent.change(input, { target: { value: "wrong city" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(api.sendFeedback).toHaveBeenCalledWith("req-9", "wrong city");
+    expect(api.sendFeedback).toHaveBeenCalledWith("req-9", "down", "wrong city");
     expect(screen.getByText(en.chat.feedbackThanks)).toBeInTheDocument();
   });
 
@@ -40,7 +40,7 @@ describe("TurnFeedback", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(api.sendFeedback).toHaveBeenCalledTimes(1);
-    expect(api.sendFeedback).toHaveBeenCalledWith("req-10");
+    expect(api.sendFeedback).toHaveBeenCalledWith("req-10", "down");
   });
 
   it("posts the up once and thanks — no reason box", () => {
@@ -51,7 +51,7 @@ describe("TurnFeedback", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackUp }));
-    expect(api.sendFeedback).toHaveBeenCalledWith("req-11", undefined, "up");
+    expect(api.sendFeedback).toHaveBeenCalledWith("req-11", "up");
     expect(screen.getByText(en.chat.feedbackThanks)).toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText(en.chat.feedbackReasonPlaceholder),
