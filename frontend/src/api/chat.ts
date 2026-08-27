@@ -78,8 +78,8 @@ export async function streamChat(
  */
 export async function sendFeedback(
   requestId: string,
+  rating: "up" | "down",
   reason?: string,
-  rating: "up" | "down" = "down",
 ): Promise<void> {
   await apiFetch("/api/chat/feedback", {
     method: "POST",
