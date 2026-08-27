@@ -733,6 +733,7 @@ select f.created_at,
 from turn_feedback f
 join eval_records       e using (request_id)
 left join conversation_logs c on c.request_id = f.request_id
+where f.rating = 'down'                       <span class="cm">-- ups are labels, not complaints (migration 21)</span>
 group by f.request_id, f.created_at, c.payload, e.final_text, e.query_type,
          e.cyphers, e.row_count, e.latency_ms, e.errors, c.duration_ms
 order by f.created_at desc;</code></pre>
@@ -767,7 +768,7 @@ analysis → judges</strong>. Concretely:</p>
 
 <ol>
   <li><strong><span class="goodtag">Feedback reasons were stored twice — fixed on this branch.</span></strong> <code>LOGGED_ROUTES</code> in <code>logging.ts</code> matched <code>/api/chat/feedback</code> (the regex is <code>^\/api\/chat(\/|$)</code>), so every feedback POST also landed in <code>conversation_logs</code> — under the feedback request's own fresh <code>request.id</code>, duplicating potentially personal free text into a second table. The route is now excluded from conversation logging, with a test pinning it.</li>
-  <li><strong><span class="goodtag">Retention — decided and scheduled on this branch.</span></strong> Migration <code>20260827000020_telemetry_retention.sql</code>: two nightly pg_cron jobs prune <code>conversation_logs</code> and <code>eval_records</code> older than 90 days, <em>except</em> turns referenced by <code>turn_feedback</code> — labeled turns are the corpus and are kept indefinitely, as is <code>turn_feedback</code> itself. pg_cron so the schedule lives in the database and needs no running service. <code>eval_records_created_idx</code> makes the age scan cheap.</li>
+  <li><strong><span class="goodtag">Retention — decided and scheduled on this branch.</span></strong> Migration <code>20260827000020_telemetry_retention.sql</code>: two nightly pg_cron jobs prune <code>conversation_logs</code> and <code>eval_records</code> older than 90 days, <em>except</em> turns thumbed down (<code>rating = 'down'</code>; migration 21's ups do not pin) — down-labeled turns are the corpus and are kept indefinitely, as is <code>turn_feedback</code> itself. pg_cron so the schedule lives in the database and needs no running service. <code>eval_records_created_idx</code> makes the age scan cheap.</li>
   <li><strong>The stale comment in <code>logging.ts</code></strong> still says response-side capture "is Phase 6's eval-record work" — that work now exists, retriever-side. One-line docstring fix next time the file is touched.</li>
   <li><strong>Thread-per-turn is marked as a known ceiling</strong> (§3.5) — worth a <code>ponytail:</code>-style comment in <code>_write_eval_record</code> naming the upgrade path (bounded queue + single writer) so the shortcut is tracked, not rediscovered under load.</li>
   <li><strong>Build the reading habit before the harness.</strong> The corpus only pays for itself when someone reads it. The §5 query (or two or three variants: downs-with-reasons, error turns, slowest turns) belongs in a small <code>docs/</code> or <code>scripts/</code> snippet file so error analysis (phase 3) starts as a weekly five-minute habit, not a project.</li>

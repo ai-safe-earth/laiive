@@ -288,10 +288,11 @@ export default function Chat() {
 }
 
 /**
- * Thumbs-down with an optional reason (eval phase 1). No thumbs-up — the
- * down is the informative event. The click posts immediately so an abandoned
- * reason box still counts; a typed reason goes out as a second post for the
- * same request_id.
+ * Thumbs on an assistant turn (eval phase 1). The down is the informative
+ * event: it posts immediately so an abandoned reason box still counts, and a
+ * typed reason goes out as a second post for the same request_id. The up
+ * posts once and stops — a stored positive label; only downs feed error
+ * analysis.
  */
 export function TurnFeedback({ requestId }: { requestId: string }) {
   const { t } = useTranslation();
@@ -306,6 +307,14 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
     });
   };
 
+  const up = () => {
+    setStage("done");
+    sendFeedback(requestId, undefined, "up").catch(() => {
+      setStage("idle");
+      toast.error(t.chat.genericError);
+    });
+  };
+
   const submit = () => {
     const text = reason.trim();
     setStage("done");
@@ -314,7 +323,10 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
 
   if (stage === "done") {
     return (
-      <p className="font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
+      <p
+        role="status"
+        className="font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim"
+      >
         {t.chat.feedbackThanks}
       </p>
     );
@@ -337,26 +349,49 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
   }
 
   return (
-    <button
-      type="button"
-      onClick={down}
-      aria-label={t.chat.feedbackDown}
-      title={t.chat.feedbackDown}
-      className="self-start text-ink-dim transition-colors hover:text-foreground"
-    >
-      <svg
-        className="h-4 w-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
+    <div className="flex items-center gap-3 self-start">
+      <button
+        type="button"
+        onClick={up}
+        aria-label={t.chat.feedbackUp}
+        title={t.chat.feedbackUp}
+        className="text-ink-dim transition-colors hover:text-foreground"
       >
-        <path d="M17 14V2" />
-        <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
-      </svg>
-    </button>
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M7 10v12" />
+          <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={down}
+        aria-label={t.chat.feedbackDown}
+        title={t.chat.feedbackDown}
+        className="text-ink-dim transition-colors hover:text-foreground"
+      >
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M17 14V2" />
+          <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+        </svg>
+      </button>
+    </div>
   );
 }

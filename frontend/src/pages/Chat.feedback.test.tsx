@@ -42,4 +42,34 @@ describe("TurnFeedback", () => {
     expect(api.sendFeedback).toHaveBeenCalledTimes(1);
     expect(api.sendFeedback).toHaveBeenCalledWith("req-10");
   });
+
+  it("posts the up once and thanks — no reason box", () => {
+    render(
+      <LanguageProvider>
+        <TurnFeedback requestId="req-11" />
+      </LanguageProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackUp }));
+    expect(api.sendFeedback).toHaveBeenCalledWith("req-11", undefined, "up");
+    expect(screen.getByText(en.chat.feedbackThanks)).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(en.chat.feedbackReasonPlaceholder),
+    ).toBeNull();
+  });
+
+  it("reverts to idle when the up post fails", async () => {
+    api.sendFeedback.mockRejectedValueOnce(new Error("boom"));
+    render(
+      <LanguageProvider>
+        <TurnFeedback requestId="req-12" />
+      </LanguageProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackUp }));
+    expect(
+      await screen.findByRole("button", { name: en.chat.feedbackUp }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(en.chat.feedbackThanks)).toBeNull();
+  });
 });

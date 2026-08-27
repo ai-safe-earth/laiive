@@ -1,8 +1,11 @@
 -- Telemetry retention: conversation_logs and eval_records hold user-derived
 -- text (full chat histories, answers) with no TTL until now. Nightly, prune
--- rows older than 90 days — unless the turn was thumbed down: a turn_feedback
--- row marks a labeled turn, and the labeled corpus is the point of keeping
--- any of this, so those rows are kept indefinitely. turn_feedback itself is
+-- rows older than 90 days — unless the turn was thumbed down: a down-rated
+-- turn_feedback row marks a labeled turn, and the labeled corpus is the point
+-- of keeping any of this, so those rows are kept indefinitely. Ups (migration
+-- 21) are inert positive labels and do not pin — engagement-scale exemptions
+-- would hollow out the TTL. The rating column exists from 21, applied in the
+-- same push and long before the first nightly run. turn_feedback itself is
 -- never pruned (a few rows per human complaint; it stays small).
 --
 -- pg_cron so the schedule lives in the database: flows/serve.py is not
@@ -21,7 +24,8 @@ select cron.schedule(
   delete from public.conversation_logs c
    where c.created_at < now() - interval '90 days'
      and not exists (
-       select 1 from public.turn_feedback f where f.request_id = c.request_id
+       select 1 from public.turn_feedback f
+        where f.request_id = c.request_id and f.rating = 'down'
      )
     $$
 );
@@ -33,7 +37,8 @@ select cron.schedule(
   delete from public.eval_records e
    where e.created_at < now() - interval '90 days'
      and not exists (
-       select 1 from public.turn_feedback f where f.request_id = e.request_id
+       select 1 from public.turn_feedback f
+        where f.request_id = e.request_id and f.rating = 'down'
      )
     $$
 );
