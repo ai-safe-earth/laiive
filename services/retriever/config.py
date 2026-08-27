@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # The OpenRouter/LlamaGuard layer is gone (R3 — it never executed).
     enable_moderation: bool = Field(True, alias="ENABLE_MODERATION")
 
+    # Eval records (the answer side of a turn, joins conversation_logs on
+    # request_id). Empty URL disables the write — local runs and tests.
+    supabase_url: str = Field("", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field("", alias="SUPABASE_SERVICE_ROLE_KEY")
+
     langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field("", alias="LANGFUSE_SECRET_KEY")
     langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")

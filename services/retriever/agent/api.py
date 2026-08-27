@@ -1,7 +1,9 @@
+import threading
+import time
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from laiive_shared import (
     ArtistHit,
@@ -24,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 
 from config import settings
 
+from . import eval_records
 from .clients.neo4j_client import neo4j_client
 from .executor import (
     EVENT_LOOKUP_MAX_UIDS,
@@ -56,6 +59,23 @@ def log_turn(
         card_count=card_count,
         error=error,
     ).info("turn: {}", user_message)
+
+
+def _request_id(raw: Request) -> str:
+    """The gateway's id, so the record joins conversation_logs; the gateway
+    strips client-sent copies, so the header is trustworthy. Minted locally
+    only for direct calls (tests, curl against 8002)."""
+    return raw.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
+    """Fire-and-forget on a daemon thread: in the SSE path the finally: runs
+    before the done frame is yielded, so a blocking POST there would delay it."""
+    threading.Thread(
+        target=eval_records.write,
+        args=(request_id, result, int((time.perf_counter() - start) * 1000)),
+        daemon=True,
+    ).start()
 
 
 app = FastAPI(title="laiive retriever API", version="0.3.0")
@@ -327,9 +347,10 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, raw: Request):
     """JSON response endpoint."""
-    request_id = str(uuid.uuid4())
+    request_id = _request_id(raw)
+    start = time.perf_counter()
     try:
         result = get_pipeline().run_turn_collected(
             request.message,
@@ -344,6 +365,7 @@ def chat(request: ChatRequest):
             card_count=len(result.cards),
             error="; ".join(result.errors) or None,
         )
+        _write_eval_record(request_id, result, start)
         return ChatResponse(
             request_id=request_id,
             response=result.text,
@@ -353,14 +375,14 @@ def chat(request: ChatRequest):
             needs_more_info=result.needs_more_info,
         )
     except Exception as e:
-        logger.error(f"[{request_id}] Chat error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
         raise HTTPException(500, "An internal error occurred. Please try again.")
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequestSSE):
+async def chat_stream(request: ChatRequestSSE, raw: Request):
     """SSE streaming endpoint — real streaming from the composer."""
-    request_id = str(uuid.uuid4())
+    request_id = _request_id(raw)
     if not request.messages:
         raise HTTPException(400, "No messages provided")
 
@@ -396,13 +418,14 @@ def _generate(
     leaves the loop free to flush each frame as it is produced.
     """
     result = TurnResult()
+    start = time.perf_counter()
     try:
         for payload in get_pipeline().run_turn(
             user_message, history, location, result=result, timezone=timezone
         ):
             yield sse_frame(payload)
     except Exception as e:
-        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] SSE stream error: {}", request_id, e)
         yield sse_frame(Error(code="internal_error", message="Something went wrong."))
     finally:
         log_turn(
@@ -412,6 +435,7 @@ def _generate(
             card_count=len(result.cards),
             error="; ".join(result.errors) or None,
         )
+        _write_eval_record(request_id, result, start)
     yield sse_frame(Done(request_id=request_id))
 
 

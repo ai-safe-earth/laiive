@@ -6,6 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.127.1",
+    # eval_records: the PostgREST insert (laiive-shared already ships httpx,
+    # so this costs the image nothing)
+    "httpx>=0.27.0",
     "laiive-shared",
     "langfuse>=3.12.0",
     "loguru>=0.7.3",
@@ -21,9 +24,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    # only tests/test_llm_api.py imports it; the service itself uses the openai
-    # and neo4j clients, so it has no business in the runtime image.
-    "httpx>=0.28.1",
     # pytest lived in the main dependencies, so `uv sync --no-dev` still shipped
     # it into the production image.
     "pytest>=9.0.2",

@@ -184,6 +184,43 @@ class TestChatEndpoint:
         assert client.post("/chat", json={}).status_code == 422
 
 
+class TestRequestId:
+    """The gateway's x-request-id is the join key with conversation_logs —
+    minting a local uuid instead makes the eval record unjoinable."""
+
+    def test_stream_adopts_the_gateway_id(self, client):
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "jazz"}]},
+            headers={"x-request-id": "gw-123"},
+        )
+        assert response.headers["x-request-id"] == "gw-123"
+        assert '"request_id":"gw-123"' in response.text  # the done frame
+
+    def test_chat_adopts_the_gateway_id(self, client):
+        data = client.post(
+            "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-123"}
+        ).json()
+        assert data["request_id"] == "gw-123"
+
+    def test_direct_calls_still_get_an_id(self, client):
+        data = client.post("/chat", json={"message": "jazz"}).json()
+        assert data["request_id"]
+
+    def test_both_paths_write_an_eval_record(self, client):
+        with patch.object(api_module, "_write_eval_record") as write:
+            client.post(
+                "/chat/stream",
+                json={"messages": [{"role": "user", "content": "jazz"}]},
+                headers={"x-request-id": "gw-123"},
+            )
+            client.post(
+                "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-456"}
+            )
+        ids = [call.args[0] for call in write.call_args_list]
+        assert ids == ["gw-123", "gw-456"]
+
+
 class TestChatStreamRequests:
     def test_no_messages_is_400(self, client):
         assert client.post("/chat/stream", json={"messages": []}).status_code == 400
