@@ -74,7 +74,6 @@ repos:
         additional_dependencies: ["types-requests"]
         args: ["--ignore-missing-imports", "--no-strict-optional"]
         files: "^services/retriever/.*\\.py$"
-        exclude: "^services/retriever/evals/"   # quarantined eval tooling
       - id: mypy
         alias: mypy-pusher
         name: mypy (pusher)
