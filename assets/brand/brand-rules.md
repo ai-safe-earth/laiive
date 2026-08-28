@@ -54,11 +54,30 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 
 ## Type
 
-- **Bebas Neue** — wordmark (24–54px, +0.04em) and event titles (18px, +0.03em),
-  caps only. Never body copy, never a label, never below 16px.
-- **DM Sans** — answers 15px/1.5, user messages 14.5px/1.4, card meta 12.5px,
-  pills 11px/700.
+One rem scale, `theme.fontSize` in `frontend/tailwind.config.ts`. Use the token
+names only — never `text-[Npx]`: px ignores the phone's text-size setting, and
+the reference screens were drawn at sizes that read fine on a monitor and not
+on a 5.5" screen (lifted 2026-08-28).
+
+| token | px | role |
+|---|---|---|
+| `2xs` | 11 | mono badges, status pills |
+| `xs` | 12.5 | mono labels (+0.11em caps), card pills, price badge (700) |
+| `sm` | 14 | card meta, secondary copy, chips |
+| `md` | 15 | buttons, UI copy, toasts |
+| `base` | 16 | user messages, every input — below 16px iOS zooms the page on focus |
+| `lg` | 17 | answers, 1.5 leading |
+| `xl` | 18 | Bebas event titles (+0.03em) |
+| `2xl` | 21 | section heads |
+| `3xl` | 24 | page titles, wordmark (the wordmark alone may go up to 54px) |
+| `4xl` | 28 | pro watermark |
+
+- **Bebas Neue** — wordmark (+0.04em) and event titles, caps only. Never body
+  copy, never a label, never below `xl`.
+- **DM Sans** — everything else.
 - **IBM Plex Mono** — labels, hex values, status pills, technical chrome only.
+- Touch targets ≥ 44px on every consumer and promoter control; admin screens
+  are desktop tools and exempt.
 
 ## Voice
 

@@ -47,7 +47,7 @@ function loadSession(): StoredSession | null {
 /** The PRO badge — cyan, mono, the promoter side's one mark of identity. */
 function ProBadge() {
   return (
-    <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
+    <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-2xs font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
       pro
     </span>
   );
@@ -95,13 +95,13 @@ export default function ProSubmit() {
           <Mark size={30} />
           <ProBadge />
         </span>
-        <p className="max-w-sm text-[15px] leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
+        <p className="max-w-sm text-lg leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
         <Link
           to={user ? "/account" : "/auth?kind=pro"}
           // So /account's back arrow returns here rather than dumping a
           // promoter on the consumer chat, which is a different product.
           state={user ? { from: "/pro" } : undefined}
-          className="text-[13.5px] text-pro-accent transition-opacity hover:opacity-80"
+          className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
         >
           {user ? t.pro.becomeProLink : t.pro.signInLink}
         </Link>
@@ -286,7 +286,7 @@ export default function ProSubmit() {
             message.role === "user" ? (
               <p
                 key={index}
-                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-[14.5px] leading-[1.5] text-white"
+                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-base leading-[1.5] text-white"
               >
                 {message.content}
               </p>
@@ -294,13 +294,13 @@ export default function ProSubmit() {
               <Markdown
                 key={index}
                 text={message.content}
-                className="max-w-[84%] whitespace-pre-wrap text-[15px] leading-[1.5] text-pro-fg"
+                className="max-w-[84%] whitespace-pre-wrap text-lg leading-[1.5] text-pro-fg"
               />
             ),
           )}
 
           {status && (
-            <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
+            <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-pro-accent">
               {status}
             </span>
           )}
@@ -308,7 +308,7 @@ export default function ProSubmit() {
           {draft && (
             <div className="flex flex-col gap-2">
               {walk && (
-                <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
+                <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-pro-accent">
                   {t.pro.eventOf(walk.cursor + 1, walk.total)}
                 </span>
               )}

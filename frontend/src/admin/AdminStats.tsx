@@ -44,13 +44,13 @@ function Tile({
       <Label>{label}</Label>
       <span
         className={cn(
-          "truncate font-bebas text-[26px] leading-none tracking-[0.02em]",
+          "truncate font-bebas text-3xl leading-none tracking-[0.02em]",
           tone === "attention" ? "text-status-attention" : "text-pro-fg",
         )}
       >
         {value}
       </span>
-      {hint && <span className="font-mono text-[10px] text-pro-dim">{hint}</span>}
+      {hint && <span className="font-mono text-2xs text-pro-dim">{hint}</span>}
     </div>
   );
 }
@@ -77,7 +77,7 @@ function Columns({
             style={{ height: `${Math.max((item.value / max) * 56, 2)}px` }}
           />
           {item.label !== undefined && (
-            <span className="font-mono text-[9px] leading-none text-pro-dim">
+            <span className="font-mono text-2xs leading-none text-pro-dim">
               {item.label}
             </span>
           )}
@@ -100,7 +100,7 @@ function SourceRows({ top }: { top: SearchStats["sources"]["top"] }) {
           title={`${source.domain}: ${source.candidates_new} new candidates · yield ${source.yield}`}
         >
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[12.5px] text-pro-fg">{source.domain}</span>
+            <span className="truncate text-sm text-pro-fg">{source.domain}</span>
             {tone[source.status] && (
               <Badge tone={tone[source.status]!}>{source.status}</Badge>
             )}
@@ -111,7 +111,7 @@ function SourceRows({ top }: { top: SearchStats["sources"]["top"] }) {
               style={{ width: `${(source.candidates_new / max) * 100}%` }}
             />
           </div>
-          <span className="font-mono text-[11px] tabular-nums text-pro-muted">
+          <span className="font-mono text-xs tabular-nums text-pro-muted">
             {source.candidates_new}
           </span>
         </div>
@@ -138,14 +138,14 @@ function Scheduler({ scheduler }: { scheduler: SearchStats["scheduler"] }) {
           key={deployment.name}
           className="grid grid-cols-[1.2fr_auto] items-baseline gap-x-4 gap-y-0.5 sm:grid-cols-[1.2fr_.6fr_1fr_auto]"
         >
-          <span className="truncate text-[13px] text-pro-fg">{deployment.name}</span>
-          <span className="hidden font-mono text-[11px] text-pro-dim sm:block">
+          <span className="truncate text-md text-pro-fg">{deployment.name}</span>
+          <span className="hidden font-mono text-xs text-pro-dim sm:block">
             {deployment.cron ?? "—"}
           </span>
           {/* A next-run time nothing will execute is not a time, it is a trap. */}
           <span
             className={cn(
-              "font-mono text-[11px] tabular-nums",
+              "font-mono text-xs tabular-nums",
               nothingPolling || deployment.status !== "READY"
                 ? "text-pro-dim line-through"
                 : "text-pro-muted",
@@ -204,7 +204,7 @@ export function AdminStats() {
       {scheduler.configured && schedulerClaim && (
         <div
           role="status"
-          className="flex items-center gap-2.5 rounded-[14px] border border-status-attention/45 bg-status-attention/[0.12] px-4 py-3 text-[13px] leading-[1.4] text-status-attention"
+          className="flex items-center gap-2.5 rounded-[14px] border border-status-attention/45 bg-status-attention/[0.12] px-4 py-3 text-md leading-[1.4] text-status-attention"
         >
           <Icon name="error" className="h-4 w-4 flex-none" />
           {schedulerClaim}
@@ -291,7 +291,7 @@ export function AdminStats() {
         <Panel className="flex flex-col gap-3 p-5">
           <span className="flex items-baseline justify-between">
             <Label>{A.stats.sources}</Label>
-            <span className="font-mono text-[10px] text-pro-dim">
+            <span className="font-mono text-2xs text-pro-dim">
               {A.stats.queriesStanding(queries.standing.length, queries.trial.length)}
             </span>
           </span>

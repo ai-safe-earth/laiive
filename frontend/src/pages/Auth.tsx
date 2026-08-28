@@ -166,7 +166,7 @@ export default function Auth() {
       <Link to="/" className="mb-8 flex items-center gap-2.5">
         <Mark size={30} />
         {isPro && (
-          <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
+          <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-2xs font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
             pro
           </span>
         )}
@@ -179,7 +179,7 @@ export default function Auth() {
           isPro ? "border-pro-border bg-pro-card" : "border-hairline/[0.07] bg-card",
         )}
       >
-        <h1 className={cn("font-bebas text-[24px] leading-none tracking-[0.04em]", isPro ? "text-pro-fg" : "text-card-foreground")}>
+        <h1 className={cn("font-bebas text-3xl leading-none tracking-[0.04em]", isPro ? "text-pro-fg" : "text-card-foreground")}>
           {mode === "signin" ? t.auth.signInTitle : t.auth.signUpTitle}
         </h1>
 
@@ -226,7 +226,7 @@ export default function Auth() {
           {frozen ? "…" : mode === "signin" ? t.auth.signIn : t.auth.signUp}
         </Button>
 
-        <div className="flex items-center gap-3 font-mono text-[11px] text-ink-dim">
+        <div className="flex items-center gap-3 font-mono text-xs text-ink-dim">
           <span className="h-px flex-1 bg-border" />
           {t.auth.or}
           <span className="h-px flex-1 bg-border" />
@@ -263,7 +263,7 @@ export default function Auth() {
         <button
           type="button"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="w-full py-1 text-center text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+          className="min-h-11 w-full text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           {mode === "signin" ? t.auth.toSignUp : t.auth.toSignIn}
         </button>
@@ -273,10 +273,10 @@ export default function Auth() {
           visitor is not already coming through it. */}
       {!isPro && (
         <div className="mt-6 flex w-full max-w-sm flex-col items-center gap-1 text-center">
-          <p className="text-[12.5px] leading-[1.4] text-muted-foreground">{t.auth.proInvite}</p>
+          <p className="text-sm leading-[1.4] text-muted-foreground">{t.auth.proInvite}</p>
           <Link
             to="/auth?kind=pro"
-            className="text-[13px] leading-[1.4] text-pro-accent transition-opacity hover:opacity-80"
+            className="inline-flex min-h-11 items-center text-md leading-[1.4] text-pro-accent transition-opacity hover:opacity-80"
           >
             {t.auth.proCta}
           </Link>
@@ -285,7 +285,7 @@ export default function Auth() {
 
       <Link
         to="/"
-        className="mt-6 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="mt-3 inline-flex min-h-11 items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         {t.auth.withoutAccount}
       </Link>
