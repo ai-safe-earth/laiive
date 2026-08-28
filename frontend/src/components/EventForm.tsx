@@ -91,7 +91,7 @@ function FieldLabel({ children, required, missing }: {
   return (
     <span
       className={cn(
-        "font-mono text-[11px] leading-none",
+        "font-mono text-xs leading-none",
         missing ? "text-destructive" : "text-muted-foreground",
       )}
     >
@@ -252,7 +252,7 @@ export function EventForm({
                     aria-label={t.form.ticketNoteAria}
                     // A title attribute is a hover, and a phone has no hover.
                     // Same 44px-under-a-small-mark trick the cards use.
-                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-3 after:content-[''] hover:text-pro-accent"
+                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-4 after:content-[''] hover:text-pro-accent"
                   >
                     <Icon name="error" className="h-[13px] w-[13px]" />
                   </button>
@@ -270,12 +270,12 @@ export function EventForm({
                 )}
               />
               {isTicket && showTicketNote && (
-                <p className="text-[12px] leading-[1.45] text-pro-muted">
+                <p className="text-sm leading-[1.45] text-pro-muted">
                   {t.form.ticketNote}
                 </p>
               )}
               {isTicket && ticketError && (
-                <p className="text-[12px] leading-[1.45] text-destructive">{ticketError}</p>
+                <p className="text-sm leading-[1.45] text-destructive">{ticketError}</p>
               )}
             </div>
           );
@@ -300,11 +300,11 @@ export function EventForm({
     >
       <div className="flex items-center gap-[11px] pb-2">
         <span className="h-5 w-[5px] flex-none rounded-full bg-pro-accent" />
-        <h3 className="font-bebas text-[23px] leading-none tracking-[0.05em] text-card-foreground">
+        <h3 className="font-bebas text-3xl leading-none tracking-[0.05em] text-card-foreground">
           {t.form.title}
         </h3>
         {stillMissing.length > 0 && (
-          <span className="ml-auto rounded-full border border-secondary/40 bg-secondary/10 px-2.5 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-secondary">
+          <span className="ml-auto rounded-full border border-secondary/40 bg-secondary/10 px-2.5 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-secondary">
             {t.form.stillNeeded(stillMissing.length)}
           </span>
         )}
@@ -348,7 +348,7 @@ export function EventForm({
         <button
           type="button"
           onClick={() => setArtists((current) => [...current, ""])}
-          className="self-start rounded-full py-2 font-mono text-[11px] text-pro-accent transition-opacity hover:opacity-80"
+          className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
         >
           {t.form.addArtist}
         </button>
@@ -428,13 +428,13 @@ export function EventForm({
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => choose(hit)}
                     className={cn(
-                      "w-full px-4 py-2.5 text-left transition-colors hover:bg-pro-card",
+                      "min-h-11 w-full px-4 py-2.5 text-left transition-colors hover:bg-pro-card",
                       index === activeHit && "bg-pro-card",
                     )}
                   >
-                    <span className="text-[13.5px] text-pro-fg">{hit.name}</span>
+                    <span className="text-md text-pro-fg">{hit.name}</span>
                     {hit.city && (
-                      <span className="font-mono text-[10.5px] text-pro-dim"> · {hit.city}</span>
+                      <span className="font-mono text-2xs text-pro-dim"> · {hit.city}</span>
                     )}
                   </button>
                 </li>
@@ -449,7 +449,7 @@ export function EventForm({
             {/* The graph already knows this venue's street — show it, never
                 re-ask. Correcting a stated address is an owner's edit, not a
                 submission field. */}
-            <p className="flex min-h-11 items-center rounded-full border border-pro-border bg-pro-bg px-4 font-mono text-[11.5px] leading-[1.4] text-pro-muted">
+            <p className="flex min-h-11 items-center rounded-full border border-pro-border bg-pro-bg px-4 font-mono text-xs leading-[1.4] text-pro-muted">
               {pick.address} · {t.form.addressOnFile}
             </p>
           </div>
@@ -469,7 +469,7 @@ export function EventForm({
           {saving ? t.form.publishing : t.form.publish}
         </Button>
         {stillMissing.length > 0 && (
-          <span className="text-[12.5px] leading-[1.4] text-muted-foreground">
+          <span className="text-sm leading-[1.4] text-muted-foreground">
             {t.form.fillHint(stillMissing.map((key) => t.form.labels[key]).join(", "))}
           </span>
         )}

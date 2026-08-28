@@ -60,8 +60,8 @@ export function UserMenu() {
 
       {open && (
         <div className="absolute right-0 z-20 mt-1 w-60 overflow-hidden rounded-[26px] border border-border bg-popover p-2">
-          <p className="truncate px-3 pt-2 text-[13px] text-popover-foreground">{user.email}</p>
-          <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-[0.11em] text-ink-dim">
+          <p className="truncate px-3 pt-2 text-md text-popover-foreground">{user.email}</p>
+          <p className="px-3 pb-2 font-mono text-2xs uppercase tracking-[0.11em] text-ink-dim">
             {role}
           </p>
           <MenuLink
@@ -101,7 +101,7 @@ export function UserMenu() {
               setOpen(false);
               void signOut();
             }}
-            className="flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-[14px] text-popover-foreground transition-colors hover:bg-muted"
+            className="flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-base text-popover-foreground transition-colors hover:bg-muted"
           >
             <Icon name="sign-out" className="h-[18px] w-[18px] text-ink-dim" />
             {t.menu.signOut}
@@ -130,7 +130,7 @@ function MenuLink({
       to={to}
       state={state}
       onClick={onNavigate}
-      className="flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-[14px] text-popover-foreground transition-colors hover:bg-muted"
+      className="flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-base text-popover-foreground transition-colors hover:bg-muted"
     >
       <Icon name={icon} className="h-[18px] w-[18px] text-ink-dim" />
       {children}

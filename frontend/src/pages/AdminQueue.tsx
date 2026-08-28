@@ -34,14 +34,14 @@ function Row({ report }: { report: ReportSummary }) {
       to={`/admin/reports/${report.id}`}
       className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 border-b border-pro-border px-5 py-4 transition-colors last:border-b-0 hover:bg-pro-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent sm:grid-cols-[1.4fr_.8fr_.6fr_.6fr_auto]"
     >
-      <span className="truncate font-bebas text-[17px] leading-none tracking-[0.03em] text-pro-fg">
+      <span className="truncate font-bebas text-xl leading-none tracking-[0.03em] text-pro-fg">
         {report.city ?? A.queue.backfillKind}
       </span>
-      <span className="text-[12.5px] tabular-nums text-pro-muted">{when(report.created_at)}</span>
-      <span className="hidden text-[12.5px] tabular-nums text-pro-muted sm:block">
+      <span className="text-sm tabular-nums text-pro-muted">{when(report.created_at)}</span>
+      <span className="hidden text-sm tabular-nums text-pro-muted sm:block">
         {isSweep && found !== null ? `${found} new` : "—"}
       </span>
-      <span className="hidden text-[12.5px] tabular-nums text-pro-dim sm:block">
+      <span className="hidden text-sm tabular-nums text-pro-dim sm:block">
         {credits !== null ? `${credits} cr` : "—"}
       </span>
       <Badge tone={statusTone(report.status)}>{A.status[report.status] ?? report.status}</Badge>
@@ -57,14 +57,14 @@ export default function AdminQueue() {
     <div className="min-h-[100dvh] bg-pro-bg">
       <header className="flex items-center justify-between gap-3 border-b border-pro-border px-5 py-4">
         <div className="flex items-baseline gap-3">
-          <h1 className="font-bebas text-[24px] leading-none tracking-[0.03em] text-pro-fg">
+          <h1 className="font-bebas text-3xl leading-none tracking-[0.03em] text-pro-fg">
             {A.title}
           </h1>
           <Label>{A.queue.heading}</Label>
         </div>
         <Link
           to="/"
-          className="flex items-center gap-1.5 text-[13px] text-pro-muted transition-colors hover:text-pro-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent"
+          className="flex items-center gap-1.5 text-md text-pro-muted transition-colors hover:text-pro-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent"
         >
           <Icon name="back" className="h-4 w-4" />
           {A.nav.back}

@@ -210,7 +210,7 @@ export default function Chat() {
                   key={example}
                   type="button"
                   onClick={() => void send(example)}
-                  className="rounded-full bg-field-border px-3.5 py-2.5 text-[12.5px] leading-none text-white transition-colors hover:bg-muted"
+                  className="min-h-11 rounded-full bg-field-border px-3.5 text-sm leading-tight text-white transition-colors hover:bg-muted"
                 >
                   {example}
                 </button>
@@ -223,7 +223,7 @@ export default function Chat() {
               message.role === "user" ? (
                 <p
                   key={index}
-                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-[14.5px] leading-[1.4] text-white"
+                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-base leading-[1.4] text-white"
                 >
                   {message.content}
                 </p>
@@ -233,7 +233,7 @@ export default function Chat() {
                   {message.content && (
                     <Markdown
                       text={message.content}
-                      className="whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground"
+                      className="whitespace-pre-wrap text-lg leading-[1.5] text-foreground"
                     />
                   )}
                   {message.events && message.events.length > 0 && (
@@ -260,7 +260,7 @@ export default function Chat() {
             )}
 
             {status && (
-              <p className="animate-pulse font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
+              <p className="animate-pulse font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
                 {status}
               </p>
             )}
@@ -326,7 +326,7 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
     return (
       <p
         role="status"
-        className="font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim"
+        className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim"
       >
         {t.chat.feedbackThanks}
       </p>
@@ -344,7 +344,7 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
         }}
         placeholder={t.chat.feedbackReasonPlaceholder}
         maxLength={2000}
-        className="w-full max-w-sm rounded-full border border-rule bg-transparent px-3.5 py-2 text-[12.5px] text-foreground placeholder:text-ink-dim focus:outline-none"
+        className="h-11 w-full max-w-sm rounded-full border border-rule bg-transparent px-3.5 text-base text-foreground placeholder:text-ink-dim focus:outline-none"
       />
     );
   }

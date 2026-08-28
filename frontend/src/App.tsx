@@ -37,7 +37,7 @@ export default function App() {
             toastOptions={{
               // Radius and type only — richColors owns the fill, and red is
               // the one colour an error is allowed.
-              className: "!rounded-[26px] !font-sans !text-[13.5px]",
+              className: "!rounded-[26px] !font-sans !text-md",
             }}
           />
           <BrowserRouter

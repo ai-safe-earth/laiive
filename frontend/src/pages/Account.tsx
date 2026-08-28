@@ -27,7 +27,7 @@ function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactN
   return (
     <label
       htmlFor={htmlFor}
-      className="font-mono text-[11px] uppercase tracking-[0.11em] text-muted-foreground"
+      className="font-mono text-xs uppercase tracking-[0.11em] text-muted-foreground"
     >
       {children}
     </label>
@@ -65,14 +65,14 @@ function ChipList({
           {items.map((item) => (
             <li
               key={item}
-              className="flex items-center gap-1.5 rounded-full border border-field-border bg-field py-1 pl-4 pr-1.5 text-[13px] text-foreground"
+              className="flex items-center gap-1.5 rounded-full border border-field-border bg-field pl-4 pr-1.5 text-md text-foreground"
             >
               {item}
               <button
                 type="button"
                 aria-label={t.account.remove(item)}
                 onClick={() => onChange(items.filter((i) => i !== item))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-ink-dim transition-colors hover:text-destructive"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-ink-dim transition-colors hover:text-destructive"
               >
                 <Icon name="close" className="h-3.5 w-3.5" />
               </button>
@@ -194,7 +194,7 @@ export default function Account() {
         >
           <Icon name="back" />
         </Link>
-        <h1 className="font-bebas text-[24px] leading-none tracking-[0.04em] text-card-foreground">
+        <h1 className="font-bebas text-3xl leading-none tracking-[0.04em] text-card-foreground">
           {t.account.title}
         </h1>
       </header>
@@ -202,10 +202,10 @@ export default function Account() {
       <div className="mx-auto flex max-w-xl flex-col gap-6 p-4 sm:p-6">
         <section className="flex flex-col gap-4 rounded-[26px] border border-hairline/[0.07] bg-card p-6">
           <div className="flex flex-col gap-1">
-            <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-card-foreground">
+            <h2 className="font-bebas text-2xl leading-none tracking-[0.04em] text-card-foreground">
               {t.account.you}
             </h2>
-            <p className="font-mono text-[11px] text-ink-dim">
+            <p className="font-mono text-xs text-ink-dim">
               {user?.email} · <span className="uppercase tracking-[0.11em]">{role}</span>
             </p>
           </div>
@@ -231,7 +231,7 @@ export default function Account() {
                   type="button"
                   onClick={() => chooseLanguage(code)}
                   className={cn(
-                    "h-11 rounded-full border px-4 text-[13px] transition-colors",
+                    "h-11 rounded-full border px-4 text-md transition-colors",
                     code === language
                       ? "border-primary text-primary"
                       : "border-field-border text-muted-foreground hover:text-foreground",
@@ -241,7 +241,7 @@ export default function Account() {
                 </button>
               ))}
             </div>
-            <p className="text-[12.5px] leading-[1.45] text-muted-foreground">
+            <p className="text-sm leading-[1.45] text-muted-foreground">
               {t.account.languageNote}
             </p>
           </div>
@@ -260,10 +260,10 @@ export default function Account() {
             one room and this reads as the door into it. */}
         <section className="flex flex-col gap-4 rounded-[26px] border border-pro-border bg-pro-card p-6">
             <div className="flex flex-col gap-1">
-              <h2 className="font-bebas text-[20px] leading-none tracking-[0.04em] text-pro-fg">
+              <h2 className="font-bebas text-2xl leading-none tracking-[0.04em] text-pro-fg">
                 {isPro ? t.account.promoter : t.account.becomePromoter}
               </h2>
-              <p className="text-[12.5px] leading-[1.45] text-pro-muted">
+              <p className="text-sm leading-[1.45] text-pro-muted">
                 {isPro ? t.account.promoterNote : t.account.becomePromoterNote}
               </p>
             </div>
