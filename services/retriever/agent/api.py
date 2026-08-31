@@ -70,7 +70,14 @@ def _request_id(raw: Request) -> str:
 
 def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
     """Fire-and-forget on a daemon thread: in the SSE path the finally: runs
-    before the done frame is yielded, so a blocking POST there would delay it."""
+    before the done frame is yielded, so a blocking POST there would delay it.
+
+    ponytail: one unbounded thread per turn, fine at current volume and wrong
+    under load - a burst spawns a thread each, and a daemon thread mid-POST
+    dies silently on shutdown, losing that record. Upgrade path when turns/sec
+    justifies it: a bounded queue plus a single writer thread, dropping oldest
+    on overflow so the corpus degrades instead of the turn.
+    """
     threading.Thread(
         target=eval_records.write,
         args=(request_id, result, int((time.perf_counter() - start) * 1000)),
