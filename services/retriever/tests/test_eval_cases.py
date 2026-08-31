@@ -27,19 +27,20 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from agent.tools.query_builder import QueryBuilderTool
+from agent.tools.query_builder import QUERY_BUILDER_PROMPT_VERSION, QueryBuilderTool
 from agent.tools.safety_guard import SafetyGuardTool
 
 DATASETS = Path(__file__).resolve().parents[1] / "evals" / "datasets"
 
 
-def _cases(dataset: str) -> list[dict]:
+def _dataset(dataset: str) -> dict:
     path = DATASETS / dataset / "test_cases.json"
-    return json.loads(path.read_text(encoding="utf-8"))["test_cases"]
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-SAFETY = _cases("safety")
-QUERY_GEN = _cases("query_generation")
+SAFETY = _dataset("safety")["test_cases"]
+QUERY_GEN_FILE = _dataset("query_generation")
+QUERY_GEN = QUERY_GEN_FILE["test_cases"]
 
 
 def _checked(check: str) -> list[dict]:
@@ -79,6 +80,21 @@ def test_every_query_gen_case_carries_a_gate():
     for case in QUERY_GEN:
         assert case["should_not_contain"], case["id"]
         assert case["expected_patterns"], case["id"]
+
+
+def test_query_gen_corpus_matches_the_live_prompt_version():
+    """A prompt bump must not be able to invalidate these cases quietly.
+
+    Every expected_patterns list in v1 was stale against v2 and nobody found
+    out for five months, because the corpus described the prompt only in prose.
+    This is the machine link: bump QUERY_BUILDER_PROMPT_VERSION and this fails
+    until someone re-reads the five cases and restamps the dataset.
+    """
+    assert QUERY_GEN_FILE["prompt_version"] == QUERY_BUILDER_PROMPT_VERSION, (
+        f"corpus describes prompt {QUERY_GEN_FILE['prompt_version']}, "
+        f"query_builder.py is on {QUERY_BUILDER_PROMPT_VERSION} - re-check the "
+        f"5 cases against the new prompt, then restamp prompt_version"
+    )
 
 
 # ── safety: deterministic ───────────────────────────────────────────────────

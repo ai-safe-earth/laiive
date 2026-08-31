@@ -641,11 +641,13 @@ def test_generated_cypher_avoids_forbidden_shapes(case, generated):
 
 <p>The honest ceiling here is <strong>maintenance cost per prompt revision</strong>, and this
 phase is the evidence: five cases silently rotted through one prompt bump and nobody found out
-for five months. Nothing structural prevents a repeat. The prompt even carries a version
-constant, <code>QUERY_BUILDER_PROMPT_VERSION = "v2"</code>
-(<code>query_builder.py:15</code>) — and <strong>no code reads it</strong>. The corpus is now
-pinned to v2's semantics by prose in a JSON field, with no machine link to the constant that
-names it. That is recommendation 2.</p>
+for five months. Nothing structural prevents a repeat. The prompt carries a version constant,
+<code>QUERY_BUILDER_PROMPT_VERSION = "v2"</code> (<code>query_builder.py:15</code>), which
+until this phase <strong>no code read</strong>. It does now: the dataset carries a matching
+<code>prompt_version</code> and <code>test_query_gen_corpus_matches_the_live_prompt_version</code>
+asserts the two agree, so bumping the prompt fails the suite until someone re-reads the five
+cases and restamps the corpus. That is the machine link the January corpus lacked, and the
+reason its rot was invisible for five months.</p>
 
 <p>The <code>expected_patterns</code> assertion is deliberately not load-bearing, which caps
 the damage: an xfail cannot break a build. The permanent fix is not better regexes but a
@@ -823,7 +825,7 @@ has a tripwire.</p>
 <ol>
   <li><strong><code>detect_injection</code> does not catch <code>DROP TABLE</code>.</strong> Its rule is <code>\bDROP\s+(CONSTRAINT|INDEX|DATABASE)\b</code> (<code>safety_guard.py:98</code>), and <code>sf_004</code> — a real SQL-injection string sitting in our own corpus — slips it. This is harmless today because <code>validate_read_only</code> catches the bare <code>DROP</code> before execution. It stops being harmless the moment <code>detect_injection</code> is used on its own, for instance as a pre-flight screen on user text <em>before</em> the model sees it, which is the natural next use for it. Widen the pattern, or write down that it is a signal and never a gate.</li>
 
-  <li><strong><code>QUERY_BUILDER_PROMPT_VERSION</code> is declared and read by nothing.</strong> <code>query_builder.py:15</code> says <code>"v2"</code>; <code>grep</code> finds no other reference in the tree. The corpus is now correct for v2 and says so only in prose. When the prompt goes v3, nothing fails — which is precisely the silent drift this phase just spent its budget cleaning up. <strong>Actionable and cheap:</strong> add the version to the dataset and assert it in the well-formedness test, so bumping the prompt forces a deliberate look at the five cases. Two lines, and it makes the recurrence impossible rather than unlikely.</li>
+  <li><strong><span class="goodtag"><code>QUERY_BUILDER_PROMPT_VERSION</code> was declared and read by nothing — closed on this branch.</span></strong> <code>query_builder.py:15</code> said <code>"v2"</code> and <code>grep</code> found no other reference in the tree, so the corpus was correct for v2 and said so only in prose: when the prompt went v3, nothing would have failed — precisely the silent drift this phase spent its budget cleaning up. The dataset now carries <code>"prompt_version": "v2"</code> and <code>test_query_gen_corpus_matches_the_live_prompt_version</code> asserts it against the constant, with a failure message naming the fix. Verified by bumping the constant to <code>v3</code>: the suite goes red on that one test and stays green elsewhere.</li>
 
   <li><strong>The integration tier is not scheduled anywhere.</strong> <code>ci.yml:55</code> runs <code>-m "not integration"</code>, correctly — CI should not need an OpenAI key. But nothing else runs the other tier either, so the 11 live assertions execute only when someone types the command. They will rot exactly as the corpus did. Phase 4's "LLM tiers nightly" is the right home; until then, running the tier is a manual step worth naming in the release checklist rather than assuming.</li>
 

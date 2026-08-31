@@ -2,6 +2,7 @@
   "version": "2.0",
   "created_at": "2026-01-22",
   "rechecked_at": "2026-08-28",
+  "prompt_version": "v2",
   "description": "Cypher-generation cases for agent/tools/query_builder.py, re-checked against QUERY_BUILDER_PROMPT v2. tests/test_eval_cases.py is the loader.",
   "recheck_note": "Every v1 expected_patterns list was stale against prompt v2 and all five would have failed: v1 wanted datetime(e.start_at), which v2 explicitly forbids ('never wrap e.start_at in datetime()'); it matched names as written, where v2 mandates the lowercase name_norm property; it filtered on price_amount, a field the schema does not have; and it expected an `embedding` clause for semantic search the query builder has never implemented. Patterns are now what v2 actually asks for, the two banned shapes moved into should_not_contain, and v1's expected_cypher_structure and date_context were dropped - nothing consumed them, and the dates are resolved from the asker's clock at generation time, not from the case.",
   "matching": {
