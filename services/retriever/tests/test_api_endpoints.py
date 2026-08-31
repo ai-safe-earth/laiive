@@ -375,6 +375,68 @@ class TestEntityLookup:
         assert params == {"q_norm": "razz", "city_norm": "barcelona"}
         assert "c.name_norm = $city_norm" in cypher
 
+    def test_venues_by_uid_ask_the_graph_by_uid_not_by_name(self, client):
+        """The claim path: a uid in, the graph's own name out.
+
+        The gateway records who an organization speaks for, so the stored
+        display name has to come from here rather than from whatever the
+        client typed alongside the uid.
+        """
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {
+                    "uid": "v1",
+                    "name": "Razzmatazz",
+                    "venue_type": "club",
+                    "address": "Carrer dels Almogavers 122",
+                    "city": "Barcelona",
+                }
+            ]
+            response = client.get("/venues?uids=v1,v2,v1")
+        assert response.status_code == 200
+        assert response.json()["venues"][0]["name"] == "Razzmatazz"
+        cypher, params = neo4j.execute_read_once.call_args[0]
+        # De-duplicated, order preserved, and asked by uid rather than fragment.
+        assert params == {"uids": ["v1", "v2"]}
+        assert "v.uid IN $uids" in cypher
+        assert "name_norm" not in cypher
+
+    def test_uids_win_over_q_and_skip_the_fragment_floor(self, client):
+        """`uids` is the mode selector: a one-character q must not 400 here."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            response = client.get("/venues?q=r&uids=v1")
+        assert response.status_code == 200
+        _, params = neo4j.execute_read_once.call_args[0]
+        assert params == {"uids": ["v1"]}
+
+    def test_an_unknown_uid_is_nothing_not_an_error(self, client):
+        """Same contract as /events: a stale pointer is not a bad request."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            response = client.get("/artists?uids=gone")
+        assert response.status_code == 200
+        assert response.json()["artists"] == []
+
+    def test_too_many_uids_are_refused_before_the_graph(self, client):
+        from agent.executor import EVENT_LOOKUP_MAX_UIDS
+
+        too_many = ",".join(f"v{i}" for i in range(EVENT_LOOKUP_MAX_UIDS + 1))
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            response = client.get(f"/venues?uids={too_many}")
+        assert response.status_code == 400
+        neo4j.execute_read_once.assert_not_called()
+
+    def test_artists_by_uid_still_carry_their_genres(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {"uid": "a1", "name": "Ana Trio", "genres": ["Jazz"]}
+            ]
+            response = client.get("/artists?uids=a1")
+        assert response.json()["artists"][0]["genres"] == ["Jazz"]
+        cypher, _ = neo4j.execute_read_once.call_args[0]
+        assert "a.uid IN $uids" in cypher
+
     def test_a_one_character_fragment_is_refused_before_the_graph(self, client):
         with patch.object(api_module, "neo4j_client") as neo4j:
             response = client.get("/venues?q=r")
