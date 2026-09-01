@@ -33,6 +33,15 @@ export interface SupabaseAdmin {
   insert<T>(table: string, row: unknown): Promise<T>;
   patch<T>(table: string, query: string, changes: unknown): Promise<T[]>;
   rpc<T>(fn: string, args: Record<string, unknown>): Promise<T>;
+  /**
+   * An RPC run as the signed-in user rather than as the service role.
+   *
+   * `create_organization` is SECURITY DEFINER and reads `auth.uid()` to decide
+   * the pro floor and who takes the owner seat. Under the service role that is
+   * NULL and the function refuses, correctly - so the gateway hands PostgREST
+   * the caller's own verified JWT and lets the database answer as them.
+   */
+  rpcAsUser<T>(fn: string, args: Record<string, unknown>, accessToken: string): Promise<T>;
 }
 
 export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
@@ -84,6 +93,22 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       const response = await call(`${base}/rpc/${fn}`, {
         method: "POST",
         headers,
+        body: JSON.stringify(args),
+      });
+      return (await response.json()) as T;
+    },
+
+    async rpcAsUser<T>(
+      fn: string,
+      args: Record<string, unknown>,
+      accessToken: string,
+    ): Promise<T> {
+      // apikey stays the service key (PostgREST wants a project key), while
+      // authorization carries the user - which is what auth.uid() reads and
+      // what puts RLS back on for the duration of the call.
+      const response = await call(`${base}/rpc/${fn}`, {
+        method: "POST",
+        headers: { ...headers, authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(args),
       });
       return (await response.json()) as T;

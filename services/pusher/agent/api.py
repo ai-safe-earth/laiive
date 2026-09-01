@@ -292,4 +292,10 @@ async def validate_event(
         "venue": result.venue,
         "city": result.city,
         "warnings": result.warnings,
+        # What this write brought into existence. The gateway records ownership
+        # from it: you own what you made, and a venue this event merely names
+        # is somebody else's room.
+        "venue_uid": result.venue_uid,
+        "venue_created": result.venue_created,
+        "artist_uids_created": result.artist_uids_created,
     }

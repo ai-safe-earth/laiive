@@ -43,6 +43,18 @@ interface MemberRow {
   role: string;
 }
 
+/** What the pusher answers /validate-event with, plus phase D's creation facts. */
+interface PublishResult {
+  success: boolean;
+  event_id: string | null;
+  event_name: string | null;
+  venue: string | null;
+  warnings: string[];
+  venue_uid: string | null;
+  venue_created: boolean;
+  artist_uids_created: string[];
+}
+
 export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void {
   const db = createSupabaseAdmin(config);
   const pro = { preHandler: requireRole("pro") };
@@ -242,4 +254,142 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       yours: yours ? { id: yours.id, org_id: yours.org_id, verified: yours.verified } : null,
     });
   });
+
+  // ── POST /api/publish ─────────────────────────────────────────────────────
+
+  /**
+   * The organization a publish should be recorded against, creating one if the
+   * promoter has none.
+   *
+   * Lazy bootstrap rather than a screen that blocks publishing: a promoter who
+   * never opened /pro/org still owns what they publish, and the alternative -
+   * recording nothing - is the failure that cannot be repaired later, because
+   * nothing afterwards knows the event was theirs.
+   *
+   * The RPC runs as the user, not as the service role: it reads auth.uid() for
+   * the pro floor and the owner seat, and under the service key that is NULL.
+   */
+  async function orgForPublish(
+    userId: string,
+    accessToken: string | undefined,
+    request: FastifyRequest,
+  ): Promise<string | null> {
+    const seats = await seatsOf(userId);
+    if (seats[0]) return seats[0].org_id;
+    if (!accessToken) return null;
+
+    const profiles = await db.select<{ org_name: string | null }>(
+      "promoter_profiles",
+      `select=org_name&user_id=eq.${encodeURIComponent(userId)}`,
+    );
+    const name = profiles[0]?.org_name?.trim();
+    if (!name) return null;
+
+    try {
+      return await db.rpcAsUser<string>(
+        "create_organization",
+        { p_kind: "promoter", p_display_name: name },
+        accessToken,
+      );
+    } catch (error) {
+      request.log.error({ err: error }, "lazy organization bootstrap failed");
+      return null;
+    }
+  }
+
+  /** Names for the artists this write created, as the graph spells them. */
+  async function artistNames(uids: string[]): Promise<Record<string, string>> {
+    if (!uids.length) return {};
+    const headers: Record<string, string> = {};
+    if (config.internalApiKey) headers["x-internal-key"] = config.internalApiKey;
+    const url = `${config.retrieverUrl}/artists?uids=${encodeURIComponent(uids.join(","))}`;
+    const response = await fetch(url, { headers });
+    if (!response.ok) return {};
+    const body = (await response.json()) as { artists?: { uid: string; name: string }[] };
+    return Object.fromEntries((body.artists ?? []).map((a) => [a.uid, a.name]));
+  }
+
+  app.post("/api/publish", pro, async (request, reply) => {
+    const user = request.user;
+    if (!user) return reply.code(401).send({ error: "authentication required" });
+
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "x-user-id": user.id,
+      "x-user-role": user.role,
+      "x-request-id": String(request.id),
+    };
+    if (config.internalApiKey) headers["x-internal-key"] = config.internalApiKey;
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${config.pusherUrl}/validate-event`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(request.body ?? {}),
+      });
+    } catch (error) {
+      request.log.error({ err: error }, "publish upstream unreachable");
+      return reply.code(502).send({ error: "could not publish that" });
+    }
+
+    const body: unknown = await upstream.json().catch(() => null);
+    // The pusher owns the verdict on the draft - 422 for a missing field, 409
+    // for a duplicate - so its status passes straight through rather than
+    // being reinterpreted here.
+    if (!upstream.ok) return reply.code(upstream.status).send(body ?? {});
+
+    const result = body as PublishResult;
+    const warnings = [...(result.warnings ?? [])];
+
+    // Ownership is recorded after the graph write, never before: a claim on an
+    // event that failed to publish is worse than no claim at all. A failure
+    // here leaves the event published and says so, rather than 500ing over a
+    // write the promoter already succeeded at.
+    try {
+      const orgId = await orgForPublish(user.id, bearer(request), request);
+      if (!orgId) {
+        warnings.push("Published, but not recorded against an organisation yet.");
+      } else {
+        const names = await artistNames(result.artist_uids_created ?? []);
+        const rows: Record<string, unknown>[] = [];
+        const own = (type: string, uid: string, name: string | null) =>
+          rows.push({
+            org_id: orgId,
+            entity_type: type,
+            entity_uid: uid,
+            basis: "created",
+            // `created` needs no review: you made the thing. The migration's
+            // created_is_verified check enforces the pair.
+            verified: true,
+            status: "active",
+            claimed_by: user.id,
+            entity_name: name,
+          });
+
+        if (result.event_id) own("event", result.event_id, result.event_name);
+        if (result.venue_created && result.venue_uid) {
+          own("venue", result.venue_uid, result.venue);
+        }
+        for (const uid of result.artist_uids_created ?? []) {
+          own("artist", uid, names[uid] ?? null);
+        }
+        // One insert, so a partial record is not a state this can end in.
+        if (rows.length) await db.insert("entity_ownership", rows);
+      }
+    } catch (error) {
+      request.log.error({ err: error }, "ownership not recorded for publish");
+      warnings.push("Published, but ownership was not recorded.");
+    }
+
+    return reply.code(upstream.status).send({ ...result, warnings });
+  });
+}
+
+/** The caller's raw access token, which the RPC bootstrap runs as. */
+function bearer(request: FastifyRequest): string | undefined {
+  const header = request.headers.authorization;
+  if (!header) return undefined;
+  const [scheme, token] = header.split(" ");
+  return scheme?.toLowerCase() === "bearer" && token ? token : undefined;
 }
