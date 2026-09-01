@@ -14,6 +14,7 @@ import Auth from "@/pages/Auth";
 import AuthCallback from "@/pages/AuthCallback";
 import Chat from "@/pages/Chat";
 import NotFound from "@/pages/NotFound";
+import ProOrg from "@/pages/ProOrg";
 import ProSubmit from "@/pages/ProSubmit";
 import Saved from "@/pages/Saved";
 
@@ -50,6 +51,10 @@ export default function App() {
               <Route path={CALLBACK_PATH} element={<AuthCallback />} />
               <Route path="/account" element={<Account />} />
               <Route path="/pro" element={<ProSubmit />} />
+              {/* Gated inside the page, like /pro: a promoter who lands here
+                  without the role gets ProSubmit's refusal, which explains how
+                  to become one, rather than a bare redirect to the chat. */}
+              <Route path="/pro/org" element={<ProOrg />} />
               {/* RequireRole as a sign-in gate rather than a role gate:
                   "user" is the floor, so this refuses nobody who is signed
                   in, and sends anybody else to /auth carrying where they
