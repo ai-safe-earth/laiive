@@ -113,7 +113,11 @@ class FakeNeo4jSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
-                    "venue_uid": params["venue_uid"],
+                    # Mirrors the real RETURN: a picked venue keeps its own
+                    # uid, an unpicked one carries the uuid this write proposed,
+                    # and the writer reads creation off that difference.
+                    "venue_uid": params["picked_uid"] or params["venue_uid"],
+                    "artist_uids": [a["uid"] for a in params["artists"]],
                 }
             )
         return FakeNeo4jResult(rows=[])

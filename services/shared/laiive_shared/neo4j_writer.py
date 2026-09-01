@@ -73,6 +73,18 @@ class WriteResult(BaseModel):
     missing: list[str] = []
     warnings: list[str] = []
     message: str = ""
+    # What this write brought into existence, as opposed to what it linked to.
+    # Ownership is recorded on creation - you made the thing - and a venue this
+    # event merely names is somebody else's room, so the gateway needs the
+    # difference rather than the list of everything the event touches.
+    #
+    # Detected by uid identity, which costs no extra query: every MERGE below
+    # assigns its proposed uuid ON CREATE only, so a node that came back
+    # carrying the uuid this call generated is one this call created, and a
+    # pre-existing node kept its own.
+    venue_uid: str | None = None
+    venue_created: bool = False
+    artist_uids_created: list[str] = []
 
 
 def has_explicit_time(raw: str) -> bool:
@@ -234,6 +246,9 @@ def write_event(
             lng=None,
         )
 
+    # Generated once and kept: the write proposes it, and comparing it against
+    # what comes back is how "this call created the venue" is known.
+    proposed_venue_uid = str(uuid.uuid4())
     name = draft.name or f"{draft.artists[0]} live at {ident.name}"
     city = ident.city
     warnings: list[str] = []
@@ -413,8 +428,13 @@ def write_event(
                 )
             )
 
+            // The FOREACH above cannot return, so the artists are read back
+            // here. This is every artist on the event, existing ones included;
+            // which of them are new is decided by uid identity in Python.
+            WITH e, v, c
+            OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
-                   v.uid AS venue_uid
+                   v.uid AS venue_uid, collect(DISTINCT art.uid) AS artist_uids
             """,
             picked_uid=ident.uid,
             city=city,
@@ -424,7 +444,7 @@ def write_event(
             city_lng=city_geo.lng if city_geo else None,
             venue=ident.name,
             venue_norm=ident.name_norm,
-            venue_uid=str(uuid.uuid4()),
+            venue_uid=proposed_venue_uid,
             venue_type=draft.venue_type,
             address=draft.address,
             venue_lat=venue_geo.lat if venue_geo else None,
@@ -466,13 +486,23 @@ def write_event(
     if record is None:
         return WriteResult(status="error", message="No record returned from Neo4j")
 
+    # A MERGEd artist that already existed kept its own uid, so the uid this
+    # call proposed for it never landed. Intersecting the two sets is what
+    # separates "created here" from "linked to" - and it also fixes the
+    # embedding scope below, which used to pass proposed uids that matched no
+    # node for every pre-existing artist.
+    proposed_artist_uids = {a["uid"] for a in artist_rows}
+    artist_uids_created = [
+        uid for uid in (record["artist_uids"] or []) if uid in proposed_artist_uids
+    ]
+
     if embed_texts is not None:
         # Scoped to the nodes this write created. Unscoped, this was a full-graph
         # scan for un-embedded nodes inside every single submission — the cost
         # grew with the graph, two writers duplicated each other's work and each
         # paid OpenAI for it. The unbounded sweep has exactly one owner now: the
         # nightly backfill flow.
-        written = [record["uid"], record["venue_uid"]] + [a["uid"] for a in artist_rows]
+        written = [record["uid"], record["venue_uid"], *artist_uids_created]
         try:
             backfill_embeddings(
                 session,
@@ -490,6 +520,9 @@ def write_event(
         name=record["name"],
         venue=record["venue"],
         city=record["city"],
+        venue_uid=record["venue_uid"],
+        venue_created=record["venue_uid"] == proposed_venue_uid,
+        artist_uids_created=artist_uids_created,
         warnings=warnings,
         message="Event created.",
     )

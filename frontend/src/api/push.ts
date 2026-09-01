@@ -93,12 +93,18 @@ export interface SavedEvent {
  * `venueUid` is the graph venue the form picked from the lookup. It travels
  * beside the draft, never on it: drafts round-trip through an LLM mid-walk,
  * and the writer must be able to trust that a uid was a human's pick.
+ *
+ * Posted to /api/publish rather than straight at the pusher: the gateway
+ * forwards the same body and then records what the write created against the
+ * promoter's organization, bootstrapping one if they have none. Publishing
+ * without that hop leaves a promoter not owning their own event, and nothing
+ * afterwards knows it was theirs.
  */
 export async function saveEvent(
   draft: EventDraft,
   venueUid?: string | null,
 ): Promise<SavedEvent> {
-  const response = await apiFetch("/api/push/validate-event", {
+  const response = await apiFetch("/api/publish", {
     method: "POST",
     body: JSON.stringify({ draft, ...(venueUid ? { venue_uid: venueUid } : {}) }),
   });

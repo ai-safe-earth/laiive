@@ -25,10 +25,14 @@ class FakeSession:
     """Answers the venue-by-uid resolve, the dedup probe, the write, and the
     backfill queries in order."""
 
-    def __init__(self, dedup_hit=None, venue_node=None):
+    def __init__(self, dedup_hit=None, venue_node=None, artist_uids=None):
         self.queries: list[tuple[str, dict]] = []
         self._dedup_hit = dedup_hit
         self._venue_node = venue_node
+        # Override what the write RETURNs for the event's artists. A uid the
+        # writer did not propose is an artist that already existed and kept
+        # its own, which is exactly what MERGE does.
+        self._artist_uids = artist_uids
 
     def run(self, query, **params):
         self.queries.append((query, params))
@@ -43,6 +47,18 @@ class FakeSession:
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
+                    # What the real MERGE returns: a picked venue keeps its own
+                    # uid, an unpicked one is created and carries the uuid this
+                    # write proposed. The writer reads creation off that
+                    # difference, so the fake has to reproduce it.
+                    "venue_uid": params["picked_uid"] or params["venue_uid"],
+                    # Every artist here is new, which is what MERGE does to a
+                    # graph this fake starts empty.
+                    "artist_uids": (
+                        self._artist_uids
+                        if self._artist_uids is not None
+                        else [a["uid"] for a in params["artists"]]
+                    ),
                 }
             )
         if "MERGE (a)-[:HAS_GENRE]->(g)" in query:
@@ -848,3 +864,52 @@ def test_no_geocoder_leaves_the_city_as_written():
     )
     assert result.status == "created"
     assert session.queries[1][1]["city"] == "Turin"
+
+
+# ── what the write created, as opposed to what it linked to (phase D) ────────
+
+
+def test_a_new_venue_is_reported_as_created_with_its_uid():
+    """Ownership is recorded on creation, so the caller needs the difference
+    between the room this write made and a room it merely named."""
+    session = FakeSession()
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+
+    write_params = session.queries[-1][1]
+    assert result.status == "created"
+    assert result.venue_created is True
+    assert result.venue_uid == write_params["venue_uid"]
+
+
+def test_a_picked_venue_is_not_reported_as_created():
+    """Publishing at somebody else's room must not hand it to the publisher."""
+    session = FakeSession(venue_node=PICKED_NODE)
+    result = write_event(
+        session,
+        DRAFT.model_copy(update={"address": None, "city": None}),
+        source="pro_submission",
+        geocoder=FakeGeocoder({}),
+        venue_uid="v-1",
+    )
+    assert result.status == "created"
+    assert result.venue_uid == "v-1"
+    assert result.venue_created is False
+
+
+def test_every_artist_this_write_merged_into_existence_is_reported():
+    session = FakeSession()
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+
+    proposed = [a["uid"] for a in session.queries[-1][1]["artists"]]
+    assert result.artist_uids_created == proposed
+
+
+def test_an_artist_that_already_existed_is_not_reported_as_created():
+    """MERGE leaves a pre-existing artist carrying its own uid, so the uid this
+    write proposed never lands - and claiming an act somebody else already put
+    in the graph is not something publishing should do."""
+    session = FakeSession(artist_uids=["someone-elses-uid"])
+    result = write_event(session, DRAFT.model_copy(), source="pro_submission")
+
+    assert result.status == "created"
+    assert result.artist_uids_created == []

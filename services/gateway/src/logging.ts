@@ -1,7 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
 
-const LOGGED_ROUTES = [/^\/api\/chat(\/|$)/, /^\/api\/push\/(chat|validate-event)(\/|$)/];
+const LOGGED_ROUTES = [
+  /^\/api\/chat(\/|$)/,
+  /^\/api\/push\/(chat|validate-event)(\/|$)/,
+  // The publish wrapper replaced /api/push/validate-event as the frontend's
+  // write path; without this the submissions that actually happen stopped
+  // being logged the day the retarget landed.
+  /^\/api\/publish(\/|$)/,
+];
 // /api/chat/feedback sits under the chat prefix but is not a conversation:
 // its reason already lands in turn_feedback, and logging it here would store
 // that free text twice, under the feedback request's own id rather than the

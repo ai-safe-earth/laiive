@@ -28,6 +28,11 @@ export async function startSupabaseStub() {
   // the withdraw-is-a-revoke path real assertions rather than mock theatre.
   const members: Record<string, unknown>[] = [];
   const ownership: Record<string, unknown>[] = [];
+  const promoterProfiles: Record<string, unknown>[] = [];
+  // Every create_organization call, and what it was asked as. The route has to
+  // send the *user's* token, not the service key, or auth.uid() is null in the
+  // function and it refuses - so the test needs to see which was used.
+  const rpcCalls: { fn: string; args: unknown; authorization: string }[] = [];
 
   /** `col=eq.value` pairs out of a PostgREST query string. */
   const filtersOf = (url: string): Record<string, string> => {
@@ -71,6 +76,25 @@ export async function startSupabaseStub() {
       });
       return;
     }
+    if (req.url?.startsWith("/rest/v1/promoter_profiles") && req.method === "GET") {
+      const f = filtersOf(req.url);
+      json(res, 200, promoterProfiles.filter((row) => matches(row, f)));
+      return;
+    }
+    if (req.url?.startsWith("/rest/v1/rpc/") && req.method === "POST") {
+      const fn = req.url.slice("/rest/v1/rpc/".length);
+      void readBody(req).then((raw) => {
+        rpcCalls.push({
+          fn,
+          args: JSON.parse(raw),
+          authorization: String(req.headers.authorization ?? ""),
+        });
+        const orgId = `org-${rpcCalls.length}`;
+        members.push({ org_id: orgId, user_id: "bootstrapped", role: "owner" });
+        json(res, 200, orgId);
+      });
+      return;
+    }
     if (req.url?.startsWith("/rest/v1/organization_members") && req.method === "GET") {
       const f = filtersOf(req.url);
       json(res, 200, members.filter((row) => matches(row, f)));
@@ -84,22 +108,33 @@ export async function startSupabaseStub() {
       }
       if (req.method === "POST") {
         void readBody(req).then((raw) => {
-          const row = JSON.parse(raw) as Record<string, unknown>;
-          const clash = ownership.some(
-            (existing) =>
-              existing["status"] === "active" &&
-              existing["org_id"] === row["org_id"] &&
-              existing["entity_type"] === row["entity_type"] &&
-              existing["entity_uid"] === row["entity_uid"],
+          const parsed = JSON.parse(raw) as unknown;
+          // PostgREST takes either one object or an array; /api/publish sends
+          // an array so a partial record is not a state it can end in.
+          const incoming = (Array.isArray(parsed) ? parsed : [parsed]) as Record<
+            string,
+            unknown
+          >[];
+          const clash = incoming.some((row) =>
+            ownership.some(
+              (existing) =>
+                existing["status"] === "active" &&
+                existing["org_id"] === row["org_id"] &&
+                existing["entity_type"] === row["entity_type"] &&
+                existing["entity_uid"] === row["entity_uid"],
+            ),
           );
           if (clash) {
             // What PostgREST returns for a unique index violation.
             json(res, 409, { code: "23505", message: "duplicate key value" });
             return;
           }
-          const stored = { id: `claim-${ownership.length + 1}`, ...row };
-          ownership.push(stored);
-          json(res, 201, [stored]);
+          const stored = incoming.map((row, i) => ({
+            id: `claim-${ownership.length + i + 1}`,
+            ...row,
+          }));
+          ownership.push(...stored);
+          json(res, 201, stored);
         });
         return;
       }
@@ -126,6 +161,8 @@ export async function startSupabaseStub() {
     feedbackInserts,
     members,
     ownership,
+    promoterProfiles,
+    rpcCalls,
     signToken: (opts: { sub?: string; role?: string; expiresIn?: string } = {}) =>
       new SignJWT(opts.role === undefined ? {} : { user_role: opts.role })
         .setProtectedHeader({ alg: "ES256", kid: "test-key" })
@@ -152,6 +189,11 @@ export interface SeenRequest {
  */
 export async function startUpstreamStub() {
   const seen: SeenRequest[] = [];
+  // What POST /validate-event answers with. Left null, the request falls
+  // through to the echo, so the existing proxy tests are unaffected.
+  const publishState: { current: { status: number; body: unknown } | null } = {
+    current: null,
+  };
   // The retriever's by-uid entity lookups, which the claim route consults
   // before recording anything. Seeded by the test; an absent uid answers with
   // an empty list, which is the real endpoint's contract for a stale pointer.
@@ -191,6 +233,16 @@ export async function startUpstreamStub() {
         return;
       }
 
+      if (
+        req.url === "/validate-event" &&
+        req.method === "POST" &&
+        publishState.current !== null
+      ) {
+        res.writeHead(publishState.current.status, { "content-type": "application/json" });
+        res.end(JSON.stringify(publishState.current.body));
+        return;
+      }
+
       if (req.url === "/chat/stream" && req.method === "POST") {
         res.writeHead(200, {
           "content-type": "text/event-stream",
@@ -216,7 +268,13 @@ export async function startUpstreamStub() {
   });
 
   const port = await listen(server);
-  return { url: `http://127.0.0.1:${port}`, seen, entities, close: () => close(server) };
+  return {
+    url: `http://127.0.0.1:${port}`,
+    seen,
+    entities,
+    publish: publishState,
+    close: () => close(server),
+  };
 }
 
 export function testConfig(overrides: Partial<GatewayConfig> & { supabaseUrl: string }): GatewayConfig {
