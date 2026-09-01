@@ -1,39 +1,31 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "created_at": "2026-01-22",
-  "description": "Test cases for query generation evaluation",
+  "rechecked_at": "2026-08-28",
+  "prompt_version": "v2",
+  "description": "Cypher-generation cases for agent/tools/query_builder.py, re-checked against QUERY_BUILDER_PROMPT v2. tests/test_eval_cases.py is the loader.",
+  "recheck_note": "Every v1 expected_patterns list was stale against prompt v2 and all five would have failed: v1 wanted datetime(e.start_at), which v2 explicitly forbids ('never wrap e.start_at in datetime()'); it matched names as written, where v2 mandates the lowercase name_norm property; it filtered on price_amount, a field the schema does not have; and it expected an `embedding` clause for semantic search the query builder has never implemented. Patterns are now what v2 actually asks for, the two banned shapes moved into should_not_contain, and v1's expected_cypher_structure and date_context were dropped - nothing consumed them, and the dates are resolved from the asker's clock at generation time, not from the case.",
+  "matching": {
+    "expected_patterns": "Regex, case-insensitive, searched in the generated Cypher. A weak instrument - it asserts shape, not that the query answers the question - so the loader xfails these until execute-and-compare replaces them.",
+    "should_not_contain": "Literal substrings, case-insensitive, searched in the generated Cypher with comments and string literals stripped first. A hard gate: these are mutations that must never be generated, plus shapes v2 bans."
+  },
   "test_cases": [
     {
       "id": "qg_001",
       "category": "simple_artist_query",
       "user_query": "Find concerts by Radiohead",
-      "expected_patterns": [
-        "MATCH.*Artist.*name.*Radiohead",
-        "PERFORMS_AT",
-        "Event"
-      ],
+      "expected_patterns": ["Artist", "name_norm", "radiohead", "PERFORMS_AT"],
       "should_not_contain": ["DELETE", "CREATE", "MERGE", "SET"],
-      "metadata": {
-        "difficulty": "easy",
-        "requires_date": false
-      }
+      "relabelled": "v1 wanted 'MATCH.*Artist.*name.*Radiohead'; v2 matches names through name_norm, which is lowercased and diacritic-free.",
+      "metadata": { "difficulty": "easy", "requires_date": false }
     },
     {
       "id": "qg_002",
       "category": "date_range_query",
       "user_query": "Jazz concerts in Berlin this weekend",
-      "date_context": "2026-01-22",
-      "expected_patterns": [
-        "datetime\\(e\\.start_at\\)",
-        "Berlin",
-        "jazz"
-      ],
-      "should_not_contain": ["date(e.start_at)"],
-      "expected_cypher_structure": {
-        "has_datetime_conversion": true,
-        "has_date_filter": true,
-        "has_city_filter": true
-      },
+      "expected_patterns": ["berlin", "jazz", "e\\.start_at\\s*>="],
+      "should_not_contain": ["date(e.start_at)", "datetime(e.start_at)"],
+      "relabelled": "v1 REQUIRED datetime(e.start_at) as an expected pattern. v2 bans that wrapping outright - start_at is a native DATETIME - so the expectation inverted: it is now a should_not_contain alongside v1's date(e.start_at).",
       "metadata": {
         "difficulty": "medium",
         "requires_date": true,
@@ -44,33 +36,24 @@
       "id": "qg_003",
       "category": "venue_specific",
       "user_query": "What events are happening at Berghain next month?",
-      "date_context": "2026-01-22",
       "expected_patterns": [
-        "Venue.*name.*Berghain",
+        "Venue",
+        "name_norm",
+        "berghain",
         "HOSTED_AT",
-        "datetime\\(e\\.start_at\\).*>=.*datetime"
+        "e\\.start_at\\s*>="
       ],
-      "metadata": {
-        "difficulty": "medium",
-        "tests_feature": "venue_query"
-      }
+      "should_not_contain": ["datetime(e.start_at)"],
+      "relabelled": "Same two corrections as qg_001 and qg_002: name_norm instead of name, and the datetime() wrapping moved from expected to forbidden.",
+      "metadata": { "difficulty": "medium", "tests_feature": "venue_query" }
     },
     {
       "id": "qg_004",
       "category": "complex_multi_constraint",
       "user_query": "Find techno events under 20 euros in Berlin on Friday night",
-      "date_context": "2026-01-22",
-      "expected_patterns": [
-        "price_amount.*<.*20",
-        "Berlin",
-        "techno"
-      ],
-      "expected_cypher_structure": {
-        "has_price_filter": true,
-        "has_genre_filter": true,
-        "has_location_filter": true,
-        "has_datetime_filter": true
-      },
+      "expected_patterns": ["price_m(in|ax)", "berlin", "techno"],
+      "should_not_contain": ["price_amount", "datetime(e.start_at)"],
+      "relabelled": "v1 filtered on price_amount, which is not in the schema - the fields are price_min and price_max. The dead field is now a should_not_contain so a regression towards it is caught.",
       "metadata": {
         "difficulty": "hard",
         "requires_date": true,
@@ -79,16 +62,12 @@
     },
     {
       "id": "qg_005",
-      "category": "embeddings_required",
+      "category": "genre_similarity",
       "user_query": "Find events similar to indie rock concerts",
-      "expected_patterns": [
-        "OPTIONAL MATCH.*artist",
-        "embedding"
-      ],
-      "metadata": {
-        "difficulty": "medium",
-        "tests_feature": "semantic_search"
-      }
+      "expected_patterns": ["HAS_GENRE", "indie-rock"],
+      "should_not_contain": ["datetime(e.start_at)"],
+      "relabelled": "v1 was category 'embeddings_required' and expected an `embedding` clause. The query builder has no vector search and its prompt never mentions embeddings, so the case was asserting a feature that does not exist. Re-pointed at what the system actually does with 'similar to X': Genre nodes keyed by the slug 'indie-rock'. Semantic search stays a phase-4 question.",
+      "metadata": { "difficulty": "medium", "tests_feature": "genre_slug" }
     }
   ]
 }

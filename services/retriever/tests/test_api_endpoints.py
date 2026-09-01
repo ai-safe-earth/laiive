@@ -57,11 +57,12 @@ class FakePipeline:
             yield MessageDelta(text=delta)
 
     def run_turn_collected(
-        self, user_message, history=None, location=None, timezone=None
+        self, user_message, history=None, location=None, timezone=None, result=None
     ):
         from agent.pipeline import TurnResult
 
-        result = TurnResult()
+        if result is None:
+            result = TurnResult()
         for _ in self.run_turn(
             user_message, history, location, result=result, timezone=timezone
         ):
@@ -177,8 +178,10 @@ class TestChatEndpoint:
         broken = MagicMock()
         broken.run_turn_collected.side_effect = Exception("pipeline died")
         api_module._pipeline = broken
-        response = client.post("/chat", json={"message": "x"})
+        with patch.object(api_module, "_write_eval_record") as write:
+            response = client.post("/chat", json={"message": "x"})
         assert response.status_code == 500
+        write.assert_called_once()
 
     def test_chat_invalid_request(self, client):
         assert client.post("/chat", json={}).status_code == 422
