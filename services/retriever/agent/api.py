@@ -72,7 +72,14 @@ def _request_id(raw: Request) -> str:
 
 def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
     """Fire-and-forget on a daemon thread: in the SSE path the finally: runs
-    before the done frame is yielded, so a blocking POST there would delay it."""
+    before the done frame is yielded, so a blocking POST there would delay it.
+
+    ponytail: one unbounded thread per turn, fine at current volume and wrong
+    under load - a burst spawns a thread each, and a daemon thread mid-POST
+    dies silently on shutdown, losing that record. Upgrade path when turns/sec
+    justifies it: a bounded queue plus a single writer thread, dropping oldest
+    on overflow so the corpus degrades instead of the turn.
+    """
     threading.Thread(
         target=eval_records.write,
         args=(request_id, result, int((time.perf_counter() - start) * 1000)),
@@ -393,22 +400,16 @@ async def transcribe_audio(file: UploadFile = File(...)):
 def chat(request: ChatRequest, raw: Request):
     """JSON response endpoint."""
     request_id = _request_id(raw)
+    result = TurnResult()
     start = time.perf_counter()
     try:
-        result = get_pipeline().run_turn_collected(
+        get_pipeline().run_turn_collected(
             request.message,
             _history_dicts(request.conversation_history),
             _location_dict(request.location),
             timezone=request.timezone,
+            result=result,
         )
-        log_turn(
-            request_id,
-            request.message,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            card_count=len(result.cards),
-            error="; ".join(result.errors) or None,
-        )
-        _write_eval_record(request_id, result, start)
         return ChatResponse(
             request_id=request_id,
             response=result.text,
@@ -420,6 +421,15 @@ def chat(request: ChatRequest, raw: Request):
     except Exception as e:
         logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
         raise HTTPException(500, "An internal error occurred. Please try again.")
+    finally:
+        log_turn(
+            request_id,
+            request.message,
+            cypher=result.cyphers[0] if result.cyphers else None,
+            card_count=len(result.cards),
+            error="; ".join(result.errors) or None,
+        )
+        _write_eval_record(request_id, result, start)
 
 
 @app.post("/chat/stream")

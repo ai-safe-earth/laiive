@@ -33,11 +33,12 @@ if __name__ == "__main__":
         # One deployment per province rather than one sweep of both: the flow
         # runs its cities sequentially at minutes each, so twenty towns in one
         # run is over an hour in which any failure is reported against a single
-        # run. Split, each province gets its own history and its own retry, and
-        # the two never overlap on Tavily and OpenAI.
+        # run. Split, each province gets its own history and its own retry.
         #
-        # Tue/Thu 07:00, clear of the nightly backfill at 04:30 — which is the
-        # other Tavily spender, one search per venue it cannot geocode.
+        # Both fire Wednesday — Bergamo 04:00, Torino 07:00 — three hours
+        # apart, so they only collide on Tavily/OpenAI if a run overruns. The
+        # weekly backfill (Mon 04:30) is the other Tavily spender, one search
+        # per venue it cannot geocode; it has Monday to itself.
         city_sweep.to_deployment(
             name="bergamo-province-weekly",
             parameters={"cities": BERGAMO_PROVINCE},
@@ -49,7 +50,7 @@ if __name__ == "__main__":
             schedule=Cron("0 7 * * 3", timezone="Europe/Madrid"),
         ),
         backfill.to_deployment(
-            name="backfill-nightly",
+            name="backfill-weekly",
             schedule=Cron("30 4 * * 1", timezone="Europe/Madrid"),
         ),
     )
