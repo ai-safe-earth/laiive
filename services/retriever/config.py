@@ -39,7 +39,9 @@ class Settings(BaseSettings):
     langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field("", alias="LANGFUSE_SECRET_KEY")
     langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")
-    langfuse_enabled: bool = Field(True, alias="LANGFUSE_ENABLED")
+    # Off unless asked for: a True default with blank keys still constructs a
+    # Langfuse client and wraps every OpenAI call in it. .example.env says false.
+    langfuse_enabled: bool = Field(False, alias="LANGFUSE_ENABLED")
 
     host: str = Field("0.0.0.0", alias="HOST")
     port: int = Field(8002, alias="PORT")
