@@ -159,9 +159,15 @@ class Pipeline:
         history: list[dict] | None = None,
         location: dict | None = None,
         timezone: str | None = None,
+        result: TurnResult | None = None,
     ) -> TurnResult:
-        """Non-streaming variant for the JSON endpoint."""
-        result = TurnResult()
+        """Non-streaming variant for the JSON endpoint.
+
+        A caller-owned ``result`` keeps the partial turn state readable after
+        an exception, mirroring the stream path's capture guarantee.
+        """
+        if result is None:
+            result = TurnResult()
         for _ in self.run_turn(
             user_message, history, location, result=result, timezone=timezone
         ):
