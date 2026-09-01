@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
+import { useMyOrgs, useOrgClaims } from "@/api/organizations";
 import {
   usePromoterProfile,
   useProfile,
@@ -34,68 +35,35 @@ function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactN
   );
 }
 
-/** Free-form chip list — the graph owns the real entities, this is what the
- *  promoter says they manage (D8). */
-function ChipList({
-  label,
-  items,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  items: string[];
-  onChange: (next: string[]) => void;
-  placeholder: string;
-}) {
+/**
+ * The promoter's organisation, read-only, linking to the screen that owns it.
+ *
+ * This replaced two free-text chip lists. Naming a venue in a text box never
+ * meant anything the product could act on; a claim does, because it points at
+ * a uid in the graph and goes through review. The old names are not deleted -
+ * they still round-trip through the save below, and /pro/org shows them as
+ * history with a prompt to claim each one properly.
+ */
+function OrgSummary() {
+  const { user } = useAuth();
   const { t } = useTranslation();
-  const [draft, setDraft] = useState("");
-
-  const add = () => {
-    const value = draft.trim();
-    if (!value || items.includes(value)) return setDraft("");
-    onChange([...items, value]);
-    setDraft("");
-  };
+  const { data: orgs } = useMyOrgs(user?.id);
+  const org = orgs?.[0];
+  const { data: claims } = useOrgClaims(org?.id);
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label>{label}</Label>
-      {items.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {items.map((item) => (
-            <li
-              key={item}
-              className="flex items-center gap-1.5 rounded-full border border-field-border bg-field pl-4 pr-1.5 text-md text-foreground"
-            >
-              {item}
-              <button
-                type="button"
-                aria-label={t.account.remove(item)}
-                onClick={() => onChange(items.filter((i) => i !== item))}
-                className="flex h-11 w-11 items-center justify-center rounded-full text-ink-dim transition-colors hover:text-destructive"
-              >
-                <Icon name="close" className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex gap-2">
-        <Input
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              add();
-            }
-          }}
-          placeholder={placeholder}
-        />
-        <Button variant="neutral" onClick={add} disabled={!draft.trim()}>
-          {t.account.add}
-        </Button>
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <Label>{t.org.summaryTitle}</Label>
+      <span className="min-w-0 flex-1 truncate text-md text-pro-fg">
+        {org ? org.display_name : t.org.noneTitle}
+      </span>
+      {org && <span className="text-sm text-pro-muted">{t.org.summary(claims?.length ?? 0)}</span>}
+      <Link
+        to="/pro/org"
+        className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
+      >
+        {t.org.manage}
+      </Link>
     </div>
   );
 }
@@ -120,6 +88,10 @@ export default function Account() {
   const [orgName, setOrgName] = useState("");
   const [website, setWebsite] = useState("");
   const [phone, setPhone] = useState("");
+  // No editor any more - claiming replaced the chips - but the values are
+  // still loaded and saved back untouched. The promoter profile is upserted as
+  // a whole row, so dropping them here would null the names /pro/org shows as
+  // history.
   const [venues, setVenues] = useState<string[]>([]);
   const [artists, setArtists] = useState<string[]>([]);
 
@@ -301,18 +273,7 @@ export default function Account() {
               </div>
             </div>
 
-            <ChipList
-              label={t.account.venues}
-              items={venues}
-              onChange={setVenues}
-              placeholder="Sala Clamores"
-            />
-            <ChipList
-              label={t.account.artists}
-              items={artists}
-              onChange={setArtists}
-              placeholder="Ana Beck Quartet"
-            />
+            {isPro && <OrgSummary />}
 
             <Button
               className="self-start"

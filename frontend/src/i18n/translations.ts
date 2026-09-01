@@ -81,14 +81,59 @@ export interface Translations {
     organisationPlaceholder: string;
     website: string;
     phone: string;
-    venues: string;
-    artists: string;
-    add: string;
-    remove: (item: string) => string;
     profileSaved: string;
     promoterSaved: string;
     saveFailed: string;
     orgRequired: string;
+  };
+  org: {
+    back: string;
+    title: string;
+    /** Shown to a promoter who belongs to no organization yet. */
+    noneTitle: string;
+    noneNote: string;
+    kind: string;
+    kindVenue: string;
+    kindArtist: string;
+    kindPromoter: string;
+    name: string;
+    namePlaceholder: string;
+    website: string;
+    phone: string;
+    contactEmail: string;
+    create: string;
+    save: string;
+    saved: string;
+    saveFailed: string;
+    detailsTitle: string;
+    readOnlyNote: string;
+    claimsTitle: string;
+    claimsNone: string;
+    pending: string;
+    verified: string;
+    withdraw: string;
+    withdrawn: string;
+    searchTitle: string;
+    searchNote: string;
+    searchPlaceholder: string;
+    searchNone: string;
+    claim: string;
+    claimedAlready: string;
+    claimDone: (name: string) => string;
+    claimFailed: string;
+    claimConflict: string;
+    claimMissing: string;
+    rosterTitle: string;
+    rosterNote: string;
+    seatOwner: string;
+    seatAdmin: string;
+    seatMember: string;
+    legacyTitle: string;
+    legacyNote: string;
+    legacySearch: string;
+    summaryTitle: string;
+    summary: (count: number) => string;
+    manage: string;
   };
   pro: {
     needsPro: string;
@@ -249,14 +294,61 @@ export const translations: Record<Language, Translations> = {
       organisationPlaceholder: "venue, label, collective…",
       website: "website",
       phone: "phone",
-      venues: "venues you manage",
-      artists: "artists you manage",
-      add: "add",
-      remove: (item) => `remove ${item}`,
       profileSaved: "profile saved",
       promoterSaved: "promoter details saved",
       saveFailed: "could not save",
       orgRequired: "the organisation name is required",
+    },
+    org: {
+      back: 'back',
+      title: 'your organisation',
+      noneTitle: 'no organisation yet',
+      noneNote:
+        'An organisation is what owns a venue, an act or an event. Make one and you can claim the rooms and artists you actually run.',
+      kind: 'kind',
+      kindVenue: 'venue',
+      kindArtist: 'artist',
+      kindPromoter: 'promoter',
+      name: 'name',
+      namePlaceholder: 'Sala Apolo',
+      website: 'website',
+      phone: 'phone',
+      contactEmail: 'contact email',
+      create: 'create organisation',
+      save: 'save',
+      saved: 'organisation saved',
+      saveFailed: 'could not save that',
+      detailsTitle: 'details',
+      readOnlyNote: 'only owners and admins can change these.',
+      claimsTitle: 'what you claim',
+      claimsNone: 'nothing claimed yet.',
+      pending: 'in review',
+      verified: 'verified',
+      withdraw: 'withdraw',
+      withdrawn: 'claim withdrawn',
+      searchTitle: 'claim a venue or an artist',
+      searchNote: 'Claiming says you speak for it. We review claims before the card shows the mark.',
+      searchPlaceholder: 'search by name…',
+      searchNone: 'nothing by that name.',
+      claim: 'claim',
+      claimedAlready: 'already claimed',
+      claimDone: (name: string) => `claimed ${name}`,
+      claimFailed: 'could not record that claim',
+      claimConflict: 'you already claim that one',
+      claimMissing: 'we could not find that in the graph',
+      rosterTitle: 'who is in it',
+      rosterNote: 'Invitations are not open yet.',
+      seatOwner: 'owner',
+      seatAdmin: 'admin',
+      seatMember: 'member',
+      legacyTitle: 'names you listed before claiming existed',
+      legacyNote:
+        'These were free text on your old profile. They are not claims. Search for each one and claim it properly.',
+      legacySearch: 'find it',
+      summaryTitle: 'organisation',
+      summary: (count: number) =>
+        count === 1 ? '1 claim' : `${count} claims`,
+      manage: 'manage →',
     },
     pro: {
       needsPro: "Publishing events needs a promoter account.",
@@ -439,14 +531,62 @@ export const translations: Record<Language, Translations> = {
       organisationPlaceholder: "sala, sello, colectivo…",
       website: "web",
       phone: "teléfono",
-      venues: "salas que gestionas",
-      artists: "artistas que gestionas",
-      add: "añadir",
-      remove: (item) => `quitar ${item}`,
       profileSaved: "perfil guardado",
       promoterSaved: "datos de promotor guardados",
       saveFailed: "no se pudo guardar",
       orgRequired: "el nombre de la organización es obligatorio",
+    },
+    org: {
+      back: 'atrás',
+      title: 'tu organización',
+      noneTitle: 'aún no tienes organización',
+      noneNote:
+        'Una organización es lo que posee una sala, un artista o un evento. Crea una y podrás reclamar las salas y artistas que llevas de verdad.',
+      kind: 'tipo',
+      kindVenue: 'sala',
+      kindArtist: 'artista',
+      kindPromoter: 'promotor',
+      name: 'nombre',
+      namePlaceholder: 'Sala Apolo',
+      website: 'web',
+      phone: 'teléfono',
+      contactEmail: 'email de contacto',
+      create: 'crear organización',
+      save: 'guardar',
+      saved: 'organización guardada',
+      saveFailed: 'no se pudo guardar',
+      detailsTitle: 'datos',
+      readOnlyNote: 'solo propietarios y administradores pueden cambiarlos.',
+      claimsTitle: 'lo que reclamas',
+      claimsNone: 'todavía no reclamas nada.',
+      pending: 'en revisión',
+      verified: 'verificado',
+      withdraw: 'retirar',
+      withdrawn: 'reclamación retirada',
+      searchTitle: 'reclama una sala o un artista',
+      searchNote:
+        'Reclamar significa que hablas por ello. Revisamos las reclamaciones antes de que la ficha muestre la marca.',
+      searchPlaceholder: 'busca por nombre…',
+      searchNone: 'nada con ese nombre.',
+      claim: 'reclamar',
+      claimedAlready: 'ya reclamado',
+      claimDone: (name: string) => `has reclamado ${name}`,
+      claimFailed: 'no se pudo registrar la reclamación',
+      claimConflict: 'ya reclamas eso',
+      claimMissing: 'no lo encontramos en el grafo',
+      rosterTitle: 'quién está dentro',
+      rosterNote: 'Las invitaciones aún no están abiertas.',
+      seatOwner: 'propietario',
+      seatAdmin: 'administrador',
+      seatMember: 'miembro',
+      legacyTitle: 'nombres que anotaste antes de que existieran las reclamaciones',
+      legacyNote:
+        'Eran texto libre en tu perfil antiguo. No son reclamaciones. Busca cada uno y recláma­lo bien.',
+      legacySearch: 'buscarlo',
+      summaryTitle: 'organización',
+      summary: (count: number) =>
+        count === 1 ? '1 reclamación' : `${count} reclamaciones`,
+      manage: 'gestionar →',
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
@@ -629,14 +769,62 @@ export const translations: Record<Language, Translations> = {
       organisationPlaceholder: "locale, etichetta, collettivo…",
       website: "sito web",
       phone: "telefono",
-      venues: "locali che gestisci",
-      artists: "artisti che gestisci",
-      add: "aggiungi",
-      remove: (item) => `rimuovi ${item}`,
       profileSaved: "profilo salvato",
       promoterSaved: "dati promoter salvati",
       saveFailed: "impossibile salvare",
       orgRequired: "il nome dell'organizzazione è obbligatorio",
+    },
+    org: {
+      back: 'indietro',
+      title: 'la tua organizzazione',
+      noneTitle: 'ancora nessuna organizzazione',
+      noneNote:
+        "Un'organizzazione è ciò che possiede un locale, un artista o un evento. Creane una e potrai rivendicare i locali e gli artisti che gestisci davvero.",
+      kind: 'tipo',
+      kindVenue: 'locale',
+      kindArtist: 'artista',
+      kindPromoter: 'promoter',
+      name: 'nome',
+      namePlaceholder: 'Spazio 211',
+      website: 'sito',
+      phone: 'telefono',
+      contactEmail: 'email di contatto',
+      create: 'crea organizzazione',
+      save: 'salva',
+      saved: 'organizzazione salvata',
+      saveFailed: 'non è stato possibile salvare',
+      detailsTitle: 'dati',
+      readOnlyNote: 'solo proprietari e amministratori possono modificarli.',
+      claimsTitle: 'cosa rivendichi',
+      claimsNone: 'ancora nessuna rivendicazione.',
+      pending: 'in revisione',
+      verified: 'verificato',
+      withdraw: 'ritira',
+      withdrawn: 'rivendicazione ritirata',
+      searchTitle: 'rivendica un locale o un artista',
+      searchNote:
+        'Rivendicare significa che parli tu per quel nome. Controlliamo le rivendicazioni prima che la scheda mostri il segno.',
+      searchPlaceholder: 'cerca per nome…',
+      searchNone: 'niente con quel nome.',
+      claim: 'rivendica',
+      claimedAlready: 'già rivendicato',
+      claimDone: (name: string) => `hai rivendicato ${name}`,
+      claimFailed: 'non è stato possibile registrare la rivendicazione',
+      claimConflict: 'lo rivendichi già',
+      claimMissing: 'non lo troviamo nel grafo',
+      rosterTitle: 'chi ne fa parte',
+      rosterNote: 'Gli inviti non sono ancora aperti.',
+      seatOwner: 'proprietario',
+      seatAdmin: 'amministratore',
+      seatMember: 'membro',
+      legacyTitle: 'nomi che avevi scritto prima che esistessero le rivendicazioni',
+      legacyNote:
+        'Erano testo libero nel tuo vecchio profilo. Non sono rivendicazioni. Cerca ognuno e rivendicalo davvero.',
+      legacySearch: 'trovalo',
+      summaryTitle: 'organizzazione',
+      summary: (count: number) =>
+        count === 1 ? '1 rivendicazione' : `${count} rivendicazioni`,
+      manage: 'gestisci →',
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
@@ -819,14 +1007,62 @@ export const translations: Record<Language, Translations> = {
       organisationPlaceholder: "sala, segell, col·lectiu…",
       website: "web",
       phone: "telèfon",
-      venues: "sales que gestiones",
-      artists: "artistes que gestiones",
-      add: "afegeix",
-      remove: (item) => `treu ${item}`,
       profileSaved: "perfil desat",
       promoterSaved: "dades de promotor desades",
       saveFailed: "no s'ha pogut desar",
       orgRequired: "el nom de l'organització és obligatori",
+    },
+    org: {
+      back: 'enrere',
+      title: 'la teva organització',
+      noneTitle: 'encara no tens organització',
+      noneNote:
+        'Una organització és el que posseeix una sala, un artista o un esdeveniment. Crea’n una i podràs reclamar les sales i els artistes que portes de debò.',
+      kind: 'tipus',
+      kindVenue: 'sala',
+      kindArtist: 'artista',
+      kindPromoter: 'promotor',
+      name: 'nom',
+      namePlaceholder: 'Sala Apolo',
+      website: 'web',
+      phone: 'telèfon',
+      contactEmail: 'correu de contacte',
+      create: 'crea organització',
+      save: 'desa',
+      saved: 'organització desada',
+      saveFailed: 'no s’ha pogut desar',
+      detailsTitle: 'dades',
+      readOnlyNote: 'només els propietaris i administradors poden canviar-les.',
+      claimsTitle: 'què reclames',
+      claimsNone: 'encara no reclames res.',
+      pending: 'en revisió',
+      verified: 'verificat',
+      withdraw: 'retira',
+      withdrawn: 'reclamació retirada',
+      searchTitle: 'reclama una sala o un artista',
+      searchNote:
+        'Reclamar vol dir que parles per ell. Revisem les reclamacions abans que la fitxa mostri la marca.',
+      searchPlaceholder: 'cerca per nom…',
+      searchNone: 'res amb aquest nom.',
+      claim: 'reclama',
+      claimedAlready: 'ja reclamat',
+      claimDone: (name: string) => `has reclamat ${name}`,
+      claimFailed: 'no s’ha pogut registrar la reclamació',
+      claimConflict: 'ja ho reclames',
+      claimMissing: 'no ho hem trobat al graf',
+      rosterTitle: 'qui hi és',
+      rosterNote: 'Les invitacions encara no estan obertes.',
+      seatOwner: 'propietari',
+      seatAdmin: 'administrador',
+      seatMember: 'membre',
+      legacyTitle: 'noms que vas escriure abans que existissin les reclamacions',
+      legacyNote:
+        'Eren text lliure al teu perfil antic. No són reclamacions. Cerca cadascun i reclama’l de debò.',
+      legacySearch: 'troba’l',
+      summaryTitle: 'organització',
+      summary: (count: number) =>
+        count === 1 ? '1 reclamació' : `${count} reclamacions`,
+      manage: 'gestiona →',
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
