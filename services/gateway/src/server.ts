@@ -6,6 +6,7 @@ import { Redis } from "ioredis";
 import { registerAuth } from "./auth.js";
 import type { GatewayConfig } from "./config.js";
 import { registerFeedback } from "./feedback.js";
+import { registerOrgs } from "./orgs.js";
 import { registerConversationLogging } from "./logging.js";
 import { registerProxies } from "./proxy.js";
 import "./types.js";
@@ -31,7 +32,7 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
 
   await app.register(cors, {
     origin: config.corsAllowOrigins,
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["content-type", "authorization"],
     exposedHeaders: [
       "x-request-id",
@@ -133,6 +134,7 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
   });
 
   registerFeedback(app, config);
+  registerOrgs(app, config);
   registerProxies(app, config);
   registerConversationLogging(app, config);
 

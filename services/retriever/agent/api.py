@@ -31,8 +31,10 @@ from .clients.neo4j_client import neo4j_client
 from .executor import (
     EVENT_LOOKUP_MAX_UIDS,
     build_artist_search,
+    build_artists_by_uid,
     build_uid_query,
     build_venue_search,
+    build_venues_by_uid,
     rows_to_cards,
 )
 from .pipeline import Pipeline, TurnResult
@@ -270,6 +272,23 @@ def events_by_uid(uids: str = Query(..., description="comma-separated event uids
     return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
+def _wanted_uids(raw: str) -> list[str]:
+    """Comma-separated uids, de-duplicated, order preserved, capped.
+
+    Same contract and same cap as /events: the cap bounds the query string the
+    gateway forwards, and refusing beats silently truncating, because a short
+    answer to a long question looks like missing data.
+    """
+    wanted: list[str] = []
+    for part in raw.split(","):
+        uid = part.strip()
+        if uid and uid not in wanted:
+            wanted.append(uid)
+    if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
+        raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
+    return wanted
+
+
 # ============== Entity lookup (venues, artists) ==============
 #
 # The first read paths in the product that answer with something other than an
@@ -280,15 +299,32 @@ def events_by_uid(uids: str = Query(..., description="comma-separated event uids
 
 @app.get("/venues", response_model=VenueLookupResult)
 def venues_lookup(
-    q: str = Query(..., description="name fragment, at least 2 characters"),
+    q: str = Query("", description="name fragment, at least 2 characters"),
     city: str = Query("", description="optional city to scope the answer to"),
+    uids: str = Query("", description="comma-separated venue uids; excludes q"),
 ):
-    """Venues by name fragment — a lookup for a picker, not a search."""
-    fragment = q.strip()
-    if len(fragment) < 2:
-        # One character matches half the base; refusing beats a churning list.
-        raise HTTPException(400, "q must be at least 2 characters")
-    cypher, params = build_venue_search(fragment, city.strip() or None)
+    """Venues by name fragment, or by uid.
+
+    Two modes on one route rather than a second endpoint: the answer shape is
+    identical, so a `/venues/by-uid` would duplicate the response model and
+    earn the gateway another proxy registration for nothing.
+
+    The uid mode exists for claiming. A claim names a uid, and the gateway has
+    to answer two questions before recording one — does this venue exist, and
+    what is it actually called — because the stored display name must come
+    from the graph rather than from whatever the client typed.
+    """
+    if uids:
+        wanted = _wanted_uids(uids)
+        if not wanted:
+            return VenueLookupResult(venues=[])
+        cypher, params = build_venues_by_uid(wanted)
+    else:
+        fragment = q.strip()
+        if len(fragment) < 2:
+            # One character matches half the base; refusing beats a churning list.
+            raise HTTPException(400, "q must be at least 2 characters")
+        cypher, params = build_venue_search(fragment, city.strip() or None)
     try:
         rows = neo4j_client.execute_read_once(cypher, params)
     except Exception as e:
@@ -299,13 +335,20 @@ def venues_lookup(
 
 @app.get("/artists", response_model=ArtistLookupResult)
 def artists_lookup(
-    q: str = Query(..., description="name fragment, at least 2 characters"),
+    q: str = Query("", description="name fragment, at least 2 characters"),
+    uids: str = Query("", description="comma-separated artist uids; excludes q"),
 ):
-    """Artists by name fragment — same contract as /venues."""
-    fragment = q.strip()
-    if len(fragment) < 2:
-        raise HTTPException(400, "q must be at least 2 characters")
-    cypher, params = build_artist_search(fragment)
+    """Artists by name fragment, or by uid — same contract as /venues."""
+    if uids:
+        wanted = _wanted_uids(uids)
+        if not wanted:
+            return ArtistLookupResult(artists=[])
+        cypher, params = build_artists_by_uid(wanted)
+    else:
+        fragment = q.strip()
+        if len(fragment) < 2:
+            raise HTTPException(400, "q must be at least 2 characters")
+        cypher, params = build_artist_search(fragment)
     try:
         rows = neo4j_client.execute_read_once(cypher, params)
     except Exception as e:

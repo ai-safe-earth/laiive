@@ -321,6 +321,37 @@ def build_artist_search(q: str) -> tuple[str, dict]:
     return cypher, {"q_norm": norm(q)}
 
 
+# The by-uid twins of the two searches above. A claim names a uid, not a name
+# fragment, so the gateway needs to ask "does this exist, and what is it
+# actually called" before recording that an organization speaks for it - the
+# claim's display name has to come from the graph rather than from whatever the
+# client typed. Same contract as build_uid_query: unknown uids come back as
+# nothing, because a stale pointer is not a bad request.
+
+
+def build_venues_by_uid(uids: list[str]) -> tuple[str, dict]:
+    """Venues for a known set of uids - a lookup, not a search."""
+    cypher = (
+        "MATCH (v:Venue)-[:LOCATED_IN]->(c:City)\n"
+        "WHERE v.uid IN $uids\n"
+        "RETURN v.uid AS uid, v.name AS name, v.venue_type AS venue_type,\n"
+        "       v.address AS address, c.name AS city"
+    )
+    return cypher, {"uids": uids}
+
+
+def build_artists_by_uid(uids: list[str]) -> tuple[str, dict]:
+    """Artists for a known set of uids."""
+    cypher = (
+        "MATCH (a:Artist)\n"
+        "WHERE a.uid IN $uids\n"
+        "OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)\n"
+        "RETURN a.uid AS uid, a.name AS name,\n"
+        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres"
+    )
+    return cypher, {"uids": uids}
+
+
 # A saved list is fetched by uid in one call. The cap is protocol, not tuning:
 # it bounds the query string the gateway forwards and the rows one request can
 # pull. Anything longer is the client's to page through.
