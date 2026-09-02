@@ -21,12 +21,14 @@ const data = vi.hoisted(() => ({
   claims: [] as unknown[],
   roster: [] as unknown[],
   hits: [] as unknown[],
+  events: [] as unknown[],
   promoter: null as unknown,
 }));
 
 vi.mock("@/api/organizations", () => ({
   useMyOrgs: () => ({ data: data.orgs, isLoading: false }),
   useOrgClaims: () => ({ data: data.claims }),
+  useOrgEvents: () => ({ data: data.events }),
   useRoster: () => ({ data: data.roster }),
   useEntitySearch: () => ({ data: data.hits, isFetching: false }),
   useCreateOrg: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -62,6 +64,7 @@ beforeEach(() => {
   data.claims = [];
   data.roster = [];
   data.hits = [];
+  data.events = [];
   data.promoter = null;
 });
 
@@ -91,6 +94,56 @@ describe("/pro/org", () => {
     await userEvent.clear(field);
     expect(field).toHaveValue("");
     expect(screen.getByRole("button", { name: en.org.create })).toBeDisabled();
+  });
+
+  it("keeps published events out of the list you manage", () => {
+    // The two are different relationships: a venue is claimed and reviewed, an
+    // event is yours because you published it. Rendering them in one list put a
+    // "stop managing" button next to an event, which reads as unpublishing it.
+    data.orgs = [OWNED];
+    data.claims = [
+      {
+        id: "c1",
+        org_id: "org-1",
+        entity_type: "venue",
+        entity_uid: "v1",
+        entity_name: "Razzmatazz",
+        basis: "claimed",
+        verified: true,
+        status: "active",
+        created_at: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "c2",
+        org_id: "org-1",
+        entity_type: "event",
+        entity_uid: "e1",
+        entity_name: "Techno Night",
+        basis: "created",
+        verified: true,
+        status: "active",
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ];
+    data.events = [
+      {
+        uid: "e1",
+        name: "Techno Night",
+        start_at: "2026-10-01T22:00:00+02:00",
+        venue: "Razzmatazz",
+        city: "Barcelona",
+        source: "pro_submission",
+        artists: [],
+        genres: [],
+      },
+    ];
+    renderPage();
+
+    // The event is on the page as a card, and exactly once - not also as a row
+    // in the manage list, where it would carry a withdraw button.
+    expect(screen.getByText("Techno Night")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: en.org.withdraw })).toHaveLength(1);
+    expect(screen.getByText(en.org.eventsTitle)).toBeInTheDocument();
   });
 
   it("shows the org, its claims and the picker to an owner", () => {

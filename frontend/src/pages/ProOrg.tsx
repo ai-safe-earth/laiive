@@ -9,6 +9,7 @@ import {
   useEntitySearch,
   useMyOrgs,
   useOrgClaims,
+  useOrgEvents,
   useRoster,
   useUpdateOrg,
   useWithdrawClaim,
@@ -18,10 +19,12 @@ import {
 } from "@/api/organizations";
 import { usePromoterProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
+import { claimTarget } from "@/auth/claimTarget";
 // Label, Badge and Panel are pro-palette primitives that happen to live under
 // admin/: they are built on pro.* and status.* tokens, not on anything
 // admin-specific. Reused rather than copied.
 import { Badge, Label, Panel } from "@/admin/ui";
+import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/Button";
@@ -91,6 +94,7 @@ export default function ProOrg() {
               </div>
             )}
             <OrgDetails org={org} mayEdit={mayEdit} />
+            <PublishedEvents org={org} />
             <Claims org={org} mayEdit={mayEdit} />
             <ClaimSearch org={org} mayEdit={mayEdit} />
             <Roster org={org} />
@@ -102,7 +106,7 @@ export default function ProOrg() {
   );
 }
 
-/** The empty state: a promoter who belongs to no organization yet. */
+/** The empty state: a pro account that belongs to no organization yet. */
 function CreateOrg() {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -244,19 +248,77 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
   );
 }
 
+/**
+ * The events this organisation published, as real cards.
+ *
+ * Ownership of an event is recorded by the publish route, never by the picker
+ * below — you own what you publish, so there is nothing here to add or
+ * withdraw. That is why this is its own panel: mixing it into the list of
+ * venues and artists put a "stop managing" button next to an event, which read
+ * as a way to unpublish it.
+ *
+ * The rows carry only a denormalized name, so the uids are exchanged for cards
+ * through the same read path /saved uses.
+ */
+function PublishedEvents({ org }: { org: OrgMembership }) {
+  const { language, t } = useTranslation();
+  const { user, role } = useAuth();
+  const { data: claims } = useOrgClaims(org.id);
+  const uids = (claims ?? [])
+    .filter((claim) => claim.entity_type === "event")
+    .map((claim) => claim.entity_uid);
+
+  const { data: cards } = useOrgEvents(org.id, uids);
+
+  // Soonest first: a promoter opens this to check what is coming, and the graph
+  // answers in the order the uids were asked for, which is claim order. A card
+  // with no date sorts to the front rather than throwing.
+  const sorted = [...(cards ?? [])].sort(
+    (a, b) => new Date(a.start_at ?? 0).getTime() - new Date(b.start_at ?? 0).getTime(),
+  );
+
+  return (
+    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
+      <Label>{t.org.eventsTitle}</Label>
+      {!uids.length ? (
+        <p className="text-sm text-pro-muted">{t.org.eventsNone}</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {sorted.map((card) => (
+            <li key={card.uid}>
+              {/* No save control: this is the promoter's own listing, not a
+                  night they are deciding whether to attend. `claimTo` is inert
+                  for a pro_submission card - the invitation only renders for a
+                  listing that came from the web sweep. */}
+              <EventCardView
+                card={card}
+                language={language}
+                claimTo={claimTarget(Boolean(user), role)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
   const { t } = useTranslation();
   const { data: claims } = useOrgClaims(org.id);
   const withdraw = useWithdrawClaim(org.id);
+  // Events live in their own panel above: they arrive by publishing, and the
+  // withdraw button below does not apply to them.
+  const managed = (claims ?? []).filter((claim) => claim.entity_type !== "event");
 
   return (
     <Panel className="flex flex-col gap-3 px-5 py-[18px]">
       <Label>{t.org.claimsTitle}</Label>
-      {!claims?.length ? (
+      {!managed.length ? (
         <p className="text-sm text-pro-muted">{t.org.claimsNone}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {claims.map((claim) => (
+          {managed.map((claim) => (
             <li
               key={claim.id}
               className="flex flex-wrap items-center gap-2 rounded-[14px] bg-pro-elevated px-3 py-2.5"
