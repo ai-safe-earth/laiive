@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProOrg from "./ProOrg";
@@ -79,6 +80,17 @@ describe("/pro/org", () => {
     data.promoter = { org_name: "Sala Apolo", managed_venues: [], managed_artists: [] };
     renderPage();
     expect(screen.getByPlaceholderText(en.org.namePlaceholder)).toHaveValue("Sala Apolo");
+  });
+
+  it("lets the seeded name be cleared", async () => {
+    // The seed used to be a fallback for an empty box, so deleting the last
+    // character put it straight back and the field could not be emptied.
+    data.promoter = { org_name: "Sala Apolo", managed_venues: [], managed_artists: [] };
+    renderPage();
+    const field = screen.getByPlaceholderText(en.org.namePlaceholder);
+    await userEvent.clear(field);
+    expect(field).toHaveValue("");
+    expect(screen.getByRole("button", { name: en.org.create })).toBeDisabled();
   });
 
   it("shows the org, its claims and the picker to an owner", () => {

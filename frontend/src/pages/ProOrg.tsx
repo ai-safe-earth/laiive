@@ -112,11 +112,16 @@ function CreateOrg() {
   const [kind, setKind] = useState<OrgKind>("promoter");
   // Seeded from the old free-text profile so the first org is one keystroke,
   // not a retype. It is a default, not a migration: the name is still theirs.
-  const [name, setName] = useState("");
+  //
+  // `null` means untouched, and it is the whole reason this is not a plain
+  // string. Falling back whenever the box read empty made the seed reappear on
+  // deleting the last character, so the name could not be cleared at all.
+  const [name, setName] = useState<string | null>(null);
   const seeded = promoter?.org_name ?? "";
+  const shown = name ?? seeded;
 
   const submit = async () => {
-    const displayName = (name || seeded).trim();
+    const displayName = shown.trim();
     if (!displayName) return;
     try {
       await create.mutateAsync({ kind, display_name: displayName });
@@ -153,7 +158,7 @@ function CreateOrg() {
       <div className="flex flex-col gap-1.5">
         <Label>{t.org.name}</Label>
         <Input
-          value={name || seeded}
+          value={shown}
           onChange={(event) => setName(event.target.value)}
           placeholder={t.org.namePlaceholder}
           className="border-pro-border bg-pro-control text-pro-fg placeholder:text-pro-dim"
@@ -164,7 +169,7 @@ function CreateOrg() {
         variant="cream"
         className="self-start"
         onClick={() => void submit()}
-        disabled={create.isPending || !(name || seeded).trim()}
+        disabled={create.isPending || !shown.trim()}
       >
         {t.org.create}
       </Button>
