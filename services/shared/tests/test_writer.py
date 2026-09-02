@@ -38,9 +38,12 @@ class FakeSession:
         self.queries.append((query, params))
         if "MATCH (v:Venue {uid: $uid})" in query:
             return FakeResult(single=self._venue_node)
-        if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
+        # Matched on the columns rather than on the whole RETURN line: adding
+        # one to either query used to slip past these branches silently, and
+        # the fake then answered the write with an empty row.
+        if "e.owner_id AS owner_id" in query:  # the dedup probe
             return FakeResult(single=self._dedup_hit)
-        if "CREATE (e:Event" in query:
+        if "AS artist_uids" in query:  # the write, creating or adopting
             return FakeResult(
                 single={
                     "uid": params["event_uid"],
@@ -171,12 +174,47 @@ def test_unparseable_date_is_invalid():
     assert result.missing == ["start_at"]
 
 
-def test_duplicate_probe_short_circuits():
-    session = FakeSession(dedup_hit={"uid": "existing-uid", "name": "Ana Beck Quartet"})
+def test_duplicate_probe_short_circuits_on_somebody_elses_event():
+    session = FakeSession(
+        dedup_hit={"uid": "existing-uid", "name": "Ana Beck Quartet", "owner_id": "u-9"}
+    )
     result = write_event(session, DRAFT.model_copy(), source="pro_submission")
     assert result.status == "duplicate"
     assert result.uid == "existing-uid"
     assert len(session.queries) == 1  # nothing written
+
+
+def test_a_second_sweep_does_not_adopt():
+    # Adoption is a promoter taking over a guess, never the sweep overwriting
+    # itself: two discoveries of the same night stay one event.
+    session = FakeSession(
+        dedup_hit={"uid": "existing-uid", "name": "Jazz Night", "owner_id": None}
+    )
+    result = write_event(session, SWEPT.model_copy(), source="admin_search")
+    assert result.status == "duplicate"
+    assert len(session.queries) == 1
+
+
+def test_promoter_adopts_an_unowned_listing_in_place():
+    # The uid survives: saved lists, ownership rows and embeddings all point at
+    # it, so the sweep's guess is taken over rather than replaced beside it.
+    session = FakeSession(
+        dedup_hit={"uid": "existing-uid", "name": "Ana Beck Quartet", "owner_id": None}
+    )
+    result = write_event(
+        session, DRAFT.model_copy(), source="pro_submission", owner_id="u-1"
+    )
+    assert result.status == "adopted"
+    assert result.uid == "existing-uid"
+
+    write_query, write_params = session.queries[-1]
+    assert "MATCH (e:Event {uid: $event_uid})" in write_query
+    assert "CREATE (e:Event" not in write_query
+    assert write_params["event_uid"] == "existing-uid"
+    assert write_params["owner_id"] == "u-1"
+    assert write_params["source"] == "pro_submission"
+    # status is not in the SET list: re-publishing must not un-cancel a night.
+    assert "e.status" not in write_query
 
 
 def test_created_event_carries_identity_and_provenance():

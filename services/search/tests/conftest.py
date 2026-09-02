@@ -235,11 +235,16 @@ class FakeNeo4jSession:
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        # Two probes ask this, and they are not the same query: the sweep's own
+        # advisory check (agent/graph.py) and the writer's dedup, which also
+        # reads owner_id to decide adoption.
         if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
+            return FakeNeo4jResult(single=self.dedup_hit)
+        if "e.owner_id AS owner_id" in query:
             return FakeNeo4jResult(single=self.dedup_hit)
         if "db.index.vector.queryNodes" in query:
             return FakeNeo4jResult(single=self.vector_hit)
-        if "CREATE (e:Event" in query:
+        if "AS artist_uids" in query:  # the write, creating or adopting
             return FakeNeo4jResult(
                 single={
                     "uid": params["event_uid"],
