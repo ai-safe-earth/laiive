@@ -252,6 +252,10 @@ class FakeNeo4jSession:
                     "venue": params["venue"],
                     "city": params["city"],
                     "venue_uid": params["venue_uid"],
+                    # Mirrors the real RETURN: an artist that already existed
+                    # keeps its own uid, so the writer reads creation off the
+                    # overlap with the uids this write proposed.
+                    "artist_uids": [a["uid"] for a in params["artists"]],
                 }
             )
         if "RETURN 1" in query:
