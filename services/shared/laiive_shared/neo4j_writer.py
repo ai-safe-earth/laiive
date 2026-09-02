@@ -65,7 +65,7 @@ class _VenueIdentity:
 
 
 class WriteResult(BaseModel):
-    status: Literal["created", "duplicate", "invalid", "error"]
+    status: Literal["created", "adopted", "duplicate", "invalid", "error"]
     uid: str | None = None
     name: str | None = None
     venue: str | None = None
@@ -253,26 +253,47 @@ def write_event(
     city = ident.city
     warnings: list[str] = []
 
-    # ── Dedup probe: same name + calendar day + venue → refuse to duplicate ──
+    # ── Dedup probe: same name + calendar day + venue ────────────────────────
+    #
+    # A hit is not automatically a refusal. The sweep writes events nobody has
+    # confirmed, and the card says so in as many words ("The promoter has not
+    # confirmed it"); refusing the promoter who then comes to publish that very
+    # night contradicts the promise, and leaves the guess standing as the only
+    # version. So an unowned listing is *adopted* by the promoter rather than
+    # duplicated beside it or replaced under it.
     existing = session.run(
         """
         MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
         WHERE date(e.start_at) = date(datetime($start_at))
-        RETURN e.uid AS uid, e.name AS name LIMIT 1
+        RETURN e.uid AS uid, e.name AS name, e.owner_id AS owner_id LIMIT 1
         """,
         name_norm=norm(name),
         venue_norm=ident.name_norm,
         start_at=start_at.isoformat(),
     ).single()
+
+    # Adoption keeps the uid. Saved lists, entity_ownership rows, embeddings and
+    # the search report that discovered it all point at it; deleting the node
+    # and writing a fresh one turns every one of those into a dangling pointer,
+    # and someone's saved card silently disappears. Archiving does the same.
+    adopting = False
     if existing:
-        return WriteResult(
-            status="duplicate",
-            uid=existing["uid"],
-            name=existing["name"],
-            venue=draft.venue,
-            city=city,
-            message="An event with the same name, date, and venue already exists.",
-        )
+        unowned = existing["owner_id"] is None
+        if source == "pro_submission" and unowned:
+            adopting = True
+        else:
+            return WriteResult(
+                status="duplicate",
+                uid=existing["uid"],
+                name=existing["name"],
+                venue=draft.venue,
+                city=city,
+                message=(
+                    "That event is already published by its promoter."
+                    if not unowned
+                    else "An event with the same name, date, and venue already exists."
+                ),
+            )
 
     # ── Geocode city, then venue (D12) ───────────────────────────────────────
     # City first: it doubles as the plausibility reference for the venue, so a
@@ -347,7 +368,8 @@ def write_event(
     if not country_code:
         warnings.append("Could not resolve the city's country code.")
 
-    event_uid = str(uuid.uuid4())
+    # On adoption this is the node being taken over, not a new one.
+    event_uid = existing["uid"] if adopting else str(uuid.uuid4())
     genre = genre_slug(draft.genre) if draft.genre else ""
     # Hoisted so the embedding backfill below can be scoped to what this write
     # touched. MERGE means a pre-existing artist keeps its own uid and these are
@@ -391,10 +413,46 @@ def write_event(
                           v.created_at = datetime()
         """
     )
-    try:
-        record = session.run(
-            venue_clause
-            + """
+    # Only the head differs between creating and adopting: the genre, the
+    # artists and the read-back below are the same work either way, and a second
+    # copy of them is a second place for the two to drift apart.
+    #
+    # What adoption does NOT set: `uid` (the match key), `created_at` (the node
+    # was created when it was created) and `status` — re-publishing must not
+    # quietly un-cancel a night that was called off.
+    #
+    # The promoter wins on every fact the card promises them for ("the times,
+    # the price and the door are as they entered them"). Where empty means "not
+    # provided" rather than "delete this", the existing value survives: a
+    # promoter who omits the ticket link should not wipe the one the sweep
+    # found, and keeping source_url is also what lets the search learning still
+    # credit the domain that turned up a night a promoter later confirmed.
+    event_clause = (
+        """
+            // WITH, or the planner refuses: a MATCH may not directly follow the
+            // updating clause the venue block ends on. The create path below
+            // needs none because CREATE after SET is two updates in a row.
+            WITH v, c
+            MATCH (e:Event {uid: $event_uid})
+            SET e.name = $name, e.name_norm = $name_norm,
+                e.start_at = datetime($start_at),
+                e.start_time_known = $start_time_known, e.timezone = $timezone,
+                e.price_min = coalesce($price_min, e.price_min),
+                e.price_max = coalesce($price_max, e.price_max),
+                e.price_currency = $price_currency,
+                e.description = CASE WHEN $description <> ''
+                    THEN $description ELSE e.description END,
+                e.ticket_url = CASE WHEN $ticket_url <> ''
+                    THEN $ticket_url ELSE e.ticket_url END,
+                e.source_url = CASE WHEN $source_url <> ''
+                    THEN $source_url ELSE e.source_url END,
+                e.source_domain = CASE WHEN $source_url <> ''
+                    THEN $source_domain ELSE e.source_domain END,
+                e.source = $source, e.owner_id = $owner_id,
+                e.updated_at = datetime()
+        """
+        if adopting
+        else """
             CREATE (e:Event {
                 uid: $event_uid, name: $name, name_norm: $name_norm,
                 description: $description, start_at: datetime($start_at),
@@ -405,6 +463,13 @@ def write_event(
                 source_url: $source_url, source_domain: $source_domain,
                 created_at: datetime(), updated_at: datetime()
             })
+        """
+    )
+    try:
+        record = session.run(
+            venue_clause
+            + event_clause
+            + """
             MERGE (e)-[:HOSTED_AT]->(v)
 
             FOREACH (_ IN CASE WHEN $genre <> '' THEN [1] ELSE [] END |
@@ -515,7 +580,7 @@ def write_event(
             warnings.append(f"Embeddings not written: {e}")
 
     return WriteResult(
-        status="created",
+        status="adopted" if adopting else "created",
         uid=record["uid"],
         name=record["name"],
         venue=record["venue"],
@@ -524,7 +589,7 @@ def write_event(
         venue_created=record["venue_uid"] == proposed_venue_uid,
         artist_uids_created=artist_uids_created,
         warnings=warnings,
-        message="Event created.",
+        message="Event updated." if adopting else "Event created.",
     )
 
 

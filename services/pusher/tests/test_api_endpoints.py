@@ -330,10 +330,29 @@ class TestValidateEventDraft:
         assert write_params["picked_uid"] == "v-77"
         assert write_params["venue"] == "Quasimodo"
 
-    def test_duplicate_is_409(self, client, mock_neo4j):
-        mock_neo4j.fake_session.dedup_hit = {"uid": "dup-1", "name": "Jazz Night"}
+    def test_somebody_elses_event_is_409(self, client, mock_neo4j):
+        mock_neo4j.fake_session.dedup_hit = {
+            "uid": "dup-1",
+            "name": "Jazz Night",
+            "owner_id": "someone-else",
+        }
         response = client.post("/validate-event", json={"draft": self.DRAFT})
         assert response.status_code == 409
+
+    def test_publishing_over_an_unowned_listing_adopts_it(self, client, mock_neo4j):
+        # The sweep's guess had no promoter behind it. Refusing here left that
+        # guess standing as the only version of a night its own promoter was
+        # trying to correct, so the publish takes the node over instead.
+        mock_neo4j.fake_session.dedup_hit = {
+            "uid": "swept-1",
+            "name": "Jazz Night",
+            "owner_id": None,
+        }
+        response = client.post("/validate-event", json={"draft": self.DRAFT})
+        assert response.status_code == 200
+        # Same uid, so the gateway records ownership against the node people
+        # have already saved.
+        assert response.json()["event_id"] == "swept-1"
 
     def test_free_event_price_zero(self, client, mock_neo4j):
         draft = dict(self.DRAFT, price_min=0.0, price_max=None)

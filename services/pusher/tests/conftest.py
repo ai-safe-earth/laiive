@@ -104,9 +104,11 @@ class FakeNeo4jSession:
         self.queries.append((query, params))
         if "MATCH (v:Venue {uid: $uid})" in query:
             return FakeNeo4jResult(single=self.venue_node)
-        if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
+        # Matched on the columns, not the whole RETURN line: the writer grew
+        # one and these branches stopped matching without saying so.
+        if "e.owner_id AS owner_id" in query:  # the dedup probe
             return FakeNeo4jResult(single=self.dedup_hit)
-        if "CREATE (e:Event" in query:
+        if "AS artist_uids" in query:  # the write, creating or adopting
             return FakeNeo4jResult(
                 single={
                     "uid": params["event_uid"],

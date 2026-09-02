@@ -20,6 +20,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ArtistHit, VenueHit } from "@shared/protocol";
 import { apiFetch } from "./client";
+import { fetchEventsByUid } from "./savedEvents";
 import { supabase } from "@/auth/supabase";
 
 export type OrgKind = "venue" | "artist" | "promoter";
@@ -68,6 +69,7 @@ export interface ClaimState {
 export const orgKeys = {
   mine: (userId: string) => ["organizations", userId] as const,
   claims: (orgId: string) => ["org-claims", orgId] as const,
+  events: (orgId: string, uids: string[]) => ["org-events", orgId, uids] as const,
   roster: (orgId: string) => ["org-roster", orgId] as const,
   entitySearch: (type: EntityType, q: string) => ["entity-search", type, q] as const,
 };
@@ -180,6 +182,22 @@ export function useOrgClaims(orgId: string | undefined) {
       if (error) throw new Error(error.message);
       return (data ?? []) as Claim[];
     },
+  });
+}
+
+/**
+ * Full cards for the events an organisation owns.
+ *
+ * `entity_ownership` denormalizes only a name, which is enough for a review
+ * queue and not enough for a promoter checking their own calendar - a list of
+ * bare titles cannot tell two dates of the same night apart. The uids are
+ * exchanged for cards through the read path /saved already uses.
+ */
+export function useOrgEvents(orgId: string | undefined, uids: string[]) {
+  return useQuery({
+    queryKey: orgKeys.events(orgId ?? "none", uids),
+    enabled: Boolean(orgId) && uids.length > 0,
+    queryFn: () => fetchEventsByUid(uids),
   });
 }
 
