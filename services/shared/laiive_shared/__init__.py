@@ -10,6 +10,7 @@ from .cards import (
     VenueLookupResult,
     missing_required,
 )
+from .checks import Correction, Doubt, check_draft
 from .health import LIVENESS_PATH, READINESS_PATH, register_health
 from .internal_auth import install_internal_auth
 from .language import (
@@ -48,6 +49,9 @@ __all__ = [
     "VenueLookupResult",
     "REQUIRED_DRAFT_FIELDS",
     "missing_required",
+    "Correction",
+    "Doubt",
+    "check_draft",
     "register_health",
     "install_internal_auth",
     "LIVENESS_PATH",
