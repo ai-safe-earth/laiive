@@ -17,8 +17,9 @@ tests stay offline, the same way `write_event` takes one.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date, datetime
+
+from pydantic import BaseModel
 
 from .normalize import norm
 
@@ -54,9 +55,13 @@ _WEEKDAY_EN = (
 )
 
 
-@dataclass(frozen=True)
-class Correction:
-    """A value this layer changed, and what it was before."""
+class Correction(BaseModel):
+    """A value this layer changed, and what it was before.
+
+    A model rather than a plain dataclass because it rides to the browser on
+    `form.extracted`: the form shows what was altered, so a correction is never
+    a silent edit.
+    """
 
     field: str
     before: str
@@ -64,8 +69,7 @@ class Correction:
     why: str
 
 
-@dataclass(frozen=True)
-class Doubt:
+class Doubt(BaseModel):
     """Something only the promoter can settle. `question` is asked verbatim."""
 
     field: str
@@ -208,7 +212,9 @@ def check_draft(
         before = getattr(draft, field, None) or ""
         if after and after != before:
             setattr(draft, field, after)
-            corrections.append(Correction(field, before, after, why))
+            corrections.append(
+                Correction(field=field, before=before, after=after, why=why)
+            )
 
     # ── the date the promoter wrote, against the date that was parsed ────────
     if draft.start_at:

@@ -164,6 +164,10 @@ export interface Translations {
     stillNeeded: (n: number) => string;
     labels: Record<DraftFieldKey, string>;
     missingPlaceholder: string;
+    /** Heading over the list of values the correction layer changed. */
+    correctedTitle: string;
+    /** Marks a field the chat asked a question about. */
+    checkThis: string;
     ticketNoteAria: string;
     ticketNote: string;
     ticketInvalid: string;
@@ -402,6 +406,8 @@ export const translations: Record<Language, Translations> = {
         description: "description",
       },
       missingPlaceholder: "the assistant could not find this",
+      correctedTitle: "corrected — change anything that looks wrong",
+      checkThis: "check this",
       ticketNoteAria: "about the ticket link",
       ticketNote:
         "laiive does not sell tickets yet — this link sends people straight to wherever you already sell them. Ticketing here is on its way.",
@@ -642,6 +648,8 @@ export const translations: Record<Language, Translations> = {
         description: "descripción",
       },
       missingPlaceholder: "el asistente no pudo encontrarlo",
+      correctedTitle: "corregido — cambia lo que no cuadre",
+      checkThis: "revisa esto",
       ticketNoteAria: "sobre el enlace de entradas",
       ticketNote:
         "laiive todavía no vende entradas — este enlace lleva directamente a donde ya las vendes. La venta aquí llegará.",
@@ -882,6 +890,8 @@ export const translations: Record<Language, Translations> = {
         description: "descrizione",
       },
       missingPlaceholder: "l'assistente non è riuscito a trovarlo",
+      correctedTitle: "corretto — cambia quello che non torna",
+      checkThis: "controlla questo",
       ticketNoteAria: "informazioni sul link dei biglietti",
       ticketNote:
         "laiive non vende ancora biglietti — questo link porta direttamente dove li vendi già. La vendita qui arriverà.",
@@ -1122,6 +1132,8 @@ export const translations: Record<Language, Translations> = {
         description: "descripció",
       },
       missingPlaceholder: "l'assistent no ho ha pogut trobar",
+      correctedTitle: "corregit — canvia el que no quadri",
+      checkThis: "revisa això",
       ticketNoteAria: "sobre l'enllaç d'entrades",
       ticketNote:
         "laiive encara no ven entrades — aquest enllaç porta directament on ja les vens. La venda aquí arribarà.",

@@ -10,6 +10,7 @@ module-level client gets added to this list or tests hit the real API):
 """
 
 import json
+from datetime import date, timedelta
 import os
 from unittest.mock import MagicMock, patch
 
@@ -22,10 +23,15 @@ import pytest
 # test_internal_auth.py.
 os.environ["INTERNAL_API_KEY"] = ""
 
+# Relative, not a literal. A hard-coded date silently rots into the past, and
+# the correction layer then reads every fixture as "did you mean a later date?"
+# - which is the check working and the suite lying.
+SOON = (date.today() + timedelta(days=90)).isoformat()
+
 EXTRACTION_JSON = json.dumps(
     {
         "artists": ["Test Artist"],
-        "start_at": "2026-04-01T21:00:00",
+        "start_at": f"{SOON}T21:00:00",
         "venue": "Test Venue",
         "address": "Kantstrasse 12a",
         "city": "Berlin",

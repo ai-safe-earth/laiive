@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from laiive_shared import cards, protocol
+from laiive_shared import cards, checks, protocol
 
 TS_SOURCE = (Path(__file__).parent.parent / "ts" / "protocol.ts").read_text(
     encoding="utf-8"
@@ -14,6 +14,8 @@ TS_SOURCE = (Path(__file__).parent.parent / "ts" / "protocol.ts").read_text(
 MIRRORED_MODELS = [
     cards.EventCard,
     cards.EventDraft,
+    checks.Correction,
+    checks.Doubt,
     cards.VenueHit,
     cards.VenueLookupResult,
     cards.ArtistHit,
