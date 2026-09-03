@@ -1,6 +1,7 @@
 """Conversation + converters unit tests (all OpenAI calls mocked)."""
 
 import json
+from datetime import date, timedelta
 
 from agent.conversation import (
     MAX_EVENTS_PER_TURN,
@@ -26,9 +27,14 @@ def set_extraction(mock_openai, payload: dict | list | str):
     ].message.content = content
 
 
+# Relative, not a literal: a hard-coded date rots into the past and the
+# correction layer then reads every draft built from it as "did you mean a
+# later date?" — the check working and the suite lying.
+SOON = (date.today() + timedelta(days=90)).isoformat()
+
 COMPLETE = {
     "artists": ["Test Artist"],
-    "start_at": "2026-04-01T21:00:00",
+    "start_at": f"{SOON}T21:00:00",
     "venue": "Test Venue",
     "address": "Kantstrasse 12a",
     "city": "Berlin",
@@ -98,6 +104,87 @@ class TestMultiEventExtraction:
     def test_unparseable_response_gives_no_drafts(self, mock_openai):
         set_extraction(mock_openai, "not json")
         assert extract_drafts_from_text("gibberish") == []
+
+
+class TestTheCorrectionLayerInATurn:
+    """The layer is wired in two places and both can silently do nothing."""
+
+    def test_a_weekday_that_is_not_that_date_holds_the_form_back(self, mock_openai):
+        # 2099-11-14 is a Saturday. The flyer says Wednesday. Neither reading
+        # can be trusted over the other, so the turn asks instead of publishing.
+        set_extraction(
+            mock_openai,
+            dict(
+                COMPLETE,
+                start_at="2099-11-14T21:00:00",
+                start_at_claim="Wednesday 14 November",
+            ),
+        )
+        turn = process_turn([{"role": "user", "content": "wed 14 nov"}])
+        assert turn.show_form is False
+        assert [d.field for d in turn.doubts[0]] == ["start_at"]
+        # Nothing was missing — the doubt alone held it back.
+        assert turn.missing == [[]]
+
+    def test_a_weekday_that_agrees_goes_straight_through(self, mock_openai):
+        set_extraction(
+            mock_openai,
+            dict(
+                COMPLETE,
+                start_at="2099-11-14T21:00:00",
+                start_at_claim="Saturday 14 November",
+            ),
+        )
+        turn = process_turn([{"role": "user", "content": "sat 14 nov"}])
+        assert turn.show_form is True
+        assert turn.doubts == [[]]
+
+    def test_an_unsettled_doubt_stops_asking_and_shows_the_form(self, mock_openai):
+        # A promoter who cannot settle it must still reach the form; being held
+        # in a loop is worse than publishing a date they can see and edit.
+        set_extraction(
+            mock_openai,
+            dict(
+                COMPLETE,
+                start_at="2099-11-14T21:00:00",
+                start_at_claim="Wednesday 14 November",
+            ),
+        )
+        history = [
+            {"role": "user", "content": "wed 14 nov"},
+            {"role": "assistant", "content": "which is right?"},
+            {"role": "user", "content": "wed 14 nov"},
+            {"role": "assistant", "content": "still unsure — which is right?"},
+            {"role": "user", "content": "wed 14 nov"},
+        ]
+        turn = process_turn(history)
+        assert turn.show_form is True
+        # …and the doubt still rides along, so the form can flag the field.
+        assert [d.field for d in turn.doubts[0]] == ["start_at"]
+
+    def test_corrections_are_applied_to_the_draft_the_form_renders(self, mock_openai):
+        set_extraction(mock_openai, dict(COMPLETE, venue="sala apolo"))
+        turn = process_turn([{"role": "user", "content": "at sala apolo"}])
+        assert turn.drafts[0].venue == "Sala Apolo"
+        assert [c.field for c in turn.corrections[0]] == ["venue"]
+
+    def test_no_geocoder_means_no_city_check(self, mock_openai):
+        # The default. A turn that cannot reach Nominatim still works.
+        set_extraction(mock_openai, dict(COMPLETE, city="Lanpetozia"))
+        turn = process_turn([{"role": "user", "content": "in Lanpetozia"}])
+        assert not [d for d in turn.doubts[0] if d.field == "city"]
+
+    def test_an_unknown_city_is_asked_about_when_a_geocoder_is_given(self, mock_openai):
+        class NoSuchPlace:
+            def geocode(self, query):
+                return None
+
+        set_extraction(mock_openai, dict(COMPLETE, city="Lanpetozia"))
+        turn = process_turn(
+            [{"role": "user", "content": "in Lanpetozia"}], None, NoSuchPlace()
+        )
+        assert [d.field for d in turn.doubts[0]] == ["city"]
+        assert turn.show_form is False
 
 
 class TestProcessTurn:

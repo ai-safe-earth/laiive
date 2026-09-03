@@ -178,7 +178,7 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
     """
     try:
         yield sse_frame(Status(state="extracting"))
-        turn = await asyncio.to_thread(process_turn, messages, walk)
+        turn = await asyncio.to_thread(process_turn, messages, walk, graph._geocoder)
         if turn.walk:
             total = len(turn.drafts)
             yield sse_frame(
@@ -193,6 +193,8 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
                 FormExtracted(
                     draft=turn.drafts[turn.cursor],
                     missing=turn.missing[turn.cursor],
+                    corrections=turn.corrections[turn.cursor],
+                    doubts=turn.doubts[turn.cursor],
                     index=turn.cursor,
                     total=total,
                 )
@@ -200,7 +202,12 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
         elif turn.show_form:
             yield sse_frame(
                 FormExtracted(
-                    draft=turn.drafts[0], missing=turn.missing[0], index=0, total=1
+                    draft=turn.drafts[0],
+                    missing=turn.missing[0],
+                    corrections=turn.corrections[0],
+                    doubts=turn.doubts[0],
+                    index=0,
+                    total=1,
                 )
             )
         yield sse_frame(MessageDelta(text=turn.reply))
