@@ -1,4 +1,4 @@
-import type { EventDraft, WalkState } from "@shared/protocol";
+import type { Correction, EventDraft, WalkState } from "@shared/protocol";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -33,6 +33,11 @@ interface StoredSession {
   walk: WalkState | null;
   draft: EventDraft | null;
   missing: string[];
+  // Restored with the rest: a promoter who reloads mid-submission would
+  // otherwise see the corrected values with nothing saying they were changed,
+  // which is the silent edit the whole layer exists to avoid.
+  corrections: Correction[];
+  doubted: string[];
 }
 
 function loadSession(): StoredSession | null {
@@ -64,6 +69,12 @@ export default function ProSubmit() {
   const [walk, setWalk] = useState<WalkState | null>(restored?.walk ?? null);
   const [draft, setDraft] = useState<EventDraft | null>(restored?.draft ?? null);
   const [missing, setMissing] = useState<string[]>(restored?.missing ?? []);
+  const [corrections, setCorrections] = useState<Correction[]>(
+    restored?.corrections ?? [],
+  );
+  // Field names only — the questions themselves are already in the chat, asked
+  // in the promoter's own language. The form just marks where to look.
+  const [doubted, setDoubted] = useState<string[]>(restored?.doubted ?? []);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // `busy` covers the whole turn, ingest included; `streaming` only the part a
@@ -82,10 +93,17 @@ export default function ProSubmit() {
     if (messages.length === 0 && !walk && !draft) {
       sessionStorage.removeItem(STORAGE_KEY);
     } else {
-      const session: StoredSession = { messages, walk, draft, missing };
+      const session: StoredSession = {
+        messages,
+        walk,
+        draft,
+        missing,
+        corrections,
+        doubted,
+      };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     }
-  }, [messages, walk, draft, missing]);
+  }, [messages, walk, draft, missing, corrections, doubted]);
 
   if (isLoading) return null;
   if (!user || (role !== "pro" && role !== "admin")) {
@@ -136,9 +154,11 @@ export default function ProSubmit() {
           onStatus: (state) =>
             setStatus(state === "extracting" ? t.pro.statusExtracting : state),
           onWalk: (state) => setWalk(state),
-          onForm: (extracted, stillMissing) => {
-            setDraft(extracted);
-            setMissing(stillMissing);
+          onForm: (form) => {
+            setDraft(form.draft);
+            setMissing(form.missing);
+            setCorrections(form.corrections);
+            setDoubted(form.doubts.map((d) => d.field));
             setStatus(null);
           },
           onDelta: (chunk) => {
@@ -312,7 +332,14 @@ export default function ProSubmit() {
                   {t.pro.eventOf(walk.cursor + 1, walk.total)}
                 </span>
               )}
-              <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
+              <EventForm
+                draft={draft}
+                missing={missing}
+                corrections={corrections}
+                doubted={doubted}
+                onSave={publish}
+                saving={saving}
+              />
             </div>
           )}
           <div ref={bottomRef} />

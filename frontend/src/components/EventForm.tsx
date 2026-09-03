@@ -1,4 +1,4 @@
-import type { EventDraft, VenueHit } from "@shared/protocol";
+import type { Correction, EventDraft, VenueHit } from "@shared/protocol";
 import { useEffect, useRef, useState } from "react";
 import { foldName, useVenueLookup } from "@/api/lookup";
 import { Icon } from "@/components/Icon";
@@ -111,11 +111,22 @@ function FieldLabel({ children, required, missing }: {
 export function EventForm({
   draft,
   missing,
+  corrections = [],
+  doubted = [],
   onSave,
   saving,
 }: {
   draft: EventDraft;
   missing: string[];
+  /**
+   * Values the correction layer already changed on this draft. Listed above the
+   * fields rather than applied invisibly: a correction nobody is told about is
+   * an edit made on the promoter's behalf, and this form is the step where they
+   * get to disagree with it.
+   */
+  corrections?: Correction[];
+  /** Fields carrying a question the chat asked. Marked, never blocked. */
+  doubted?: string[];
   /** The second argument is the picked graph venue's uid, when there is one. */
   onSave: (draft: EventDraft, venueUid: string | null) => void;
   saving: boolean;
@@ -231,6 +242,7 @@ export function EventForm({
   }) => {
           const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
           const wasMissing = missing.includes(key);
+          const isDoubted = doubted.includes(key);
           const required = (REQUIRED as readonly string[]).includes(key);
           const isTicket = key === "ticket_url";
           return (
@@ -244,6 +256,13 @@ export function EventForm({
                     {t.form.labels[key]}
                   </FieldLabel>
                 </label>
+                {isDoubted && (
+                  // The question itself was asked in the chat, in their own
+                  // language; this only says which field it was about.
+                  <span className="font-mono text-2xs uppercase tracking-[0.11em] text-status-waiting">
+                    {t.form.checkThis}
+                  </span>
+                )}
                 {isTicket && (
                   <button
                     type="button"
@@ -267,6 +286,7 @@ export function EventForm({
                 className={cn(
                   FIELD,
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
+                  !isMissing && isDoubted && "border-status-waiting/60",
                 )}
               />
               {isTicket && showTicketNote && (
@@ -310,6 +330,34 @@ export function EventForm({
         )}
       </div>
       <div className="mb-[18px] h-px bg-hairline/[0.08]" />
+
+      {/* What was changed on the way here, and what it was before. Shown above
+          the fields rather than beside them: the promoter is about to read the
+          whole form anyway, and a per-field marker would say something was
+          altered without saying what it used to be — which is the one fact
+          needed to disagree with it. */}
+      {corrections.length > 0 && (
+        <div className="mb-[18px] rounded-[14px] border border-hairline/[0.08] bg-muted/[0.04] px-4 py-3">
+          <p className="font-mono text-2xs uppercase tracking-[0.11em] text-muted-foreground">
+            {t.form.correctedTitle}
+          </p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {corrections.map((correction) => (
+              <li key={correction.field} className="text-sm text-card-foreground">
+                <span className="text-muted-foreground">
+                  {t.form.labels[correction.field as keyof typeof t.form.labels] ??
+                    correction.field}
+                  {": "}
+                </span>
+                <span className="line-through opacity-60">{correction.before}</span>
+                {" → "}
+                <span>{correction.after}</span>
+                <span className="text-muted-foreground"> ({correction.why})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Artists were a comma-separated text field, which could not be typed
           into: every keystroke split on "," and trimmed, so a space was eaten
