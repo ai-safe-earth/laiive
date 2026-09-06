@@ -5,19 +5,21 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import {
   useCreateClaim,
-  useCreateOrg,
   useEntitySearch,
   useMyOrgs,
   useOrgClaims,
   useOrgEvents,
   useRoster,
+  useSetRelation,
   useUpdateOrg,
   useWithdrawClaim,
   type Claim,
+  type MemberRelation,
   type OrgKind,
   type OrgMembership,
+  type OrgRole,
 } from "@/api/organizations";
-import { usePromoterProfile } from "@/api/profile";
+import { useProfile, usePromoterProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
 import { claimTarget } from "@/auth/claimTarget";
 // Label, Badge and Panel are pro-palette primitives that happen to live under
@@ -27,11 +29,11 @@ import { Badge, Label, Panel } from "@/admin/ui";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
+import { OrgIdentity, RelationSelect } from "@/components/OrgIdentity";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
-
-const KINDS: OrgKind[] = ["venue", "artist", "promoter"];
+import { cn } from "@/lib/cn";
 
 /** A claim's two review states. `created` rows are verified by construction. */
 function ClaimBadge({ claim }: { claim: Claim }) {
@@ -77,7 +79,7 @@ export default function ProOrg() {
 
       <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4 sm:p-6">
         {orgsLoading ? null : !org ? (
-          <CreateOrg />
+          <OrgIdentity />
         ) : (
           <>
             {orgs && orgs.length > 1 && (
@@ -106,89 +108,21 @@ export default function ProOrg() {
   );
 }
 
-/** The empty state: a pro account that belongs to no organization yet. */
-function CreateOrg() {
-  const { user } = useAuth();
-  const { t } = useTranslation();
-  const create = useCreateOrg(user?.id);
-  const { data: promoter } = usePromoterProfile(user?.id);
-
-  const [kind, setKind] = useState<OrgKind>("promoter");
-  // Seeded from the old free-text profile so the first org is one keystroke,
-  // not a retype. It is a default, not a migration: the name is still theirs.
-  //
-  // `null` means untouched, and it is the whole reason this is not a plain
-  // string. Falling back whenever the box read empty made the seed reappear on
-  // deleting the last character, so the name could not be cleared at all.
-  const [name, setName] = useState<string | null>(null);
-  const seeded = promoter?.org_name ?? "";
-  const shown = name ?? seeded;
-
-  const submit = async () => {
-    const displayName = shown.trim();
-    if (!displayName) return;
-    try {
-      await create.mutateAsync({ kind, display_name: displayName });
-      toast.success(t.org.saved);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.org.saveFailed);
-    }
-  };
-
-  return (
-    <Panel className="flex flex-col gap-3.5 px-5 py-[18px]">
-      <span className="font-bebas text-xl tracking-[0.03em] text-pro-fg">{t.org.noneTitle}</span>
-      <p className="text-sm leading-[1.5] text-pro-muted">{t.org.noneNote}</p>
-
-      <div className="flex flex-col gap-1.5">
-        <Label>{t.org.kind}</Label>
-        <div className="flex flex-wrap gap-2">
-          {KINDS.map((option) => (
-            <Button
-              key={option}
-              variant={option === kind ? "cyan" : "proNeutral"}
-              onClick={() => setKind(option)}
-            >
-              {option === "venue"
-                ? t.org.kindVenue
-                : option === "artist"
-                  ? t.org.kindArtist
-                  : t.org.kindPromoter}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label>{t.org.name}</Label>
-        <Input
-          value={shown}
-          onChange={(event) => setName(event.target.value)}
-          placeholder={t.org.namePlaceholder}
-          className="border-pro-border bg-pro-control text-pro-fg placeholder:text-pro-dim"
-        />
-      </div>
-
-      <Button
-        variant="cream"
-        className="self-start"
-        onClick={() => void submit()}
-        disabled={create.isPending || !shown.trim()}
-      >
-        {t.org.create}
-      </Button>
-    </Panel>
-  );
-}
-
 function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
   const { user } = useAuth();
   const { t } = useTranslation();
   const update = useUpdateOrg(user?.id);
+  const setRelation = useSetRelation(user?.id);
 
   const [website, setWebsite] = useState(org.website ?? "");
   const [phone, setPhone] = useState(org.phone ?? "");
   const [email, setEmail] = useState(org.contact_email ?? "");
+  const kindLabel: Record<OrgKind, string> = {
+    venue: t.org.kindVenue,
+    artist: t.org.kindArtist,
+    promoter: t.org.kindPromoter,
+    agency: t.org.kindAgency,
+  };
 
   const save = async () => {
     try {
@@ -206,14 +140,25 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
     }
   };
 
+  // Your own seat, saved on change: one field, and a save button under a
+  // select is a second click for nothing.
+  const describeSeat = async (relation: MemberRelation) => {
+    try {
+      await setRelation.mutateAsync({ orgId: org.id, relation });
+      toast.success(t.org.saved);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.org.saveFailed);
+    }
+  };
+
   const field = (label: string, value: string, set: (next: string) => void) => (
     <div className="flex flex-col gap-1.5">
       <Label>{label}</Label>
       <Input
+        tone="pro"
         value={value}
         onChange={(event) => set(event.target.value)}
         disabled={!mayEdit}
-        className="border-pro-border bg-pro-control text-pro-fg placeholder:text-pro-dim"
       />
     </div>
   );
@@ -224,15 +169,28 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
         <span className="font-bebas text-xl tracking-[0.03em] text-pro-fg">
           {org.display_name}
         </span>
-        <Badge>{org.kind}</Badge>
+        <Badge>{kindLabel[org.kind]}</Badge>
       </div>
       {!mayEdit && <p className="text-sm text-pro-muted">{t.org.readOnlyNote}</p>}
+
+      <div className="flex flex-col gap-1.5">
+        <Label>{t.org.yourSeat}</Label>
+        <div className="flex items-center gap-2">
+          <Badge>{seatLabel(org.role, t)}</Badge>
+          <RelationSelect
+            value={org.relation ?? ""}
+            onChange={(relation) => void describeSeat(relation)}
+            disabled={setRelation.isPending}
+          />
+        </div>
+      </div>
 
       <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
         {field(t.org.website, website, setWebsite)}
         {field(t.org.phone, phone, setPhone)}
         {field(t.org.contactEmail, email, setEmail)}
       </div>
+      <p className="text-sm leading-[1.45] text-pro-dim">{t.org.evidenceHint}</p>
 
       {mayEdit && (
         <Button
@@ -412,7 +370,7 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
           onChange={(event) => setDraft(event.target.value)}
           placeholder={t.org.searchPlaceholder}
           aria-label={t.org.searchPlaceholder}
-          className="border-pro-border bg-pro-control text-pro-fg placeholder:text-pro-dim"
+          tone="pro"
         />
         <Button variant="cyan" type="submit" disabled={draft.trim().length < 2}>
           {t.org.legacySearch}
@@ -449,24 +407,47 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
   );
 }
 
+function seatLabel(role: OrgRole, t: ReturnType<typeof useTranslation>["t"]) {
+  return role === "owner" ? t.org.seatOwner : role === "admin" ? t.org.seatAdmin : t.org.seatMember;
+}
+
 function Roster({ org }: { org: OrgMembership }) {
+  const { user } = useAuth();
   const { t } = useTranslation();
   const { data: seats } = useRoster(org.id);
-  const seatLabel = (role: string) =>
-    role === "owner" ? t.org.seatOwner : role === "admin" ? t.org.seatAdmin : t.org.seatMember;
+  const { data: me } = useProfile(user?.id);
+  const relationLabel: Record<MemberRelation, string> = {
+    owner: t.org.relationOwner,
+    employee: t.org.relationEmployee,
+    freelance: t.org.relationFreelance,
+    member: t.org.relationMember,
+  };
 
   return (
     <Panel className="flex flex-col gap-3 px-5 py-[18px]">
       <Label>{t.org.rosterTitle}</Label>
       <ul className="flex flex-col gap-2">
-        {(seats ?? []).map((seat) => (
-          <li key={seat.user_id} className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate font-mono text-sm text-pro-muted">
-              {seat.user_id}
-            </span>
-            <Badge>{seatLabel(seat.role)}</Badge>
-          </li>
-        ))}
+        {(seats ?? []).map((seat) => {
+          // ponytail: only your own seat has a name — reading another member's
+          // profile needs a policy that arrives with invitations.
+          const mine = seat.user_id === user?.id;
+          return (
+            <li key={seat.user_id} className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-sm",
+                  mine ? "text-pro-fg" : "font-mono text-pro-muted",
+                )}
+              >
+                {mine ? me?.display_name || user?.email : seat.user_id}
+              </span>
+              {seat.relation && (
+                <span className="text-sm text-pro-dim">{relationLabel[seat.relation]}</span>
+              )}
+              <Badge>{seatLabel(seat.role, t)}</Badge>
+            </li>
+          );
+        })}
       </ul>
       <p className="text-sm text-pro-muted">{t.org.rosterNote}</p>
     </Panel>

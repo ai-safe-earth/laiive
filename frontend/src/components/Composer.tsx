@@ -63,13 +63,7 @@ export function Composer({
         }
         placeholder={placeholder}
         aria-label={placeholder}
-        // The pro field wears the promoter palette, filled: the consumer
-        // field tokens sit almost exactly on the pro ground, so the bar read
-        // as transparent over the watermark.
-        className={cn(
-          pro &&
-            "border-pro-border bg-pro-control text-pro-fg placeholder:text-pro-dim focus-visible:ring-pro-accent",
-        )}
+        tone={pro ? "pro" : undefined}
       />
       {isStreaming ? (
         // t.chat.stop on both surfaces: there is no pro.stop key, and the word

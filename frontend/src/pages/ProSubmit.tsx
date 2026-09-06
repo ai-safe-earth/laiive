@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import type { ChatMessage } from "@/api/chat";
 import { ApiError } from "@/api/client";
+import { useMyOrgs } from "@/api/organizations";
 import { ingestFile } from "@/api/ingest";
 import { saveEvent, streamSubmission } from "@/api/push";
 import { Composer } from "@/components/Composer";
@@ -11,6 +12,8 @@ import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
+import { OrgIdentity } from "@/components/OrgIdentity";
+import { ProBadge } from "@/components/ProBadge";
 import { ProOnboarding } from "@/components/ProOnboarding";
 import { ProWatermark } from "@/components/ProWatermark";
 import { UserMenu } from "@/components/UserMenu";
@@ -49,18 +52,10 @@ function loadSession(): StoredSession | null {
   }
 }
 
-/** The PRO badge — cyan, mono, the promoter side's one mark of identity. */
-function ProBadge() {
-  return (
-    <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-2xs font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
-      pro
-    </span>
-  );
-}
-
 export default function ProSubmit() {
   const { user, role, isLoading } = useAuth();
   const { t } = useTranslation();
+  const { data: orgs, isLoading: orgsLoading } = useMyOrgs(user?.id);
 
   const restored = useRef(loadSession()).current;
 
@@ -105,24 +100,33 @@ export default function ProSubmit() {
     }
   }, [messages, walk, draft, missing, corrections, doubted]);
 
-  if (isLoading) return null;
-  if (!user || (role !== "pro" && role !== "admin")) {
+  if (isLoading || (user && orgsLoading)) return null;
+  // Signed out: the door. Signed in without a promoter account, or a promoter
+  // with no organization yet: the identity step, once, here — the moment
+  // someone is about to hand over an event is when they will answer it.
+  // Admins skip it; they publish on the platform's behalf.
+  const needsIdentity =
+    user && role !== "admin" && (role !== "pro" || (orgs ?? []).length === 0);
+  if (!user || needsIdentity) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
         <span className="flex items-center gap-2.5">
           <Mark size={30} />
           <ProBadge />
         </span>
-        <p className="max-w-sm text-lg leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
-        <Link
-          to={user ? "/account" : "/auth?kind=pro"}
-          // So /account's back arrow returns here rather than dumping a
-          // promoter on the consumer chat, which is a different product.
-          state={user ? { from: "/pro" } : undefined}
-          className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
-        >
-          {user ? t.pro.becomeProLink : t.pro.signInLink}
-        </Link>
+        {user ? (
+          <OrgIdentity />
+        ) : (
+          <>
+            <p className="max-w-sm text-lg leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
+            <Link
+              to="/auth?kind=pro"
+              className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
+            >
+              {t.pro.signInLink}
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -286,9 +290,12 @@ export default function ProSubmit() {
           {/* Not a link. The way back to the consumer chat is in the account
               menu, where the way to every other surface already is — a logo
               that navigates somewhere else is a door nobody means to open. */}
-          <span className="flex items-center gap-2.5">
+          <span className="flex min-w-0 items-center gap-2.5">
             <Mark size={27} />
             <ProBadge />
+            {orgs?.[0] && (
+              <span className="truncate text-sm text-pro-muted">{orgs[0].display_name}</span>
+            )}
           </span>
           <UserMenu />
         </div>

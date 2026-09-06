@@ -233,7 +233,11 @@ describe("what the correction layer changed", () => {
 
   it("marks a field the chat asked about", () => {
     renderWithChecks([], ["start_at"]);
-    expect(screen.getByText(en.form.checkThis)).toBeInTheDocument();
+    // The class, not just the text: the mark shipped on `status-waiting`, a
+    // token that never existed, and the text assertion passed while nothing
+    // was visible.
+    expect(screen.getByText(en.form.checkThis).className).toContain("text-status-review");
+    expect(screen.getByLabelText(/^starts at/i).className).toContain("border-status-review");
   });
 
   it("marks nothing when there is no doubt", () => {

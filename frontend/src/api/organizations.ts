@@ -23,8 +23,10 @@ import { apiFetch } from "./client";
 import { fetchEventsByUid } from "./savedEvents";
 import { supabase } from "@/auth/supabase";
 
-export type OrgKind = "venue" | "artist" | "promoter";
+export type OrgKind = "venue" | "artist" | "promoter" | "agency";
 export type OrgRole = "owner" | "admin" | "member";
+/** The person's relation to the org — context for a reviewer, never a permission. */
+export type MemberRelation = "owner" | "employee" | "freelance" | "member";
 export type EntityType = "venue" | "artist" | "event";
 
 export interface Organization {
@@ -39,6 +41,7 @@ export interface Organization {
 /** An organization plus the caller's seat in it. */
 export interface OrgMembership extends Organization {
   role: OrgRole;
+  relation: MemberRelation | null;
 }
 
 export interface Claim {
@@ -56,6 +59,7 @@ export interface Claim {
 export interface RosterSeat {
   user_id: string;
   role: OrgRole;
+  relation: MemberRelation | null;
   created_at: string;
 }
 
@@ -83,12 +87,11 @@ export const orgKeys = {
  * `{...null, role}` would put a roleless, nameless entry on the screen.
  */
 export function toMemberships(data: unknown): OrgMembership[] {
-  const rows = (data ?? []) as { role: OrgRole; organizations: Organization | null }[];
+  type Row = { role: OrgRole; relation: MemberRelation | null; organizations: Organization | null };
+  const rows = (data ?? []) as Row[];
   return rows
-    .filter((row): row is { role: OrgRole; organizations: Organization } =>
-      Boolean(row.organizations),
-    )
-    .map((row) => ({ ...row.organizations, role: row.role }));
+    .filter((row): row is Row & { organizations: Organization } => Boolean(row.organizations))
+    .map((row) => ({ ...row.organizations, role: row.role, relation: row.relation ?? null }));
 }
 
 /**
@@ -106,7 +109,9 @@ export function useMyOrgs(userId: string | undefined) {
     queryFn: async (): Promise<OrgMembership[]> => {
       const { data, error } = await supabase
         .from("organization_members")
-        .select("role, organizations (id, kind, display_name, website, phone, contact_email)")
+        .select(
+          "role, relation, organizations (id, kind, display_name, website, phone, contact_email)",
+        )
         .eq("user_id", userId!);
       if (error) throw new Error(error.message);
       return toMemberships(data);
@@ -117,6 +122,7 @@ export function useMyOrgs(userId: string | undefined) {
 export interface CreateOrgInput {
   kind: OrgKind;
   display_name: string;
+  relation?: MemberRelation | null;
   website?: string | null;
   phone?: string | null;
   contact_email?: string | null;
@@ -135,6 +141,7 @@ export function useCreateOrg(userId: string | undefined) {
         p_website: input.website ?? null,
         p_phone: input.phone ?? null,
         p_contact_email: input.contact_email ?? null,
+        p_relation: input.relation ?? null,
       });
       if (error) throw new Error(error.message);
       return data as string;
@@ -157,6 +164,24 @@ export function useUpdateOrg(userId: string | undefined) {
         .from("organizations")
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq("id", orgId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      if (userId) void queryClient.invalidateQueries({ queryKey: orgKeys.mine(userId) });
+    },
+  });
+}
+
+/** Your own seat's relation. The row is yours by policy and `relation` its only granted column. */
+export function useSetRelation(userId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orgId, relation }: { orgId: string; relation: MemberRelation }) => {
+      const { error } = await supabase
+        .from("organization_members")
+        .update({ relation })
+        .eq("org_id", orgId)
+        .eq("user_id", userId!);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -209,7 +234,7 @@ export function useRoster(orgId: string | undefined) {
     queryFn: async (): Promise<RosterSeat[]> => {
       const { data, error } = await supabase
         .from("organization_members")
-        .select("user_id, role, created_at")
+        .select("user_id, role, relation, created_at")
         .eq("org_id", orgId!);
       if (error) throw new Error(error.message);
       return (data ?? []) as RosterSeat[];

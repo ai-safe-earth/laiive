@@ -31,7 +31,10 @@
   --ring: 325 100% 57%;
   --radius: 1.25rem;              /* cards 20px · pills 999px · sheets 26px */
 
-  /* card hairline is not a token: rgba(255,255,255,.07) */
+  --hairline: 0 0% 100%;          /* used at 7% for the card edge */
+  --field: 0 11% 8%;              /* #171313  composer field */
+  --field-border: 0 14% 15%;      /* #2E2222  composer field edge, neutral pills */
+  --rule: 0 14% 11%;              /* #221A1A  header / composer separators */
   /* answer-group rail: 2px solid hsl(var(--secondary) / .5), 11px indent */
 
   /* ---- promoter (pro) · same warmth, pop removed ---- */
@@ -43,6 +46,7 @@
   --pro-muted: 13 9% 60%;         /* #A2938F */
   --pro-dim: 13 7% 51%;           /* #8B7D79 */
   --pro-accent: 188 100% 46%;     /* #00CFEA  PRO badge, focus, "in review" */
+  --pro-control: 10 10% 14%;      /* #282220  pro composer field + controls, filled */
 
   /* The two provenance marks on a card, and the claim invitation under the
      red one. Named rather than borrowing --status-published / --destructive:

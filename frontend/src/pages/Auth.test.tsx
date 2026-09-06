@@ -161,3 +161,24 @@ describe("the ordinary door", () => {
     expect(takePromoterOrg()).toBeNull();
   });
 });
+
+describe("what colour the door is", () => {
+  it("keeps fuchsia off the promoter side", () => {
+    // brand-rules.md: the pro surface has its own palette and the consumer
+    // primary never appears below the pro header. The sign-up button did.
+    renderAuthAt("/auth?kind=pro");
+    expect(screen.getByRole("button", { name: en.auth.signUp }).className).toContain(
+      "bg-foreground",
+    );
+    expect(screen.getByPlaceholderText(en.auth.emailPlaceholder).className).toContain(
+      "bg-pro-control",
+    );
+  });
+
+  it("stays fuchsia for everyone else", () => {
+    renderAuthAt("/auth");
+    expect(screen.getByRole("button", { name: en.auth.signIn }).className).toContain(
+      "bg-primary",
+    );
+  });
+});
