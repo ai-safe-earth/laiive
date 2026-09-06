@@ -92,8 +92,9 @@ on a 5.5" screen (lifted 2026-08-28).
 
 ## Promoter (pro) specifics
 
-- Same ground as consumer (`#0C0A0A`), conversation **flat** on the page — no
-  chat panel.
+- Its own ground, one step warmer than consumer (`--pro-bg #14100F`), conversation
+  **flat** on the page — no chat panel. Controls are **filled** (`--pro-control`): an
+  empty pill reads as a hole over the watermark.
 - The event-details form is the one place allowed a visible frame: `#241B1B`,
   20px radius, 1.5px `rgba(244,237,226,.32)`.
 - Fuchsia does not appear below the header. Cyan is the PRO badge, the focus
