@@ -34,13 +34,28 @@ commits on both legs.
 
 ### Releasing
 
-1. Open a PR from `develop` to `main` titled `release: vX.Y.Z`. CI must be green.
-2. Merge it (a merge commit, never a squash).
-3. On `main`, run `make release` — `cz bump` reads the Conventional Commits since the
+1. **Deploy the services first, from `develop`.** `make fly-deploy-*` per `DEPLOY.md`.
+   `flyctl` builds the working tree, so this needs no tag and no merge — and it must
+   come before the merge, because Cloudflare Pages builds `main` the moment the PR
+   lands while every Fly deploy is manual. Merge first and the new SPA calls routes
+   the old backends do not have, for as long as the deploy takes.
+2. Open a PR from `develop` to `main` titled `release: vX.Y.Z`. CI must be green.
+3. Merge it (a merge commit, never a squash). Pages builds `main` on its own.
+4. On `main`, run `make release` — `cz bump` reads the Conventional Commits since the
    last tag, picks the next version, writes the `CHANGELOG.md` section, commits and
-   tags. Push the commit and the tag.
-4. Deploy: `make fly-deploy-*` per `DEPLOY.md`; Cloudflare Pages builds `main` on its own.
-5. Merge `main` back into `develop` so the release commit and tag are not stranded.
+   tags. Push the commit and the tag. (Bare `cz bump` dies under Git Bash on Windows;
+   the target passes `--yes`.)
+5. Merge `main` back into `develop` so the release commit and tag are not stranded —
+   **locally, never as a PR with `main` as the head branch**:
+
+   ```
+   git fetch origin && git checkout develop && git pull --ff-only origin develop
+   git merge origin/main && git push origin develop
+   ```
+
+   The repo deletes head branches on merge and the owner's role bypasses the
+   deletion rule, so merging such a PR deletes production's branch. PR #66 did
+   exactly that on 2026-08-23 and it went unnoticed for two days.
 
 ### Hotfixes
 
