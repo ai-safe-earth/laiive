@@ -259,7 +259,7 @@ export function EventForm({
                 {isDoubted && (
                   // The question itself was asked in the chat, in their own
                   // language; this only says which field it was about.
-                  <span className="font-mono text-2xs uppercase tracking-[0.11em] text-status-waiting">
+                  <span className="font-mono text-2xs uppercase tracking-[0.11em] text-status-review">
                     {t.form.checkThis}
                   </span>
                 )}
@@ -286,7 +286,7 @@ export function EventForm({
                 className={cn(
                   FIELD,
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
-                  !isMissing && isDoubted && "border-status-waiting/60",
+                  !isMissing && isDoubted && "border-status-review/60",
                 )}
               />
               {isTicket && showTicketNote && (
