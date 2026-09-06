@@ -106,6 +106,29 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
     }
   });
 
+  // Every route that turns model output into a permanent graph node: both pro
+  // publish paths and the admin sweep's approve/backfill. The writer has no
+  // delete path, so "stop writing" is the only reversible move there is — and
+  // it stops here, at the one door both the pusher and search paths cross,
+  // rather than in either service. Reads keep serving on purpose: a switch
+  // that also kills chat is a worse outage than what made you reach for it.
+  // The search entry is the whole prefix, not approve|backfill: that proxy is a
+  // catch-all, so naming two paths means the next write route added behind it is
+  // live while the switch reads "off". Over-blocking here costs a paused sweep
+  // and a paused dismiss for as long as the switch is on, which is the cheap
+  // direction — you flipped it because something was already wrong.
+  const WRITE_ROUTES = [
+    /^\/api\/publish(\/|\?|$)/,
+    /^\/api\/push\/validate-event(\/|\?|$)/,
+    /^\/api\/admin\/search(\/|\?|$)/,
+  ];
+  app.addHook("onRequest", async (request, reply) => {
+    if (!config.writesDisabled || request.method !== "POST") return;
+    if (!WRITE_ROUTES.some((route) => route.test(request.url))) return;
+    request.log.warn({ url: request.url }, "writes disabled");
+    return reply.code(503).send({ error: "publishing is paused" });
+  });
+
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", request.id);
     if (!request.user && request.url.startsWith("/api/")) {

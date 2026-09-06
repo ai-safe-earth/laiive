@@ -1,0 +1,6 @@
+interface:
+  display_name: "AI safety audit"
+  short_description: "Blast-radius audit of an LLM/agent codebase via aisg audit"
+  default_prompt: "Audit this repository for AI safety gaps using the ai-safety-audit skill."
+policy:
+  allow_implicit_invocation: false

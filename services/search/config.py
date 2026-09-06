@@ -30,9 +30,14 @@ class Settings(BaseSettings):
 
     # Extraction runs on the cheap model first; the fallback re-reads a page
     # only when mini finds nothing on a page that plainly lists events (05: batch cost).
-    extraction_model: str = Field("gpt-4o-mini", alias="SEARCH_EXTRACTION_MODEL")
+    # Dated snapshots, not the floating alias — see the note in the retriever's
+    # config. _extract returns None on an unparseable reply and the sweep just
+    # records zero events for the page, so drift reads as "quiet week".
+    extraction_model: str = Field(
+        "gpt-4o-mini-2024-07-18", alias="SEARCH_EXTRACTION_MODEL"
+    )
     extraction_fallback_model: str = Field(
-        "gpt-4o", alias="SEARCH_EXTRACTION_FALLBACK_MODEL"
+        "gpt-4o-2024-08-06", alias="SEARCH_EXTRACTION_FALLBACK_MODEL"
     )
     embedding_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
 

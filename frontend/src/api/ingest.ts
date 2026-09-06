@@ -2,7 +2,7 @@ import { env } from "@/env";
 import { supabase } from "@/auth/supabase";
 import { ApiError } from "./client";
 
-export type IngestKind = "audio" | "image" | "document" | "url";
+export type IngestKind = "audio" | "image" | "document";
 
 export interface Ingested {
   kind: IngestKind;
@@ -47,20 +47,13 @@ export async function transcribe(recording: Blob): Promise<string> {
 }
 
 /**
- * Pro submission ingestion: voice, flyer photo, PDF/DOCX and links all reduce
+ * Pro submission ingestion: voice, flyer photo and PDF/DOCX all reduce
  * to text server-side. The caller appends that text to the conversation, where
  * the single extraction path merges it with everything said so far.
  */
 export async function ingestFile(file: File): Promise<Ingested> {
   const form = new FormData();
   form.append("file", file, file.name);
-  const response = await upload("/api/push/ingest", form);
-  return (await response.json()) as Ingested;
-}
-
-export async function ingestUrl(url: string): Promise<Ingested> {
-  const form = new FormData();
-  form.append("url", url);
   const response = await upload("/api/push/ingest", form);
   return (await response.json()) as Ingested;
 }
