@@ -133,3 +133,7 @@ Neo4j-*
 
 # Node (gateway)
 node_modules/
+
+# aisg audit output (generated: wall-clock stamps, dirty sha, absolute paths)
+audit-report*.json
+audit-baseline.json

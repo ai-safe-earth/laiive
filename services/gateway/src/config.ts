@@ -9,6 +9,7 @@ export interface GatewayConfig {
   pusherUrl: string;
   searchUrl: string;
   searchEnabled: boolean;
+  writesDisabled: boolean;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   jwksUrl: string;
@@ -54,6 +55,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     pusherUrl: env.PUSHER_URL ?? "http://localhost:8003",
     searchUrl: env.SEARCH_URL ?? "http://localhost:8004",
     searchEnabled: env.SEARCH_ENABLED === "true",
+    // The write kill switch. Default OFF: an unset or mistyped value must never
+    // silently stop publishing. Exactly "true" pauses every route that mutates
+    // the graph; chat, transcribe and every read keep serving.
+    writesDisabled: env.WRITES_DISABLED === "true",
     supabaseUrl,
     supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
     jwksUrl: env.SUPABASE_JWKS_URL ?? `${supabaseUrl}/auth/v1/.well-known/jwks.json`,

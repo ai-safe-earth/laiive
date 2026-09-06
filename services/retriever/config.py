@@ -18,9 +18,14 @@ class Settings(BaseSettings):
 
     # Models per role (05-decisions R3): cheap classifier, correctness-critical
     # Cypher long tail, tone-critical composer. Swapping any is a one-line change.
-    classifier_model: str = Field("gpt-4o-mini", alias="CLASSIFIER_MODEL")
-    query_builder_model: str = Field("gpt-4o", alias="QUERY_BUILDER_MODEL")
-    composer_model: str = Field("gpt-4o", alias="COMPOSER_MODEL")
+    # Dated snapshots, not the floating alias: the containers carry no root .env
+    # and no *_MODEL Fly secret (DEPLOY.md 2), so these literals ARE production,
+    # and an alias lets OpenAI change what serves them with no deploy. Every
+    # caller here swallows a bad reply, so drift would degrade output silently.
+    # Bump deliberately; the env alias unpins in one flyctl call.
+    classifier_model: str = Field("gpt-4o-mini-2024-07-18", alias="CLASSIFIER_MODEL")
+    query_builder_model: str = Field("gpt-4o-2024-08-06", alias="QUERY_BUILDER_MODEL")
+    composer_model: str = Field("gpt-4o-2024-08-06", alias="COMPOSER_MODEL")
     embeddings_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     embeddings_dimensions: int = 1536
     # Voice input is public (anonymous callers included), so the model choice

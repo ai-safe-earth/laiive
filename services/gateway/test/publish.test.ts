@@ -182,3 +182,76 @@ describe("POST /api/publish", () => {
     expect(forwarded?.headers["authorization"]).toBeUndefined();
   });
 });
+
+/**
+ * WRITES_DISABLED — the write kill switch. The graph writer has no delete path,
+ * so pausing writes is the only reversible move there is when publishing goes
+ * wrong. It sits at the gateway because the pusher and search write paths do
+ * not meet anywhere else, and it must leave reads alone: a switch that also
+ * kills chat is a worse outage than whatever made you reach for it.
+ */
+describe("WRITES_DISABLED", () => {
+  const ADMIN = "d3b07384-d9a0-4c9a-8f4e-000000000011";
+  let paused: FastifyInstance;
+
+  beforeAll(async () => {
+    paused = await buildServer(
+      testConfig({
+        supabaseUrl: supabase.url,
+        pusherUrl: pusher.url,
+        retrieverUrl: pusher.url,
+        searchUrl: pusher.url,
+        searchEnabled: true,
+        writesDisabled: true,
+      }),
+    );
+    await paused.ready();
+  });
+
+  afterAll(async () => {
+    await paused.close();
+  });
+
+  it("503s every graph-write route and reaches no writer", async () => {
+    const proToken = await supabase.signToken({ sub: PRO, role: "pro" });
+    const adminToken = await supabase.signToken({ sub: ADMIN, role: "admin" });
+    pusher.seen.length = 0;
+
+    const routes: [string, string][] = [
+      ["/api/publish", proToken],
+      ["/api/push/validate-event", proToken],
+      ["/api/admin/search/reports/r1/approve", adminToken],
+      ["/api/admin/search/backfill", adminToken],
+    ];
+
+    for (const [url, token] of routes) {
+      const res = await paused.inject({
+        method: "POST",
+        url,
+        headers: { authorization: `Bearer ${token}` },
+        payload: {},
+      });
+      expect(res.statusCode, url).toBe(503);
+      expect(res.json(), url).toEqual({ error: "publishing is paused" });
+    }
+
+    // The assertion that matters: nothing got past the gateway to the writer.
+    expect(pusher.seen.filter((r) => r.url === "/validate-event")).toHaveLength(0);
+  });
+
+  it("leaves chat and reads serving", async () => {
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+    const res = await paused.inject({
+      method: "POST",
+      url: "/api/chat",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { message: "que hay el viernes" },
+    });
+    expect(res.statusCode).not.toBe(503);
+  });
+
+  it("keeps writing when the flag is unset — a typo must not pause publishing", async () => {
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+    expect((await publish(token)).statusCode).toBe(200);
+  });
+});

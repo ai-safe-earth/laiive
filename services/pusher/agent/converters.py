@@ -1,4 +1,4 @@
-"""Convert voice, image, URL, and text inputs into an EventDraft.
+"""Convert voice, image, and text inputs into an EventDraft.
 
 The one extraction prompt for every modality (04-plan: the duplicated
 prompts/functions merged here). Everything funnels into `EventDraft`.
@@ -9,7 +9,6 @@ import io
 import json
 from datetime import date
 
-import httpx
 from laiive_shared import EventDraft, transcribe
 from laiive_shared.drafts import entries_from_json, entry_to_draft, strip_fences
 from loguru import logger
@@ -249,23 +248,3 @@ def document_to_text(doc_bytes: bytes, filename: str) -> str:
     raise UnreadableDocument(
         f"Unsupported document type: {filename}. Send a PDF, DOCX, TXT, or an image."
     )
-
-
-URL_MAX_CHARS = 8000
-
-
-def url_to_text(url: str) -> str:
-    """Fetch a page and return its content as text, truncated to a sane size."""
-    try:
-        with httpx.Client(timeout=15.0, follow_redirects=True) as http:
-            resp = http.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; laiive-bot/1.0)"},
-            )
-            resp.raise_for_status()
-            page_text = resp.text
-    except Exception as e:
-        logger.error(f"Failed to fetch URL {url}: {e}")
-        raise ValueError(f"Could not fetch URL: {e}") from e
-
-    return page_text[:URL_MAX_CHARS]

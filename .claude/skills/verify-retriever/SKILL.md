@@ -29,11 +29,12 @@ Confirm with the user before running.
 
 ```
 cd services/retriever && uv run --no-sync python -m pytest -v --timeout=120 \
-  tests/test_full_pipeline.py tests/test_llm_api.py
+  -m integration
 ```
 
-(`make test-integration` also lists `tests/test_pipeline_metrics.py`; it doesn't exist, which is
-why this omits it.)
+(Listing files by name is what broke this: `tests/test_full_pipeline.py` went away in the Phase 2
+refactor, so the old command collected nothing and passed. The marker picks up the eval corpus's
+live tier too — 11 assertions that had no trigger at all.)
 
 ## Coverage
 
