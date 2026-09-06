@@ -18,7 +18,7 @@
 -- dropped below is the real one, then applies 22 and exercises it. Every
 -- PASS/FAIL is a raise notice; a failure aborts under ON_ERROR_STOP=1.
 --
--- Last run 2026-09-01: all nine checks passed.
+-- Last run 2026-09-01: all nine checks passed. Check 10 (migration 23) added 2026-09-05, not yet run.
 
 \set ON_ERROR_STOP on
 \echo '=== stubbing the Supabase surface ==='
@@ -511,6 +511,64 @@ grant update (display_name, website, phone, contact_email, updated_at)
 on public.organizations
 to authenticated;
 
+\echo '=== replaying 20260905000023_member_relation ==='
+alter type public.org_kind add value 'agency';
+create type public.member_relation as enum ('owner', 'employee', 'freelance', 'member');
+alter table public.organization_members add column relation public.member_relation;
+drop function public.create_organization(public.org_kind, text, text, text, text);
+create function public.create_organization(
+    p_kind public.org_kind,
+    p_display_name text,
+    p_website text default null,
+    p_phone text default null,
+    p_contact_email text default null,
+    p_relation public.member_relation default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    caller uuid := auth.uid();
+    caller_role public.app_role;
+    new_org uuid;
+begin
+    if caller is null then
+        raise exception 'not authenticated' using errcode = '28000';
+    end if;
+    select r.role into caller_role
+    from public.user_roles r
+    where r.user_id = caller;
+    if coalesce(caller_role, 'user') not in ('pro', 'admin') then
+        raise exception 'a promoter account is required to create an organization'
+        using errcode = '42501';
+    end if;
+    insert into public.organizations (
+        kind, display_name, website, phone, contact_email, created_by
+    )
+    values (
+        p_kind, p_display_name, p_website, p_phone, p_contact_email, caller
+    )
+    returning id into new_org;
+    insert into public.organization_members (org_id, user_id, role, relation)
+    values (new_org, caller, 'owner', p_relation);
+    return new_org;
+end;
+$$;
+revoke execute on function
+public.create_organization(public.org_kind, text, text, text, text, public.member_relation)
+from public, anon;
+grant execute on function
+public.create_organization(public.org_kind, text, text, text, text, public.member_relation)
+to authenticated;
+revoke update on public.organization_members from authenticated;
+grant update (relation) on public.organization_members to authenticated;
+create policy "members describe their own seat"
+on public.organization_members for update
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
 \echo '=== behaviour ==='
 -- Behaviour of 20260827000022, not just its syntax.
 -- auth.uid() becomes GUC-driven so a caller can be simulated.
@@ -605,3 +663,15 @@ from information_schema.column_privileges
 where grantee = 'authenticated'
   and table_name = 'organizations'
   and privilege_type = 'UPDATE';
+
+\echo '--- 10. 23: the founder seat carries the relation; only that column is updatable ---'
+set test.uid = '00000000-0000-0000-0000-00000000000c';
+select public.create_organization('agency', 'Various Mgmt', null, null, null, 'freelance') as agency_id \gset
+select
+  (select kind::text from public.organizations where id = :'agency_id') as kind,
+  (select relation::text from public.organization_members
+   where org_id = :'agency_id' and user_id = '00000000-0000-0000-0000-00000000000c') as founder_relation,
+  (select string_agg(column_name, ', ' order by column_name)
+   from information_schema.column_privileges
+   where grantee = 'authenticated' and table_name = 'organization_members'
+     and privilege_type = 'UPDATE') as members_may_update;
