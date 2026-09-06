@@ -18,8 +18,16 @@ const ORG = {
 
 describe("flattening membership rows", () => {
   it("merges the seat onto the organization", () => {
+    expect(toMemberships([{ role: "owner", relation: "employee", organizations: ORG }])).toEqual([
+      { ...ORG, role: "owner", relation: "employee" },
+    ]);
+  });
+
+  it("leaves the relation null when the seat never said", () => {
+    // Seats founded before migration 23, and the gateway's own two-argument
+    // create_organization call, carry no relation; the screen shows nothing.
     expect(toMemberships([{ role: "owner", organizations: ORG }])).toEqual([
-      { ...ORG, role: "owner" },
+      { ...ORG, role: "owner", relation: null },
     ]);
   });
 
@@ -31,7 +39,7 @@ describe("flattening membership rows", () => {
       { role: "owner", organizations: null },
       { role: "member", organizations: ORG },
     ];
-    expect(toMemberships(rows)).toEqual([{ ...ORG, role: "member" }]);
+    expect(toMemberships(rows)).toEqual([{ ...ORG, role: "member", relation: null }]);
   });
 
   it("treats a null response as no memberships", () => {

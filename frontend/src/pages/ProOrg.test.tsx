@@ -23,6 +23,8 @@ const data = vi.hoisted(() => ({
   hits: [] as unknown[],
   events: [] as unknown[],
   promoter: null as unknown,
+  create: vi.fn(),
+  setRelation: vi.fn(),
 }));
 
 vi.mock("@/api/organizations", () => ({
@@ -31,12 +33,19 @@ vi.mock("@/api/organizations", () => ({
   useOrgEvents: () => ({ data: data.events }),
   useRoster: () => ({ data: data.roster }),
   useEntitySearch: () => ({ data: data.hits, isFetching: false }),
-  useCreateOrg: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateOrg: () => ({ mutateAsync: data.create, isPending: false }),
   useUpdateOrg: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetRelation: () => ({ mutateAsync: data.setRelation, isPending: false }),
   useCreateClaim: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawClaim: () => ({ mutate: vi.fn() }),
 }));
-vi.mock("@/api/profile", () => ({ usePromoterProfile: () => ({ data: data.promoter }) }));
+vi.mock("@/api/profile", () => ({
+  usePromoterProfile: () => ({ data: data.promoter }),
+  useProfile: () => ({ data: { id: "u1", display_name: "Oscar" } }),
+}));
+// The identity step is the pro grant too; the founding itself is covered in
+// OrgIdentity.test.tsx. Here it only has to not dial out.
+vi.mock("@/auth/becomePromoter", () => ({ becomePromoter: vi.fn() }));
 
 const OWNED = {
   id: "org-1",
@@ -46,6 +55,7 @@ const OWNED = {
   phone: null,
   contact_email: null,
   role: "owner",
+  relation: null,
 };
 
 function renderPage() {
@@ -66,6 +76,8 @@ beforeEach(() => {
   data.hits = [];
   data.events = [];
   data.promoter = null;
+  data.create.mockReset().mockResolvedValue("org-1");
+  data.setRelation.mockReset().mockResolvedValue(undefined);
 });
 
 describe("/pro/org", () => {
@@ -94,6 +106,40 @@ describe("/pro/org", () => {
     await userEvent.clear(field);
     expect(field).toHaveValue("");
     expect(screen.getByRole("button", { name: en.org.create })).toBeDisabled();
+  });
+
+  it("founds the organisation with its kind and your part in it", async () => {
+    // kind was never asked before: orgs.ts filed every first publish as a
+    // promoter, so a band that published first was a promoter for good.
+    renderPage();
+    await userEvent.click(screen.getByRole("button", { name: en.org.kindArtist }));
+    await userEvent.type(screen.getByPlaceholderText(en.org.namePlaceholder), "Ana Beck Quartet");
+    await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "member");
+    await userEvent.click(screen.getByRole("button", { name: en.org.create }));
+
+    expect(data.create).toHaveBeenCalledWith({
+      kind: "artist",
+      display_name: "Ana Beck Quartet",
+      relation: "member",
+      website: null,
+    });
+  });
+
+  it("will not found an organisation nobody has a part in", async () => {
+    renderPage();
+    await userEvent.type(screen.getByPlaceholderText(en.org.namePlaceholder), "Razzmatazz");
+    expect(screen.getByRole("button", { name: en.org.create })).toBeDisabled();
+  });
+
+  it("shows your seat and lets you describe it", async () => {
+    data.orgs = [OWNED];
+    data.roster = [{ user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01" }];
+    renderPage();
+
+    // Your own seat carries your name; the roster never shows you a uuid for yourself.
+    expect(screen.getByText("Oscar")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "freelance");
+    expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
   });
 
   it("keeps published events out of the list you manage", () => {

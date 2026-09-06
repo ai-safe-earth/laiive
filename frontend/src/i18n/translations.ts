@@ -77,14 +77,8 @@ export interface Translations {
     becomePromoterNote: string;
     becomePromoterCta: string;
     becamePromoter: string;
-    organisation: string;
-    organisationPlaceholder: string;
-    website: string;
-    phone: string;
     profileSaved: string;
-    promoterSaved: string;
     saveFailed: string;
-    orgRequired: string;
   };
   org: {
     back: string;
@@ -96,8 +90,19 @@ export interface Translations {
     kindVenue: string;
     kindArtist: string;
     kindPromoter: string;
+    kindAgency: string;
     name: string;
     namePlaceholder: string;
+    /** The person's relation to the organisation — context for a reviewer, not a permission. */
+    relation: string;
+    relationPlaceholder: string;
+    relationOwner: string;
+    relationEmployee: string;
+    relationFreelance: string;
+    relationMember: string;
+    /** Under website / phone / email: what they are for. */
+    evidenceHint: string;
+    yourSeat: string;
     website: string;
     phone: string;
     contactEmail: string;
@@ -140,7 +145,6 @@ export interface Translations {
   };
   pro: {
     needsPro: string;
-    becomeProLink: string;
     signInLink: string;
     onboardingSteps: string[];
     onboardingDismiss: string;
@@ -297,14 +301,8 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Tell us what you run and this becomes a promoter account — publishing opens straight away.",
       becomePromoterCta: "become a promoter",
       becamePromoter: "you're a promoter now — publishing is open",
-      organisation: "organisation",
-      organisationPlaceholder: "venue, label, collective…",
-      website: "website",
-      phone: "phone",
       profileSaved: "profile saved",
-      promoterSaved: "promoter details saved",
       saveFailed: "could not save",
-      orgRequired: "the organisation name is required",
     },
     org: {
       back: 'back',
@@ -316,8 +314,17 @@ export const translations: Record<Language, Translations> = {
       kindVenue: 'venue',
       kindArtist: 'artist',
       kindPromoter: 'promoter',
+      kindAgency: 'management / agency',
       name: 'name',
       namePlaceholder: 'Sala Apolo',
+      relation: 'your part in it',
+      relationPlaceholder: 'choose…',
+      relationOwner: 'owner',
+      relationEmployee: 'employee',
+      relationFreelance: 'freelance',
+      relationMember: 'member',
+      evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
+      yourSeat: 'your seat',
       website: 'website',
       phone: 'phone',
       contactEmail: 'contact email',
@@ -361,7 +368,6 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Publishing events needs a pro account.",
-      becomeProLink: "set up your promoter details and publish →",
       signInLink: "sign in →",
       onboardingSteps: [
         "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
@@ -538,14 +544,8 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Cuéntanos qué gestionas y esta cuenta pasa a ser de promotor — podrás publicar al momento.",
       becomePromoterCta: "hazte promotor",
       becamePromoter: "ya eres promotor — puedes publicar",
-      organisation: "organización",
-      organisationPlaceholder: "sala, sello, colectivo…",
-      website: "web",
-      phone: "teléfono",
       profileSaved: "perfil guardado",
-      promoterSaved: "datos de promotor guardados",
       saveFailed: "no se pudo guardar",
-      orgRequired: "el nombre de la organización es obligatorio",
     },
     org: {
       back: 'atrás',
@@ -557,8 +557,17 @@ export const translations: Record<Language, Translations> = {
       kindVenue: 'sala',
       kindArtist: 'artista',
       kindPromoter: 'promotor',
+      kindAgency: 'management / agencia',
       name: 'nombre',
       namePlaceholder: 'Sala Apolo',
+      relation: 'tu vínculo',
+      relationPlaceholder: 'elige…',
+      relationOwner: 'propietario/a',
+      relationEmployee: 'empleado/a',
+      relationFreelance: 'freelance',
+      relationMember: 'miembro',
+      evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
+      yourSeat: 'tu puesto',
       website: 'web',
       phone: 'teléfono',
       contactEmail: 'email de contacto',
@@ -603,7 +612,6 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
-      becomeProLink: "configura tus datos de promotor y publica →",
       signInLink: "inicia sesión →",
       onboardingSteps: [
         "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
@@ -780,14 +788,8 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Dicci cosa gestisci e questo account diventa da promoter — potrai pubblicare subito.",
       becomePromoterCta: "diventa promoter",
       becamePromoter: "ora sei un promoter — puoi pubblicare",
-      organisation: "organizzazione",
-      organisationPlaceholder: "locale, etichetta, collettivo…",
-      website: "sito web",
-      phone: "telefono",
       profileSaved: "profilo salvato",
-      promoterSaved: "dati promoter salvati",
       saveFailed: "impossibile salvare",
-      orgRequired: "il nome dell'organizzazione è obbligatorio",
     },
     org: {
       back: 'indietro',
@@ -799,8 +801,17 @@ export const translations: Record<Language, Translations> = {
       kindVenue: 'locale',
       kindArtist: 'artista',
       kindPromoter: 'promoter',
+      kindAgency: 'management / agenzia',
       name: 'nome',
       namePlaceholder: 'Spazio 211',
+      relation: 'il tuo legame',
+      relationPlaceholder: 'scegli…',
+      relationOwner: 'titolare',
+      relationEmployee: 'dipendente',
+      relationFreelance: 'freelance',
+      relationMember: 'membro',
+      evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
+      yourSeat: 'il tuo posto',
       website: 'sito',
       phone: 'telefono',
       contactEmail: 'email di contatto',
@@ -845,7 +856,6 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
-      becomeProLink: "inserisci i tuoi dati da promoter e pubblica →",
       signInLink: "accedi →",
       onboardingSteps: [
         "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
@@ -1022,14 +1032,8 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Digues-nos què gestiones i aquest compte passa a ser de promotor — podràs publicar de seguida.",
       becomePromoterCta: "fes-te promotor",
       becamePromoter: "ja ets promotor — pots publicar",
-      organisation: "organització",
-      organisationPlaceholder: "sala, segell, col·lectiu…",
-      website: "web",
-      phone: "telèfon",
       profileSaved: "perfil desat",
-      promoterSaved: "dades de promotor desades",
       saveFailed: "no s'ha pogut desar",
-      orgRequired: "el nom de l'organització és obligatori",
     },
     org: {
       back: 'enrere',
@@ -1041,8 +1045,17 @@ export const translations: Record<Language, Translations> = {
       kindVenue: 'sala',
       kindArtist: 'artista',
       kindPromoter: 'promotor',
+      kindAgency: 'management / agència',
       name: 'nom',
       namePlaceholder: 'Sala Apolo',
+      relation: 'el teu vincle',
+      relationPlaceholder: 'tria…',
+      relationOwner: 'propietari/ària',
+      relationEmployee: 'empleat/ada',
+      relationFreelance: 'freelance',
+      relationMember: 'membre',
+      evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
+      yourSeat: 'el teu lloc',
       website: 'web',
       phone: 'telèfon',
       contactEmail: 'correu de contacte',
@@ -1087,7 +1100,6 @@ export const translations: Record<Language, Translations> = {
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
-      becomeProLink: "configura les teves dades de promotor i publica →",
       signInLink: "inicia sessió →",
       onboardingSteps: [
         "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
