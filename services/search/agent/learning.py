@@ -19,6 +19,8 @@ keeps its rank forever. Plain PostgREST over httpx, same shape as reports.py.
 Tests patch `_http` (see tests/conftest.py).
 """
 
+from datetime import datetime, timezone
+
 import httpx
 from loguru import logger
 
@@ -172,7 +174,7 @@ def record_sources(by_domain: dict[str, dict]) -> None:
         before = previous.get(domain)
         row = {"domain": domain, **_merged(before, by_domain[domain], SOURCE_COUNTERS)}
         row["mean_score"] = round(float(by_domain[domain].get("mean_score") or 0.0), 4)
-        row["last_seen_at"] = "now()"
+        row["last_seen_at"] = datetime.now(timezone.utc).isoformat()
         # Blocked is sticky against the owner's hand: a domain the owner sets
         # to blocked is not un-blocked by a good week. Only the store decides
         # 'trusted' and 'candidate'.
@@ -322,7 +324,7 @@ def record_queries(by_query: dict[str, dict]) -> None:
                 float(by_query[template].get("local_domain_share") or 0.0), 4
             ),
             "status": (before or {}).get("status") or "trial",
-            "last_used_at": "now()",
+            "last_used_at": datetime.now(timezone.utc).isoformat(),
         }
         rows.append(row)
     _upsert("search_queries", rows)
