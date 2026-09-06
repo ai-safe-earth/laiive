@@ -34,10 +34,9 @@ installed here** — use npm, despite `frontend/package.json` history.
    and fill it in, then stop. All Python services read it as `env_file="../../.env"` and the
    gateway as `../../.env` from `services/gateway`, both relative to their own directory.
 
-2. **Check the ports before starting anything.** Other projects on this machine squat on
-   8000/8002/8003 (an `A02_VaiVia` uvicorn, a `laiive-global-workspace` docker container), and
-   stale laiive servers from an earlier session are worse than absent ones — they serve deleted
-   code or a pre-repair `.env`:
+2. **Check the ports before starting anything.** Another project on this machine squats on
+   8000 (an `A02_VaiVia` uvicorn), and stale laiive servers from an earlier session are worse
+   than absent ones — they serve deleted code or a pre-repair `.env`:
 
    ```powershell
    Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen -ErrorAction SilentlyContinue |

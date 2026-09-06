@@ -200,6 +200,28 @@ describe("conversation logging", () => {
     expect(record.request_id).toBe(res.headers["x-request-id"]);
   });
 
+  it("does not log the feedback route — reasons already land in turn_feedback", async () => {
+    app = await buildServer(
+      testConfig({
+        supabaseUrl: supabase.url,
+        retrieverUrl: retriever.url,
+        conversationLogging: true,
+      }),
+    );
+    await app.ready();
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat/feedback",
+      payload: { request_id: "req-under-test", reason: "wrong events" },
+    });
+    expect(res.statusCode).toBe(204);
+
+    await expect.poll(() => supabase.feedbackInserts.length, { timeout: 3000 }).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(supabase.logInserts).toHaveLength(0);
+  });
+
   it("does not log GET or non-conversation routes", async () => {
     app = await buildServer(
       testConfig({

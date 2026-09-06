@@ -18,9 +18,14 @@ class Settings(BaseSettings):
 
     # Models per role (05-decisions R3): cheap classifier, correctness-critical
     # Cypher long tail, tone-critical composer. Swapping any is a one-line change.
-    classifier_model: str = Field("gpt-4o-mini", alias="CLASSIFIER_MODEL")
-    query_builder_model: str = Field("gpt-4o", alias="QUERY_BUILDER_MODEL")
-    composer_model: str = Field("gpt-4o", alias="COMPOSER_MODEL")
+    # Dated snapshots, not the floating alias: the containers carry no root .env
+    # and no *_MODEL Fly secret (DEPLOY.md 2), so these literals ARE production,
+    # and an alias lets OpenAI change what serves them with no deploy. Every
+    # caller here swallows a bad reply, so drift would degrade output silently.
+    # Bump deliberately; the env alias unpins in one flyctl call.
+    classifier_model: str = Field("gpt-4o-mini-2024-07-18", alias="CLASSIFIER_MODEL")
+    query_builder_model: str = Field("gpt-4o-2024-08-06", alias="QUERY_BUILDER_MODEL")
+    composer_model: str = Field("gpt-4o-2024-08-06", alias="COMPOSER_MODEL")
     embeddings_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
     embeddings_dimensions: int = 1536
     # Voice input is public (anonymous callers included), so the model choice
@@ -31,10 +36,17 @@ class Settings(BaseSettings):
     # The OpenRouter/LlamaGuard layer is gone (R3 — it never executed).
     enable_moderation: bool = Field(True, alias="ENABLE_MODERATION")
 
+    # Eval records (the answer side of a turn, joins conversation_logs on
+    # request_id). Empty URL disables the write — local runs and tests.
+    supabase_url: str = Field("", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field("", alias="SUPABASE_SERVICE_ROLE_KEY")
+
     langfuse_public_key: str = Field("", alias="LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key: str = Field("", alias="LANGFUSE_SECRET_KEY")
     langfuse_host: str = Field("https://cloud.langfuse.com", alias="LANGFUSE_HOST")
-    langfuse_enabled: bool = Field(True, alias="LANGFUSE_ENABLED")
+    # Off unless asked for: a True default with blank keys still constructs a
+    # Langfuse client and wraps every OpenAI call in it. .example.env says false.
+    langfuse_enabled: bool = Field(False, alias="LANGFUSE_ENABLED")
 
     host: str = Field("0.0.0.0", alias="HOST")
     port: int = Field(8002, alias="PORT")

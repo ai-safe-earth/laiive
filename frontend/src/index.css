@@ -98,3 +98,12 @@
     text-transform: uppercase;
   }
 }
+
+/* Leaflet draws its zoom buttons 30px on touch devices; the card they sit on
+   promises 44. Specificity beats leaflet.css (0,3,1 vs 0,2,1), which is
+   imported after this file. */
+.leaflet-touch .leaflet-bar.leaflet-control-zoom a {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+}

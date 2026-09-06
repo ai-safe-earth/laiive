@@ -1,15 +1,27 @@
 import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
 
-const LOGGED_ROUTES = [/^\/api\/chat(\/|$)/, /^\/api\/push\/(chat|validate-event)(\/|$)/];
+const LOGGED_ROUTES = [
+  /^\/api\/chat(\/|$)/,
+  /^\/api\/push\/(chat|validate-event)(\/|$)/,
+  // The publish wrapper replaced /api/push/validate-event as the frontend's
+  // write path; without this the submissions that actually happen stopped
+  // being logged the day the retarget landed.
+  /^\/api\/publish(\/|$)/,
+];
+// /api/chat/feedback sits under the chat prefix but is not a conversation:
+// its reason already lands in turn_feedback, and logging it here would store
+// that free text twice, under the feedback request's own id rather than the
+// turn's.
+const EXCLUDED_ROUTE = /^\/api\/chat\/feedback([/?]|$)/;
 
 /**
  * Fire-and-forget conversation capture into Supabase `conversation_logs`
  * (replaces the old validate-conversation edge function). Request-side only:
- * response bodies stream through the proxy and are not buffered here —
- * response-side capture is Phase 6's eval-record work, and LLM outputs are
- * already traced in Langfuse service-side. Payload is only available on the
- * chat routes (parsed JSON); upload routes stream past and log metadata only.
+ * response bodies stream through the proxy and are not buffered here — the
+ * answer side is the retriever's eval_records write, joined on request_id.
+ * Payload is only available on the chat routes (parsed JSON); upload routes
+ * stream past and log metadata only.
  */
 export function registerConversationLogging(app: FastifyInstance, config: GatewayConfig): void {
   if (!config.conversationLogging) return;
@@ -26,6 +38,7 @@ export function registerConversationLogging(app: FastifyInstance, config: Gatewa
     done();
     if (request.method !== "POST") return;
     if (!LOGGED_ROUTES.some((route) => route.test(request.url))) return;
+    if (EXCLUDED_ROUTE.test(request.url)) return;
 
     const body = request.body;
     const payload =

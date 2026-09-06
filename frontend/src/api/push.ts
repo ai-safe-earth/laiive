@@ -1,11 +1,16 @@
-import type { EventDraft, WalkState } from "@shared/protocol";
+import type { EventDraft, FormExtracted, WalkState } from "@shared/protocol";
 import { apiFetch } from "./client";
 import { readProtocolStream } from "./sse";
 import type { ChatMessage } from "./chat";
 
 export interface SubmissionHandlers {
   onStatus?: (state: string) => void;
-  onForm?: (draft: EventDraft, missing: string[], index: number, total: number) => void;
+  /**
+   * The whole frame, not its fields spread out: it already carries four things
+   * and now carries corrections and doubts too, and a six-argument callback is
+   * a place for two of them to end up swapped.
+   */
+  onForm?: (form: FormExtracted) => void;
   onWalk?: (walk: WalkState) => void;
   onDelta?: (text: string) => void;
   onError?: (message: string) => void;
@@ -53,12 +58,7 @@ export async function streamSubmission(
         handlers.onStatus?.(frame.data.state);
         break;
       case "form.extracted":
-        handlers.onForm?.(
-          frame.data.draft,
-          frame.data.missing,
-          frame.data.index,
-          frame.data.total,
-        );
+        handlers.onForm?.(frame.data);
         break;
       case "walk.state":
         handlers.onWalk?.(frame.data);
@@ -93,12 +93,18 @@ export interface SavedEvent {
  * `venueUid` is the graph venue the form picked from the lookup. It travels
  * beside the draft, never on it: drafts round-trip through an LLM mid-walk,
  * and the writer must be able to trust that a uid was a human's pick.
+ *
+ * Posted to /api/publish rather than straight at the pusher: the gateway
+ * forwards the same body and then records what the write created against the
+ * promoter's organization, bootstrapping one if they have none. Publishing
+ * without that hop leaves a promoter not owning their own event, and nothing
+ * afterwards knows it was theirs.
  */
 export async function saveEvent(
   draft: EventDraft,
   venueUid?: string | null,
 ): Promise<SavedEvent> {
-  const response = await apiFetch("/api/push/validate-event", {
+  const response = await apiFetch("/api/publish", {
     method: "POST",
     body: JSON.stringify({ draft, ...(venueUid ? { venue_uid: venueUid } : {}) }),
   });

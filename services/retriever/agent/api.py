@@ -1,7 +1,9 @@
+import threading
+import time
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from laiive_shared import (
     ArtistHit,
@@ -24,12 +26,15 @@ from starlette.concurrency import run_in_threadpool
 
 from config import settings
 
+from . import eval_records
 from .clients.neo4j_client import neo4j_client
 from .executor import (
     EVENT_LOOKUP_MAX_UIDS,
     build_artist_search,
+    build_artists_by_uid,
     build_uid_query,
     build_venue_search,
+    build_venues_by_uid,
     rows_to_cards,
 )
 from .pipeline import Pipeline, TurnResult
@@ -56,6 +61,30 @@ def log_turn(
         card_count=card_count,
         error=error,
     ).info("turn: {}", user_message)
+
+
+def _request_id(raw: Request) -> str:
+    """The gateway's id, so the record joins conversation_logs; the gateway
+    strips client-sent copies, so the header is trustworthy. Minted locally
+    only for direct calls (tests, curl against 8002)."""
+    return raw.headers.get("x-request-id") or str(uuid.uuid4())
+
+
+def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
+    """Fire-and-forget on a daemon thread: in the SSE path the finally: runs
+    before the done frame is yielded, so a blocking POST there would delay it.
+
+    ponytail: one unbounded thread per turn, fine at current volume and wrong
+    under load - a burst spawns a thread each, and a daemon thread mid-POST
+    dies silently on shutdown, losing that record. Upgrade path when turns/sec
+    justifies it: a bounded queue plus a single writer thread, dropping oldest
+    on overflow so the corpus degrades instead of the turn.
+    """
+    threading.Thread(
+        target=eval_records.write,
+        args=(request_id, result, int((time.perf_counter() - start) * 1000)),
+        daemon=True,
+    ).start()
 
 
 app = FastAPI(title="laiive retriever API", version="0.3.0")
@@ -243,6 +272,23 @@ def events_by_uid(uids: str = Query(..., description="comma-separated event uids
     return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
+def _wanted_uids(raw: str) -> list[str]:
+    """Comma-separated uids, de-duplicated, order preserved, capped.
+
+    Same contract and same cap as /events: the cap bounds the query string the
+    gateway forwards, and refusing beats silently truncating, because a short
+    answer to a long question looks like missing data.
+    """
+    wanted: list[str] = []
+    for part in raw.split(","):
+        uid = part.strip()
+        if uid and uid not in wanted:
+            wanted.append(uid)
+    if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
+        raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
+    return wanted
+
+
 # ============== Entity lookup (venues, artists) ==============
 #
 # The first read paths in the product that answer with something other than an
@@ -253,15 +299,32 @@ def events_by_uid(uids: str = Query(..., description="comma-separated event uids
 
 @app.get("/venues", response_model=VenueLookupResult)
 def venues_lookup(
-    q: str = Query(..., description="name fragment, at least 2 characters"),
+    q: str = Query("", description="name fragment, at least 2 characters"),
     city: str = Query("", description="optional city to scope the answer to"),
+    uids: str = Query("", description="comma-separated venue uids; excludes q"),
 ):
-    """Venues by name fragment — a lookup for a picker, not a search."""
-    fragment = q.strip()
-    if len(fragment) < 2:
-        # One character matches half the base; refusing beats a churning list.
-        raise HTTPException(400, "q must be at least 2 characters")
-    cypher, params = build_venue_search(fragment, city.strip() or None)
+    """Venues by name fragment, or by uid.
+
+    Two modes on one route rather than a second endpoint: the answer shape is
+    identical, so a `/venues/by-uid` would duplicate the response model and
+    earn the gateway another proxy registration for nothing.
+
+    The uid mode exists for claiming. A claim names a uid, and the gateway has
+    to answer two questions before recording one — does this venue exist, and
+    what is it actually called — because the stored display name must come
+    from the graph rather than from whatever the client typed.
+    """
+    if uids:
+        wanted = _wanted_uids(uids)
+        if not wanted:
+            return VenueLookupResult(venues=[])
+        cypher, params = build_venues_by_uid(wanted)
+    else:
+        fragment = q.strip()
+        if len(fragment) < 2:
+            # One character matches half the base; refusing beats a churning list.
+            raise HTTPException(400, "q must be at least 2 characters")
+        cypher, params = build_venue_search(fragment, city.strip() or None)
     try:
         rows = neo4j_client.execute_read_once(cypher, params)
     except Exception as e:
@@ -272,13 +335,20 @@ def venues_lookup(
 
 @app.get("/artists", response_model=ArtistLookupResult)
 def artists_lookup(
-    q: str = Query(..., description="name fragment, at least 2 characters"),
+    q: str = Query("", description="name fragment, at least 2 characters"),
+    uids: str = Query("", description="comma-separated artist uids; excludes q"),
 ):
-    """Artists by name fragment — same contract as /venues."""
-    fragment = q.strip()
-    if len(fragment) < 2:
-        raise HTTPException(400, "q must be at least 2 characters")
-    cypher, params = build_artist_search(fragment)
+    """Artists by name fragment, or by uid — same contract as /venues."""
+    if uids:
+        wanted = _wanted_uids(uids)
+        if not wanted:
+            return ArtistLookupResult(artists=[])
+        cypher, params = build_artists_by_uid(wanted)
+    else:
+        fragment = q.strip()
+        if len(fragment) < 2:
+            raise HTTPException(400, "q must be at least 2 characters")
+        cypher, params = build_artist_search(fragment)
     try:
         rows = neo4j_client.execute_read_once(cypher, params)
     except Exception as e:
@@ -327,22 +397,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, raw: Request):
     """JSON response endpoint."""
-    request_id = str(uuid.uuid4())
+    request_id = _request_id(raw)
+    result = TurnResult()
+    start = time.perf_counter()
     try:
-        result = get_pipeline().run_turn_collected(
+        get_pipeline().run_turn_collected(
             request.message,
             _history_dicts(request.conversation_history),
             _location_dict(request.location),
             timezone=request.timezone,
-        )
-        log_turn(
-            request_id,
-            request.message,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            card_count=len(result.cards),
-            error="; ".join(result.errors) or None,
+            result=result,
         )
         return ChatResponse(
             request_id=request_id,
@@ -353,14 +419,23 @@ def chat(request: ChatRequest):
             needs_more_info=result.needs_more_info,
         )
     except Exception as e:
-        logger.error(f"[{request_id}] Chat error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
         raise HTTPException(500, "An internal error occurred. Please try again.")
+    finally:
+        log_turn(
+            request_id,
+            request.message,
+            cypher=result.cyphers[0] if result.cyphers else None,
+            card_count=len(result.cards),
+            error="; ".join(result.errors) or None,
+        )
+        _write_eval_record(request_id, result, start)
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequestSSE):
+async def chat_stream(request: ChatRequestSSE, raw: Request):
     """SSE streaming endpoint — real streaming from the composer."""
-    request_id = str(uuid.uuid4())
+    request_id = _request_id(raw)
     if not request.messages:
         raise HTTPException(400, "No messages provided")
 
@@ -396,13 +471,14 @@ def _generate(
     leaves the loop free to flush each frame as it is produced.
     """
     result = TurnResult()
+    start = time.perf_counter()
     try:
         for payload in get_pipeline().run_turn(
             user_message, history, location, result=result, timezone=timezone
         ):
             yield sse_frame(payload)
     except Exception as e:
-        logger.error(f"[{request_id}] SSE stream error: {e}", exc_info=True)
+        logger.opt(exception=True).error("[{}] SSE stream error: {}", request_id, e)
         yield sse_frame(Error(code="internal_error", message="Something went wrong."))
     finally:
         log_turn(
@@ -412,6 +488,7 @@ def _generate(
             card_count=len(result.cards),
             error="; ".join(result.errors) or None,
         )
+        _write_eval_record(request_id, result, start)
     yield sse_frame(Done(request_id=request_id))
 
 

@@ -34,7 +34,7 @@ export function splitByTime(
 /** Mono small-caps section rule, the voice used for every other label here. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-[10px] uppercase tracking-[0.11em] text-ink-dim">{children}</p>
+    <p className="font-mono text-2xs uppercase tracking-[0.11em] text-ink-dim">{children}</p>
   );
 }
 
@@ -84,25 +84,25 @@ export default function Saved() {
         >
           <Icon name="back" />
         </Link>
-        <h1 className="font-bebas text-[24px] leading-none tracking-[0.04em] text-card-foreground">
+        <h1 className="font-bebas text-3xl leading-none tracking-[0.04em] text-card-foreground">
           {t.savedPage.title}
         </h1>
       </header>
 
       <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 sm:p-6">
         {loading && (
-          <p className="animate-pulse font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
+          <p className="animate-pulse font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
             {t.savedPage.title}
           </p>
         )}
 
         {!loading && isError && (
           <div className="flex flex-col items-start gap-2.5">
-            <p className="text-[14px] text-muted-foreground">{t.savedPage.failed}</p>
+            <p className="text-base text-muted-foreground">{t.savedPage.failed}</p>
             <button
               type="button"
               onClick={() => void refetch()}
-              className="rounded-full bg-field-border px-3.5 py-2.5 text-[12.5px] leading-none text-white transition-colors hover:bg-muted"
+              className="min-h-11 rounded-full bg-field-border px-3.5 text-sm leading-tight text-white transition-colors hover:bg-muted"
             >
               {t.savedPage.retry}
             </button>
@@ -111,8 +111,8 @@ export default function Saved() {
 
         {!loading && !isError && upcoming.length === 0 && past.length === 0 && (
           <div className="flex flex-col gap-1.5 pt-10">
-            <p className="text-[15px] leading-[1.5] text-foreground">{t.savedPage.empty}</p>
-            <p className="font-mono text-[11px] text-ink-dim">{t.savedPage.emptyHint}</p>
+            <p className="text-lg leading-[1.5] text-foreground">{t.savedPage.empty}</p>
+            <p className="font-mono text-xs text-ink-dim">{t.savedPage.emptyHint}</p>
           </div>
         )}
 

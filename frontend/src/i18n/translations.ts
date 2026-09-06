@@ -29,6 +29,10 @@ export interface Translations {
     genericError: string;
     stop: string;
     send: string;
+    feedbackUp: string;
+    feedbackDown: string;
+    feedbackReasonPlaceholder: string;
+    feedbackThanks: string;
   };
   auth: {
     signInTitle: string;
@@ -73,22 +77,74 @@ export interface Translations {
     becomePromoterNote: string;
     becomePromoterCta: string;
     becamePromoter: string;
-    organisation: string;
-    organisationPlaceholder: string;
+    profileSaved: string;
+    saveFailed: string;
+  };
+  org: {
+    back: string;
+    title: string;
+    /** Shown to a pro account that belongs to no organization yet. */
+    noneTitle: string;
+    noneNote: string;
+    kind: string;
+    kindVenue: string;
+    kindArtist: string;
+    kindPromoter: string;
+    kindAgency: string;
+    name: string;
+    namePlaceholder: string;
+    /** The person's relation to the organisation — context for a reviewer, not a permission. */
+    relation: string;
+    relationPlaceholder: string;
+    relationOwner: string;
+    relationEmployee: string;
+    relationFreelance: string;
+    relationMember: string;
+    /** Under website / phone / email: what they are for. */
+    evidenceHint: string;
+    yourSeat: string;
     website: string;
     phone: string;
-    venues: string;
-    artists: string;
-    add: string;
-    remove: (item: string) => string;
-    profileSaved: string;
-    promoterSaved: string;
+    contactEmail: string;
+    create: string;
+    save: string;
+    saved: string;
     saveFailed: string;
-    orgRequired: string;
+    detailsTitle: string;
+    readOnlyNote: string;
+    claimsTitle: string;
+    claimsNone: string;
+    /** Events this organisation published. Ownership is recorded on publish. */
+    eventsTitle: string;
+    eventsNone: string;
+    pending: string;
+    verified: string;
+    withdraw: string;
+    withdrawn: string;
+    searchTitle: string;
+    searchNote: string;
+    searchPlaceholder: string;
+    searchNone: string;
+    claim: string;
+    claimedAlready: string;
+    claimDone: (name: string) => string;
+    claimFailed: string;
+    claimConflict: string;
+    claimMissing: string;
+    rosterTitle: string;
+    rosterNote: string;
+    seatOwner: string;
+    seatAdmin: string;
+    seatMember: string;
+    legacyTitle: string;
+    legacyNote: string;
+    legacySearch: string;
+    summaryTitle: string;
+    summary: (count: number) => string;
+    manage: string;
   };
   pro: {
     needsPro: string;
-    becomeProLink: string;
     signInLink: string;
     onboardingSteps: string[];
     onboardingDismiss: string;
@@ -112,6 +168,10 @@ export interface Translations {
     stillNeeded: (n: number) => string;
     labels: Record<DraftFieldKey, string>;
     missingPlaceholder: string;
+    /** Heading over the list of values the correction layer changed. */
+    correctedTitle: string;
+    /** Marks a field the chat asked a question about. */
+    checkThis: string;
     ticketNoteAria: string;
     ticketNote: string;
     ticketInvalid: string;
@@ -197,6 +257,10 @@ export const translations: Record<Language, Translations> = {
       genericError: "Something went wrong.",
       stop: "Stop",
       send: "Send",
+      feedbackUp: "Helpful",
+      feedbackDown: "Not helpful",
+      feedbackReasonPlaceholder: "What went wrong? (optional)",
+      feedbackThanks: "Thanks for the feedback",
     },
     auth: {
       signInTitle: "sign in",
@@ -237,22 +301,73 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Tell us what you run and this becomes a promoter account — publishing opens straight away.",
       becomePromoterCta: "become a promoter",
       becamePromoter: "you're a promoter now — publishing is open",
-      organisation: "organisation",
-      organisationPlaceholder: "venue, label, collective…",
-      website: "website",
-      phone: "phone",
-      venues: "venues you manage",
-      artists: "artists you manage",
-      add: "add",
-      remove: (item) => `remove ${item}`,
       profileSaved: "profile saved",
-      promoterSaved: "promoter details saved",
       saveFailed: "could not save",
-      orgRequired: "the organisation name is required",
+    },
+    org: {
+      back: 'back',
+      title: 'your organisation',
+      noneTitle: 'no organisation yet',
+      noneNote:
+        'An organisation is what owns a venue, an act or an event. Make one and you can add the rooms and artists you actually run.',
+      kind: 'kind',
+      kindVenue: 'venue',
+      kindArtist: 'artist',
+      kindPromoter: 'promoter',
+      kindAgency: 'management / agency',
+      name: 'name',
+      namePlaceholder: 'Sala Apolo',
+      relation: 'your part in it',
+      relationPlaceholder: 'choose…',
+      relationOwner: 'owner',
+      relationEmployee: 'employee',
+      relationFreelance: 'freelance',
+      relationMember: 'member',
+      evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
+      yourSeat: 'your seat',
+      website: 'website',
+      phone: 'phone',
+      contactEmail: 'contact email',
+      create: 'create organisation',
+      save: 'save',
+      saved: 'organisation saved',
+      saveFailed: 'could not save that',
+      detailsTitle: 'details',
+      readOnlyNote: 'only owners and admins can change these.',
+      claimsTitle: 'venues and artists you manage',
+      claimsNone: 'nothing yet.',
+      eventsTitle: 'events you published',
+      eventsNone: 'nothing published yet.',
+      pending: 'in review',
+      verified: 'verified',
+      withdraw: 'stop managing',
+      withdrawn: 'no longer managing that',
+      searchTitle: 'manage a venue or an artist',
+      searchNote: 'Saying you manage it says you speak for it. We review that before the card shows the mark.',
+      searchPlaceholder: 'search by name…',
+      searchNone: 'nothing by that name.',
+      claim: 'manage',
+      claimedAlready: 'already managed',
+      claimDone: (name: string) => `now managing ${name}`,
+      claimFailed: 'could not record that',
+      claimConflict: 'you already manage that one',
+      claimMissing: 'we could not find that in the graph',
+      rosterTitle: 'who is in it',
+      rosterNote: 'Invitations are not open yet.',
+      seatOwner: 'owner',
+      seatAdmin: 'admin',
+      seatMember: 'member',
+      legacyTitle: 'names you listed before this screen existed',
+      legacyNote:
+        'These were free text on your old profile. They point at nothing. Search for each one and add it properly.',
+      legacySearch: 'find it',
+      summaryTitle: 'organisation',
+      summary: (count: number) =>
+        count === 1 ? '1 entry' : `${count} entries`,
+      manage: 'manage →',
     },
     pro: {
-      needsPro: "Publishing events needs a promoter account.",
-      becomeProLink: "set up your promoter details and publish →",
+      needsPro: "Publishing events needs a pro account.",
       signInLink: "sign in →",
       onboardingSteps: [
         "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
@@ -263,7 +378,7 @@ export const translations: Record<Language, Translations> = {
       onboardingDismiss: "don't show this again",
       statusExtracting: "reading what you sent…",
       readingFile: (name) => `reading ${name}…`,
-      notPromoter: "Your account is not a promoter account yet.",
+      notPromoter: "Your account is not a pro account yet.",
       genericError: "Something went wrong",
       couldNotRead: "Could not read that file",
       published: (name) => `Published — ${name} is live`,
@@ -297,6 +412,8 @@ export const translations: Record<Language, Translations> = {
         description: "description",
       },
       missingPlaceholder: "the assistant could not find this",
+      correctedTitle: "corrected — change anything that looks wrong",
+      checkThis: "check this",
       ticketNoteAria: "about the ticket link",
       ticketNote:
         "laiive does not sell tickets yet — this link sends people straight to wherever you already sell them. Ticketing here is on its way.",
@@ -383,6 +500,10 @@ export const translations: Record<Language, Translations> = {
       genericError: "Algo ha ido mal.",
       stop: "Detener",
       send: "Enviar",
+      feedbackUp: "Útil",
+      feedbackDown: "No útil",
+      feedbackReasonPlaceholder: "¿Qué ha fallado? (opcional)",
+      feedbackThanks: "Gracias por tu opinión",
     },
     auth: {
       signInTitle: "inicia sesión",
@@ -423,22 +544,74 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Cuéntanos qué gestionas y esta cuenta pasa a ser de promotor — podrás publicar al momento.",
       becomePromoterCta: "hazte promotor",
       becamePromoter: "ya eres promotor — puedes publicar",
-      organisation: "organización",
-      organisationPlaceholder: "sala, sello, colectivo…",
-      website: "web",
-      phone: "teléfono",
-      venues: "salas que gestionas",
-      artists: "artistas que gestionas",
-      add: "añadir",
-      remove: (item) => `quitar ${item}`,
       profileSaved: "perfil guardado",
-      promoterSaved: "datos de promotor guardados",
       saveFailed: "no se pudo guardar",
-      orgRequired: "el nombre de la organización es obligatorio",
+    },
+    org: {
+      back: 'atrás',
+      title: 'tu organización',
+      noneTitle: 'aún no tienes organización',
+      noneNote:
+        'Una organización es lo que posee una sala, un artista o un evento. Crea una y podrás añadir las salas y artistas que llevas de verdad.',
+      kind: 'tipo',
+      kindVenue: 'sala',
+      kindArtist: 'artista',
+      kindPromoter: 'promotor',
+      kindAgency: 'management / agencia',
+      name: 'nombre',
+      namePlaceholder: 'Sala Apolo',
+      relation: 'tu vínculo',
+      relationPlaceholder: 'elige…',
+      relationOwner: 'propietario/a',
+      relationEmployee: 'empleado/a',
+      relationFreelance: 'freelance',
+      relationMember: 'miembro',
+      evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
+      yourSeat: 'tu puesto',
+      website: 'web',
+      phone: 'teléfono',
+      contactEmail: 'email de contacto',
+      create: 'crear organización',
+      save: 'guardar',
+      saved: 'organización guardada',
+      saveFailed: 'no se pudo guardar',
+      detailsTitle: 'datos',
+      readOnlyNote: 'solo propietarios y administradores pueden cambiarlos.',
+      claimsTitle: 'salas y artistas que gestionas',
+      claimsNone: 'todavía nada.',
+      eventsTitle: 'eventos que has publicado',
+      eventsNone: 'aún no has publicado nada.',
+      pending: 'en revisión',
+      verified: 'verificado',
+      withdraw: 'dejar de gestionar',
+      withdrawn: 'ya no lo gestionas',
+      searchTitle: 'gestiona una sala o un artista',
+      searchNote:
+        'Decir que lo gestionas significa que hablas por ello. Lo revisamos antes de que la ficha muestre la marca.',
+      searchPlaceholder: 'busca por nombre…',
+      searchNone: 'nada con ese nombre.',
+      claim: 'gestionar',
+      claimedAlready: 'ya lo gestionas',
+      claimDone: (name: string) => `ahora gestionas ${name}`,
+      claimFailed: 'no se pudo registrar',
+      claimConflict: 'ya gestionas eso',
+      claimMissing: 'no lo encontramos en el grafo',
+      rosterTitle: 'quién está dentro',
+      rosterNote: 'Las invitaciones aún no están abiertas.',
+      seatOwner: 'propietario',
+      seatAdmin: 'administrador',
+      seatMember: 'miembro',
+      legacyTitle: 'nombres que anotaste antes de que existiera esta pantalla',
+      legacyNote:
+        'Eran texto libre en tu perfil antiguo. No apuntan a nada. Busca cada uno y añádelo bien.',
+      legacySearch: 'buscarlo',
+      summaryTitle: 'organización',
+      summary: (count: number) =>
+        count === 1 ? '1 entrada' : `${count} entradas`,
+      manage: 'gestionar →',
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
-      becomeProLink: "configura tus datos de promotor y publica →",
       signInLink: "inicia sesión →",
       onboardingSteps: [
         "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
@@ -483,6 +656,8 @@ export const translations: Record<Language, Translations> = {
         description: "descripción",
       },
       missingPlaceholder: "el asistente no pudo encontrarlo",
+      correctedTitle: "corregido — cambia lo que no cuadre",
+      checkThis: "revisa esto",
       ticketNoteAria: "sobre el enlace de entradas",
       ticketNote:
         "laiive todavía no vende entradas — este enlace lleva directamente a donde ya las vendes. La venta aquí llegará.",
@@ -569,6 +744,10 @@ export const translations: Record<Language, Translations> = {
       genericError: "Qualcosa è andato storto.",
       stop: "Interrompi",
       send: "Invia",
+      feedbackUp: "Utile",
+      feedbackDown: "Non utile",
+      feedbackReasonPlaceholder: "Cosa non andava? (facoltativo)",
+      feedbackThanks: "Grazie per il feedback",
     },
     auth: {
       signInTitle: "accedi",
@@ -609,22 +788,74 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Dicci cosa gestisci e questo account diventa da promoter — potrai pubblicare subito.",
       becomePromoterCta: "diventa promoter",
       becamePromoter: "ora sei un promoter — puoi pubblicare",
-      organisation: "organizzazione",
-      organisationPlaceholder: "locale, etichetta, collettivo…",
-      website: "sito web",
-      phone: "telefono",
-      venues: "locali che gestisci",
-      artists: "artisti che gestisci",
-      add: "aggiungi",
-      remove: (item) => `rimuovi ${item}`,
       profileSaved: "profilo salvato",
-      promoterSaved: "dati promoter salvati",
       saveFailed: "impossibile salvare",
-      orgRequired: "il nome dell'organizzazione è obbligatorio",
+    },
+    org: {
+      back: 'indietro',
+      title: 'la tua organizzazione',
+      noneTitle: 'ancora nessuna organizzazione',
+      noneNote:
+        "Un'organizzazione è ciò che possiede un locale, un artista o un evento. Creane una e potrai aggiungere i locali e gli artisti che gestisci davvero.",
+      kind: 'tipo',
+      kindVenue: 'locale',
+      kindArtist: 'artista',
+      kindPromoter: 'promoter',
+      kindAgency: 'management / agenzia',
+      name: 'nome',
+      namePlaceholder: 'Spazio 211',
+      relation: 'il tuo legame',
+      relationPlaceholder: 'scegli…',
+      relationOwner: 'titolare',
+      relationEmployee: 'dipendente',
+      relationFreelance: 'freelance',
+      relationMember: 'membro',
+      evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
+      yourSeat: 'il tuo posto',
+      website: 'sito',
+      phone: 'telefono',
+      contactEmail: 'email di contatto',
+      create: 'crea organizzazione',
+      save: 'salva',
+      saved: 'organizzazione salvata',
+      saveFailed: 'non è stato possibile salvare',
+      detailsTitle: 'dati',
+      readOnlyNote: 'solo proprietari e amministratori possono modificarli.',
+      claimsTitle: 'locali e artisti che gestisci',
+      claimsNone: 'ancora niente.',
+      eventsTitle: 'eventi che hai pubblicato',
+      eventsNone: 'non hai ancora pubblicato niente.',
+      pending: 'in revisione',
+      verified: 'verificato',
+      withdraw: 'non gestire più',
+      withdrawn: 'non lo gestisci più',
+      searchTitle: 'gestisci un locale o un artista',
+      searchNote:
+        'Dire che lo gestisci significa che parli tu per quel nome. Lo controlliamo prima che la scheda mostri il segno.',
+      searchPlaceholder: 'cerca per nome…',
+      searchNone: 'niente con quel nome.',
+      claim: 'gestisci',
+      claimedAlready: 'lo gestisci già',
+      claimDone: (name: string) => `ora gestisci ${name}`,
+      claimFailed: 'non è stato possibile registrare',
+      claimConflict: 'lo gestisci già',
+      claimMissing: 'non lo troviamo nel grafo',
+      rosterTitle: 'chi ne fa parte',
+      rosterNote: 'Gli inviti non sono ancora aperti.',
+      seatOwner: 'proprietario',
+      seatAdmin: 'amministratore',
+      seatMember: 'membro',
+      legacyTitle: 'nomi che avevi scritto prima che esistesse questa schermata',
+      legacyNote:
+        'Erano testo libero nel tuo vecchio profilo. Non puntano a niente. Cerca ognuno e aggiungilo davvero.',
+      legacySearch: 'trovalo',
+      summaryTitle: 'organizzazione',
+      summary: (count: number) =>
+        count === 1 ? '1 voce' : `${count} voci`,
+      manage: 'gestisci →',
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
-      becomeProLink: "inserisci i tuoi dati da promoter e pubblica →",
       signInLink: "accedi →",
       onboardingSteps: [
         "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
@@ -669,6 +900,8 @@ export const translations: Record<Language, Translations> = {
         description: "descrizione",
       },
       missingPlaceholder: "l'assistente non è riuscito a trovarlo",
+      correctedTitle: "corretto — cambia quello che non torna",
+      checkThis: "controlla questo",
       ticketNoteAria: "informazioni sul link dei biglietti",
       ticketNote:
         "laiive non vende ancora biglietti — questo link porta direttamente dove li vendi già. La vendita qui arriverà.",
@@ -755,6 +988,10 @@ export const translations: Record<Language, Translations> = {
       genericError: "Alguna cosa ha anat malament.",
       stop: "Atura",
       send: "Envia",
+      feedbackUp: "Útil",
+      feedbackDown: "Poc útil",
+      feedbackReasonPlaceholder: "Què ha fallat? (opcional)",
+      feedbackThanks: "Gràcies pel feedback",
     },
     auth: {
       signInTitle: "inicia sessió",
@@ -795,22 +1032,74 @@ export const translations: Record<Language, Translations> = {
       becomePromoterNote: "Digues-nos què gestiones i aquest compte passa a ser de promotor — podràs publicar de seguida.",
       becomePromoterCta: "fes-te promotor",
       becamePromoter: "ja ets promotor — pots publicar",
-      organisation: "organització",
-      organisationPlaceholder: "sala, segell, col·lectiu…",
-      website: "web",
-      phone: "telèfon",
-      venues: "sales que gestiones",
-      artists: "artistes que gestiones",
-      add: "afegeix",
-      remove: (item) => `treu ${item}`,
       profileSaved: "perfil desat",
-      promoterSaved: "dades de promotor desades",
       saveFailed: "no s'ha pogut desar",
-      orgRequired: "el nom de l'organització és obligatori",
+    },
+    org: {
+      back: 'enrere',
+      title: 'la teva organització',
+      noneTitle: 'encara no tens organització',
+      noneNote:
+        'Una organització és el que posseeix una sala, un artista o un esdeveniment. Crea’n una i podràs afegir les sales i els artistes que portes de debò.',
+      kind: 'tipus',
+      kindVenue: 'sala',
+      kindArtist: 'artista',
+      kindPromoter: 'promotor',
+      kindAgency: 'management / agència',
+      name: 'nom',
+      namePlaceholder: 'Sala Apolo',
+      relation: 'el teu vincle',
+      relationPlaceholder: 'tria…',
+      relationOwner: 'propietari/ària',
+      relationEmployee: 'empleat/ada',
+      relationFreelance: 'freelance',
+      relationMember: 'membre',
+      evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
+      yourSeat: 'el teu lloc',
+      website: 'web',
+      phone: 'telèfon',
+      contactEmail: 'correu de contacte',
+      create: 'crea organització',
+      save: 'desa',
+      saved: 'organització desada',
+      saveFailed: 'no s’ha pogut desar',
+      detailsTitle: 'dades',
+      readOnlyNote: 'només els propietaris i administradors poden canviar-les.',
+      claimsTitle: 'sales i artistes que gestiones',
+      claimsNone: 'encara res.',
+      eventsTitle: 'esdeveniments que has publicat',
+      eventsNone: 'encara no has publicat res.',
+      pending: 'en revisió',
+      verified: 'verificat',
+      withdraw: 'deixa de gestionar',
+      withdrawn: 'ja no ho gestiones',
+      searchTitle: 'gestiona una sala o un artista',
+      searchNote:
+        'Dir que ho gestiones vol dir que parles per ell. Ho revisem abans que la fitxa mostri la marca.',
+      searchPlaceholder: 'cerca per nom…',
+      searchNone: 'res amb aquest nom.',
+      claim: 'gestiona',
+      claimedAlready: 'ja ho gestiones',
+      claimDone: (name: string) => `ara gestiones ${name}`,
+      claimFailed: 'no s’ha pogut registrar',
+      claimConflict: 'ja ho gestiones',
+      claimMissing: 'no ho hem trobat al graf',
+      rosterTitle: 'qui hi és',
+      rosterNote: 'Les invitacions encara no estan obertes.',
+      seatOwner: 'propietari',
+      seatAdmin: 'administrador',
+      seatMember: 'membre',
+      legacyTitle: 'noms que vas escriure abans que existís aquesta pantalla',
+      legacyNote:
+        'Eren text lliure al teu perfil antic. No apunten enlloc. Cerca cadascun i afegeix-lo de debò.',
+      legacySearch: 'troba’l',
+      summaryTitle: 'organització',
+      summary: (count: number) =>
+        count === 1 ? '1 entrada' : `${count} entrades`,
+      manage: 'gestiona →',
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
-      becomeProLink: "configura les teves dades de promotor i publica →",
       signInLink: "inicia sessió →",
       onboardingSteps: [
         "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
@@ -855,6 +1144,8 @@ export const translations: Record<Language, Translations> = {
         description: "descripció",
       },
       missingPlaceholder: "l'assistent no ho ha pogut trobar",
+      correctedTitle: "corregit — canvia el que no quadri",
+      checkThis: "revisa això",
       ticketNoteAria: "sobre l'enllaç d'entrades",
       ticketNote:
         "laiive encara no ven entrades — aquest enllaç porta directament on ja les vens. La venda aquí arribarà.",

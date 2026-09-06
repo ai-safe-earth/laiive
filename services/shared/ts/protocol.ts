@@ -87,6 +87,8 @@ export interface EventDraft {
   name?: string | null;
   artists: string[];
   start_at?: string | null;
+  /** The date as the source worded it, kept so it can be checked against start_at. */
+  start_at_claim?: string | null;
   venue?: string | null;
   venue_type?: string | null;
   address?: string | null;
@@ -97,6 +99,20 @@ export interface EventDraft {
   description?: string | null;
   genre?: string | null;
   ticket_url?: string | null;
+}
+
+/** A value the correction layer changed, and what it was before. */
+export interface Correction {
+  field: string;
+  before: string;
+  after: string;
+  why: string;
+}
+
+/** Something the correction layer could not settle on its own. */
+export interface Doubt {
+  field: string;
+  question: string;
 }
 
 // event: message.delta
@@ -116,6 +132,10 @@ export interface EventsResult {
 export interface FormExtracted {
   draft: EventDraft;
   missing: string[];
+  /** Already applied to `draft`; shown so the promoter can overrule them. */
+  corrections: Correction[];
+  /** Questions only the promoter can settle; the reply asks them. */
+  doubts: Doubt[];
   index: number;
   total: number;
 }

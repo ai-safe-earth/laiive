@@ -3,16 +3,21 @@ name: verify-retriever
 description: Run the retriever test suite using the targets that actually exist, routing around the broken Makefile targets. Use after changing anything under services/retriever.
 ---
 
-Run tests for `services/retriever`. Always `cd services/retriever` first — there is no root uv project.
+Run tests for `services/retriever`. Always `cd services/retriever` first — there is no root uv
+project, and every service resolves the root `.env` relative to its own directory.
 
-Do **not** use `make test-integration`, `make test-all`, or `make dashboard`: they reference
-`tests/test_pipeline_metrics.py` and `agent.utils.metrics`, neither of which exists, so they fail
-before running anything real.
+Two invocations are broken here and both fail *before* running anything real:
+
+- `make test-integration`, `make test-all`, `make dashboard` reference
+  `tests/test_pipeline_metrics.py` and `agent.utils.metrics`, neither of which exists.
+- Bare **`uv run pytest`** dies on this machine with `Failed to canonicalize script path`. Use
+  `uv sync` as its own step, then `uv run --no-sync python -m pytest`.
 
 ## Default — unit tests, no external services
 
 ```
-cd services/retriever && uv run pytest -q -m "not integration"
+cd services/retriever && uv sync
+cd services/retriever && uv run --no-sync python -m pytest -q -m "not integration"
 ```
 
 (The suite was reorganized in the Phase 2 refactor — don't list test files by
@@ -23,23 +28,24 @@ name, the markers are the source of truth.)
 Confirm with the user before running.
 
 ```
-cd services/retriever && uv run pytest -v --timeout=120 \
-  tests/test_full_pipeline.py tests/test_llm_api.py
+cd services/retriever && uv run --no-sync python -m pytest -v --timeout=120 \
+  -m integration
 ```
 
-(`make test-integration` also lists `tests/test_pipeline_metrics.py`; it doesn't exist, which is
-why this omits it.)
+(Listing files by name is what broke this: `tests/test_full_pipeline.py` went away in the Phase 2
+refactor, so the old command collected nothing and passed. The marker picks up the eval corpus's
+live tier too — 11 assertions that had no trigger at all.)
 
 ## Coverage
 
 ```
-cd services/retriever && uv run pytest tests/ --cov=agent --cov-report=term
+cd services/retriever && uv run --no-sync python -m pytest tests/ --cov=agent --cov-report=term
 ```
 
 ## Single test
 
 ```
-cd services/retriever && uv run pytest -v tests/test_query_builder.py::test_name
+cd services/retriever && uv run --no-sync python -m pytest -v tests/test_query_builder.py::test_name
 ```
 
 Add `--timeout=120` to anything that calls an LLM.

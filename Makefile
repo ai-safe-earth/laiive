@@ -1,7 +1,10 @@
 # .env is optional for docker targets (compose reads it via env_file);
-# python services load it themselves from the repo root.
+# python services load it themselves from the repo root. Only GATEWAY_PORT is
+# exported to recipes: a blanket `export` of the included .env poisons values
+# for the services, because make strips inline comments but keeps the trailing
+# whitespace (CLASSIFIER_MODEL became "gpt-4o-mini<14 spaces>" -> OpenAI 400
+# invalid model ID) and env vars beat the env_file in pydantic and dotenv.
 -include .env
-export
 
 # ----------------- docker compose ---------------------------------------------------------------
 build:
@@ -40,6 +43,20 @@ start-gateway:
 
 start-search:
 	cd services/search && uv sync && uv run --no-sync python -m uvicorn agent.api:app --host 127.0.0.1 --port 8004 --reload
+
+start-frontend:
+	cd frontend && npm install && $(if $(GATEWAY_PORT),VITE_API_URL=http://localhost:$(GATEWAY_PORT) )npx vite --port 8081 --strictPort
+
+# The whole chat stack in one terminal: retriever :8002, gateway :8020,
+# frontend :8081. Pusher is not part of it - `make start-pusher` separately
+# for the pro flow. The local gateway defaults to 8010, not 8000: VaiVia's
+# uvicorn owns :8000 on this box and stays. The gateway reads GATEWAY_PORT
+# from the env, and start-frontend passes the matching inline VITE_API_URL,
+# which beats frontend/.env. Deploys are untouched (fly.toml sets its own
+# port).
+export GATEWAY_PORT ?= 8020
+dev:
+	$(MAKE) -j3 start-retriever start-gateway start-frontend
 
 # --------------- tests ---------------------------------------------------------------------------
 # Mirrors CI: ruff + pytest per service, integration tests deselected

@@ -16,7 +16,7 @@ type Variant =
   | "neutralOutline"
   | "proNeutralOutline"
   | "proNeutral";
-type Size = "default" | "icon" | "sm";
+type Size = "default" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -38,8 +38,7 @@ const VARIANTS: Record<Variant, string> = {
 
 /** 44px floor on every target, including the icon buttons. */
 const SIZES: Record<Size, string> = {
-  default: "h-11 px-6 text-[13.5px] font-medium",
-  sm: "h-9 px-4 text-[12.5px] font-medium",
+  default: "h-11 px-6 text-md font-medium",
   icon: "h-11 w-11",
 };
 

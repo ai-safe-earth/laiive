@@ -87,6 +87,15 @@ describe("who sees a door to the other surface", () => {
     expect(labels).not.toContain(en.menu.pro);
   });
 
+  it("offers the organisation screen only from the promoter surface", async () => {
+    // /pro/org had no way in from the chat at all.
+    expect(await openMenuAt("/pro")).toContain(en.org.title);
+  });
+
+  it("does not offer it from the consumer chat", async () => {
+    expect(await openMenuAt("/")).not.toContain(en.org.title);
+  });
+
   it("shows a plain user neither door, nor the admin one", async () => {
     auth.state.role = "user";
     const labels = await openMenuAt("/");
@@ -100,5 +109,25 @@ describe("who sees a door to the other surface", () => {
     const labels = await openMenuAt("/");
     expect(labels).toContain("Admin");
     expect(labels).toContain(en.menu.pro);
+  });
+});
+
+describe("which palette the menu wears", () => {
+  it("wears the promoter one on /pro", async () => {
+    const user = userEvent.setup();
+    renderMenuAt("/pro");
+    await user.click(screen.getByRole("button", { name: en.menu.aria }));
+    const item = screen.getByRole("link", { name: en.menu.settings });
+    expect(item.className).toContain("text-pro-fg");
+    expect(item.closest("div")?.className).toContain("bg-pro-elevated");
+  });
+
+  it("wears the consumer one on the chat", async () => {
+    const user = userEvent.setup();
+    renderMenuAt("/");
+    await user.click(screen.getByRole("button", { name: en.menu.aria }));
+    expect(screen.getByRole("link", { name: en.menu.settings }).className).not.toContain(
+      "text-pro-fg",
+    );
   });
 });

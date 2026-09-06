@@ -1,4 +1,4 @@
-"""Convert voice, image, URL, and text inputs into an EventDraft.
+"""Convert voice, image, and text inputs into an EventDraft.
 
 The one extraction prompt for every modality (04-plan: the duplicated
 prompts/functions merged here). Everything funnels into `EventDraft`.
@@ -9,7 +9,6 @@ import io
 import json
 from datetime import date
 
-import httpx
 from laiive_shared import EventDraft, transcribe
 from laiive_shared.drafts import entries_from_json, entry_to_draft, strip_fences
 from loguru import logger
@@ -19,7 +18,7 @@ from config import settings
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-EXTRACTION_PROMPT_VERSION = "v3"
+EXTRACTION_PROMPT_VERSION = "v4"
 
 EXTRACTION_PROMPT = """Extract live music events from this text. Today is {today}.
 
@@ -32,6 +31,7 @@ the fields you can actually identify:
   "name": string,            // event title if stated (do NOT invent one)
   "artists": [string, ...],  // performing artists/bands/DJs
   "start_at": "YYYY-MM-DDTHH:MM:SS",  // resolve relative dates using today's date
+  "start_at_claim": string,  // the date EXACTLY as the text words it, verbatim, when it names a weekday or writes the date out ("Wednesday 15 September", "sábado 3 de mayo"). Copy it; do not translate, reformat or resolve it. Omit when the text words no date.
   "venue": string,
   "address": string,         // street address if stated
   "city": string,
@@ -53,6 +53,10 @@ Rules:
   belongs on every event it covers.
 - Omit any field that is not present. NEVER invent data.
 - Numbers for prices — no currency symbols.
+- start_at_claim is a QUOTE, not a conclusion. If the text says "Wednesday 15
+  September" and the 15th is a Tuesday, still copy "Wednesday 15 September"
+  and still resolve start_at to the 15th. Do NOT quietly fix either one: the
+  disagreement is the point, and a human is asked about it downstream.
 - JSON only. No explanation, no markdown fences.
 
 Text to extract from:
@@ -73,15 +77,20 @@ details at all (a greeting, a confirmation), return the draft unchanged.
 
 Return the full updated draft as a single JSON object with the same fields as
 the input, plus any of: name, artists (list), start_at ("YYYY-MM-DDTHH:MM:SS",
-resolve relative dates from today), venue, address, city, venue_type ("club" |
-"bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",
-only when stated), price_min (number, 0 for free), price_max (number),
+resolve relative dates from today), start_at_claim (the date verbatim as the
+promoter worded it, when this message states one in words), venue, address,
+city, venue_type ("club" | "bar" | "concert_hall" | "arena" |
+"festival_site" | "open_air" | "other", only when stated), price_min (number, 0 for free), price_max (number),
 price_currency (ISO code, only when stated or implied by symbol), description,
 genre (lowercase-hyphenated slug), ticket_url.
 
 Rules:
 - NEVER invent data; never drop a field the message did not change.
 - Numbers for prices — no currency symbols.
+- When this message restates the date, replace start_at_claim with its wording
+  and re-resolve start_at from it. When it does not mention the date, leave
+  both exactly as they are — a stale claim would be checked against a date it
+  was never written beside.
 - JSON only. No explanation, no markdown fences."""
 
 
@@ -239,23 +248,3 @@ def document_to_text(doc_bytes: bytes, filename: str) -> str:
     raise UnreadableDocument(
         f"Unsupported document type: {filename}. Send a PDF, DOCX, TXT, or an image."
     )
-
-
-URL_MAX_CHARS = 8000
-
-
-def url_to_text(url: str) -> str:
-    """Fetch a page and return its content as text, truncated to a sane size."""
-    try:
-        with httpx.Client(timeout=15.0, follow_redirects=True) as http:
-            resp = http.get(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; laiive-bot/1.0)"},
-            )
-            resp.raise_for_status()
-            page_text = resp.text
-    except Exception as e:
-        logger.error(f"Failed to fetch URL {url}: {e}")
-        raise ValueError(f"Could not fetch URL: {e}") from e
-
-    return page_text[:URL_MAX_CHARS]

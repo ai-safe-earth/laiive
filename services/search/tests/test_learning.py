@@ -1,6 +1,7 @@
 """The source and query ranking: decay, promotion, and how it steers a sweep."""
 
 import json
+from datetime import datetime
 
 from agent import discovery, learning
 from conftest import http_response
@@ -100,6 +101,19 @@ class TestRecordSources:
         learning.record_sources({"venue.example": {"pages": 1}})
         (row,) = posted(mock_learning_http, "search_sources")
         assert row["extraction_hints"] == "the agenda is the second table"
+
+    def test_the_timestamps_are_timestamps(self, mock_learning_http):
+        """Both tables shipped `"now()"` as a literal string. PostgREST sends
+        the value as JSON, so Postgres received the six characters and refused
+        to cast them — and _upsert raises, which the sweep catches and logs as
+        a warning, so the whole learning loop was dead behind one line."""
+        store(mock_learning_http)
+        learning.record_sources({"venue.example": {"pages": 1}})
+        learning.record_queries({"conciertos madrid": {"candidates_new": 1}})
+        (source,) = posted(mock_learning_http, "search_sources")
+        (query,) = posted(mock_learning_http, "search_queries")
+        for value in (source["last_seen_at"], query["last_used_at"]):
+            datetime.fromisoformat(value)
 
 
 class TestQueryPromotion:

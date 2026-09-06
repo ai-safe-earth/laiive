@@ -74,8 +74,8 @@ export function ProOnboarding() {
 
       <ol className="flex flex-col gap-1.5">
         {t.pro.onboardingSteps.map((step, index) => (
-          <li key={step} className="flex gap-2.5 text-[13.5px] leading-[1.45] text-pro-muted">
-            <span className="font-mono text-[11px] leading-[1.6] text-pro-accent">{index + 1}</span>
+          <li key={step} className="flex gap-2.5 text-md leading-[1.45] text-pro-muted">
+            <span className="font-mono text-xs leading-[1.6] text-pro-accent">{index + 1}</span>
             {step}
           </li>
         ))}
@@ -87,7 +87,7 @@ export function ProOnboarding() {
           remember();
           setOpen(false);
         }}
-        className="self-start rounded-full py-2 font-mono text-[11px] text-pro-accent transition-opacity hover:opacity-80"
+        className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
       >
         {t.pro.onboardingDismiss}
       </button>

@@ -12,7 +12,7 @@ export function Label({ children, className }: { children: React.ReactNode; clas
   return (
     <span
       className={cn(
-        "font-mono text-[11px] uppercase tracking-[0.11em] text-pro-dim",
+        "font-mono text-xs uppercase tracking-[0.11em] text-pro-dim",
         className,
       )}
     >
@@ -36,7 +36,7 @@ export function Badge({ tone = "quiet", children }: { tone?: Tone; children: Rea
     <span
       className={cn(
         "inline-flex flex-none items-center rounded-full border px-2 py-[3px]",
-        "font-mono text-[9.5px] uppercase leading-none tracking-[0.11em]",
+        "font-mono text-2xs uppercase leading-none tracking-[0.11em]",
         TONES[tone],
       )}
     >
@@ -80,7 +80,7 @@ export function AdminButton({
     <button
       {...props}
       className={cn(
-        "rounded-full px-4 py-2 text-[13px] font-medium transition-colors",
+        "rounded-full px-4 py-2 text-md font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent",
         "disabled:cursor-not-allowed",
         styles,
@@ -95,7 +95,7 @@ export function AdminButton({
 /** Says what is absent and why, never just "no data". */
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-6 py-14 text-center text-[13.5px] leading-[1.5] text-pro-muted">
+    <div className="px-6 py-14 text-center text-md leading-[1.5] text-pro-muted">
       {children}
     </div>
   );

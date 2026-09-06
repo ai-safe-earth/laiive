@@ -58,6 +58,30 @@ function renderForm(onSave = vi.fn()) {
   return { onSave, refresh: (draft: EventDraft) => rerender(wrap(draft)) };
 }
 
+/** The correction receipt and the doubt marker, rendered on their own. */
+function renderWithChecks(
+  corrections: { field: string; before: string; after: string; why: string }[],
+  doubted: string[] = [],
+) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <LanguageProvider>
+        <EventForm
+          draft={DRAFT}
+          missing={[]}
+          corrections={corrections}
+          doubted={doubted}
+          onSave={vi.fn()}
+          saving={false}
+        />
+      </LanguageProvider>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   api.fetch.mockReset();
   api.fetch.mockResolvedValue(jsonResponse({ venues: [RAZZ, NO_ADDRESS] }));
@@ -186,5 +210,38 @@ describe("the venue combobox", () => {
       expect.objectContaining({ venue: "Nuovo Posto", address: "Via Roma 1" }),
       null,
     );
+  });
+});
+
+
+describe("what the correction layer changed", () => {
+  it("shows the old value beside the new one", () => {
+    // The old value is the whole point: a receipt saying only "we changed the
+    // city" gives the promoter nothing to disagree with.
+    renderWithChecks([
+      { field: "city", before: "barcelona", after: "Barcelona", why: "spelling from the map" },
+    ]);
+    expect(screen.getByText("barcelona")).toBeInTheDocument();
+    expect(screen.getByText("Barcelona")).toBeInTheDocument();
+    expect(screen.getByText(en.form.correctedTitle)).toBeInTheDocument();
+  });
+
+  it("says nothing when nothing was changed", () => {
+    renderWithChecks([]);
+    expect(screen.queryByText(en.form.correctedTitle)).not.toBeInTheDocument();
+  });
+
+  it("marks a field the chat asked about", () => {
+    renderWithChecks([], ["start_at"]);
+    // The class, not just the text: the mark shipped on `status-waiting`, a
+    // token that never existed, and the text assertion passed while nothing
+    // was visible.
+    expect(screen.getByText(en.form.checkThis).className).toContain("text-status-review");
+    expect(screen.getByLabelText(/^starts at/i).className).toContain("border-status-review");
+  });
+
+  it("marks nothing when there is no doubt", () => {
+    renderWithChecks([]);
+    expect(screen.queryByText(en.form.checkThis)).not.toBeInTheDocument();
   });
 });

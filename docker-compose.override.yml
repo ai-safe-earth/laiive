@@ -18,27 +18,6 @@ services:
       search:
         condition: service_started
 
-  global-workspace:
-    container_name: global-workspace
-    build:
-      context: .devcontainer
-      dockerfile: Dockerfile
-    volumes:
-      - .:/workspace:cached
-    restart: unless-stopped
-    depends_on:
-      - pusher
-      - retriever
-    ports:
-      - "3002:3000"
-      - "8002:8002"
-      - "8003:8003"
-    env_file:
-      - .env
-    tty: true
-    stdin_open: true
-    command: ["sleep", "infinity"]
-
   pusher:
     container_name: laiive-pusher
     build:

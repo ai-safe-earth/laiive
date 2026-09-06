@@ -37,7 +37,7 @@ export function ProWatermark() {
             key={row}
             // 6% read as bare black from any normal distance; 11% is still
             // ground under cream body text but visibly laiive.
-            className="whitespace-nowrap font-bebas text-[28px] leading-none tracking-[0.04em] text-pro-fg/[0.11]"
+            className="whitespace-nowrap font-bebas text-4xl leading-none tracking-[0.04em] text-pro-fg/[0.11]"
             // Half a word of offset on odd rows: a straight grid reads as a
             // table, a brick course reads as texture.
             style={{ transform: `translateX(${row % 2 === 0 ? "-2%" : "-9%"})` }}

@@ -1,10 +1,10 @@
-"""Pusher API — multimodal event submission via chat, voice, image and URL."""
+"""Pusher API — multimodal event submission via chat, voice and image."""
 
 import asyncio
 import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from laiive_shared import (
     ALLOWED_AUDIO_SUFFIXES,
@@ -34,7 +34,6 @@ from .converters import (
     audio_to_text,
     document_to_text,
     image_to_text,
-    url_to_text,
 )
 
 app = FastAPI(title="laiive pusher API", version="0.3.0")
@@ -178,7 +177,7 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
     """
     try:
         yield sse_frame(Status(state="extracting"))
-        turn = await asyncio.to_thread(process_turn, messages, walk)
+        turn = await asyncio.to_thread(process_turn, messages, walk, graph._geocoder)
         if turn.walk:
             total = len(turn.drafts)
             yield sse_frame(
@@ -193,6 +192,8 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
                 FormExtracted(
                     draft=turn.drafts[turn.cursor],
                     missing=turn.missing[turn.cursor],
+                    corrections=turn.corrections[turn.cursor],
+                    doubts=turn.doubts[turn.cursor],
                     index=turn.cursor,
                     total=total,
                 )
@@ -200,7 +201,12 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
         elif turn.show_form:
             yield sse_frame(
                 FormExtracted(
-                    draft=turn.drafts[0], missing=turn.missing[0], index=0, total=1
+                    draft=turn.drafts[0],
+                    missing=turn.missing[0],
+                    corrections=turn.corrections[0],
+                    doubts=turn.doubts[0],
+                    index=0,
+                    total=1,
                 )
             )
         yield sse_frame(MessageDelta(text=turn.reply))
@@ -216,11 +222,10 @@ async def _generate(request_id: str, messages: list[dict], walk: WalkInput | Non
 @app.post("/ingest")
 async def ingest(
     file: UploadFile | None = File(None),
-    url: str | None = Form(None),
 ):
     """Turn any input modality into plain text.
 
-    Voice, flyer photo, PDF/DOCX and links all reduce to text here; the client
+    Voice, flyer photo and PDF/DOCX all reduce to text here; the client
     then appends that text to the conversation as an ordinary user message and
     the normal turn extracts the fields. That is the whole point of this
     endpoint: **one** extraction path over the whole conversation, so a photo
@@ -230,12 +235,8 @@ async def ingest(
     Returns `{kind, source, text}`. Extraction deliberately does not happen
     here — /chat/stream owns it.
     """
-    if url:
-        text = await run_in_threadpool(url_to_text, url)
-        return {"kind": "url", "source": url, "text": text}
-
     if file is None:
-        raise HTTPException(400, "Send a file or a url")
+        raise HTTPException(400, "Send a file")
 
     payload = await file.read()
     filename = file.filename or "upload"
@@ -292,4 +293,10 @@ async def validate_event(
         "venue": result.venue,
         "city": result.city,
         "warnings": result.warnings,
+        # What this write brought into existence. The gateway records ownership
+        # from it: you own what you made, and a venue this event merely names
+        # is somebody else's room.
+        "venue_uid": result.venue_uid,
+        "venue_created": result.venue_created,
+        "artist_uids_created": result.artist_uids_created,
     }

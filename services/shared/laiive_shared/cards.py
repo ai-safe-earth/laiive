@@ -87,6 +87,12 @@ class EventDraft(BaseModel):
     name: str | None = None
     artists: list[str] = []
     start_at: str | None = None  # ISO 8601 or raw user text, parsed on write
+    # The date exactly as the source worded it ("Wednesday 15 September"), kept
+    # beside the resolved timestamp so the two can be checked against each
+    # other. Extraction resolves a date and drops the weekday, which is how a
+    # flyer naming a day that is not that date publishes on the wrong one; this
+    # is the only place that disagreement survives. Never written to the graph.
+    start_at_claim: str | None = None
     venue: str | None = None
     venue_type: str | None = None
     address: str | None = None

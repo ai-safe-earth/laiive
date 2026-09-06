@@ -67,34 +67,34 @@ function CandidateRow({
         />
       </td>
       <td className="py-3 pr-3">
-        <div className="text-[13.5px] leading-[1.35] text-pro-fg">
+        <div className="text-md leading-[1.35] text-pro-fg">
           {draft.name || "—"}
         </div>
         {draft.artists && draft.artists.length > 0 && (
-          <div className="text-[12px] text-pro-dim">{draft.artists.join(", ")}</div>
+          <div className="text-sm text-pro-dim">{draft.artists.join(", ")}</div>
         )}
         {/* The page swore this data was invisible for a while: the payload is
             the full protocol draft, but a hand-copied type hid everything
             below. A reviewer approving an event needs to see what was read. */}
         {draft.description && (
-          <div className="max-w-md truncate pt-1 text-[11.5px] text-pro-dim" title={draft.description}>
+          <div className="max-w-md truncate pt-1 text-xs text-pro-dim" title={draft.description}>
             {draft.description}
           </div>
         )}
         {doomed && (
-          <div className="pt-1 text-[11.5px] text-status-rejected">
+          <div className="pt-1 text-xs text-status-rejected">
             {A.report.willBeRefused}
           </div>
         )}
       </td>
-      <td className="py-3 pr-3 text-[12.5px] text-pro-muted">
+      <td className="py-3 pr-3 text-sm text-pro-muted">
         {draft.venue || "—"}
-        {draft.address && <div className="text-[11.5px] text-pro-dim">{draft.address}</div>}
+        {draft.address && <div className="text-xs text-pro-dim">{draft.address}</div>}
       </td>
-      <td className="py-3 pr-3 text-[12.5px] tabular-nums text-pro-muted">
+      <td className="py-3 pr-3 text-sm tabular-nums text-pro-muted">
         {startsAt(draft.start_at)}
       </td>
-      <td className="py-3 pr-3 text-[12.5px]">
+      <td className="py-3 pr-3 text-sm">
         {candidate.source_url ? (
           <a
             href={candidate.source_url}
@@ -113,7 +113,7 @@ function CandidateRow({
               href={draft.ticket_url}
               target="_blank"
               rel="noreferrer noopener"
-              className="text-[11.5px] text-pro-dim underline underline-offset-2 hover:text-pro-accent"
+              className="text-xs text-pro-dim underline underline-offset-2 hover:text-pro-accent"
             >
               tickets
             </a>
@@ -193,7 +193,7 @@ export default function AdminReport() {
     <div className="min-h-[100dvh] bg-pro-bg">
       <header className="flex items-center justify-between gap-3 border-b border-pro-border px-5 py-4">
         <div className="flex min-w-0 items-baseline gap-3">
-          <h1 className="truncate font-bebas text-[24px] leading-none tracking-[0.03em] text-pro-fg">
+          <h1 className="truncate font-bebas text-3xl leading-none tracking-[0.03em] text-pro-fg">
             {data?.city ?? A.title}
           </h1>
           {data && (
@@ -204,7 +204,7 @@ export default function AdminReport() {
         </div>
         <Link
           to="/admin"
-          className="flex flex-none items-center gap-1.5 text-[13px] text-pro-muted transition-colors hover:text-pro-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent"
+          className="flex flex-none items-center gap-1.5 text-md text-pro-muted transition-colors hover:text-pro-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent"
         >
           <Icon name="back" className="h-4 w-4" />
           {A.report.back}
@@ -225,7 +225,7 @@ export default function AdminReport() {
                 <AdminButton onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
                   {A.report.clear}
                 </AdminButton>
-                <span className="text-[12.5px] tabular-nums text-pro-dim">
+                <span className="text-sm tabular-nums text-pro-dim">
                   {A.report.selected(selected.size)}
                 </span>
                 <span className="ml-auto flex gap-2">

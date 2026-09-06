@@ -1,9 +1,10 @@
-import type { EventDraft, WalkState } from "@shared/protocol";
+import type { Correction, EventDraft, WalkState } from "@shared/protocol";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import type { ChatMessage } from "@/api/chat";
 import { ApiError } from "@/api/client";
+import { useMyOrgs } from "@/api/organizations";
 import { ingestFile } from "@/api/ingest";
 import { saveEvent, streamSubmission } from "@/api/push";
 import { Composer } from "@/components/Composer";
@@ -11,6 +12,8 @@ import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
+import { OrgIdentity } from "@/components/OrgIdentity";
+import { ProBadge } from "@/components/ProBadge";
 import { ProOnboarding } from "@/components/ProOnboarding";
 import { ProWatermark } from "@/components/ProWatermark";
 import { UserMenu } from "@/components/UserMenu";
@@ -33,6 +36,11 @@ interface StoredSession {
   walk: WalkState | null;
   draft: EventDraft | null;
   missing: string[];
+  // Restored with the rest: a promoter who reloads mid-submission would
+  // otherwise see the corrected values with nothing saying they were changed,
+  // which is the silent edit the whole layer exists to avoid.
+  corrections: Correction[];
+  doubted: string[];
 }
 
 function loadSession(): StoredSession | null {
@@ -44,18 +52,10 @@ function loadSession(): StoredSession | null {
   }
 }
 
-/** The PRO badge — cyan, mono, the promoter side's one mark of identity. */
-function ProBadge() {
-  return (
-    <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
-      pro
-    </span>
-  );
-}
-
 export default function ProSubmit() {
   const { user, role, isLoading } = useAuth();
   const { t } = useTranslation();
+  const { data: orgs, isLoading: orgsLoading } = useMyOrgs(user?.id);
 
   const restored = useRef(loadSession()).current;
 
@@ -64,6 +64,12 @@ export default function ProSubmit() {
   const [walk, setWalk] = useState<WalkState | null>(restored?.walk ?? null);
   const [draft, setDraft] = useState<EventDraft | null>(restored?.draft ?? null);
   const [missing, setMissing] = useState<string[]>(restored?.missing ?? []);
+  const [corrections, setCorrections] = useState<Correction[]>(
+    restored?.corrections ?? [],
+  );
+  // Field names only — the questions themselves are already in the chat, asked
+  // in the promoter's own language. The form just marks where to look.
+  const [doubted, setDoubted] = useState<string[]>(restored?.doubted ?? []);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // `busy` covers the whole turn, ingest included; `streaming` only the part a
@@ -82,29 +88,45 @@ export default function ProSubmit() {
     if (messages.length === 0 && !walk && !draft) {
       sessionStorage.removeItem(STORAGE_KEY);
     } else {
-      const session: StoredSession = { messages, walk, draft, missing };
+      const session: StoredSession = {
+        messages,
+        walk,
+        draft,
+        missing,
+        corrections,
+        doubted,
+      };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     }
-  }, [messages, walk, draft, missing]);
+  }, [messages, walk, draft, missing, corrections, doubted]);
 
-  if (isLoading) return null;
-  if (!user || (role !== "pro" && role !== "admin")) {
+  if (isLoading || (user && orgsLoading)) return null;
+  // Signed out: the door. Signed in without a promoter account, or a promoter
+  // with no organization yet: the identity step, once, here — the moment
+  // someone is about to hand over an event is when they will answer it.
+  // Admins skip it; they publish on the platform's behalf.
+  const needsIdentity =
+    user && role !== "admin" && (role !== "pro" || (orgs ?? []).length === 0);
+  if (!user || needsIdentity) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
         <span className="flex items-center gap-2.5">
           <Mark size={30} />
           <ProBadge />
         </span>
-        <p className="max-w-sm text-[15px] leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
-        <Link
-          to={user ? "/account" : "/auth?kind=pro"}
-          // So /account's back arrow returns here rather than dumping a
-          // promoter on the consumer chat, which is a different product.
-          state={user ? { from: "/pro" } : undefined}
-          className="text-[13.5px] text-pro-accent transition-opacity hover:opacity-80"
-        >
-          {user ? t.pro.becomeProLink : t.pro.signInLink}
-        </Link>
+        {user ? (
+          <OrgIdentity />
+        ) : (
+          <>
+            <p className="max-w-sm text-lg leading-[1.5] text-pro-fg">{t.pro.needsPro}</p>
+            <Link
+              to="/auth?kind=pro"
+              className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
+            >
+              {t.pro.signInLink}
+            </Link>
+          </>
+        )}
       </div>
     );
   }
@@ -136,9 +158,11 @@ export default function ProSubmit() {
           onStatus: (state) =>
             setStatus(state === "extracting" ? t.pro.statusExtracting : state),
           onWalk: (state) => setWalk(state),
-          onForm: (extracted, stillMissing) => {
-            setDraft(extracted);
-            setMissing(stillMissing);
+          onForm: (form) => {
+            setDraft(form.draft);
+            setMissing(form.missing);
+            setCorrections(form.corrections);
+            setDoubted(form.doubts.map((d) => d.field));
             setStatus(null);
           },
           onDelta: (chunk) => {
@@ -266,9 +290,12 @@ export default function ProSubmit() {
           {/* Not a link. The way back to the consumer chat is in the account
               menu, where the way to every other surface already is — a logo
               that navigates somewhere else is a door nobody means to open. */}
-          <span className="flex items-center gap-2.5">
+          <span className="flex min-w-0 items-center gap-2.5">
             <Mark size={27} />
             <ProBadge />
+            {orgs?.[0] && (
+              <span className="truncate text-sm text-pro-muted">{orgs[0].display_name}</span>
+            )}
           </span>
           <UserMenu />
         </div>
@@ -286,7 +313,7 @@ export default function ProSubmit() {
             message.role === "user" ? (
               <p
                 key={index}
-                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-[14.5px] leading-[1.5] text-white"
+                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-base leading-[1.5] text-white"
               >
                 {message.content}
               </p>
@@ -294,13 +321,13 @@ export default function ProSubmit() {
               <Markdown
                 key={index}
                 text={message.content}
-                className="max-w-[84%] whitespace-pre-wrap text-[15px] leading-[1.5] text-pro-fg"
+                className="max-w-[84%] whitespace-pre-wrap text-lg leading-[1.5] text-pro-fg"
               />
             ),
           )}
 
           {status && (
-            <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
+            <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-pro-accent">
               {status}
             </span>
           )}
@@ -308,11 +335,18 @@ export default function ProSubmit() {
           {draft && (
             <div className="flex flex-col gap-2">
               {walk && (
-                <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-pro-accent">
+                <span className="self-start rounded-full border border-pro-accent/40 bg-pro-accent/10 px-3 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-pro-accent">
                   {t.pro.eventOf(walk.cursor + 1, walk.total)}
                 </span>
               )}
-              <EventForm draft={draft} missing={missing} onSave={publish} saving={saving} />
+              <EventForm
+                draft={draft}
+                missing={missing}
+                corrections={corrections}
+                doubted={doubted}
+                onSave={publish}
+                saving={saving}
+              />
             </div>
           )}
           <div ref={bottomRef} />

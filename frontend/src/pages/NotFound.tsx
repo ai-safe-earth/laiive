@@ -12,7 +12,7 @@ export default function NotFound() {
       </p>
       <Link
         to="/"
-        className="text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex min-h-11 items-center text-md text-muted-foreground transition-colors hover:text-foreground"
       >
         {t.notFound.back}
       </Link>

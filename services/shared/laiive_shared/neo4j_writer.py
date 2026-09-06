@@ -65,7 +65,7 @@ class _VenueIdentity:
 
 
 class WriteResult(BaseModel):
-    status: Literal["created", "duplicate", "invalid", "error"]
+    status: Literal["created", "adopted", "duplicate", "invalid", "error"]
     uid: str | None = None
     name: str | None = None
     venue: str | None = None
@@ -73,6 +73,18 @@ class WriteResult(BaseModel):
     missing: list[str] = []
     warnings: list[str] = []
     message: str = ""
+    # What this write brought into existence, as opposed to what it linked to.
+    # Ownership is recorded on creation - you made the thing - and a venue this
+    # event merely names is somebody else's room, so the gateway needs the
+    # difference rather than the list of everything the event touches.
+    #
+    # Detected by uid identity, which costs no extra query: every MERGE below
+    # assigns its proposed uuid ON CREATE only, so a node that came back
+    # carrying the uuid this call generated is one this call created, and a
+    # pre-existing node kept its own.
+    venue_uid: str | None = None
+    venue_created: bool = False
+    artist_uids_created: list[str] = []
 
 
 def has_explicit_time(raw: str) -> bool:
@@ -234,30 +246,54 @@ def write_event(
             lng=None,
         )
 
+    # Generated once and kept: the write proposes it, and comparing it against
+    # what comes back is how "this call created the venue" is known.
+    proposed_venue_uid = str(uuid.uuid4())
     name = draft.name or f"{draft.artists[0]} live at {ident.name}"
     city = ident.city
     warnings: list[str] = []
 
-    # ── Dedup probe: same name + calendar day + venue → refuse to duplicate ──
+    # ── Dedup probe: same name + calendar day + venue ────────────────────────
+    #
+    # A hit is not automatically a refusal. The sweep writes events nobody has
+    # confirmed, and the card says so in as many words ("The promoter has not
+    # confirmed it"); refusing the promoter who then comes to publish that very
+    # night contradicts the promise, and leaves the guess standing as the only
+    # version. So an unowned listing is *adopted* by the promoter rather than
+    # duplicated beside it or replaced under it.
     existing = session.run(
         """
         MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
         WHERE date(e.start_at) = date(datetime($start_at))
-        RETURN e.uid AS uid, e.name AS name LIMIT 1
+        RETURN e.uid AS uid, e.name AS name, e.owner_id AS owner_id LIMIT 1
         """,
         name_norm=norm(name),
         venue_norm=ident.name_norm,
         start_at=start_at.isoformat(),
     ).single()
+
+    # Adoption keeps the uid. Saved lists, entity_ownership rows, embeddings and
+    # the search report that discovered it all point at it; deleting the node
+    # and writing a fresh one turns every one of those into a dangling pointer,
+    # and someone's saved card silently disappears. Archiving does the same.
+    adopting = False
     if existing:
-        return WriteResult(
-            status="duplicate",
-            uid=existing["uid"],
-            name=existing["name"],
-            venue=draft.venue,
-            city=city,
-            message="An event with the same name, date, and venue already exists.",
-        )
+        unowned = existing["owner_id"] is None
+        if source == "pro_submission" and unowned:
+            adopting = True
+        else:
+            return WriteResult(
+                status="duplicate",
+                uid=existing["uid"],
+                name=existing["name"],
+                venue=draft.venue,
+                city=city,
+                message=(
+                    "That event is already published by its promoter."
+                    if not unowned
+                    else "An event with the same name, date, and venue already exists."
+                ),
+            )
 
     # ── Geocode city, then venue (D12) ───────────────────────────────────────
     # City first: it doubles as the plausibility reference for the venue, so a
@@ -332,7 +368,8 @@ def write_event(
     if not country_code:
         warnings.append("Could not resolve the city's country code.")
 
-    event_uid = str(uuid.uuid4())
+    # On adoption this is the node being taken over, not a new one.
+    event_uid = existing["uid"] if adopting else str(uuid.uuid4())
     genre = genre_slug(draft.genre) if draft.genre else ""
     # Hoisted so the embedding backfill below can be scoped to what this write
     # touched. MERGE means a pre-existing artist keeps its own uid and these are
@@ -376,10 +413,46 @@ def write_event(
                           v.created_at = datetime()
         """
     )
-    try:
-        record = session.run(
-            venue_clause
-            + """
+    # Only the head differs between creating and adopting: the genre, the
+    # artists and the read-back below are the same work either way, and a second
+    # copy of them is a second place for the two to drift apart.
+    #
+    # What adoption does NOT set: `uid` (the match key), `created_at` (the node
+    # was created when it was created) and `status` — re-publishing must not
+    # quietly un-cancel a night that was called off.
+    #
+    # The promoter wins on every fact the card promises them for ("the times,
+    # the price and the door are as they entered them"). Where empty means "not
+    # provided" rather than "delete this", the existing value survives: a
+    # promoter who omits the ticket link should not wipe the one the sweep
+    # found, and keeping source_url is also what lets the search learning still
+    # credit the domain that turned up a night a promoter later confirmed.
+    event_clause = (
+        """
+            // WITH, or the planner refuses: a MATCH may not directly follow the
+            // updating clause the venue block ends on. The create path below
+            // needs none because CREATE after SET is two updates in a row.
+            WITH v, c
+            MATCH (e:Event {uid: $event_uid})
+            SET e.name = $name, e.name_norm = $name_norm,
+                e.start_at = datetime($start_at),
+                e.start_time_known = $start_time_known, e.timezone = $timezone,
+                e.price_min = coalesce($price_min, e.price_min),
+                e.price_max = coalesce($price_max, e.price_max),
+                e.price_currency = $price_currency,
+                e.description = CASE WHEN $description <> ''
+                    THEN $description ELSE e.description END,
+                e.ticket_url = CASE WHEN $ticket_url <> ''
+                    THEN $ticket_url ELSE e.ticket_url END,
+                e.source_url = CASE WHEN $source_url <> ''
+                    THEN $source_url ELSE e.source_url END,
+                e.source_domain = CASE WHEN $source_url <> ''
+                    THEN $source_domain ELSE e.source_domain END,
+                e.source = $source, e.owner_id = $owner_id,
+                e.updated_at = datetime()
+        """
+        if adopting
+        else """
             CREATE (e:Event {
                 uid: $event_uid, name: $name, name_norm: $name_norm,
                 description: $description, start_at: datetime($start_at),
@@ -390,6 +463,13 @@ def write_event(
                 source_url: $source_url, source_domain: $source_domain,
                 created_at: datetime(), updated_at: datetime()
             })
+        """
+    )
+    try:
+        record = session.run(
+            venue_clause
+            + event_clause
+            + """
             MERGE (e)-[:HOSTED_AT]->(v)
 
             FOREACH (_ IN CASE WHEN $genre <> '' THEN [1] ELSE [] END |
@@ -413,8 +493,13 @@ def write_event(
                 )
             )
 
+            // The FOREACH above cannot return, so the artists are read back
+            // here. This is every artist on the event, existing ones included;
+            // which of them are new is decided by uid identity in Python.
+            WITH e, v, c
+            OPTIONAL MATCH (art:Artist)-[:PERFORMS_AT]->(e)
             RETURN e.uid AS uid, e.name AS name, v.name AS venue, c.name AS city,
-                   v.uid AS venue_uid
+                   v.uid AS venue_uid, collect(DISTINCT art.uid) AS artist_uids
             """,
             picked_uid=ident.uid,
             city=city,
@@ -424,7 +509,7 @@ def write_event(
             city_lng=city_geo.lng if city_geo else None,
             venue=ident.name,
             venue_norm=ident.name_norm,
-            venue_uid=str(uuid.uuid4()),
+            venue_uid=proposed_venue_uid,
             venue_type=draft.venue_type,
             address=draft.address,
             venue_lat=venue_geo.lat if venue_geo else None,
@@ -466,13 +551,23 @@ def write_event(
     if record is None:
         return WriteResult(status="error", message="No record returned from Neo4j")
 
+    # A MERGEd artist that already existed kept its own uid, so the uid this
+    # call proposed for it never landed. Intersecting the two sets is what
+    # separates "created here" from "linked to" - and it also fixes the
+    # embedding scope below, which used to pass proposed uids that matched no
+    # node for every pre-existing artist.
+    proposed_artist_uids = {a["uid"] for a in artist_rows}
+    artist_uids_created = [
+        uid for uid in (record["artist_uids"] or []) if uid in proposed_artist_uids
+    ]
+
     if embed_texts is not None:
         # Scoped to the nodes this write created. Unscoped, this was a full-graph
         # scan for un-embedded nodes inside every single submission — the cost
         # grew with the graph, two writers duplicated each other's work and each
         # paid OpenAI for it. The unbounded sweep has exactly one owner now: the
         # nightly backfill flow.
-        written = [record["uid"], record["venue_uid"]] + [a["uid"] for a in artist_rows]
+        written = [record["uid"], record["venue_uid"], *artist_uids_created]
         try:
             backfill_embeddings(
                 session,
@@ -485,13 +580,16 @@ def write_event(
             warnings.append(f"Embeddings not written: {e}")
 
     return WriteResult(
-        status="created",
+        status="adopted" if adopting else "created",
         uid=record["uid"],
         name=record["name"],
         venue=record["venue"],
         city=record["city"],
+        venue_uid=record["venue_uid"],
+        venue_created=record["venue_uid"] == proposed_venue_uid,
+        artist_uids_created=artist_uids_created,
         warnings=warnings,
-        message="Event created.",
+        message="Event updated." if adopting else "Event created.",
     )
 
 

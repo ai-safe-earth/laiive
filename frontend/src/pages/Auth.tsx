@@ -11,6 +11,7 @@ import {
   rememberPromoterOrg,
 } from "@/auth/postAuth";
 import { Mark } from "@/components/Mark";
+import { ProBadge } from "@/components/ProBadge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
@@ -31,6 +32,7 @@ export default function Auth() {
   // the trigger grants the role, and /pro opens.
   const [params] = useSearchParams();
   const isPro = params.get("kind") === "pro";
+  const tone = isPro ? "pro" : undefined;
 
   const [mode, setMode] = useState<Mode>(isPro ? "signup" : "signin");
   const [email, setEmail] = useState("");
@@ -165,11 +167,7 @@ export default function Auth() {
     <div className={cn("flex min-h-[100dvh] flex-col items-center justify-center p-6", isPro ? "bg-pro-bg" : "bg-background")}>
       <Link to="/" className="mb-8 flex items-center gap-2.5">
         <Mark size={30} />
-        {isPro && (
-          <span className="rounded-full border border-pro-accent/45 bg-pro-accent/[0.12] px-2 py-[5px] font-mono text-[9.5px] font-medium uppercase leading-none tracking-[0.11em] text-pro-accent">
-            pro
-          </span>
-        )}
+        {isPro && <ProBadge />}
       </Link>
 
       <form
@@ -179,12 +177,13 @@ export default function Auth() {
           isPro ? "border-pro-border bg-pro-card" : "border-hairline/[0.07] bg-card",
         )}
       >
-        <h1 className={cn("font-bebas text-[24px] leading-none tracking-[0.04em]", isPro ? "text-pro-fg" : "text-card-foreground")}>
+        <h1 className={cn("font-bebas text-3xl leading-none tracking-[0.04em]", isPro ? "text-pro-fg" : "text-card-foreground")}>
           {mode === "signin" ? t.auth.signInTitle : t.auth.signUpTitle}
         </h1>
 
         {mode === "signup" && (
           <Input
+            tone={tone}
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             placeholder={t.auth.displayNamePlaceholder}
@@ -196,6 +195,7 @@ export default function Auth() {
             consumer sign-up wearing a badge: it is what grants the role. */}
         {isPro && mode === "signup" && (
           <Input
+            tone={tone}
             required
             value={orgName}
             onChange={(event) => setOrgName(event.target.value)}
@@ -205,6 +205,7 @@ export default function Auth() {
         )}
 
         <Input
+          tone={tone}
           type="email"
           required
           value={email}
@@ -213,6 +214,7 @@ export default function Auth() {
           autoComplete="email"
         />
         <Input
+          tone={tone}
           type="password"
           required
           minLength={8}
@@ -222,19 +224,20 @@ export default function Auth() {
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
         />
 
-        <Button type="submit" className="w-full" disabled={frozen}>
+        {/* Cream on the pro side: fuchsia never appears below the pro header. */}
+        <Button type="submit" variant={isPro ? "cream" : "primary"} className="w-full" disabled={frozen}>
           {frozen ? "…" : mode === "signin" ? t.auth.signIn : t.auth.signUp}
         </Button>
 
-        <div className="flex items-center gap-3 font-mono text-[11px] text-ink-dim">
-          <span className="h-px flex-1 bg-border" />
+        <div className={cn("flex items-center gap-3 font-mono text-xs", isPro ? "text-pro-dim" : "text-ink-dim")}>
+          <span className={cn("h-px flex-1", isPro ? "bg-pro-border" : "bg-border")} />
           {t.auth.or}
-          <span className="h-px flex-1 bg-border" />
+          <span className={cn("h-px flex-1", isPro ? "bg-pro-border" : "bg-border")} />
         </div>
 
         <Button
           type="button"
-          variant="neutral"
+          variant={isPro ? "proNeutral" : "neutral"}
           className="w-full"
           disabled={frozen}
           onClick={googleSignIn}
@@ -263,7 +266,10 @@ export default function Auth() {
         <button
           type="button"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="w-full py-1 text-center text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+          className={cn(
+            "min-h-11 w-full text-center text-sm transition-colors",
+            isPro ? "text-pro-muted hover:text-pro-fg" : "text-muted-foreground hover:text-foreground",
+          )}
         >
           {mode === "signin" ? t.auth.toSignUp : t.auth.toSignIn}
         </button>
@@ -273,10 +279,10 @@ export default function Auth() {
           visitor is not already coming through it. */}
       {!isPro && (
         <div className="mt-6 flex w-full max-w-sm flex-col items-center gap-1 text-center">
-          <p className="text-[12.5px] leading-[1.4] text-muted-foreground">{t.auth.proInvite}</p>
+          <p className="text-sm leading-[1.4] text-muted-foreground">{t.auth.proInvite}</p>
           <Link
             to="/auth?kind=pro"
-            className="text-[13px] leading-[1.4] text-pro-accent transition-opacity hover:opacity-80"
+            className="inline-flex min-h-11 items-center text-md leading-[1.4] text-pro-accent transition-opacity hover:opacity-80"
           >
             {t.auth.proCta}
           </Link>
@@ -285,7 +291,10 @@ export default function Auth() {
 
       <Link
         to="/"
-        className="mt-6 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className={cn(
+          "mt-3 inline-flex min-h-11 items-center text-sm transition-colors",
+          isPro ? "text-pro-muted hover:text-pro-fg" : "text-muted-foreground hover:text-foreground",
+        )}
       >
         {t.auth.withoutAccount}
       </Link>

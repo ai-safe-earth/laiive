@@ -10,6 +10,7 @@ module-level client gets added to this list or tests hit the real API):
 """
 
 import json
+from datetime import date, timedelta
 import os
 from unittest.mock import MagicMock, patch
 
@@ -22,10 +23,15 @@ import pytest
 # test_internal_auth.py.
 os.environ["INTERNAL_API_KEY"] = ""
 
+# Relative, not a literal. A hard-coded date silently rots into the past, and
+# the correction layer then reads every fixture as "did you mean a later date?"
+# - which is the check working and the suite lying.
+SOON = (date.today() + timedelta(days=90)).isoformat()
+
 EXTRACTION_JSON = json.dumps(
     {
         "artists": ["Test Artist"],
-        "start_at": "2026-04-01T21:00:00",
+        "start_at": f"{SOON}T21:00:00",
         "venue": "Test Venue",
         "address": "Kantstrasse 12a",
         "city": "Berlin",
@@ -104,16 +110,22 @@ class FakeNeo4jSession:
         self.queries.append((query, params))
         if "MATCH (v:Venue {uid: $uid})" in query:
             return FakeNeo4jResult(single=self.venue_node)
-        if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
+        # Matched on the columns, not the whole RETURN line: the writer grew
+        # one and these branches stopped matching without saying so.
+        if "e.owner_id AS owner_id" in query:  # the dedup probe
             return FakeNeo4jResult(single=self.dedup_hit)
-        if "CREATE (e:Event" in query:
+        if "AS artist_uids" in query:  # the write, creating or adopting
             return FakeNeo4jResult(
                 single={
                     "uid": params["event_uid"],
                     "name": params["name"],
                     "venue": params["venue"],
                     "city": params["city"],
-                    "venue_uid": params["venue_uid"],
+                    # Mirrors the real RETURN: a picked venue keeps its own
+                    # uid, an unpicked one carries the uuid this write proposed,
+                    # and the writer reads creation off that difference.
+                    "venue_uid": params["picked_uid"] or params["venue_uid"],
+                    "artist_uids": [a["uid"] for a in params["artists"]],
                 }
             )
         return FakeNeo4jResult(rows=[])

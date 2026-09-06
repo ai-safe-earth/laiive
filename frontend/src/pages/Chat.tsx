@@ -1,12 +1,13 @@
 import type { EventCard } from "@shared/protocol";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
-import { streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
+import { sendFeedback, streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { Composer } from "@/components/Composer";
+import { Button } from "@/components/ui/Button";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
@@ -102,7 +103,7 @@ export default function Chat() {
     };
 
     try {
-      await streamChat(history, {
+      const requestId = await streamChat(history, {
         location,
         signal: controller.signal,
         handlers: {
@@ -126,6 +127,16 @@ export default function Chat() {
           onError: (message) => toast.error(message),
         },
       });
+      // Stamped after the stream ends: the id's presence is also what tells
+      // the UI this turn is finished and can take feedback.
+      if (requestId) {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          return last?.role === "assistant"
+            ? [...prev.slice(0, -1), { ...last, requestId }]
+            : prev;
+        });
+      }
     } catch (error) {
       if (controller.signal.aborted) return;
       handleFailure(error);
@@ -199,7 +210,7 @@ export default function Chat() {
                   key={example}
                   type="button"
                   onClick={() => void send(example)}
-                  className="rounded-full bg-field-border px-3.5 py-2.5 text-[12.5px] leading-none text-white transition-colors hover:bg-muted"
+                  className="min-h-11 rounded-full bg-field-border px-3.5 text-sm leading-tight text-white transition-colors hover:bg-muted"
                 >
                   {example}
                 </button>
@@ -212,7 +223,7 @@ export default function Chat() {
               message.role === "user" ? (
                 <p
                   key={index}
-                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-[14.5px] leading-[1.4] text-white"
+                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-base leading-[1.4] text-white"
                 >
                   {message.content}
                 </p>
@@ -222,7 +233,7 @@ export default function Chat() {
                   {message.content && (
                     <Markdown
                       text={message.content}
-                      className="whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground"
+                      className="whitespace-pre-wrap text-lg leading-[1.5] text-foreground"
                     />
                   )}
                   {message.events && message.events.length > 0 && (
@@ -243,12 +254,13 @@ export default function Chat() {
                       ))}
                     </div>
                   )}
+                  {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
               ),
             )}
 
             {status && (
-              <p className="animate-pulse font-mono text-[11px] uppercase tracking-[0.11em] text-ink-dim">
+              <p className="animate-pulse font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
                 {status}
               </p>
             )}
@@ -273,5 +285,108 @@ export default function Chat() {
         />
       </div>
     </div>
+  );
+}
+
+/**
+ * Thumbs on an assistant turn (eval phase 1). The down is the informative
+ * event: it posts immediately so an abandoned reason box still counts, and a
+ * typed reason goes out as a second post for the same request_id. The up
+ * posts once and stops — a stored positive label; only downs feed error
+ * analysis.
+ */
+export function TurnFeedback({ requestId }: { requestId: string }) {
+  const { t } = useTranslation();
+  const [stage, setStage] = useState<"idle" | "asking" | "done">("idle");
+  const [reason, setReason] = useState("");
+
+  const down = () => {
+    setStage("asking");
+    sendFeedback(requestId, "down").catch(() => {
+      setStage("idle");
+      toast.error(t.chat.genericError);
+    });
+  };
+
+  const up = () => {
+    setStage("done");
+    sendFeedback(requestId, "up").catch(() => {
+      setStage("idle");
+      toast.error(t.chat.genericError);
+    });
+  };
+
+  const submit = () => {
+    const text = reason.trim();
+    setStage("done");
+    if (text) sendFeedback(requestId, "down", text).catch(() => undefined);
+  };
+
+  if (stage === "done") {
+    return (
+      <p
+        role="status"
+        className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim"
+      >
+        {t.chat.feedbackThanks}
+      </p>
+    );
+  }
+
+  if (stage === "asking") {
+    return (
+      <input
+        autoFocus
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit();
+        }}
+        placeholder={t.chat.feedbackReasonPlaceholder}
+        maxLength={2000}
+        className="h-11 w-full max-w-sm rounded-full border border-rule bg-transparent px-3.5 text-base text-foreground placeholder:text-ink-dim focus:outline-none"
+      />
+    );
+  }
+
+  return (
+    <div className="-ml-3.5 flex items-center self-start">
+      <ThumbButton label={t.chat.feedbackUp} onClick={up}>
+        <path d="M7 10v12" />
+        <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+      </ThumbButton>
+      <ThumbButton label={t.chat.feedbackDown} onClick={down}>
+        <path d="M17 14V2" />
+        <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+      </ThumbButton>
+    </div>
+  );
+}
+
+/** One 44px ghost pill per thumb; only the label, handler and paths differ. */
+function ThumbButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button variant="ghost" size="icon" onClick={onClick} aria-label={label} title={label}>
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {children}
+      </svg>
+    </Button>
   );
 }

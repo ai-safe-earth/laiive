@@ -2,8 +2,13 @@
 
 Deliberately bypasses NominatimGeocoder: a cache hit would mask a live miss and
 the shared 1 req/s gate would make this crawl. Each provider is called directly
-behind its own documented rate limit. This is a one-off measurement run on a
-single machine, which is what Nominatim's usage policy allows for bulk tasks.
+behind its own documented rate limit. Run on a single machine, which is what
+Nominatim's usage policy allows for bulk tasks.
+
+Kept as a harness, not a spent script: re-run it against the same corpus when a
+provider or a query form changes, so the choice is measured rather than argued.
+`retriever/config.py` (named_place_max_diagonal_km) and `agent/address_lookup.py`
+both cite numbers this produced.
 
 Run:  cd services/search && uv run --no-sync python scripts/geocode_bakeoff.py
 """

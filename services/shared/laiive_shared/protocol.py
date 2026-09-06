@@ -4,7 +4,7 @@ Named SSE events (02-architecture §2):
 
     event: message.delta   data: {"text": "…"}
     event: events.result   data: {"events": [EventCard…]}
-    event: form.extracted  data: {"draft": EventDraft, "missing": [], "index": 0, "total": 1}
+    event: form.extracted  data: {"draft": EventDraft, "missing": [], "corrections": [], "doubts": [], "index": 0, "total": 1}
     event: status          data: {"state": "searching"}
     event: error           data: {"code": "…", "message": "…"}
     event: done            data: {"request_id": "…"}
@@ -27,6 +27,7 @@ from typing import ClassVar
 from pydantic import BaseModel
 
 from .cards import EventCard, EventDraft
+from .checks import Correction, Doubt
 
 
 class MessageDelta(BaseModel):
@@ -43,6 +44,15 @@ class FormExtracted(BaseModel):
     event: ClassVar[str] = "form.extracted"
     draft: EventDraft
     missing: list[str] = []
+    # What the correction layer changed on this draft, and what it could not
+    # settle. Corrections are already applied to `draft` - these are the receipt
+    # the form shows so the promoter can overrule any of them. Doubts are the
+    # questions the reply asks in the same breath as the missing fields.
+    #
+    # Only on the form, not on walk.state: the promoter is looking at one event,
+    # and the walk re-checks each draft as its turn comes round.
+    corrections: list[Correction] = []
+    doubts: list[Doubt] = []
     index: int = 0
     total: int = 1
 

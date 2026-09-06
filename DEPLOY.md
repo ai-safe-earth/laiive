@@ -45,10 +45,27 @@ hand with `flyctl secrets set -a <app> KEY=value ...` if you prefer:
 | app | keys |
 | --- | --- |
 | laiive-gateway | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY`, `CORS_ALLOW_ORIGINS` (the Pages domain, see §5) |
-| laiive-retriever | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY`, `LANGFUSE_ENABLED` + `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` |
+| laiive-retriever | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (eval_records writes there; both default to `""`, so it stays silent without them), `INTERNAL_API_KEY`, `LANGFUSE_ENABLED` + `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` |
 | laiive-pusher | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY` |
 | laiive-search | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY` |
 | laiive-redis | none (6PN-only; set `--requirepass` in `redis.toml`'s process + a `REDIS_URL` password everywhere if the org is ever shared) |
+
+### The write kill switch
+
+`WRITES_DISABLED=true` on **laiive-gateway** makes every route that turns
+model output into a graph node answer 503 — `/api/publish`,
+`/api/push/validate-event` and the whole `/api/admin/search` proxy. Chat,
+transcribe and every read keep serving. Two things to know before reaching
+for it: it matches the string `"true"` exactly (`1`, `TRUE` and `yes` leave
+writes enabled), and it is read once at boot, so
+
+```
+flyctl secrets set -a laiive-gateway WRITES_DISABLED=true    # restarts the machines
+flyctl secrets unset -a laiive-gateway WRITES_DISABLED       # a second rollout
+```
+
+Both are rollouts, not instant flips. The writer has no delete path, which is
+why the switch exists at all: stopping is the only reversible move there is.
 
 `INTERNAL_API_KEY` must be the **same value** on all four service apps —
 it is the gateway↔service trust boundary now that no NetworkPolicy exists.

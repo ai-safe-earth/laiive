@@ -57,11 +57,12 @@ class FakePipeline:
             yield MessageDelta(text=delta)
 
     def run_turn_collected(
-        self, user_message, history=None, location=None, timezone=None
+        self, user_message, history=None, location=None, timezone=None, result=None
     ):
         from agent.pipeline import TurnResult
 
-        result = TurnResult()
+        if result is None:
+            result = TurnResult()
         for _ in self.run_turn(
             user_message, history, location, result=result, timezone=timezone
         ):
@@ -177,11 +178,50 @@ class TestChatEndpoint:
         broken = MagicMock()
         broken.run_turn_collected.side_effect = Exception("pipeline died")
         api_module._pipeline = broken
-        response = client.post("/chat", json={"message": "x"})
+        with patch.object(api_module, "_write_eval_record") as write:
+            response = client.post("/chat", json={"message": "x"})
         assert response.status_code == 500
+        write.assert_called_once()
 
     def test_chat_invalid_request(self, client):
         assert client.post("/chat", json={}).status_code == 422
+
+
+class TestRequestId:
+    """The gateway's x-request-id is the join key with conversation_logs —
+    minting a local uuid instead makes the eval record unjoinable."""
+
+    def test_stream_adopts_the_gateway_id(self, client):
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "jazz"}]},
+            headers={"x-request-id": "gw-123"},
+        )
+        assert response.headers["x-request-id"] == "gw-123"
+        assert '"request_id":"gw-123"' in response.text  # the done frame
+
+    def test_chat_adopts_the_gateway_id(self, client):
+        data = client.post(
+            "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-123"}
+        ).json()
+        assert data["request_id"] == "gw-123"
+
+    def test_direct_calls_still_get_an_id(self, client):
+        data = client.post("/chat", json={"message": "jazz"}).json()
+        assert data["request_id"]
+
+    def test_both_paths_write_an_eval_record(self, client):
+        with patch.object(api_module, "_write_eval_record") as write:
+            client.post(
+                "/chat/stream",
+                json={"messages": [{"role": "user", "content": "jazz"}]},
+                headers={"x-request-id": "gw-123"},
+            )
+            client.post(
+                "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-456"}
+            )
+        ids = [call.args[0] for call in write.call_args_list]
+        assert ids == ["gw-123", "gw-456"]
 
 
 class TestChatStreamRequests:
@@ -337,6 +377,68 @@ class TestEntityLookup:
         cypher, params = neo4j.execute_read_once.call_args[0]
         assert params == {"q_norm": "razz", "city_norm": "barcelona"}
         assert "c.name_norm = $city_norm" in cypher
+
+    def test_venues_by_uid_ask_the_graph_by_uid_not_by_name(self, client):
+        """The claim path: a uid in, the graph's own name out.
+
+        The gateway records who an organization speaks for, so the stored
+        display name has to come from here rather than from whatever the
+        client typed alongside the uid.
+        """
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {
+                    "uid": "v1",
+                    "name": "Razzmatazz",
+                    "venue_type": "club",
+                    "address": "Carrer dels Almogavers 122",
+                    "city": "Barcelona",
+                }
+            ]
+            response = client.get("/venues?uids=v1,v2,v1")
+        assert response.status_code == 200
+        assert response.json()["venues"][0]["name"] == "Razzmatazz"
+        cypher, params = neo4j.execute_read_once.call_args[0]
+        # De-duplicated, order preserved, and asked by uid rather than fragment.
+        assert params == {"uids": ["v1", "v2"]}
+        assert "v.uid IN $uids" in cypher
+        assert "name_norm" not in cypher
+
+    def test_uids_win_over_q_and_skip_the_fragment_floor(self, client):
+        """`uids` is the mode selector: a one-character q must not 400 here."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            response = client.get("/venues?q=r&uids=v1")
+        assert response.status_code == 200
+        _, params = neo4j.execute_read_once.call_args[0]
+        assert params == {"uids": ["v1"]}
+
+    def test_an_unknown_uid_is_nothing_not_an_error(self, client):
+        """Same contract as /events: a stale pointer is not a bad request."""
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = []
+            response = client.get("/artists?uids=gone")
+        assert response.status_code == 200
+        assert response.json()["artists"] == []
+
+    def test_too_many_uids_are_refused_before_the_graph(self, client):
+        from agent.executor import EVENT_LOOKUP_MAX_UIDS
+
+        too_many = ",".join(f"v{i}" for i in range(EVENT_LOOKUP_MAX_UIDS + 1))
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            response = client.get(f"/venues?uids={too_many}")
+        assert response.status_code == 400
+        neo4j.execute_read_once.assert_not_called()
+
+    def test_artists_by_uid_still_carry_their_genres(self, client):
+        with patch.object(api_module, "neo4j_client") as neo4j:
+            neo4j.execute_read_once.return_value = [
+                {"uid": "a1", "name": "Ana Trio", "genres": ["Jazz"]}
+            ]
+            response = client.get("/artists?uids=a1")
+        assert response.json()["artists"][0]["genres"] == ["Jazz"]
+        cypher, _ = neo4j.execute_read_once.call_args[0]
+        assert "a.uid IN $uids" in cypher
 
     def test_a_one_character_fragment_is_refused_before_the_graph(self, client):
         with patch.object(api_module, "neo4j_client") as neo4j:

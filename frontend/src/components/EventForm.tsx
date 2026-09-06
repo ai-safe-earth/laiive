@@ -1,4 +1,4 @@
-import type { EventDraft, VenueHit } from "@shared/protocol";
+import type { Correction, EventDraft, VenueHit } from "@shared/protocol";
 import { useEffect, useRef, useState } from "react";
 import { foldName, useVenueLookup } from "@/api/lookup";
 import { Icon } from "@/components/Icon";
@@ -91,7 +91,7 @@ function FieldLabel({ children, required, missing }: {
   return (
     <span
       className={cn(
-        "font-mono text-[11px] leading-none",
+        "font-mono text-xs leading-none",
         missing ? "text-destructive" : "text-muted-foreground",
       )}
     >
@@ -111,11 +111,22 @@ function FieldLabel({ children, required, missing }: {
 export function EventForm({
   draft,
   missing,
+  corrections = [],
+  doubted = [],
   onSave,
   saving,
 }: {
   draft: EventDraft;
   missing: string[];
+  /**
+   * Values the correction layer already changed on this draft. Listed above the
+   * fields rather than applied invisibly: a correction nobody is told about is
+   * an edit made on the promoter's behalf, and this form is the step where they
+   * get to disagree with it.
+   */
+  corrections?: Correction[];
+  /** Fields carrying a question the chat asked. Marked, never blocked. */
+  doubted?: string[];
   /** The second argument is the picked graph venue's uid, when there is one. */
   onSave: (draft: EventDraft, venueUid: string | null) => void;
   saving: boolean;
@@ -231,6 +242,7 @@ export function EventForm({
   }) => {
           const isMissing = stillMissing.includes(key as (typeof REQUIRED)[number]);
           const wasMissing = missing.includes(key);
+          const isDoubted = doubted.includes(key);
           const required = (REQUIRED as readonly string[]).includes(key);
           const isTicket = key === "ticket_url";
           return (
@@ -244,6 +256,13 @@ export function EventForm({
                     {t.form.labels[key]}
                   </FieldLabel>
                 </label>
+                {isDoubted && (
+                  // The question itself was asked in the chat, in their own
+                  // language; this only says which field it was about.
+                  <span className="font-mono text-2xs uppercase tracking-[0.11em] text-status-review">
+                    {t.form.checkThis}
+                  </span>
+                )}
                 {isTicket && (
                   <button
                     type="button"
@@ -252,7 +271,7 @@ export function EventForm({
                     aria-label={t.form.ticketNoteAria}
                     // A title attribute is a hover, and a phone has no hover.
                     // Same 44px-under-a-small-mark trick the cards use.
-                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-3 after:content-[''] hover:text-pro-accent"
+                    className="relative flex-none text-pro-dim transition-colors after:absolute after:-inset-4 after:content-[''] hover:text-pro-accent"
                   >
                     <Icon name="error" className="h-[13px] w-[13px]" />
                   </button>
@@ -267,15 +286,16 @@ export function EventForm({
                 className={cn(
                   FIELD,
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
+                  !isMissing && isDoubted && "border-status-review/60",
                 )}
               />
               {isTicket && showTicketNote && (
-                <p className="text-[12px] leading-[1.45] text-pro-muted">
+                <p className="text-sm leading-[1.45] text-pro-muted">
                   {t.form.ticketNote}
                 </p>
               )}
               {isTicket && ticketError && (
-                <p className="text-[12px] leading-[1.45] text-destructive">{ticketError}</p>
+                <p className="text-sm leading-[1.45] text-destructive">{ticketError}</p>
               )}
             </div>
           );
@@ -300,16 +320,44 @@ export function EventForm({
     >
       <div className="flex items-center gap-[11px] pb-2">
         <span className="h-5 w-[5px] flex-none rounded-full bg-pro-accent" />
-        <h3 className="font-bebas text-[23px] leading-none tracking-[0.05em] text-card-foreground">
+        <h3 className="font-bebas text-3xl leading-none tracking-[0.05em] text-card-foreground">
           {t.form.title}
         </h3>
         {stillMissing.length > 0 && (
-          <span className="ml-auto rounded-full border border-secondary/40 bg-secondary/10 px-2.5 py-[7px] font-mono text-[9.5px] uppercase leading-none tracking-[0.06em] text-secondary">
+          <span className="ml-auto rounded-full border border-secondary/40 bg-secondary/10 px-2.5 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-secondary">
             {t.form.stillNeeded(stillMissing.length)}
           </span>
         )}
       </div>
       <div className="mb-[18px] h-px bg-hairline/[0.08]" />
+
+      {/* What was changed on the way here, and what it was before. Shown above
+          the fields rather than beside them: the promoter is about to read the
+          whole form anyway, and a per-field marker would say something was
+          altered without saying what it used to be — which is the one fact
+          needed to disagree with it. */}
+      {corrections.length > 0 && (
+        <div className="mb-[18px] rounded-[14px] border border-hairline/[0.08] bg-muted/[0.04] px-4 py-3">
+          <p className="font-mono text-2xs uppercase tracking-[0.11em] text-muted-foreground">
+            {t.form.correctedTitle}
+          </p>
+          <ul className="mt-2 flex flex-col gap-1">
+            {corrections.map((correction) => (
+              <li key={correction.field} className="text-sm text-card-foreground">
+                <span className="text-muted-foreground">
+                  {t.form.labels[correction.field as keyof typeof t.form.labels] ??
+                    correction.field}
+                  {": "}
+                </span>
+                <span className="line-through opacity-60">{correction.before}</span>
+                {" → "}
+                <span>{correction.after}</span>
+                <span className="text-muted-foreground"> ({correction.why})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Artists were a comma-separated text field, which could not be typed
           into: every keystroke split on "," and trimmed, so a space was eaten
@@ -348,7 +396,7 @@ export function EventForm({
         <button
           type="button"
           onClick={() => setArtists((current) => [...current, ""])}
-          className="self-start rounded-full py-2 font-mono text-[11px] text-pro-accent transition-opacity hover:opacity-80"
+          className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
         >
           {t.form.addArtist}
         </button>
@@ -428,13 +476,13 @@ export function EventForm({
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => choose(hit)}
                     className={cn(
-                      "w-full px-4 py-2.5 text-left transition-colors hover:bg-pro-card",
+                      "min-h-11 w-full px-4 py-2.5 text-left transition-colors hover:bg-pro-card",
                       index === activeHit && "bg-pro-card",
                     )}
                   >
-                    <span className="text-[13.5px] text-pro-fg">{hit.name}</span>
+                    <span className="text-md text-pro-fg">{hit.name}</span>
                     {hit.city && (
-                      <span className="font-mono text-[10.5px] text-pro-dim"> · {hit.city}</span>
+                      <span className="font-mono text-2xs text-pro-dim"> · {hit.city}</span>
                     )}
                   </button>
                 </li>
@@ -449,7 +497,7 @@ export function EventForm({
             {/* The graph already knows this venue's street — show it, never
                 re-ask. Correcting a stated address is an owner's edit, not a
                 submission field. */}
-            <p className="flex min-h-11 items-center rounded-full border border-pro-border bg-pro-bg px-4 font-mono text-[11.5px] leading-[1.4] text-pro-muted">
+            <p className="flex min-h-11 items-center rounded-full border border-pro-border bg-pro-bg px-4 font-mono text-xs leading-[1.4] text-pro-muted">
               {pick.address} · {t.form.addressOnFile}
             </p>
           </div>
@@ -469,7 +517,7 @@ export function EventForm({
           {saving ? t.form.publishing : t.form.publish}
         </Button>
         {stillMissing.length > 0 && (
-          <span className="text-[12.5px] leading-[1.4] text-muted-foreground">
+          <span className="text-sm leading-[1.4] text-muted-foreground">
             {t.form.fillHint(stillMissing.map((key) => t.form.labels[key]).join(", "))}
           </span>
         )}

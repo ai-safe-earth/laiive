@@ -10,3 +10,7 @@ test_internal_auth.py.
 import os
 
 os.environ["INTERNAL_API_KEY"] = ""
+# Same trap: a real SUPABASE_URL in the root .env would make every endpoint
+# test fire a live eval_records insert. Empty URL no-ops the write.
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""

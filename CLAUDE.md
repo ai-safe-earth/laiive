@@ -10,9 +10,9 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 - Be terse. No end-of-turn summaries.
 - Propose a plan before implementing.
 - Explain tradeoffs when there's a real design choice.
-- When a task ends and the next steps don't need the conversation's prior context: update the
-  root `handoff.md` first (see *Handoff file* below), then ask me to `/clear` (Claude can't clear
-  its own context), and continue fresh from the handoff.
+- I clear often, at roughly 40% context. The flow is mine to trigger: I type `/handoff`, then
+  `/clear`. Don't propose it every turn. If I'm about to clear and something from this session
+  isn't in `handoff.md` yet, say so in one line.
 
 ## Environment
 
@@ -103,7 +103,6 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
 
 - `uv run uvicorn …` and `uv run pytest` both fail here with "Failed to canonicalize script
   path". Use `uv sync` then `uv run --no-sync python -m uvicorn …` / `python -m pytest -q`.
-  The `make start-*` targets still carry the broken form.
 - `npm run dev -- --port 8081` silently loses the flag in PowerShell (Vite starts on 5173 and
   treats `8081` as a directory). Use `npx vite --port 8081 --strictPort`.
 - `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services (`agent` is not
@@ -121,10 +120,9 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
   session served the *deleted* app on :8081. Before debugging anything you did not start:
   `Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
 - Background dev servers survive their launcher; kill by PID.
-- Other projects squat these ports (an `A02_VaiVia` uvicorn on :8000, a
-  `laiive-global-workspace` container on :8002/:8003). Everything is env-overridable, so shift
-  rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`, and
-  inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
+- Another project squats :8000 (an `A02_VaiVia` uvicorn). Everything is env-overridable, so
+  shift rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`,
+  and inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
 
 **Commits**
 
@@ -160,12 +158,15 @@ Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
 - Browser automation: `computer`'s `type` action does not reach this app's inputs — use
   `form_input` with a ref from `read_page`, and click by `ref` rather than coordinates.
 
-## Handoff file (read by the project tracker)
+## State files (read by the project tracker)
 
-Read `handoff.md` once, at the start of a session, before the first plan or code change. Do not
-re-read it later in the same session — the conversation is the fresher source. Re-read only after
-a `/clear`, a `/compact`, or if I say the repo moved outside this session. If it conflicts with
-the repo, trust the repo and say so.
+`handoff.md` is the moving picture; this file is the stable rules. Read `handoff.md` once, at
+the start of a session, before the first plan or code change. Do not re-read it later — the
+conversation is fresher. Re-read after a `/clear` or `/compact`. If it conflicts with the repo,
+trust the repo and say so.
 
-Keep it to state, 40 lines maximum, no narrative and no history — git log keeps that. Non-code
-progress (branding, strategy, artwork) goes to `product-status.md` instead.
+Never read `docs/pm-log.jsonl`. It is append-only history for the project tracker; reading it
+puts 50 KB of settled decisions into context for no benefit. If you need to know why something
+was decided, ask me or read the code.
+
+Writing any of this is the `/handoff` skill's job, on my command only.
