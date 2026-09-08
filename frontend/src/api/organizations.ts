@@ -355,7 +355,9 @@ export interface IssuedInvitation extends Omit<PendingInvitation, "created_at"> 
 
 export interface InviteInput {
   email: string;
-  role: OrgRole;
+  /** Omitted by the roster control: every invitation is a member seat. The
+   *  gateway defaults to `member` and refuses `owner` outright. */
+  role?: OrgRole;
 }
 
 /**
