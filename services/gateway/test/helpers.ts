@@ -28,6 +28,7 @@ export async function startSupabaseStub() {
   // the withdraw-is-a-revoke path real assertions rather than mock theatre.
   const members: Record<string, unknown>[] = [];
   const ownership: Record<string, unknown>[] = [];
+  const invitations: Record<string, unknown>[] = [];
   const promoterProfiles: Record<string, unknown>[] = [];
   // Every create_organization call, and what it was asked as. The route has to
   // send the *user's* token, not the service key, or auth.uid() is null in the
@@ -95,10 +96,80 @@ export async function startSupabaseStub() {
       });
       return;
     }
-    if (req.url?.startsWith("/rest/v1/organization_members") && req.method === "GET") {
+    if (req.url?.startsWith("/rest/v1/organization_members")) {
       const f = filtersOf(req.url);
-      json(res, 200, members.filter((row) => matches(row, f)));
-      return;
+      if (req.method === "GET") {
+        json(res, 200, members.filter((row) => matches(row, f)));
+        return;
+      }
+      // Redeeming an invitation seats somebody. The composite primary key is
+      // (org_id, user_id), so a second accept for the same pair is a 23505 —
+      // which is what makes the route's "already a member" branch a real path
+      // rather than one the stub is too forgiving to reach.
+      if (req.method === "POST") {
+        void readBody(req).then((raw) => {
+          const row = JSON.parse(raw) as Record<string, unknown>;
+          const clash = members.some(
+            (existing) =>
+              existing["org_id"] === row["org_id"] && existing["user_id"] === row["user_id"],
+          );
+          if (clash) {
+            json(res, 409, { code: "23505", message: "duplicate key value" });
+            return;
+          }
+          members.push(row);
+          json(res, 201, [row]);
+        });
+        return;
+      }
+    }
+    if (req.url?.startsWith("/rest/v1/organization_invitations")) {
+      const f = filtersOf(req.url);
+      if (req.method === "GET") {
+        json(res, 200, invitations.filter((row) => matches(row, f)));
+        return;
+      }
+      if (req.method === "POST") {
+        void readBody(req).then((raw) => {
+          const row = JSON.parse(raw) as Record<string, unknown>;
+          // The partial unique index: one live invitation per address per org,
+          // accepted ones kept as history and therefore not in the way.
+          const clash = invitations.some(
+            (existing) =>
+              existing["accepted_at"] == null &&
+              existing["org_id"] === row["org_id"] &&
+              String(existing["email"]).toLowerCase() === String(row["email"]).toLowerCase(),
+          );
+          if (clash) {
+            json(res, 409, { code: "23505", message: "duplicate key value" });
+            return;
+          }
+          const stored = {
+            id: `invite-${invitations.length + 1}`,
+            accepted_at: null,
+            accepted_by: null,
+            ...row,
+          };
+          invitations.push(stored);
+          json(res, 201, [stored]);
+        });
+        return;
+      }
+      if (req.method === "PATCH") {
+        void readBody(req).then((raw) => {
+          const changes = JSON.parse(raw) as Record<string, unknown>;
+          const hit = invitations.filter((row) => matches(row, f));
+          for (const row of hit) Object.assign(row, changes);
+          json(res, 200, hit);
+        });
+        return;
+      }
+      if (req.method === "DELETE") {
+        const hit = invitations.filter((row) => matches(row, f));
+        for (const row of hit) invitations.splice(invitations.indexOf(row), 1);
+        json(res, 200, hit);
+        return;
+      }
     }
     if (req.url?.startsWith("/rest/v1/entity_ownership")) {
       const f = filtersOf(req.url);
@@ -161,10 +232,18 @@ export async function startSupabaseStub() {
     feedbackInserts,
     members,
     ownership,
+    invitations,
     promoterProfiles,
     rpcCalls,
-    signToken: (opts: { sub?: string; role?: string; expiresIn?: string } = {}) =>
-      new SignJWT(opts.role === undefined ? {} : { user_role: opts.role })
+    signToken: (
+      opts: { sub?: string; role?: string; expiresIn?: string; email?: string } = {},
+    ) =>
+      new SignJWT({
+        ...(opts.role === undefined ? {} : { user_role: opts.role }),
+        // Omitted unless asked for, so the "token carries no email" branch of
+        // the accept route stays reachable from a test.
+        ...(opts.email === undefined ? {} : { email: opts.email }),
+      })
         .setProtectedHeader({ alg: "ES256", kid: "test-key" })
         .setIssuer(`${url}/auth/v1`)
         .setAudience("authenticated")

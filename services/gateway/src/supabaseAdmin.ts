@@ -32,6 +32,18 @@ export interface SupabaseAdmin {
   select<T>(table: string, query: string): Promise<T[]>;
   insert<T>(table: string, row: unknown): Promise<T>;
   patch<T>(table: string, query: string, changes: unknown): Promise<T[]>;
+  /**
+   * Deletes every row the query matches, and answers with them.
+   *
+   * The only caller is revoking a pending invitation, where a delete is the
+   * right verb and a status column would be the wrong one: the partial unique
+   * index on `organization_invitations` covers unaccepted rows, so a
+   * kept-but-revoked row would hold the one live slot for that address and
+   * block re-inviting it. `entity_ownership` reasons the other way and revokes
+   * in place — an ownership claim is a record worth keeping, an invitation
+   * nobody accepted is not.
+   */
+  del<T>(table: string, query: string): Promise<T[]>;
   rpc<T>(fn: string, args: Record<string, unknown>): Promise<T>;
   /**
    * An RPC run as the signed-in user rather than as the service role.
@@ -86,6 +98,17 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
         headers: { ...headers, prefer: "return=representation" },
         body: JSON.stringify(changes),
       });
+      return (await response.json()) as T[];
+    },
+
+    async del<T>(table: string, query: string): Promise<T[]> {
+      const response = await call(`${base}/${table}?${query}`, {
+        method: "DELETE",
+        headers: { ...headers, prefer: "return=representation" },
+      });
+      // Representation so the caller can tell "deleted nothing" from "deleted
+      // one" — PostgREST answers both with 200, and the difference is the
+      // whole 404 branch on a revoke.
       return (await response.json()) as T[];
     },
 
