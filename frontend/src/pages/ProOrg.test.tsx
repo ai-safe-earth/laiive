@@ -22,6 +22,8 @@ const data = vi.hoisted(() => ({
   roster: [] as unknown[],
   hits: [] as unknown[],
   events: [] as unknown[],
+  /** The uids the page last asked for — the window, not the fixture. */
+  requested: [] as string[],
   promoter: null as unknown,
   create: vi.fn(),
   setRelation: vi.fn(),
@@ -30,7 +32,12 @@ const data = vi.hoisted(() => ({
 vi.mock("@/api/organizations", () => ({
   useMyOrgs: () => ({ data: data.orgs, isLoading: false }),
   useOrgClaims: () => ({ data: data.claims }),
-  useOrgEvents: () => ({ data: data.events }),
+  useOrgEvents: (_orgId: string, uids: string[]) => {
+    // Record the window: what the page chose to ask for is the behaviour under
+    // test, and a mock that ignores its argument would pass either way.
+    data.requested = uids;
+    return { data: data.events };
+  },
   useRoster: () => ({ data: data.roster }),
   useEntitySearch: () => ({ data: data.hits, isFetching: false }),
   useCreateOrg: () => ({ mutateAsync: data.create, isPending: false }),
@@ -75,6 +82,7 @@ beforeEach(() => {
   data.roster = [];
   data.hits = [];
   data.events = [];
+  data.requested = [];
   data.promoter = null;
   data.create.mockReset().mockResolvedValue("org-1");
   data.setRelation.mockReset().mockResolvedValue(undefined);
@@ -148,6 +156,30 @@ describe("/pro/org", () => {
     expect(screen.getByText("u3")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "freelance");
     expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
+  });
+
+  it("opens on the recent events and keeps the rest one click away", async () => {
+    // The uid list is claim order, which is newest-published first, so the
+    // default window is the last five without a second query. Anything beyond
+    // that is a button — the retriever refuses more than 50 uids per lookup,
+    // so the page size cannot silently become a failed request.
+    data.orgs = [OWNED];
+    data.claims = Array.from({ length: 8 }, (_, i) => ({
+      id: `c${i}`,
+      org_id: "org-1",
+      entity_type: "event",
+      entity_uid: `e${i}`,
+      entity_name: `Night ${i}`,
+      basis: "created",
+      verified: true,
+      status: "active",
+      created_at: `2026-09-0${i + 1}`,
+    }));
+    renderPage();
+
+    expect(data.requested).toHaveLength(5);
+    await userEvent.click(screen.getByRole("button", { name: en.org.eventsAll(8) }));
+    expect(data.requested).toHaveLength(8);
   });
 
   it("puts what the organisation is, what it manages and its events in three bands", () => {

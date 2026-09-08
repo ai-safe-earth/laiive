@@ -104,6 +104,7 @@ export interface Translations {
     evidenceHint: string;
     yourSeat: string;
     address: string;
+    eventsAll: (total: number) => string;
     website: string;
     phone: string;
     contactEmail: string;
@@ -327,6 +328,7 @@ export const translations: Record<Language, Translations> = {
       evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
       yourSeat: 'your seat',
       address: 'address',
+      eventsAll: (total: number) => `all ${total}`,
       website: 'website',
       phone: 'phone',
       contactEmail: 'contact email',
@@ -571,6 +573,7 @@ export const translations: Record<Language, Translations> = {
       evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
       yourSeat: 'tu puesto',
       address: 'dirección',
+      eventsAll: (total: number) => `los ${total}`,
       website: 'web',
       phone: 'teléfono',
       contactEmail: 'email de contacto',
@@ -816,6 +819,7 @@ export const translations: Record<Language, Translations> = {
       evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
       yourSeat: 'il tuo posto',
       address: 'indirizzo',
+      eventsAll: (total: number) => `tutti e ${total}`,
       website: 'sito',
       phone: 'telefono',
       contactEmail: 'email di contatto',
@@ -1061,6 +1065,7 @@ export const translations: Record<Language, Translations> = {
       evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
       yourSeat: 'el teu lloc',
       address: 'adreça',
+      eventsAll: (total: number) => `els ${total}`,
       website: 'web',
       phone: 'telèfon',
       contactEmail: 'correu de contacte',

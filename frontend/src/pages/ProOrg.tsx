@@ -20,6 +20,7 @@ import {
   type OrgRole,
 } from "@/api/organizations";
 import { usePromoterProfile } from "@/api/profile";
+import { LOOKUP_CHUNK } from "@/api/savedEvents";
 import { useAuth } from "@/auth/AuthProvider";
 import { claimTarget } from "@/auth/claimTarget";
 // Label, Badge and Panel are pro-palette primitives that happen to live under
@@ -274,21 +275,33 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
  * The rows carry only a denormalized name, so the uids are exchanged for cards
  * through the same read path /saved uses.
  */
+/** How many of the most recently published events open by default. */
+const RECENT_EVENTS = 5;
+
 function PublishedEvents({ org }: { org: OrgMembership }) {
   const { language, t } = useTranslation();
   const { user, role } = useAuth();
   const { data: claims } = useOrgClaims(org.id);
+  // useOrgClaims already orders created_at descending, so this is
+  // most-recently-published first without a second query.
   const uids = (claims ?? [])
     .filter((claim) => claim.entity_type === "event")
     .map((claim) => claim.entity_uid);
 
-  const { data: cards } = useOrgEvents(org.id, uids);
+  const [limit, setLimit] = useState(RECENT_EVENTS);
+  // ponytail: growing the window refetches all of it, because orgKeys.events
+  // is keyed on the uid list. A per-page key, or start_at in Postgres so the
+  // list can be ordered and paged there, if an org ever pushes enough to feel
+  // it. The step is LOOKUP_CHUNK so one click is exactly one round trip — the
+  // retriever refuses more uids than that in a single lookup.
+  const shown = uids.slice(0, limit);
+  const { data: cards } = useOrgEvents(org.id, shown);
 
-  // Soonest first: a promoter opens this to check what is coming, and the graph
-  // answers in the order the uids were asked for, which is claim order. A card
-  // with no date sorts to the front rather than throwing.
+  // Newest night first. A promoter opens this to see what they last put up,
+  // and the graph answers in the order the uids were asked for. A card with no
+  // date sorts to the end rather than throwing.
   const sorted = [...(cards ?? [])].sort(
-    (a, b) => new Date(a.start_at ?? 0).getTime() - new Date(b.start_at ?? 0).getTime(),
+    (a, b) => new Date(b.start_at ?? 0).getTime() - new Date(a.start_at ?? 0).getTime(),
   );
 
   return (
@@ -311,6 +324,15 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
             </li>
           ))}
         </ul>
+      )}
+      {uids.length > shown.length && (
+        <Button
+          variant="proNeutral"
+          className="self-start"
+          onClick={() => setLimit((current) => current + LOOKUP_CHUNK)}
+        >
+          {t.org.eventsAll(uids.length)}
+        </Button>
       )}
     </Panel>
   );
