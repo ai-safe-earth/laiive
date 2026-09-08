@@ -150,6 +150,23 @@ describe("/pro/org", () => {
     expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
   });
 
+  it("puts what the organisation is, what it manages and its events in three bands", () => {
+    // The complaint this page was rebuilt for: six sibling panels in one
+    // stack, two of them titled "venues and artists you manage" and "manage a
+    // venue or an artist", adjacent. The headings are the separation.
+    data.orgs = [OWNED];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+    ];
+    renderPage();
+
+    const bands = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(bands).toEqual([en.org.detailsTitle, en.org.claimsTitle, en.org.eventsTitle]);
+    // Your seat is a fact about this organisation, so it sits inside its band
+    // rather than in a panel of its own further down the page.
+    expect(screen.getByText(en.org.rosterTitle)).toBeInTheDocument();
+  });
+
   it("keeps published events out of the list you manage", () => {
     // The two are different relationships: a venue is claimed and reviewed, an
     // event is yours because you published it. Rendering them in one list put a

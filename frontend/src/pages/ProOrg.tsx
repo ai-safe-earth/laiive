@@ -77,7 +77,7 @@ export default function ProOrg() {
         </span>
       </header>
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4 sm:p-6">
+      <main className="mx-auto flex max-w-3xl flex-col gap-7 p-4 sm:p-6">
         {orgsLoading ? null : !org ? (
           <OrgIdentity />
         ) : (
@@ -85,16 +85,39 @@ export default function ProOrg() {
             {orgs && orgs.length > 1 && (
               <OrgTabs orgs={orgs} currentId={org.id} onPick={setSelectedId} />
             )}
-            <OrgDetails org={org} mayEdit={mayEdit} />
-            <PublishedEvents org={org} />
-            <Claims org={org} mayEdit={mayEdit} />
-            <ClaimSearch org={org} mayEdit={mayEdit} />
-            <Roster org={org} />
-            <LegacyNames />
+            <Group label={t.org.detailsTitle}>
+              <OrgDetails org={org} mayEdit={mayEdit} />
+            </Group>
+            <Group label={t.org.claimsTitle}>
+              <ManagedEntities org={org} mayEdit={mayEdit} />
+              <LegacyNames />
+            </Group>
+            <Group label={t.org.eventsTitle}>
+              <PublishedEvents org={org} />
+            </Group>
           </>
         )}
       </main>
     </div>
+  );
+}
+
+/**
+ * A titled band of panels.
+ *
+ * What the organisation IS and what it MANAGES were six sibling panels in one
+ * stack, two of them titled "venues and artists you manage" and "manage a
+ * venue or an artist" and adjacent — which is the confusion this fixes. The
+ * heading and its rule do the separating; there is no fourth pro ground and
+ * this does not need one.
+ */
+function Group({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="font-bebas text-2xl leading-none tracking-[0.04em] text-pro-fg">{label}</h2>
+      <div className="h-px bg-pro-border" />
+      {children}
+    </section>
   );
 }
 
@@ -153,6 +176,7 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
   const [website, setWebsite] = useState(org.website ?? "");
   const [phone, setPhone] = useState(org.phone ?? "");
   const [email, setEmail] = useState(org.contact_email ?? "");
+  const [address, setAddress] = useState(org.address ?? "");
   const kindLabel: Record<OrgKind, string> = {
     venue: t.org.kindVenue,
     artist: t.org.kindArtist,
@@ -165,6 +189,7 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
       await update.mutateAsync({
         orgId: org.id,
         patch: {
+          address: address.trim() || null,
           website: website.trim() || null,
           phone: phone.trim() || null,
           contact_email: email.trim() || null,
@@ -209,19 +234,8 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
       </div>
       {!mayEdit && <p className="text-sm text-pro-muted">{t.org.readOnlyNote}</p>}
 
-      <div className="flex flex-col gap-1.5">
-        <Label>{t.org.yourSeat}</Label>
-        <div className="flex items-center gap-2">
-          <Badge>{seatLabel(org.role, t)}</Badge>
-          <RelationSelect
-            value={org.relation ?? ""}
-            onChange={(relation) => void describeSeat(relation)}
-            disabled={setRelation.isPending}
-          />
-        </div>
-      </div>
-
       <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
+        {field(t.org.address, address, setAddress)}
         {field(t.org.website, website, setWebsite)}
         {field(t.org.phone, phone, setPhone)}
         {field(t.org.contactEmail, email, setEmail)}
@@ -238,6 +252,12 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
           {t.org.save}
         </Button>
       )}
+
+      <Roster
+        org={org}
+        onDescribeSeat={describeSeat}
+        describing={setRelation.isPending}
+      />
     </Panel>
   );
 }
@@ -273,7 +293,6 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
 
   return (
     <Panel className="flex flex-col gap-3 px-5 py-[18px]">
-      <Label>{t.org.eventsTitle}</Label>
       {!uids.length ? (
         <p className="text-sm text-pro-muted">{t.org.eventsNone}</p>
       ) : (
@@ -297,6 +316,27 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
   );
 }
 
+/**
+ * What the organisation manages, and the way to add to it.
+ *
+ * One panel, because two adjacent ones titled "venues and artists you manage"
+ * and "manage a venue or an artist" is the thing that read as confusing. The
+ * picker sits under a rule inside the same frame: same subject, second act.
+ */
+function ManagedEntities({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
+  return (
+    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
+      <Claims org={org} mayEdit={mayEdit} />
+      {mayEdit && (
+        <>
+          <div className="h-px bg-pro-border" />
+          <ClaimSearch org={org} mayEdit={mayEdit} />
+        </>
+      )}
+    </Panel>
+  );
+}
+
 function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
   const { t } = useTranslation();
   const { data: claims } = useOrgClaims(org.id);
@@ -306,8 +346,7 @@ function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
   const managed = (claims ?? []).filter((claim) => claim.entity_type !== "event");
 
   return (
-    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
-      <Label>{t.org.claimsTitle}</Label>
+    <div className="flex flex-col gap-3">
       {!managed.length ? (
         <p className="text-sm text-pro-muted">{t.org.claimsNone}</p>
       ) : (
@@ -339,7 +378,7 @@ function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
           ))}
         </ul>
       )}
-    </Panel>
+    </div>
   );
 }
 
@@ -375,7 +414,7 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
   };
 
   return (
-    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
+    <div className="flex flex-col gap-3">
       <Label>{t.org.searchTitle}</Label>
       <p className="text-sm leading-[1.5] text-pro-muted">{t.org.searchNote}</p>
 
@@ -439,7 +478,7 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
           ))}
         </ul>
       )}
-    </Panel>
+    </div>
   );
 }
 
@@ -447,7 +486,22 @@ function seatLabel(role: OrgRole, t: ReturnType<typeof useTranslation>["t"]) {
   return role === "owner" ? t.org.seatOwner : role === "admin" ? t.org.seatAdmin : t.org.seatMember;
 }
 
-function Roster({ org }: { org: OrgMembership }) {
+/**
+ * Who is in the organisation, as a compartment inside its panel rather than a
+ * panel of its own — your seat is a fact about this organisation, not a
+ * separate subject. The elevated fill needs the border to read as a block:
+ * against the card ground it is a three-unit difference, and elsewhere it is
+ * the strip's shape that carries it, not the colour.
+ */
+function Roster({
+  org,
+  onDescribeSeat,
+  describing,
+}: {
+  org: OrgMembership;
+  onDescribeSeat: (relation: MemberRelation) => void;
+  describing: boolean;
+}) {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { data: seats } = useRoster(org.id);
@@ -459,8 +513,17 @@ function Roster({ org }: { org: OrgMembership }) {
   };
 
   return (
-    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
+    <div className="flex flex-col gap-2.5 rounded-[14px] border border-pro-border bg-pro-elevated px-3.5 py-3">
       <Label>{t.org.rosterTitle}</Label>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-pro-dim">{t.org.yourSeat}</span>
+        <Badge>{seatLabel(org.role, t)}</Badge>
+        <RelationSelect
+          value={org.relation ?? ""}
+          onChange={onDescribeSeat}
+          disabled={describing}
+        />
+      </div>
       <ul className="flex flex-col gap-2">
         {(seats ?? []).map((seat) => {
           const mine = seat.user_id === user?.id;
@@ -489,7 +552,7 @@ function Roster({ org }: { org: OrgMembership }) {
         })}
       </ul>
       <p className="text-sm text-pro-muted">{t.org.rosterNote}</p>
-    </Panel>
+    </div>
   );
 }
 
