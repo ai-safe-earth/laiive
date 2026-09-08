@@ -454,11 +454,13 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       return reply.code(410).send({ error: "that invitation has expired" });
     }
     if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
-      // The address is named rather than hidden: whoever holds this link was
-      // sent it, and the useful thing to tell them is which account to use.
-      return reply
-        .code(403)
-        .send({ error: "that invitation was sent to a different address", email: invitation.email });
+      // The address goes in the message, not just beside it: the client shows
+      // `error` verbatim, and the useful thing to tell whoever holds this link
+      // is which account to sign in as. They were sent it — it is not a leak.
+      return reply.code(403).send({
+        error: `that invitation was sent to ${invitation.email}`,
+        email: invitation.email,
+      });
     }
 
     // Seat first, stamp second. A stamp that fails leaves a live invitation and

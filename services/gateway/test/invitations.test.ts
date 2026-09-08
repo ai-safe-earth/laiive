@@ -209,8 +209,10 @@ describe("POST /api/invitations/accept", () => {
 
     const res = await accept(other, { token: link });
     expect(res.statusCode).toBe(403);
-    // The invited address is named so they know which account to sign in as.
+    // The invited address is named, and named inside `error` — that is the
+    // field the client renders, and knowing which account to use is the point.
     expect(res.json()).toMatchObject({ email: GUEST_EMAIL });
+    expect((res.json() as { error: string }).error).toContain(GUEST_EMAIL);
     expect(supabase.members).toHaveLength(2);
   });
 

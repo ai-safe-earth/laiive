@@ -41,9 +41,22 @@ export async function becomePromoter(userId: string, orgName: string): Promise<v
   );
   if (error) throw new Error(error.message);
 
-  // Past this line the grant has happened. A refresh that fails is a network
-  // blip far more often than anything structural, so try once more before
-  // telling anyone their sign-up went wrong — it did not.
+  await refreshRole();
+}
+
+/**
+ * Re-mint the token so a role granted a moment ago is in it.
+ *
+ * Split out of becomePromoter because there is now a second way into pro that
+ * needs exactly this half and none of the other: accepting an organization
+ * invitation, where the trigger from 20260908000026 does the granting and the
+ * client writes nothing at all.
+ *
+ * A refresh that fails is a network blip far more often than anything
+ * structural, so try once more before telling anyone their sign-up went wrong —
+ * it did not.
+ */
+export async function refreshRole(): Promise<void> {
   const { error: refreshError } = await supabase.auth.refreshSession();
   if (!refreshError) return;
 
