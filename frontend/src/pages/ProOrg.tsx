@@ -19,7 +19,7 @@ import {
   type OrgMembership,
   type OrgRole,
 } from "@/api/organizations";
-import { useProfile, usePromoterProfile } from "@/api/profile";
+import { usePromoterProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
 import { claimTarget } from "@/auth/claimTarget";
 // Label, Badge and Panel are pro-palette primitives that happen to live under
@@ -415,7 +415,6 @@ function Roster({ org }: { org: OrgMembership }) {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { data: seats } = useRoster(org.id);
-  const { data: me } = useProfile(user?.id);
   const relationLabel: Record<MemberRelation, string> = {
     owner: t.org.relationOwner,
     employee: t.org.relationEmployee,
@@ -428,18 +427,22 @@ function Roster({ org }: { org: OrgMembership }) {
       <Label>{t.org.rosterTitle}</Label>
       <ul className="flex flex-col gap-2">
         {(seats ?? []).map((seat) => {
-          // ponytail: only your own seat has a name — reading another member's
-          // profile needs a policy that arrives with invitations.
           const mine = seat.user_id === user?.id;
+          // Your own row falls back to the email, which useAuth already has;
+          // profiles has no email column. Anyone else falls back to the uid,
+          // which is what every seat showed before migration 25 — so a stack
+          // without that policy looks exactly like it used to.
+          const name = seat.display_name || (mine ? user?.email : null);
           return (
             <li key={seat.user_id} className="flex items-center gap-2">
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-sm",
-                  mine ? "text-pro-fg" : "font-mono text-pro-muted",
+                  mine ? "text-pro-fg" : "text-pro-muted",
+                  !name && "font-mono",
                 )}
               >
-                {mine ? me?.display_name || user?.email : seat.user_id}
+                {name || seat.user_id}
               </span>
               {seat.relation && (
                 <span className="text-sm text-pro-dim">{relationLabel[seat.relation]}</span>

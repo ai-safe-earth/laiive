@@ -33,6 +33,7 @@ export interface Organization {
   id: string;
   kind: OrgKind;
   display_name: string;
+  address: string | null;
   website: string | null;
   phone: string | null;
   contact_email: string | null;
@@ -61,6 +62,8 @@ export interface RosterSeat {
   role: OrgRole;
   relation: MemberRelation | null;
   created_at: string;
+  /** null when the profile is unreadable — see useRoster. */
+  display_name: string | null;
 }
 
 /** What `GET /api/claims` answers for one entity — booleans, never rows. */
@@ -110,7 +113,7 @@ export function useMyOrgs(userId: string | undefined) {
       const { data, error } = await supabase
         .from("organization_members")
         .select(
-          "role, relation, organizations (id, kind, display_name, website, phone, contact_email)",
+          "role, relation, organizations (id, kind, display_name, address, website, phone, contact_email)",
         )
         .eq("user_id", userId!);
       if (error) throw new Error(error.message);
@@ -152,7 +155,9 @@ export function useCreateOrg(userId: string | undefined) {
   });
 }
 
-export type OrgPatch = Partial<Pick<Organization, "display_name" | "website" | "phone" | "contact_email">>;
+export type OrgPatch = Partial<
+  Pick<Organization, "display_name" | "address" | "website" | "phone" | "contact_email">
+>;
 
 export function useUpdateOrg(userId: string | undefined) {
   const queryClient = useQueryClient();
@@ -226,7 +231,20 @@ export function useOrgEvents(orgId: string | undefined, uids: string[]) {
   });
 }
 
-/** Read-only until the invitation routes land (phase D2 tail). */
+/**
+ * The seats in one organization, each with the person's name.
+ *
+ * Two statements, not one embed: organization_members.user_id references
+ * auth.users, not public.profiles, and the auth schema is not exposed, so
+ * PostgREST has no relationship to traverse. One query key, one cache entry.
+ *
+ * A name is null whenever the profile is unreadable, which the caller renders
+ * as the uid exactly as it did before migration 25. That is deliberate — this
+ * degrades on an environment where the policy has not been applied yet rather
+ * than failing, so the two can ship in either order.
+ *
+ * Adding a seat is still not possible here; that arrives with invitations.
+ */
 export function useRoster(orgId: string | undefined) {
   return useQuery({
     queryKey: orgKeys.roster(orgId ?? "none"),
@@ -237,7 +255,30 @@ export function useRoster(orgId: string | undefined) {
         .select("user_id, role, relation, created_at")
         .eq("org_id", orgId!);
       if (error) throw new Error(error.message);
-      return (data ?? []) as RosterSeat[];
+      const seats = (data ?? []) as Omit<RosterSeat, "display_name">[];
+      if (!seats.length) return [];
+
+      const { data: profiles, error: nameError } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in(
+          "id",
+          seats.map((seat) => seat.user_id),
+        );
+      // A failed name lookup is not a failed roster: the seats are the answer,
+      // the names are the courtesy.
+      if (nameError) return seats.map((seat) => ({ ...seat, display_name: null }));
+
+      const named = new Map(
+        ((profiles ?? []) as { id: string; display_name: string | null }[]).map((row) => [
+          row.id,
+          row.display_name,
+        ]),
+      );
+      return seats.map((seat) => ({
+        ...seat,
+        display_name: named.get(seat.user_id) ?? null,
+      }));
     },
   });
 }

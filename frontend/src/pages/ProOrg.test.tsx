@@ -41,7 +41,6 @@ vi.mock("@/api/organizations", () => ({
 }));
 vi.mock("@/api/profile", () => ({
   usePromoterProfile: () => ({ data: data.promoter }),
-  useProfile: () => ({ data: { id: "u1", display_name: "Oscar" } }),
 }));
 // The identity step is the pro grant too; the founding itself is covered in
 // OrgIdentity.test.tsx. Here it only has to not dial out.
@@ -51,6 +50,7 @@ const OWNED = {
   id: "org-1",
   kind: "venue",
   display_name: "Razzmatazz",
+  address: null,
   website: null,
   phone: null,
   contact_email: null,
@@ -133,11 +133,19 @@ describe("/pro/org", () => {
 
   it("shows your seat and lets you describe it", async () => {
     data.orgs = [OWNED];
-    data.roster = [{ user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01" }];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+      { user_id: "u2", role: "member", relation: null, created_at: "2026-09-02", display_name: "Ada" },
+      // Migration 25 not applied, or a member who never set a name: the uid is
+      // what the roster showed for everyone before, so it stays the fallback.
+      { user_id: "u3", role: "member", relation: null, created_at: "2026-09-03", display_name: null },
+    ];
     renderPage();
 
-    // Your own seat carries your name; the roster never shows you a uuid for yourself.
+    // Every seat carries a name now, not just your own.
     expect(screen.getByText("Oscar")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("u3")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "freelance");
     expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
   });
