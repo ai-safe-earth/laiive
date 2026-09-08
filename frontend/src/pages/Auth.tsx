@@ -76,7 +76,14 @@ export default function Auth() {
 
   // Where this sign-in is headed. The promoter's door has to survive OAuth,
   // which leaves the app and returns as a fresh document.
-  const destination = isPro ? "/pro" : "/";
+  //
+  // `?next=` is how a screen that sent someone here says where to put them
+  // back. It cannot be the sessionStorage stash: the mount effect above wipes
+  // that on arrival by design, and `googleSignIn` overwrites it with this
+  // destination on the way out — so a caller writing it before navigating here
+  // loses twice. /invite is the caller that needs it, and both paths below
+  // honour it because both read this one value.
+  const destination = safeNext(params.get("next")) ?? (isPro ? "/pro" : "/");
 
   const googleSignIn = async () => {
     if (isPro && mode === "signup" && !orgName.trim()) {
@@ -300,4 +307,18 @@ export default function Auth() {
       </Link>
     </div>
   );
+}
+
+/**
+ * A `?next=` value that can only ever point back into this app.
+ *
+ * Anything not starting with a single slash is refused, which rules out
+ * absolute URLs (`https://evil.example`) and protocol-relative ones
+ * (`//evil.example`, which a browser resolves to another origin). Without this
+ * the parameter is an open redirect that a sign-in screen is the ideal place
+ * to have — the victim arrives already expecting to be sent somewhere.
+ */
+function safeNext(next: string | null): string | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  return next;
 }

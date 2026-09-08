@@ -30,12 +30,6 @@ vi.mock("@/auth/becomePromoter", async (importOriginal) => ({
   refreshRole: api.refresh,
 }));
 
-const stash = vi.hoisted(() => ({ remember: vi.fn() }));
-vi.mock("@/auth/postAuth", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/auth/postAuth")>()),
-  rememberDestination: stash.remember,
-}));
-
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
@@ -58,21 +52,21 @@ beforeEach(() => {
   nav.go.mockReset();
   api.accept.mockReset().mockResolvedValue({ org_id: "org-1", role: "member", already: false });
   api.refresh.mockReset().mockResolvedValue(undefined);
-  stash.remember.mockReset();
   toasts.success.mockReset();
   toasts.error.mockReset();
 });
 
 describe("/invite/:token", () => {
-  it("sends a signed-out visitor through the front door, remembering the link", () => {
-    // The person an invitation is for usually has no account at all. The stash
-    // is how the intent survives a sign-in that leaves the app (Google) or
-    // stands behind a confirmation mail.
+  it("sends a signed-out visitor through the front door, carrying the link", () => {
+    // The person an invitation is for usually has no account at all, so this is
+    // the primary flow, not an edge. The link travels in the URL rather than in
+    // the postAuth stash: /auth wipes that on mount by design, and googleSignIn
+    // overwrites it on the way out, so a stashed invitation was silently lost
+    // and the invitee landed on the chat having joined nothing.
     auth.state = { user: null, role: "user", isLoading: false };
     renderAt();
 
-    expect(stash.remember).toHaveBeenCalledWith("/invite/tok-123");
-    expect(nav.go).toHaveBeenCalledWith("/auth", { replace: true });
+    expect(nav.go).toHaveBeenCalledWith("/auth?next=%2Finvite%2Ftok-123", { replace: true });
     expect(api.accept).not.toHaveBeenCalled();
   });
 

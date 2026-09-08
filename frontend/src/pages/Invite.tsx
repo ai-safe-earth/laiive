@@ -1,12 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { acceptInvitation, orgKeys } from "@/api/organizations";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/auth/AuthProvider";
 import { PromoterRefreshError, refreshRole } from "@/auth/becomePromoter";
-import { rememberDestination } from "@/auth/postAuth";
 import { Mark } from "@/components/Mark";
 import { Button } from "@/components/ui/Button";
 import { useTranslation } from "@/i18n/useTranslation";
@@ -41,17 +40,23 @@ export default function Invite() {
 
   useEffect(() => {
     if (isLoading || !token) return;
+    // Before the signed-out branch, not after: redeeming ends with a session
+    // refresh, and a token being re-minted can read as "no user" for a tick.
+    // Checked second, that tick would stash the spent link and bounce somebody
+    // who has just joined back to the sign-in screen.
+    if (attempted.current) return;
 
     if (!user) {
-      // Same mechanism the promoter door uses, and for the same reason: the
-      // sign-in may leave the app entirely (Google) or stand behind a
-      // confirmation mail, and nothing in component state survives that.
-      rememberDestination(`/invite/${token}`);
-      navigate("/auth", { replace: true });
+      // In the URL, not in the sessionStorage stash. /auth clears that stash on
+      // mount by design — a leftover destination there means an abandoned round
+      // trip — and googleSignIn then overwrites it with its own. A caller that
+      // writes it before navigating here loses it twice, silently, which is
+      // exactly what a stashed invitation did: sign in, land on the chat, and
+      // never join anything.
+      navigate(`/auth?next=${encodeURIComponent(`/invite/${token}`)}`, { replace: true });
       return;
     }
 
-    if (attempted.current) return;
     attempted.current = true;
 
     const run = async () => {
