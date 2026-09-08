@@ -20,6 +20,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/auth/AuthProvider";
 import { useTranslation } from "@/i18n/useTranslation";
+import { cn } from "@/lib/cn";
 
 const ACCEPTED =
   "image/*,audio/*,.pdf,.docx,.txt,.md,.csv";
@@ -56,6 +57,13 @@ export default function ProSubmit() {
   const { user, role, isLoading } = useAuth();
   const { t } = useTranslation();
   const { data: orgs, isLoading: orgsLoading } = useMyOrgs(user?.id);
+
+  // Which organization a publish is filed against. Named explicitly, because
+  // the gateway's fallback is whichever seat it reads first — for anybody in
+  // two organizations that filed events somewhere they then could not find
+  // them, since /pro/org lists events per organization.
+  const [publishOrgId, setPublishOrgId] = useState<string | null>(null);
+  const publishOrg = orgs?.find((candidate) => candidate.id === publishOrgId) ?? orgs?.[0];
 
   const restored = useRef(loadSession()).current;
 
@@ -239,7 +247,7 @@ export default function ProSubmit() {
   const publish = async (completed: EventDraft, venueUid: string | null) => {
     setSaving(true);
     try {
-      const result = await saveEvent(completed, venueUid);
+      const result = await saveEvent(completed, venueUid, publishOrg?.id ?? null);
       toast.success(t.pro.published(result.event_name ?? completed.name ?? "✓"));
       for (const warning of result.warnings ?? []) toast.warning(warning);
       setDraft(null);
@@ -293,9 +301,35 @@ export default function ProSubmit() {
           <span className="flex min-w-0 items-center gap-2.5">
             <Mark size={27} />
             <ProBadge />
-            {orgs?.[0] && (
-              <span className="truncate text-sm text-pro-muted">{orgs[0].display_name}</span>
-            )}
+            {/* The organization this publish will be filed against, and a way
+                to change it when there is more than one. It used to print
+                orgs[0] while the gateway picked its own first seat from a
+                different query — so the header could name one organization and
+                the event land in another. */}
+            {publishOrg &&
+              (orgs && orgs.length > 1 ? (
+                <select
+                  value={publishOrg.id}
+                  onChange={(event) => setPublishOrgId(event.target.value)}
+                  aria-label={t.pro.publishingAs}
+                  className={cn(
+                    "min-w-0 max-w-[12rem] truncate rounded-full border bg-transparent",
+                    "border-pro-border py-1 pl-2 pr-1 text-sm text-pro-muted",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent",
+                    "[color-scheme:dark]",
+                  )}
+                >
+                  {orgs.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.display_name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="truncate text-sm text-pro-muted">
+                  {publishOrg.display_name}
+                </span>
+              ))}
           </span>
           <UserMenu />
         </div>

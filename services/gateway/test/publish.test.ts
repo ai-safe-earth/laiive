@@ -58,20 +58,78 @@ beforeEach(() => {
   supabase.ownership.length = 0;
   supabase.promoterProfiles.length = 0;
   supabase.rpcCalls.length = 0;
+  // Cleared too: `seen` accumulates for the whole file, so "the pusher was
+  // never called" is only a real assertion against a fresh log.
+  pusher.seen.length = 0;
+  supabase.memberQueries.length = 0;
   pusher.entities.artists.length = 0;
   pusher.entities.artists.push({ uid: "a-new", name: "Ana Beck Quartet" });
   pusher.publish.current = published();
   supabase.members.push({ org_id: ORG, user_id: PRO, role: "owner" });
 });
 
-async function publish(token: string) {
+async function publish(token: string, extra: Record<string, unknown> = {}) {
   return app.inject({
     method: "POST",
     url: "/api/publish",
     headers: { authorization: `Bearer ${token}` },
-    payload: { draft: { artists: ["Ana Beck Quartet"] } },
+    payload: { draft: { artists: ["Ana Beck Quartet"] }, ...extra },
   });
 }
+
+describe("which organization a publish is filed against", () => {
+  const SECOND = "org-2";
+
+  it("files against the organization the publisher named", async () => {
+    // The whole point: somebody in two organizations publishing for the second
+    // one. Before this the gateway read its own first seat and the event landed
+    // in whichever the query returned first, where /pro/org would not list it.
+    supabase.members.push({ org_id: SECOND, user_id: PRO, role: "owner" });
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+
+    const res = await publish(token, { org_id: SECOND });
+    expect(res.statusCode).toBe(200);
+    expect(supabase.ownership.every((row) => row["org_id"] === SECOND)).toBe(true);
+  });
+
+  it("refuses an organization the publisher does not belong to, before writing", async () => {
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+    const res = await publish(token, { org_id: "somebody-elses-org" });
+
+    expect(res.statusCode).toBe(403);
+    // Refused before the pusher, because after it the event already exists.
+    expect(pusher.seen.filter((r) => r.url === "/validate-event")).toHaveLength(0);
+    expect(supabase.ownership).toHaveLength(0);
+  });
+
+  it("rejects a malformed org_id", async () => {
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+    expect((await publish(token, { org_id: 42 })).statusCode).toBe(400);
+    expect((await publish(token, { org_id: "" })).statusCode).toBe(400);
+  });
+
+  it("never forwards org_id to the pusher", async () => {
+    // The pusher's request model does not know the field, and it is the
+    // gateway's business rather than the writer's.
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+    await publish(token, { org_id: ORG });
+
+    const seen = pusher.seen.find((r) => r.url === "/validate-event");
+    expect(JSON.parse(String(seen?.body))).not.toHaveProperty("org_id");
+  });
+
+  it("still falls back when nothing is named, and asks for seats in a fixed order", async () => {
+    supabase.members.push({ org_id: SECOND, user_id: PRO, role: "owner" });
+    const token = await supabase.signToken({ sub: PRO, role: "pro" });
+
+    const res = await publish(token);
+    expect(res.statusCode).toBe(200);
+    // Unordered, PostgREST returns rows however the heap gives them, so the
+    // fallback was a coin toss for anybody in two organizations.
+    const asked = supabase.memberQueries.some((q) => q.includes("order=created_at.asc"));
+    expect(asked).toBe(true);
+  });
+});
 
 describe("POST /api/publish", () => {
   it("refuses anonymous and plain users before reaching the pusher", async () => {

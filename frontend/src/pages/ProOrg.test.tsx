@@ -328,7 +328,10 @@ describe("/pro/org", () => {
     expect(screen.queryByRole("button", { name: en.org.save })).not.toBeInTheDocument();
   });
 
-  it("renders the old free-text names as history, not as claims", () => {
+  it("does not show the old free-text names at all any more", () => {
+    // The section was a prompt to re-claim each name properly. It never moved
+    // anybody to act, and it put dead text under a heading about what the
+    // organisation manages.
     data.orgs = [OWNED];
     data.promoter = {
       org_name: "Razzmatazz",
@@ -337,11 +340,8 @@ describe("/pro/org", () => {
     };
     renderPage();
 
-    expect(screen.getByText(en.org.legacyTitle)).toBeInTheDocument();
-    expect(screen.getByText("Sala Clamores")).toBeInTheDocument();
-    expect(screen.getByText("Ana Beck Quartet")).toBeInTheDocument();
-    // They are not claimable in place: a name is not a uid.
-    expect(screen.queryByRole("button", { name: en.org.claim })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sala Clamores")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ana Beck Quartet")).not.toBeInTheDocument();
   });
 
   it("offers the invite control to an admin, with no way to grant ownership", () => {
@@ -350,11 +350,30 @@ describe("/pro/org", () => {
 
     expect(screen.getByText(en.org.inviteTitle)).toBeInTheDocument();
     expect(screen.getByLabelText(en.org.inviteEmail)).toBeInTheDocument();
-    // member and admin only. Handing an organisation over by link is a
-    // different act, and the gateway refuses `owner` too.
-    const roles = screen.getByRole("combobox", { name: en.org.rosterTitle });
-    const offered = Array.from(roles.querySelectorAll("option")).map((o) => o.textContent);
-    expect(offered).toEqual([en.org.seatMember, en.org.seatAdmin]);
+    // An address and a send button, nothing else. The seat picker made the
+    // common case carry a decision nobody was asking to make.
+    expect(
+      screen.queryByRole("combobox", { name: en.org.inviteTitle }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the explanation behind the (i) rather than on screen always", async () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    expect(screen.queryByText(en.org.inviteNote)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteWhat }));
+    expect(screen.getByText(en.org.inviteNote)).toBeInTheDocument();
+  });
+
+  it("invites as a member, sending no seat at all", async () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    await userEvent.type(screen.getByLabelText(en.org.inviteEmail), "ana@sala.cat");
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteSend }));
+
+    expect(data.invite).toHaveBeenCalledWith({ email: "ana@sala.cat" }, expect.anything());
   });
 
   it("hides the invite control from a plain member seat", () => {
@@ -363,23 +382,6 @@ describe("/pro/org", () => {
     data.orgs = [{ ...OWNED, role: "member" }];
     renderPage();
     expect(screen.queryByText(en.org.inviteTitle)).not.toBeInTheDocument();
-  });
-
-  it("asks for the typed address and the chosen seat", async () => {
-    data.orgs = [OWNED];
-    renderPage();
-
-    await userEvent.type(screen.getByLabelText(en.org.inviteEmail), "ana@sala.cat");
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: en.org.rosterTitle }),
-      "admin",
-    );
-    await userEvent.click(screen.getByRole("button", { name: en.org.inviteSend }));
-
-    expect(data.invite).toHaveBeenCalledWith(
-      { email: "ana@sala.cat", role: "admin" },
-      expect.anything(),
-    );
   });
 
   it("will not send an empty address", () => {

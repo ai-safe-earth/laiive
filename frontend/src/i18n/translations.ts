@@ -139,6 +139,8 @@ export interface Translations {
     seatMember: string;
     /** Inviting somebody, and the pending invitations already out. */
     inviteTitle: string;
+    /** aria-label for the (i) that discloses inviteNote. */
+    inviteWhat: string;
     /** Says the link has to be sent by hand — there is no mail provider. */
     inviteNote: string;
     inviteEmail: string;
@@ -155,8 +157,6 @@ export interface Translations {
     inviteExpires: (date: string) => string;
     inviteFailed: string;
     inviteConflict: string;
-    legacyTitle: string;
-    legacyNote: string;
     legacySearch: string;
   };
   /** The page an invitation link lands on. */
@@ -172,6 +172,8 @@ export interface Translations {
     leave: string;
   };
   pro: {
+    /** aria-label on the header control naming which org a publish is filed against. */
+    publishingAs: string;
     needsPro: string;
     signInLink: string;
     onboardingSteps: string[];
@@ -386,7 +388,8 @@ export const translations: Record<Language, Translations> = {
       seatOwner: 'owner',
       seatAdmin: 'admin',
       seatMember: 'member',
-      inviteTitle: 'invite somebody',
+      inviteTitle: 'invite member',
+      inviteWhat: 'what happens when you invite somebody',
       inviteNote:
         'You get a link to send them yourself. It works once, for that address only, and lasts 14 days.',
       inviteEmail: 'their email',
@@ -402,9 +405,6 @@ export const translations: Record<Language, Translations> = {
       inviteExpires: (date: string) => `expires ${date}`,
       inviteFailed: 'could not create that invitation',
       inviteConflict: 'that address already has an invitation waiting',
-      legacyTitle: 'names you listed before this screen existed',
-      legacyNote:
-        'These were free text on your old profile. They point at nothing. Search for each one and add it properly.',
       legacySearch: 'find it',
     },
     invite: {
@@ -419,6 +419,7 @@ export const translations: Record<Language, Translations> = {
       leave: 'go to laiive',
     },
     pro: {
+      publishingAs: "publishing as",
       needsPro: "Publishing events needs a pro account.",
       signInLink: "sign in →",
       onboardingSteps: [
@@ -654,7 +655,8 @@ export const translations: Record<Language, Translations> = {
       seatOwner: 'propietario',
       seatAdmin: 'administrador',
       seatMember: 'miembro',
-      inviteTitle: 'invitar a alguien',
+      inviteTitle: 'invitar a un miembro',
+      inviteWhat: 'qué pasa cuando invitas a alguien',
       inviteNote:
         'Recibes un enlace para enviárselo tú. Funciona una vez, solo para esa dirección, y dura 14 días.',
       inviteEmail: 'su email',
@@ -671,9 +673,6 @@ export const translations: Record<Language, Translations> = {
       inviteExpires: (date: string) => `caduca el ${date}`,
       inviteFailed: 'no se pudo crear la invitación',
       inviteConflict: 'esa dirección ya tiene una invitación pendiente',
-      legacyTitle: 'nombres que anotaste antes de que existiera esta pantalla',
-      legacyNote:
-        'Eran texto libre en tu perfil antiguo. No apuntan a nada. Busca cada uno y añádelo bien.',
       legacySearch: 'buscarlo',
     },
     invite: {
@@ -688,6 +687,7 @@ export const translations: Record<Language, Translations> = {
       leave: 'ir a laiive',
     },
     pro: {
+      publishingAs: "publicando como",
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
       signInLink: "inicia sesión →",
       onboardingSteps: [
@@ -923,7 +923,8 @@ export const translations: Record<Language, Translations> = {
       seatOwner: 'proprietario',
       seatAdmin: 'amministratore',
       seatMember: 'membro',
-      inviteTitle: 'invita qualcuno',
+      inviteTitle: 'invita un membro',
+      inviteWhat: 'cosa succede quando inviti qualcuno',
       inviteNote:
         'Ricevi un link da inviare tu. Funziona una volta sola, solo per quell’indirizzo, e dura 14 giorni.',
       inviteEmail: 'la sua email',
@@ -940,9 +941,6 @@ export const translations: Record<Language, Translations> = {
       inviteExpires: (date: string) => `scade il ${date}`,
       inviteFailed: 'non si è potuto creare l’invito',
       inviteConflict: 'quell’indirizzo ha già un invito in attesa',
-      legacyTitle: 'nomi che avevi scritto prima che esistesse questa schermata',
-      legacyNote:
-        'Erano testo libero nel tuo vecchio profilo. Non puntano a niente. Cerca ognuno e aggiungilo davvero.',
       legacySearch: 'trovalo',
     },
     invite: {
@@ -957,6 +955,7 @@ export const translations: Record<Language, Translations> = {
       leave: 'vai a laiive',
     },
     pro: {
+      publishingAs: "pubblichi come",
       needsPro: "Per pubblicare eventi serve un account promoter.",
       signInLink: "accedi →",
       onboardingSteps: [
@@ -1192,7 +1191,8 @@ export const translations: Record<Language, Translations> = {
       seatOwner: 'propietari',
       seatAdmin: 'administrador',
       seatMember: 'membre',
-      inviteTitle: 'convida algú',
+      inviteTitle: 'convida un membre',
+      inviteWhat: 'què passa quan convides algú',
       inviteNote:
         'Reps un enllaç per enviar-l’hi tu. Funciona un cop, només per a aquella adreça, i dura 14 dies.',
       inviteEmail: 'el seu correu',
@@ -1209,9 +1209,6 @@ export const translations: Record<Language, Translations> = {
       inviteExpires: (date: string) => `caduca el ${date}`,
       inviteFailed: 'no s’ha pogut crear la invitació',
       inviteConflict: 'aquella adreça ja té una invitació pendent',
-      legacyTitle: 'noms que vas escriure abans que existís aquesta pantalla',
-      legacyNote:
-        'Eren text lliure al teu perfil antic. No apunten enlloc. Cerca cadascun i afegeix-lo de debò.',
       legacySearch: 'troba’l',
     },
     invite: {
@@ -1226,6 +1223,7 @@ export const translations: Record<Language, Translations> = {
       leave: 'ves a laiive',
     },
     pro: {
+      publishingAs: "publicant com a",
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
       signInLink: "inicia sessió →",
       onboardingSteps: [

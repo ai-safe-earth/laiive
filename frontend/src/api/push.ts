@@ -103,10 +103,19 @@ export interface SavedEvent {
 export async function saveEvent(
   draft: EventDraft,
   venueUid?: string | null,
+  orgId?: string | null,
 ): Promise<SavedEvent> {
   const response = await apiFetch("/api/publish", {
     method: "POST",
-    body: JSON.stringify({ draft, ...(venueUid ? { venue_uid: venueUid } : {}) }),
+    body: JSON.stringify({
+      draft,
+      ...(venueUid ? { venue_uid: venueUid } : {}),
+      // Named rather than inferred. The gateway's fallback is the first seat it
+      // reads, which for anybody in two organizations filed the event wherever
+      // the query happened to land — and /pro/org lists events per organization,
+      // so they simply were not there.
+      ...(orgId ? { org_id: orgId } : {}),
+    }),
   });
   return (await response.json()) as SavedEvent;
 }
