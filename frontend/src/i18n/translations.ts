@@ -103,6 +103,8 @@ export interface Translations {
     /** Under website / phone / email: what they are for. */
     evidenceHint: string;
     yourSeat: string;
+    address: string;
+    eventsAll: (total: number) => string;
     website: string;
     phone: string;
     contactEmail: string;
@@ -139,9 +141,6 @@ export interface Translations {
     legacyTitle: string;
     legacyNote: string;
     legacySearch: string;
-    summaryTitle: string;
-    summary: (count: number) => string;
-    manage: string;
   };
   pro: {
     needsPro: string;
@@ -325,6 +324,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'member',
       evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
       yourSeat: 'your seat',
+      address: 'address',
+      eventsAll: (total: number) => `all ${total}`,
       website: 'website',
       phone: 'phone',
       contactEmail: 'contact email',
@@ -361,10 +362,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'These were free text on your old profile. They point at nothing. Search for each one and add it properly.',
       legacySearch: 'find it',
-      summaryTitle: 'organisation',
-      summary: (count: number) =>
-        count === 1 ? '1 entry' : `${count} entries`,
-      manage: 'manage →',
     },
     pro: {
       needsPro: "Publishing events needs a pro account.",
@@ -568,6 +565,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'miembro',
       evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
       yourSeat: 'tu puesto',
+      address: 'dirección',
+      eventsAll: (total: number) => `los ${total}`,
       website: 'web',
       phone: 'teléfono',
       contactEmail: 'email de contacto',
@@ -605,10 +604,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Eran texto libre en tu perfil antiguo. No apuntan a nada. Busca cada uno y añádelo bien.',
       legacySearch: 'buscarlo',
-      summaryTitle: 'organización',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entradas`,
-      manage: 'gestionar →',
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
@@ -812,6 +807,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'membro',
       evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
       yourSeat: 'il tuo posto',
+      address: 'indirizzo',
+      eventsAll: (total: number) => `tutti e ${total}`,
       website: 'sito',
       phone: 'telefono',
       contactEmail: 'email di contatto',
@@ -849,10 +846,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Erano testo libero nel tuo vecchio profilo. Non puntano a niente. Cerca ognuno e aggiungilo davvero.',
       legacySearch: 'trovalo',
-      summaryTitle: 'organizzazione',
-      summary: (count: number) =>
-        count === 1 ? '1 voce' : `${count} voci`,
-      manage: 'gestisci →',
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
@@ -1056,6 +1049,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'membre',
       evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
       yourSeat: 'el teu lloc',
+      address: 'adreça',
+      eventsAll: (total: number) => `els ${total}`,
       website: 'web',
       phone: 'telèfon',
       contactEmail: 'correu de contacte',
@@ -1093,10 +1088,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Eren text lliure al teu perfil antic. No apunten enlloc. Cerca cadascun i afegeix-lo de debò.',
       legacySearch: 'troba’l',
-      summaryTitle: 'organització',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entrades`,
-      manage: 'gestiona →',
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",

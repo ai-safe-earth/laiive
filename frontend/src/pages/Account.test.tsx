@@ -38,11 +38,21 @@ beforeEach(() => {
 });
 
 describe("/account and the promoter", () => {
-  it("points at /pro/org instead of asking for the organisation again", () => {
-    data.orgs = [{ id: "org-1", display_name: "Razzmatazz", role: "owner" }];
+  it("lists every organisation and your seat in it, and links to none of them", () => {
+    // Personal settings are personal. Where you belong is stated here; what an
+    // organisation is and what it manages belongs to /pro/org, reached from
+    // the account menu. Two doors made this page half of that screen.
+    data.orgs = [
+      { id: "org-1", display_name: "Razzmatazz", role: "owner" },
+      { id: "org-2", display_name: "Various Mgmt", role: "member" },
+    ];
     renderFrom("/pro");
     expect(screen.getByText("Razzmatazz")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: en.org.manage })).toHaveAttribute("href", "/pro/org");
+    // The second one used to be invisible: the summary read orgs[0] only.
+    expect(screen.getByText("Various Mgmt")).toBeInTheDocument();
+    expect(screen.getByText(en.org.seatOwner)).toBeInTheDocument();
+    expect(screen.getByText(en.org.seatMember)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /pro\/org/ })).not.toBeInTheDocument();
     // The old free-text form asked identity a third time; it is gone.
     expect(screen.queryByPlaceholderText(en.auth.orgPlaceholder)).not.toBeInTheDocument();
   });

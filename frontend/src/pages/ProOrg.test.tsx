@@ -22,6 +22,8 @@ const data = vi.hoisted(() => ({
   roster: [] as unknown[],
   hits: [] as unknown[],
   events: [] as unknown[],
+  /** The uids the page last asked for — the window, not the fixture. */
+  requested: [] as string[],
   promoter: null as unknown,
   create: vi.fn(),
   setRelation: vi.fn(),
@@ -30,7 +32,12 @@ const data = vi.hoisted(() => ({
 vi.mock("@/api/organizations", () => ({
   useMyOrgs: () => ({ data: data.orgs, isLoading: false }),
   useOrgClaims: () => ({ data: data.claims }),
-  useOrgEvents: () => ({ data: data.events }),
+  useOrgEvents: (_orgId: string, uids: string[]) => {
+    // Record the window: what the page chose to ask for is the behaviour under
+    // test, and a mock that ignores its argument would pass either way.
+    data.requested = uids;
+    return { data: data.events };
+  },
   useRoster: () => ({ data: data.roster }),
   useEntitySearch: () => ({ data: data.hits, isFetching: false }),
   useCreateOrg: () => ({ mutateAsync: data.create, isPending: false }),
@@ -41,7 +48,6 @@ vi.mock("@/api/organizations", () => ({
 }));
 vi.mock("@/api/profile", () => ({
   usePromoterProfile: () => ({ data: data.promoter }),
-  useProfile: () => ({ data: { id: "u1", display_name: "Oscar" } }),
 }));
 // The identity step is the pro grant too; the founding itself is covered in
 // OrgIdentity.test.tsx. Here it only has to not dial out.
@@ -51,6 +57,7 @@ const OWNED = {
   id: "org-1",
   kind: "venue",
   display_name: "Razzmatazz",
+  address: null,
   website: null,
   phone: null,
   contact_email: null,
@@ -75,6 +82,7 @@ beforeEach(() => {
   data.roster = [];
   data.hits = [];
   data.events = [];
+  data.requested = [];
   data.promoter = null;
   data.create.mockReset().mockResolvedValue("org-1");
   data.setRelation.mockReset().mockResolvedValue(undefined);
@@ -133,13 +141,62 @@ describe("/pro/org", () => {
 
   it("shows your seat and lets you describe it", async () => {
     data.orgs = [OWNED];
-    data.roster = [{ user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01" }];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+      { user_id: "u2", role: "member", relation: null, created_at: "2026-09-02", display_name: "Ada" },
+      // Migration 25 not applied, or a member who never set a name: the uid is
+      // what the roster showed for everyone before, so it stays the fallback.
+      { user_id: "u3", role: "member", relation: null, created_at: "2026-09-03", display_name: null },
+    ];
     renderPage();
 
-    // Your own seat carries your name; the roster never shows you a uuid for yourself.
+    // Every seat carries a name now, not just your own.
     expect(screen.getByText("Oscar")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("u3")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "freelance");
     expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
+  });
+
+  it("opens on the recent events and keeps the rest one click away", async () => {
+    // The uid list is claim order, which is newest-published first, so the
+    // default window is the last five without a second query. Anything beyond
+    // that is a button — the retriever refuses more than 50 uids per lookup,
+    // so the page size cannot silently become a failed request.
+    data.orgs = [OWNED];
+    data.claims = Array.from({ length: 8 }, (_, i) => ({
+      id: `c${i}`,
+      org_id: "org-1",
+      entity_type: "event",
+      entity_uid: `e${i}`,
+      entity_name: `Night ${i}`,
+      basis: "created",
+      verified: true,
+      status: "active",
+      created_at: `2026-09-0${i + 1}`,
+    }));
+    renderPage();
+
+    expect(data.requested).toHaveLength(5);
+    await userEvent.click(screen.getByRole("button", { name: en.org.eventsAll(8) }));
+    expect(data.requested).toHaveLength(8);
+  });
+
+  it("puts what the organisation is, what it manages and its events in three bands", () => {
+    // The complaint this page was rebuilt for: six sibling panels in one
+    // stack, two of them titled "venues and artists you manage" and "manage a
+    // venue or an artist", adjacent. The headings are the separation.
+    data.orgs = [OWNED];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+    ];
+    renderPage();
+
+    const bands = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(bands).toEqual([en.org.detailsTitle, en.org.claimsTitle, en.org.eventsTitle]);
+    // Your seat is a fact about this organisation, so it sits inside its band
+    // rather than in a panel of its own further down the page.
+    expect(screen.getByText(en.org.rosterTitle)).toBeInTheDocument();
   });
 
   it("keeps published events out of the list you manage", () => {

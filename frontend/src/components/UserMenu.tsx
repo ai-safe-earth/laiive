@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
+import { Avatar } from "@/components/Avatar";
 import { Icon, type IconName } from "@/components/Icon";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
@@ -13,6 +15,7 @@ import { cn } from "@/lib/cn";
 export function UserMenu() {
   const { t } = useTranslation();
   const { user, role, signOut } = useAuth();
+  const { data: profile } = useProfile(user?.id);
   const [open, setOpen] = useState(false);
   // Back means back. /account's arrow returns to whatever page opened it, and
   // this menu is the way in from /pro — without telling it where we came from
@@ -61,7 +64,7 @@ export function UserMenu() {
           pro ? "text-pro-dim hover:text-pro-fg" : "text-ink-dim hover:text-foreground",
         )}
       >
-        <Icon name="account" />
+        <Avatar displayName={profile?.display_name} email={user.email} pro={pro} />
       </button>
 
       {open && (
@@ -71,17 +74,22 @@ export function UserMenu() {
             pro ? "border-pro-border bg-pro-elevated" : "border-border bg-popover",
           )}
         >
-          <p className={cn("truncate px-3 pt-2 text-md", pro ? "text-pro-fg" : "text-popover-foreground")}>
-            {user.email}
-          </p>
-          <p
-            className={cn(
-              "px-3 pb-2 font-mono text-2xs uppercase tracking-[0.11em]",
-              pro ? "text-pro-dim" : "text-ink-dim",
-            )}
-          >
-            {role}
-          </p>
+          <div className="flex items-center gap-2.5 px-3 pb-2 pt-2">
+            <Avatar displayName={profile?.display_name} email={user.email} pro={pro} />
+            <div className="min-w-0">
+              <p className={cn("truncate text-md", pro ? "text-pro-fg" : "text-popover-foreground")}>
+                {user.email}
+              </p>
+              <p
+                className={cn(
+                  "font-mono text-2xs uppercase tracking-[0.11em]",
+                  pro ? "text-pro-dim" : "text-ink-dim",
+                )}
+              >
+                {role}
+              </p>
+            </div>
+          </div>
           <MenuLink
             to="/account"
             icon="settings"
