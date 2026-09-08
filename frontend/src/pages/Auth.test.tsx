@@ -43,6 +43,7 @@ function renderAuthAt(path: string) {
           <Route path="/" element={<p>chat</p>} />
           <Route path="/pro" element={<p>pro area</p>} />
           <Route path="/account" element={<p>account</p>} />
+          <Route path="/invite/:token" element={<p>the invite page</p>} />
         </Routes>
       </MemoryRouter>
     </LanguageProvider>,
@@ -118,6 +119,53 @@ describe("the promoter door, by email", () => {
 
     expect(await screen.findByText("account")).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith(en.auth.promoterSetupFailed);
+  });
+});
+
+describe("?next= — where a screen that sent you here wants you back", () => {
+  it("returns an invited person to the link after an email sign-in", async () => {
+    // The invitation flow's whole second half. This used to travel in the
+    // postAuth stash, which this screen deletes on mount as an abandoned round
+    // trip — so the invitee signed in and landed on the chat, having joined
+    // nothing, with the token unspent and nothing on screen saying so.
+    const user = userEvent.setup();
+    renderAuthAt("/auth?next=%2Finvite%2Ftok-123");
+
+    await user.type(screen.getByPlaceholderText(en.auth.emailPlaceholder), "ana@sala.cat");
+    await user.type(screen.getByPlaceholderText(en.auth.passwordPlaceholder), "hunter2hunter2");
+    await user.click(screen.getByRole("button", { name: en.auth.signIn }));
+
+    expect(await screen.findByText("the invite page")).toBeInTheDocument();
+  });
+
+  it("carries it across the Google round trip too", async () => {
+    const user = userEvent.setup();
+    renderAuthAt("/auth?next=%2Finvite%2Ftok-123");
+
+    await user.click(screen.getByRole("button", { name: en.auth.google }));
+
+    // Stashed at click time, which is after the mount clear — this is the only
+    // ordering in which the stash survives, and why the parameter exists.
+    expect(takeDestination()).toBe("/invite/tok-123");
+  });
+
+  it("refuses to be an open redirect", async () => {
+    // A sign-in screen is the ideal place to have one: the victim already
+    // expects to be sent somewhere afterwards.
+    const user = userEvent.setup();
+    renderAuthAt(`/auth?next=${encodeURIComponent("//evil.example/steal")}`);
+
+    await user.click(screen.getByRole("button", { name: en.auth.google }));
+    expect(takeDestination()).toBe("/");
+  });
+
+  it("ignores an absolute URL and falls back to the ordinary destination", async () => {
+    const user = userEvent.setup();
+    renderAuthAt(`/auth?kind=pro&next=${encodeURIComponent("https://evil.example")}`);
+
+    await user.type(screen.getByPlaceholderText(en.auth.orgPlaceholder), "Sala Apolo");
+    await user.click(screen.getByRole("button", { name: en.auth.google }));
+    expect(takeDestination()).toBe("/pro");
   });
 });
 

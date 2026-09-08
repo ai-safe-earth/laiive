@@ -22,15 +22,25 @@ const data = vi.hoisted(() => ({
   roster: [] as unknown[],
   hits: [] as unknown[],
   events: [] as unknown[],
+  /** The uids the page last asked for — the window, not the fixture. */
+  requested: [] as string[],
   promoter: null as unknown,
+  invitations: [] as unknown[],
   create: vi.fn(),
   setRelation: vi.fn(),
+  invite: vi.fn(),
+  revoke: vi.fn(),
 }));
 
 vi.mock("@/api/organizations", () => ({
   useMyOrgs: () => ({ data: data.orgs, isLoading: false }),
   useOrgClaims: () => ({ data: data.claims }),
-  useOrgEvents: () => ({ data: data.events }),
+  useOrgEvents: (_orgId: string, uids: string[]) => {
+    // Record the window: what the page chose to ask for is the behaviour under
+    // test, and a mock that ignores its argument would pass either way.
+    data.requested = uids;
+    return { data: data.events };
+  },
   useRoster: () => ({ data: data.roster }),
   useEntitySearch: () => ({ data: data.hits, isFetching: false }),
   useCreateOrg: () => ({ mutateAsync: data.create, isPending: false }),
@@ -38,10 +48,12 @@ vi.mock("@/api/organizations", () => ({
   useSetRelation: () => ({ mutateAsync: data.setRelation, isPending: false }),
   useCreateClaim: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawClaim: () => ({ mutate: vi.fn() }),
+  usePendingInvitations: () => ({ data: data.invitations }),
+  useInvite: () => ({ mutate: data.invite, isPending: false }),
+  useRevokeInvitation: () => ({ mutate: data.revoke, isPending: false }),
 }));
 vi.mock("@/api/profile", () => ({
   usePromoterProfile: () => ({ data: data.promoter }),
-  useProfile: () => ({ data: { id: "u1", display_name: "Oscar" } }),
 }));
 // The identity step is the pro grant too; the founding itself is covered in
 // OrgIdentity.test.tsx. Here it only has to not dial out.
@@ -51,6 +63,7 @@ const OWNED = {
   id: "org-1",
   kind: "venue",
   display_name: "Razzmatazz",
+  address: null,
   website: null,
   phone: null,
   contact_email: null,
@@ -75,9 +88,13 @@ beforeEach(() => {
   data.roster = [];
   data.hits = [];
   data.events = [];
+  data.requested = [];
   data.promoter = null;
+  data.invitations = [];
   data.create.mockReset().mockResolvedValue("org-1");
   data.setRelation.mockReset().mockResolvedValue(undefined);
+  data.invite.mockReset();
+  data.revoke.mockReset();
 });
 
 describe("/pro/org", () => {
@@ -133,13 +150,62 @@ describe("/pro/org", () => {
 
   it("shows your seat and lets you describe it", async () => {
     data.orgs = [OWNED];
-    data.roster = [{ user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01" }];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+      { user_id: "u2", role: "member", relation: null, created_at: "2026-09-02", display_name: "Ada" },
+      // Migration 25 not applied, or a member who never set a name: the uid is
+      // what the roster showed for everyone before, so it stays the fallback.
+      { user_id: "u3", role: "member", relation: null, created_at: "2026-09-03", display_name: null },
+    ];
     renderPage();
 
-    // Your own seat carries your name; the roster never shows you a uuid for yourself.
+    // Every seat carries a name now, not just your own.
     expect(screen.getByText("Oscar")).toBeInTheDocument();
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByText("u3")).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "freelance");
     expect(data.setRelation).toHaveBeenCalledWith({ orgId: "org-1", relation: "freelance" });
+  });
+
+  it("opens on the recent events and keeps the rest one click away", async () => {
+    // The uid list is claim order, which is newest-published first, so the
+    // default window is the last five without a second query. Anything beyond
+    // that is a button — the retriever refuses more than 50 uids per lookup,
+    // so the page size cannot silently become a failed request.
+    data.orgs = [OWNED];
+    data.claims = Array.from({ length: 8 }, (_, i) => ({
+      id: `c${i}`,
+      org_id: "org-1",
+      entity_type: "event",
+      entity_uid: `e${i}`,
+      entity_name: `Night ${i}`,
+      basis: "created",
+      verified: true,
+      status: "active",
+      created_at: `2026-09-0${i + 1}`,
+    }));
+    renderPage();
+
+    expect(data.requested).toHaveLength(5);
+    await userEvent.click(screen.getByRole("button", { name: en.org.eventsAll(8) }));
+    expect(data.requested).toHaveLength(8);
+  });
+
+  it("puts what the organisation is, what it manages and its events in three bands", () => {
+    // The complaint this page was rebuilt for: six sibling panels in one
+    // stack, two of them titled "venues and artists you manage" and "manage a
+    // venue or an artist", adjacent. The headings are the separation.
+    data.orgs = [OWNED];
+    data.roster = [
+      { user_id: "u1", role: "owner", relation: null, created_at: "2026-09-01", display_name: "Oscar" },
+    ];
+    renderPage();
+
+    const bands = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(bands).toEqual([en.org.detailsTitle, en.org.claimsTitle, en.org.eventsTitle]);
+    // Your seat is a fact about this organisation, so it sits inside its band
+    // rather than in a panel of its own further down the page.
+    expect(screen.getByText(en.org.rosterTitle)).toBeInTheDocument();
   });
 
   it("keeps published events out of the list you manage", () => {
@@ -276,6 +342,76 @@ describe("/pro/org", () => {
     expect(screen.getByText("Ana Beck Quartet")).toBeInTheDocument();
     // They are not claimable in place: a name is not a uid.
     expect(screen.queryByRole("button", { name: en.org.claim })).not.toBeInTheDocument();
+  });
+
+  it("offers the invite control to an admin, with no way to grant ownership", () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    expect(screen.getByText(en.org.inviteTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(en.org.inviteEmail)).toBeInTheDocument();
+    // member and admin only. Handing an organisation over by link is a
+    // different act, and the gateway refuses `owner` too.
+    const roles = screen.getByRole("combobox", { name: en.org.rosterTitle });
+    const offered = Array.from(roles.querySelectorAll("option")).map((o) => o.textContent);
+    expect(offered).toEqual([en.org.seatMember, en.org.seatAdmin]);
+  });
+
+  it("hides the invite control from a plain member seat", () => {
+    // "admins read invitations" would give them an empty list anyway, and the
+    // gateway 403s the POST: a control whose only outcome is a refusal.
+    data.orgs = [{ ...OWNED, role: "member" }];
+    renderPage();
+    expect(screen.queryByText(en.org.inviteTitle)).not.toBeInTheDocument();
+  });
+
+  it("asks for the typed address and the chosen seat", async () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    await userEvent.type(screen.getByLabelText(en.org.inviteEmail), "ana@sala.cat");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: en.org.rosterTitle }),
+      "admin",
+    );
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteSend }));
+
+    expect(data.invite).toHaveBeenCalledWith(
+      { email: "ana@sala.cat", role: "admin" },
+      expect.anything(),
+    );
+  });
+
+  it("will not send an empty address", () => {
+    data.orgs = [OWNED];
+    renderPage();
+    expect(screen.getByRole("button", { name: en.org.inviteSend })).toBeDisabled();
+  });
+
+  it("lists what is still pending, and revokes by id", async () => {
+    data.orgs = [OWNED];
+    data.invitations = [
+      {
+        id: "inv-1",
+        email: "ana@sala.cat",
+        role: "member",
+        expires_at: "2026-09-22T00:00:00Z",
+        created_at: "2026-09-08T00:00:00Z",
+      },
+    ];
+    renderPage();
+
+    expect(screen.getByText(en.org.invitePending)).toBeInTheDocument();
+    expect(screen.getByText("ana@sala.cat")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteRevoke }));
+    expect(data.revoke).toHaveBeenCalledWith("inv-1", expect.anything());
+  });
+
+  it("says nothing about pending invitations when there are none", () => {
+    data.orgs = [OWNED];
+    renderPage();
+    expect(screen.queryByText(en.org.invitePending)).not.toBeInTheDocument();
   });
 
   it("sends a signed-out visitor to the promoter door", () => {

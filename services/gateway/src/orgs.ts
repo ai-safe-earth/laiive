@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { requireRole } from "./auth.js";
 import type { GatewayConfig } from "./config.js";
@@ -41,6 +42,21 @@ interface OwnershipRow {
 interface MemberRow {
   org_id: string;
   role: string;
+}
+
+/** The seats an invitation may offer. Deliberately not `owner` — see the route. */
+const INVITABLE_ROLES = new Set(["admin", "member"]);
+
+/** Fourteen days, matching the column default in 20260819000011. */
+const INVITE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+interface InvitationRow {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  expires_at: string;
+  accepted_at: string | null;
 }
 
 /** What the pusher answers /validate-event with, plus phase D's creation facts. */
@@ -253,6 +269,233 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       verified: rows.some((row) => row.verified),
       yours: yours ? { id: yours.id, org_id: yours.org_id, verified: yours.verified } : null,
     });
+  });
+
+  // ── Invitations ───────────────────────────────────────────────────────────
+
+  /**
+   * The token is a secret the database never learns.
+   *
+   * `organization_invitations` stores only a SHA-256 of it, which is what makes
+   * a leaked table row worthless: 32 random bytes are not guessable and the
+   * hash is not reversible. So the raw token exists in exactly one response
+   * body, once, and is unrecoverable afterwards — revoke and re-invite is the
+   * only way back to a live link, which is deliberate.
+   *
+   * Plain SHA-256 rather than a password KDF on purpose: this is a
+   * high-entropy random value, not a human-chosen secret, so there is nothing
+   * for bcrypt's work factor to defend against.
+   */
+  const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+  /** The caller's seat in an org, or undefined — the admin check every route repeats. */
+  async function adminSeat(userId: string, orgId: string): Promise<MemberRow | undefined> {
+    const seats = await seatsOf(userId);
+    const seat = seats.find((row) => row.org_id === orgId);
+    if (!seat || (seat.role !== "owner" && seat.role !== "admin")) return undefined;
+    return seat;
+  }
+
+  // ── POST /api/orgs/:orgId/invitations ─────────────────────────────────────
+
+  app.post<{ Params: { orgId: string } }>(
+    "/api/orgs/:orgId/invitations",
+    pro,
+    async (request, reply) => {
+      const user = request.user;
+      if (!user) return reply.code(401).send({ error: "authentication required" });
+
+      const { orgId } = request.params;
+      const body = request.body as { email?: unknown; role?: unknown } | null;
+      const rawEmail = body?.email;
+      const role = body?.role ?? "member";
+
+      // Lowercased here because the partial unique index is on lower(email) and
+      // the accept route compares addresses case-insensitively — storing the
+      // typed casing would make the row disagree with both.
+      const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+      // The same shape the column's own check constraint enforces, refused here
+      // so the caller gets a sentence rather than a 502 from a violated check.
+      if (!email || email.length > 254 || email.indexOf("@") < 1) {
+        return reply.code(400).send({ error: "a valid email is required" });
+      }
+      if (typeof role !== "string" || !INVITABLE_ROLES.has(role)) {
+        // `owner` is a valid org_role but not something to hand out by link:
+        // transferring an organization is a different act with different
+        // consequences, and it does not exist yet.
+        return reply.code(400).send({ error: "role must be admin or member" });
+      }
+
+      // A member seat may publish, not speak for the org — the same line
+      // POST /api/claims draws, for the same reason.
+      if (!(await adminSeat(user.id, orgId))) {
+        return reply.code(403).send({ error: "you do not administer that organization" });
+      }
+
+      const token = randomBytes(32).toString("base64url");
+      let row: InvitationRow;
+      try {
+        row = await db.insert<InvitationRow>("organization_invitations", {
+          org_id: orgId,
+          email,
+          role,
+          token_hash: hashToken(token),
+          invited_by: user.id,
+          expires_at: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
+        });
+      } catch (error) {
+        if (error instanceof PostgrestError && error.isUniqueViolation) {
+          // The index only covers unaccepted rows, so this is precisely "that
+          // address already has a live invitation here", not "it once did".
+          return reply.code(409).send({ error: "that address already has a pending invitation" });
+        }
+        request.log.error({ err: error }, "invitation insert failed");
+        return reply.code(502).send({ error: "invitation not created" });
+      }
+
+      // The only time the token is ever readable. The gateway does not build
+      // the link: it does not know which origin the SPA is served from, and
+      // the browser holding this response does.
+      return reply.code(201).send({
+        id: row.id,
+        email: row.email,
+        role: row.role,
+        expires_at: row.expires_at,
+        token,
+      });
+    },
+  );
+
+  // ── DELETE /api/invitations/:id ───────────────────────────────────────────
+
+  app.delete<{ Params: { id: string } }>(
+    "/api/invitations/:id",
+    pro,
+    async (request, reply) => {
+      const user = request.user;
+      if (!user) return reply.code(401).send({ error: "authentication required" });
+
+      const { id } = request.params;
+      let rows: InvitationRow[];
+      try {
+        rows = await db.select<InvitationRow>(
+          "organization_invitations",
+          `select=id,org_id,email,role,expires_at,accepted_at&id=eq.${encodeURIComponent(id)}`,
+        );
+      } catch (error) {
+        request.log.error({ err: error }, "invitation read failed");
+        return reply.code(502).send({ error: "could not read the invitation" });
+      }
+
+      // 404 rather than 403 for one they cannot administer: whether a given
+      // uuid names somebody else's invitation is not theirs to learn. Same
+      // reasoning as DELETE /api/claims/:id.
+      const invitation = rows[0];
+      if (!invitation || !(await adminSeat(user.id, invitation.org_id))) {
+        return reply.code(404).send({ error: "no such invitation" });
+      }
+      if (invitation.accepted_at) {
+        // Accepted invitations are history and stay. Removing the person is a
+        // different act on a different table, and not one this route does.
+        return reply.code(409).send({ error: "that invitation was already accepted" });
+      }
+
+      try {
+        await db.del("organization_invitations", `id=eq.${encodeURIComponent(id)}`);
+      } catch (error) {
+        request.log.error({ err: error }, "invitation revoke failed");
+        return reply.code(502).send({ error: "invitation not revoked" });
+      }
+      return reply.code(204).send();
+    },
+  );
+
+  // ── POST /api/invitations/accept ──────────────────────────────────────────
+
+  /**
+   * Redeeming a link. Open to any signed-in account, not just promoters: the
+   * whole point is that the person being invited usually is not one yet, and
+   * the trigger from 20260908000026 grants the role when the seat lands.
+   */
+  app.post("/api/invitations/accept", { preHandler: requireRole("user") }, async (request, reply) => {
+    const user = request.user;
+    if (!user) return reply.code(401).send({ error: "authentication required" });
+
+    const body = request.body as { token?: unknown } | null;
+    const token = body?.token;
+    if (typeof token !== "string" || token.length === 0 || token.length > 256) {
+      return reply.code(400).send({ error: "token required" });
+    }
+    if (!user.email) {
+      // Every sign-in this product offers carries an email claim, so this is a
+      // token shape nobody should have. Refuse rather than skip the check that
+      // binds a link to the address it was sent to.
+      return reply.code(400).send({ error: "this account has no email address" });
+    }
+
+    let rows: InvitationRow[];
+    try {
+      rows = await db.select<InvitationRow>(
+        "organization_invitations",
+        `select=id,org_id,email,role,expires_at,accepted_at` +
+          `&token_hash=eq.${encodeURIComponent(hashToken(token))}`,
+      );
+    } catch (error) {
+      request.log.error({ err: error }, "invitation lookup failed");
+      return reply.code(502).send({ error: "could not check the invitation" });
+    }
+
+    const invitation = rows[0];
+    if (!invitation) return reply.code(404).send({ error: "no such invitation" });
+    if (invitation.accepted_at) {
+      return reply.code(409).send({ error: "that invitation was already accepted" });
+    }
+    if (Date.parse(invitation.expires_at) <= Date.now()) {
+      return reply.code(410).send({ error: "that invitation has expired" });
+    }
+    if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+      // The address goes in the message, not just beside it: the client shows
+      // `error` verbatim, and the useful thing to tell whoever holds this link
+      // is which account to sign in as. They were sent it — it is not a leak.
+      return reply.code(403).send({
+        error: `that invitation was sent to ${invitation.email}`,
+        email: invitation.email,
+      });
+    }
+
+    // Seat first, stamp second. A stamp that fails leaves a live invitation and
+    // a real seat, and re-accepting is idempotent below; the reverse order
+    // burns the invitation and leaves the person outside the organization with
+    // no way back in. Same argument as recording ownership after the graph
+    // write in /api/publish.
+    const seats = await seatsOf(user.id);
+    const already = seats.some((row) => row.org_id === invitation.org_id);
+    if (!already) {
+      try {
+        await db.insert("organization_members", {
+          org_id: invitation.org_id,
+          user_id: user.id,
+          role: invitation.role,
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "membership insert failed");
+        return reply.code(502).send({ error: "could not add you to the organization" });
+      }
+    }
+
+    try {
+      await db.patch("organization_invitations", `id=eq.${encodeURIComponent(invitation.id)}`, {
+        accepted_at: new Date().toISOString(),
+        accepted_by: user.id,
+      });
+    } catch (error) {
+      // The seat is what matters and it exists. Say so rather than 500 over the
+      // bookkeeping half — the invitation stays live and the next attempt takes
+      // the `already` branch above.
+      request.log.error({ err: error }, "invitation not stamped accepted");
+    }
+
+    return reply.send({ org_id: invitation.org_id, role: invitation.role, already });
   });
 
   // ── POST /api/publish ─────────────────────────────────────────────────────

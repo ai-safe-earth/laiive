@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { useMyOrgs, useOrgClaims } from "@/api/organizations";
+import { useMyOrgs } from "@/api/organizations";
+import { seatLabel } from "./ProOrg";
 import { useProfile, useUpdateProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
 import { Icon } from "@/components/Icon";
@@ -42,31 +43,29 @@ function Label({
 }
 
 /**
- * The promoter's organisation, read-only, linking to the screen that owns it.
- * Identity itself — kind, name, your relation to it — is asked on /pro the
- * first time and edited on /pro/org; this page only points there.
+ * Where you belong and as what — every organisation, not just the first.
+ *
+ * A list, not a door. Identity and management live on /pro/org, reached
+ * through the account menu on a promoter surface; a second route in from here
+ * made this page half a settings screen and half an organisation screen, which
+ * is what it stopped being.
  */
-function OrgSummary() {
+function OrgList() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { data: orgs } = useMyOrgs(user?.id);
-  const org = orgs?.[0];
-  const { data: claims } = useOrgClaims(org?.id);
+
+  if (!orgs?.length) return <p className="text-md text-pro-muted">{t.org.noneTitle}</p>;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Label pro>{t.org.summaryTitle}</Label>
-      <span className="min-w-0 flex-1 truncate text-md text-pro-fg">
-        {org ? org.display_name : t.org.noneTitle}
-      </span>
-      {org && <span className="text-sm text-pro-muted">{t.org.summary(claims?.length ?? 0)}</span>}
-      <Link
-        to="/pro/org"
-        className="inline-flex min-h-11 items-center text-md text-pro-accent transition-opacity hover:opacity-80"
-      >
-        {t.org.manage}
-      </Link>
-    </div>
+    <ul className="flex flex-col gap-2">
+      {orgs.map((org) => (
+        <li key={org.id} className="flex flex-wrap items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-md text-pro-fg">{org.display_name}</span>
+          <span className="text-sm text-pro-dim">{seatLabel(org.role, t)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -230,7 +229,7 @@ export default function Account() {
           </div>
 
           {isPro ? (
-            <OrgSummary />
+            <OrgList />
           ) : (
             <Link
               to="/pro"

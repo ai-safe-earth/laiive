@@ -13,6 +13,7 @@ import AdminReport from "@/pages/AdminReport";
 import Auth from "@/pages/Auth";
 import AuthCallback from "@/pages/AuthCallback";
 import Chat from "@/pages/Chat";
+import Invite from "@/pages/Invite";
 import NotFound from "@/pages/NotFound";
 import ProOrg from "@/pages/ProOrg";
 import ProSubmit from "@/pages/ProSubmit";
@@ -50,6 +51,10 @@ export default function App() {
               <Route path="/auth" element={<Auth />} />
               <Route path={CALLBACK_PATH} element={<AuthCallback />} />
               <Route path="/account" element={<Account />} />
+              {/* Ungated on purpose: an invitation is usually opened by
+                  somebody with no account, and the page handles that itself
+                  by stashing the destination and sending them to /auth. */}
+              <Route path="/invite/:token" element={<Invite />} />
               <Route path="/pro" element={<ProSubmit />} />
               {/* Gated inside the page, like /pro: a promoter who lands here
                   without the role gets ProSubmit's refusal, which explains how

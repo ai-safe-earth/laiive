@@ -1,42 +1,42 @@
-# HANDOFF - laiive (updated 2026-09-06)
+# HANDOFF - laiive (updated 2026-09-08)
 
 State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Evolution plan
 (six areas, A-G, approved 2026-08-25): `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md`.
+Pro settings plan (five phases, approved 2026-09-08):
+`~/.claude/plans/pro-user-settings-is-optimized-metcalfe.md`.
 
-**laiive is live at https://laiive.com**, `v0.2.0` shipped 2026-08-25. `develop` is **60 commits
-ahead of `main`, nothing deployed since v0.2.0** — still the top risk. The develop preview's
-"network error" is the toast `Route POST:/api/publish not found`: one hand-deployed gateway
-(main) serves both preview and production and has no phase D routes. Only the deploy fixes it.
+**`v0.3.0` is live at https://laiive.com** (2026-09-06, 79 commits). No open PRs, tree clean,
+zero pending migrations. `develop` is **9 commits ahead of `main`** — pro settings phase 1,
+merged as #98 and not deployed. Nothing gates it; only the SPA changed, so the Fly deploys
+are no-ops and Cloudflare builds `main` on the release merge.
 
-## Three PRs open, all into `develop`, none merged
+## Pro settings — phase 1 of 5 done (#98)
 
-- **#94 `fix/release-prep`** — merge **before** the deploy. Retriever never got its
-  `SUPABASE_*` secrets, so `eval_records` would ship dead and silent; `CONTRIBUTING.md` deployed
-  *after* the merge (the skew) and back-merged without the local-only warning (PR #66);
-  `learning.py` sent `"now()"` as a string, so **every sweep so far recorded nothing** behind one
-  caught warning. Fix is not retroactive.
-- **#95 `fix/ai-safety-hardening`** — merge **after** the release. `WRITES_DISABLED` on the
-  gateway (boot-time, exact `"true"`, whole `/api/admin/search` prefix); `/ingest`'s arbitrary
-  URL fetch removed (no scheme/host check, zero call sites); model snapshots pinned in the three
-  `config.py` **and** `.example.env`; `.mcp.json` read-only; `verify-retriever` was selecting
-  integration tests by a filename deleted in the Phase 2 refactor, so it passed on nothing.
-- **#96 `feat/pro-identity`** — after the release **and after migration 23**. kind x relation
-  asked once on `/pro`. Also fixes the doubted-field mark: `status-waiting` was never a token,
-  so it rendered colourless in production.
+`/pro/org` is three labelled bands instead of six flat panels: what the organisation **is**
+(with your seat and the other members inside it), what it **manages**, what it has
+**published** (last, opening on the recent five). `/account` is personal plus a list of every
+organisation and your seat — it read `orgs[0]` and hardcoded it, so a second org was silently
+invisible. Initials in the header, org switcher as a tab strip.
 
-Green on every branch: gateway 61, pusher 75, search 125, retriever 200 (not integration),
-frontend typecheck + 160.
+Migration 25 applied: an org-scoped SELECT policy on `profiles` through a `shares_org_with`
+definer, so the roster shows names not uuids. First policy here to widen SELECT beyond the
+row owner; check 11 forces RLS and asserts both directions. Eleven of eleven, and that run
+was also check 10's first ever.
 
-## Shipped but barely exercised, and open
+**Phases 2-5, in the plan file:** invitations (~2d, cheapest — `organization_invitations`
+already exists complete and #98 paid its dependency), entity edit path (~4-5d, this **is**
+roadmap Phase E), dedup (~4d), onboarding wizard (~2d).
 
-Phase D (#87-#91): adoption verified against a real Neo4j only as far as the core, six checks
-never ran. Correction layer (#92, #93): `start_at_claim` unverified against a real model, every
-test mocks OpenAI. Phase C did not fully ship — `EventCardView.tsx:120` computes `verified` from
-source alone, so `claimed` arrives on the wire (`executor.py:38`) and is never rendered; one
-line, belongs to E. Evals: 0-2 merged, phase 3 kit in #86, error analysis by hand is next.
-Aura paused - blocks the probe, the orphan node, the flyer, #96 end to end and the deploy itself.
-Migrations 20-22 applied is asserted but unproven; `migration list --linked` settles it.
-`flows/serve.py` not served; 17 reports in `dry_run`, zero dismissed; allow-list unread.
+## Shipped but barely exercised
+
+Phase D adoption: six probe checks never ran. `start_at_claim` has still never met a real
+model. The `now()` fix is deployed but no sweep has run since, so the learning tables filling
+is unobserved. Phase C did not fully ship — `EventCardView.tsx:120` computes `verified` from
+source alone, so `claimed` arrives on the wire and is never rendered; one line, belongs with
+Phase E. Evals: 0-2 merged, phase 3 kit in #86, and the corpus only began filling 2026-09-06.
+
+Open: two npm advisories on the gateway lockfile, unread. `flows/serve.py` not served; 17
+reports in `dry_run`, zero dismissed; Supabase redirect allow-list unverified.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -44,7 +44,7 @@ Migrations 20-22 applied is asserted but unproven; `migration list --linked` set
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-09-06",
+  "updated": "2026-09-08",
   "deadline": null,
   "people": ["oscar"],
   "plans": [
@@ -62,31 +62,25 @@ Migrations 20-22 applied is asserted but unproven; `migration list --linked` set
   ],
   "blockers": [
     {
-      "text": "develop is 60 commits ahead of main and nothing has been deployed since v0.2.0 on 2026-08-25. It carries all of phase D and the correction layer. Confirmed in the browser on 2026-09-05 as the cause of the develop preview failure: the toast reads Route POST:/api/publish not found, because the single hand-deployed gateway is main and lacks phase D's orgs.ts. The deploy order matters and CONTRIBUTING.md had it backwards until #94: Cloudflare Pages builds main automatically on merge while every Fly deploy is manual, so the four Fly apps must be deployed from develop BEFORE the release merge, not after it",
+      "text": "Two npm advisories on the gateway lockfile, both unassessed: fast-uri (high) and fastify (medium), services/gateway/package-lock.json. The GitHub UI reports 8 high and 2 medium, which is the same two alerts counted across branches - gh api repos/ai-safe-earth/laiive/dependabot/alerts deduplicates to two packages. Neither has been looked at and the gateway is the only published surface, so this is the one security item ahead of feature work",
       "severity": "high",
       "owner": "oscar",
-      "since": "2026-08-25"
+      "since": "2026-09-06"
     },
     {
-      "text": "The Aura free instance is paused and needs a manual resume in the console; while paused its DNS record disappears and on resume reads route to a follower while writes fail. It blocks the six unrun checks of the adoption probe, deleting the orphan Laiive Probe Artist 8f9f909 node, any real end-to-end run of the push pipeline, the end-to-end check of PR #96, and the Fly deploy itself - the three Python services fail readyz at boot without it",
-      "severity": "high",
+      "text": "develop is 9 commits ahead of main and undeployed - pro settings phase 1, merged as #98 on 2026-09-08. Nothing gates it and migration 25 is already applied, so unlike the 60-commit backlog there is no ordering hazard: only frontend changed, the four Fly deploys would be no-ops, and Cloudflare builds main on the release merge. It is here because twelve days of undeployed work was the last top risk and the pattern repeats quietly",
+      "severity": "medium",
       "owner": "oscar",
-      "since": "2026-09-03"
+      "since": "2026-09-08"
     },
     {
-      "text": "Migration 20260905000023_member_relation.sql is not applied, and PR #96's frontend must not deploy ahead of it - useMyOrgs selects a relation column that would not exist and ProSubmit reads undefined orgs as zero, replacing /pro with the founding form for every pro. The ordering is one-way and safe in only one direction: p_relation is declared default null and migration 22's five-argument create_organization is dropped in the same file, so applying it now cannot break the deployed five-argument frontend or the gateway's two-argument bootstrap. Applying is a Supabase write, refused to Claude. Also unproven from the repo: that migrations 20-22 are applied at all, which npx supabase migration list --linked settles. Migration 21 missing would make every thumbs-up POST 502 the moment the new SPA is live",
-      "severity": "high",
-      "owner": "oscar",
-      "since": "2026-09-05"
-    },
-    {
-      "text": "The search learning tables have recorded nothing since they were built. learning.py sent the literal string now() as both timestamps; PostgREST passes it as JSON, Postgres refuses the cast, _upsert raises, and because record_sources runs first, record_queries and promote_queries never ran either - discovery.py:367 catches it and logs one warning, correct handling of a failure nobody was told about. Fixed in #94 but not retroactively: the source and query ranking has been steering off an empty table, and phase G's approval-ratio learning would train on the same nothing. Triage the 17 dry_run reports before building G, and remember zero have ever been dismissed, so either every sweep was clean or the reject path has friction the approve path does not",
+      "text": "The search learning tables were empty until 2026-09-06 and are still unproven. learning.py sent the literal string now() as both timestamps, PostgREST passed it as JSON, Postgres refused the cast, _upsert raised, and because record_sources runs first neither record_queries nor promote_queries ever ran - discovery.py:367 caught it and logged one warning. Fixed and deployed in v0.3.0 but not retroactively, and no sweep has run since the fix, so that the tables now fill is unobserved. One sweep then a row count settles it. Phase G must not assume history that does not exist",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-06"
     },
     {
-      "text": "start_at_claim, which the whole weekday check depends on, is never exercised: every pusher test mocks OpenAI, so whether the model obeys the new v4 prompt rule is unknown. A missing weekday claim is silent by design and covered by test_no_weekday_claimed_is_silent, so nothing would report it broken; any real loss would be upstream of checks.py, and no such path was found. One real flyer through the local stack settles it",
+      "text": "start_at_claim, which the whole weekday check depends on, has never met a real model: every pusher test mocks OpenAI, so whether it obeys the v4 prompt rule is unknown. A missing weekday claim is silent by design and covered by test_no_weekday_claimed_is_silent, so nothing would report it broken; any real loss would be upstream of checks.py and no such path was found. One real flyer settles it, and Aura is up, so nothing blocks it",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-05"
@@ -118,35 +112,14 @@ Migrations 20-22 applied is asserted but unproven; `migration list --linked` set
   ],
   "nextSteps": [
     {
-      "title": "Merge PR #94, then deploy the four Fly apps from a clean develop - BEFORE any merge to main. git checkout develop && git pull --ff-only origin develop, make fly-secrets-check, make fly-secrets (now carries the two retriever SUPABASE_* keys), then make fly-deploy-retriever, -pusher, -search, -gateway with flyctl checks list -a <app> after each. Gateway last, it is the only published surface. Use the make targets, not raw flyctl: it resolves both --config and --dockerfile against the positional build context",
+      "title": "Read the two npm advisories on the gateway lockfile - fast-uri (high) and fastify (medium) - and decide whether a bump is a one-line lockfile change or a fastify major. gh api repos/ai-safe-earth/laiive/dependabot/alerts is the deduplicated view; the UI count of 8 high is the same alerts across branches. The gateway is the only published surface, so this is the one security item ahead of feature work",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
       "plan": "roadmap"
     },
     {
-      "title": "Resume Aura in the console, then one trip to the credentials: npx supabase migration list --linked to prove 20-22 are applied, flyctl secrets list -a laiive-retriever to check LANGFUSE_ENABLED (its default flipped True to False this release), and npx supabase db push to apply migration 23. Optional 20s pgTAP check first via a throwaway postgres:16-alpine container - do not pass --single-transaction, the enum ADD VALUE fails spuriously inside one and reads like a migration bug",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Evolution - six areas",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Cut the release once the backends are new: PR develop -> main titled release: v0.3.0, merge as a merge commit never a squash, make release on main (cz bump dies under Git Bash without --yes, which the target passes), push with --follow-tags, then merge main back into develop LOCALLY - git fetch origin && git checkout develop && git pull --ff-only origin develop && git merge origin/main && git push origin develop. Never a PR with main as head: the repo deletes head branches on merge and the owner's role bypasses the rule, which is how PR #66 deleted production's branch on 2026-08-23",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Evolution - six areas",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Smoke-test the three things this release actually changes, not DEPLOY.md's first-deploy checklist: POST /api/publish returns anything other than 404 (the recorded toast), one pro walk reaches the event form with the corrections and doubts panel rendered, and POST /api/chat/feedback returns 204 rather than 502 - that last one is the migration-21 canary and the fastest signal a migration is missing. Use curl.exe, not PowerShell's curl alias",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Evolution - six areas",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Merge PR #95 (ai-safety hardening) then PR #96 (pro identity) into develop, in that order. #95 depends on nothing; #96 needs migration 23 live first. Neither belongs in the release - bundling an unapplied-yesterday schema change into a 60-commit deploy converts a clean deploy into a debuggable one",
+      "title": "Ship pro settings phase 1: release PR develop -> main titled release: v0.3.1, merge as a merge commit, make release on main, push with --follow-tags AND then git push origin <tag> because cz writes a lightweight tag that --follow-tags ignores, then merge main back into develop LOCALLY. Only the SPA changed, so the Fly deploys are no-ops and Cloudflare builds main on the merge. Then check /pro/org shows names rather than uuids, which is what migration 25 bought",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
@@ -160,6 +133,20 @@ Migrations 20-22 applied is asserted but unproven; `migration list --linked` set
       "plan": "roadmap"
     },
     {
+      "title": "Run one sweep against the deployed search service, then count rows in search_sources and search_queries. Until that returns non-zero the now() fix is believed rather than observed, and it is the precondition for phase G being worth starting at all",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Pro settings phase 2 - invitations. The cheapest of the four remaining and its dependency is paid: organization_invitations already exists complete (token hash, expires_at, accepted_at, partial unique index on pending invites per email, a SELECT policy) with zero code referencing it, and #98 shipped the profiles policy the roster needed. Write the invite, accept and revoke routes, then replace the rosterNote line with a real control - phase 1 deliberately rendered no disabled button, so this adds one rather than un-disabling one",
+      "est": 2,
+      "owner": "oscar",
+      "phase": "Evolution - six areas",
+      "plan": "roadmap"
+    },
+    {
       "title": "Verify the Supabase redirect allow-list carries <origin>/** for laiive.com, www, laiive.pages.dev and the develop alias, and that Site URL is https://laiive.com - read it, do not infer it (DEPLOY.md section 5 step 2). Closing this closes the Restyle phase",
       "est": 1,
       "owner": "oscar",
@@ -167,17 +154,24 @@ Migrations 20-22 applied is asserted but unproven; `migration list --linked` set
       "plan": "roadmap"
     },
     {
-      "title": "Phase E (edits + verification): update functions in laiive_shared.neo4j_writer, pusher edit routes behind gateway authz using the user_may_edit helper migration 22 already ships, /admin claims queue with verify/revoke, the card flips on the claim stamp. Near-zero today - entity_edits and user_may_edit exist with zero callers, e.claim_verified is read by executor.py and written by nothing, neo4j_writer.py has no update path at all. The smallest useful slice is update_venue plus PATCH /api/venues/:uid writing entity_edits. Do not start it on top of an undeployed backlog",
-      "est": 3,
+      "title": "Pro settings phase 3, which IS roadmap Phase E: the entity edit path. update functions in laiive_shared.neo4j_writer where the adoption SET clause is already the statement minus the MATCH key, pusher edit routes behind the user_may_edit helper migration 22 shipped with zero callers, entity_edits finally written, venue and artist cards with real fields, and an edit button on the event card reusing EventForm with a different onSave - no SSE change, because the read path /api/events?uids= already exists end to end. Carries the one-line Phase C fix in EventCardView, and the pusher prompt change so the chat answers 'how do I change an event' with the route rather than a form",
+      "est": 5,
       "owner": "oscar",
       "phase": "Evolution - six areas",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Triage the 17 dry_run sweep reports before building G. Zero have ever been dismissed, so either every sweep was clean or the reject path has friction the approve path does not - and G's approval-ratio learning would train one-sided on an approve-only corpus. Read the reject path in services/search/agent/api.py alongside the reports themselves",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Ingestion + self-improvement",
       "plan": "roadmap"
     }
   ],
   "sessions": [
-    {"date": "2026-09-05", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
-    {"date": "2026-09-05", "model": "fable-5", "person": "oscar", "credits": null, "hours": null},
-    {"date": "2026-09-06", "model": "opus-5", "person": "oscar", "credits": null, "hours": null}
+    {"date": "2026-09-06", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
+    {"date": "2026-09-06", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
+    {"date": "2026-09-08", "model": "opus-5", "person": "oscar", "credits": null, "hours": null}
   ]
 }
 ```

@@ -103,6 +103,8 @@ export interface Translations {
     /** Under website / phone / email: what they are for. */
     evidenceHint: string;
     yourSeat: string;
+    address: string;
+    eventsAll: (total: number) => string;
     website: string;
     phone: string;
     contactEmail: string;
@@ -132,16 +134,42 @@ export interface Translations {
     claimConflict: string;
     claimMissing: string;
     rosterTitle: string;
-    rosterNote: string;
     seatOwner: string;
     seatAdmin: string;
     seatMember: string;
+    /** Inviting somebody, and the pending invitations already out. */
+    inviteTitle: string;
+    /** Says the link has to be sent by hand — there is no mail provider. */
+    inviteNote: string;
+    inviteEmail: string;
+    inviteSend: string;
+    invitePending: string;
+    inviteCopy: string;
+    inviteCopied: string;
+    inviteCopyFailed: string;
+    inviteRevoke: string;
+    inviteRevoked: string;
+    inviteRevokeFailed: string;
+    /** Shown once, with the only readable copy of the link. */
+    inviteReady: (email: string) => string;
+    inviteExpires: (date: string) => string;
+    inviteFailed: string;
+    inviteConflict: string;
     legacyTitle: string;
     legacyNote: string;
     legacySearch: string;
-    summaryTitle: string;
-    summary: (count: number) => string;
-    manage: string;
+  };
+  /** The page an invitation link lands on. */
+  invite: {
+    joining: string;
+    welcome: string;
+    alreadyIn: string;
+    staleSession: string;
+    unknown: string;
+    spent: string;
+    expired: string;
+    failed: string;
+    leave: string;
   };
   pro: {
     needsPro: string;
@@ -325,6 +353,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'member',
       evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
       yourSeat: 'your seat',
+      address: 'address',
+      eventsAll: (total: number) => `all ${total}`,
       website: 'website',
       phone: 'phone',
       contactEmail: 'contact email',
@@ -353,18 +383,40 @@ export const translations: Record<Language, Translations> = {
       claimConflict: 'you already manage that one',
       claimMissing: 'we could not find that in the graph',
       rosterTitle: 'who is in it',
-      rosterNote: 'Invitations are not open yet.',
       seatOwner: 'owner',
       seatAdmin: 'admin',
       seatMember: 'member',
+      inviteTitle: 'invite somebody',
+      inviteNote:
+        'You get a link to send them yourself. It works once, for that address only, and lasts 14 days.',
+      inviteEmail: 'their email',
+      inviteSend: 'make a link',
+      invitePending: 'waiting to be accepted',
+      inviteCopy: 'copy link',
+      inviteCopied: 'link copied',
+      inviteCopyFailed: 'could not copy it — select the link and copy it by hand',
+      inviteRevoke: 'cancel',
+      inviteRevoked: 'invitation cancelled',
+      inviteRevokeFailed: 'could not cancel that',
+      inviteReady: (email: string) => `link ready for ${email} — copy it now, it is shown once`,
+      inviteExpires: (date: string) => `expires ${date}`,
+      inviteFailed: 'could not create that invitation',
+      inviteConflict: 'that address already has an invitation waiting',
       legacyTitle: 'names you listed before this screen existed',
       legacyNote:
         'These were free text on your old profile. They point at nothing. Search for each one and add it properly.',
       legacySearch: 'find it',
-      summaryTitle: 'organisation',
-      summary: (count: number) =>
-        count === 1 ? '1 entry' : `${count} entries`,
-      manage: 'manage →',
+    },
+    invite: {
+      joining: 'joining',
+      welcome: "you're in",
+      alreadyIn: 'you were already in this organisation',
+      staleSession: 'You are in, but this browser needs a moment. Sign out and back in.',
+      unknown: 'This invitation link is not valid. Ask whoever sent it for a new one.',
+      spent: 'This invitation has already been used.',
+      expired: 'This invitation has expired. Ask whoever sent it for a new one.',
+      failed: 'Something went wrong accepting that invitation.',
+      leave: 'go to laiive',
     },
     pro: {
       needsPro: "Publishing events needs a pro account.",
@@ -568,6 +620,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'miembro',
       evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
       yourSeat: 'tu puesto',
+      address: 'dirección',
+      eventsAll: (total: number) => `los ${total}`,
       website: 'web',
       phone: 'teléfono',
       contactEmail: 'email de contacto',
@@ -597,18 +651,41 @@ export const translations: Record<Language, Translations> = {
       claimConflict: 'ya gestionas eso',
       claimMissing: 'no lo encontramos en el grafo',
       rosterTitle: 'quién está dentro',
-      rosterNote: 'Las invitaciones aún no están abiertas.',
       seatOwner: 'propietario',
       seatAdmin: 'administrador',
       seatMember: 'miembro',
+      inviteTitle: 'invitar a alguien',
+      inviteNote:
+        'Recibes un enlace para enviárselo tú. Funciona una vez, solo para esa dirección, y dura 14 días.',
+      inviteEmail: 'su email',
+      inviteSend: 'crear enlace',
+      invitePending: 'pendientes de aceptar',
+      inviteCopy: 'copiar enlace',
+      inviteCopied: 'enlace copiado',
+      inviteCopyFailed: 'no se pudo copiar: selecciona el enlace y cópialo a mano',
+      inviteRevoke: 'cancelar',
+      inviteRevoked: 'invitación cancelada',
+      inviteRevokeFailed: 'no se pudo cancelar',
+      inviteReady: (email: string) =>
+        `enlace listo para ${email}: cópialo ahora, solo se muestra una vez`,
+      inviteExpires: (date: string) => `caduca el ${date}`,
+      inviteFailed: 'no se pudo crear la invitación',
+      inviteConflict: 'esa dirección ya tiene una invitación pendiente',
       legacyTitle: 'nombres que anotaste antes de que existiera esta pantalla',
       legacyNote:
         'Eran texto libre en tu perfil antiguo. No apuntan a nada. Busca cada uno y añádelo bien.',
       legacySearch: 'buscarlo',
-      summaryTitle: 'organización',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entradas`,
-      manage: 'gestionar →',
+    },
+    invite: {
+      joining: 'entrando',
+      welcome: 'ya estás dentro',
+      alreadyIn: 'ya estabas en esta organización',
+      staleSession: 'Ya estás dentro, pero este navegador necesita un momento. Cierra sesión y vuelve a entrar.',
+      unknown: 'Este enlace de invitación no es válido. Pide uno nuevo a quien te lo envió.',
+      spent: 'Esta invitación ya se ha usado.',
+      expired: 'Esta invitación ha caducado. Pide una nueva a quien te la envió.',
+      failed: 'Algo salió mal al aceptar la invitación.',
+      leave: 'ir a laiive',
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
@@ -812,6 +889,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'membro',
       evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
       yourSeat: 'il tuo posto',
+      address: 'indirizzo',
+      eventsAll: (total: number) => `tutti e ${total}`,
       website: 'sito',
       phone: 'telefono',
       contactEmail: 'email di contatto',
@@ -841,18 +920,41 @@ export const translations: Record<Language, Translations> = {
       claimConflict: 'lo gestisci già',
       claimMissing: 'non lo troviamo nel grafo',
       rosterTitle: 'chi ne fa parte',
-      rosterNote: 'Gli inviti non sono ancora aperti.',
       seatOwner: 'proprietario',
       seatAdmin: 'amministratore',
       seatMember: 'membro',
+      inviteTitle: 'invita qualcuno',
+      inviteNote:
+        'Ricevi un link da inviare tu. Funziona una volta sola, solo per quell’indirizzo, e dura 14 giorni.',
+      inviteEmail: 'la sua email',
+      inviteSend: 'crea un link',
+      invitePending: 'in attesa di essere accettati',
+      inviteCopy: 'copia il link',
+      inviteCopied: 'link copiato',
+      inviteCopyFailed: 'non si è potuto copiare: seleziona il link e copialo a mano',
+      inviteRevoke: 'annulla',
+      inviteRevoked: 'invito annullato',
+      inviteRevokeFailed: 'non si è potuto annullare',
+      inviteReady: (email: string) =>
+        `link pronto per ${email}: copialo ora, si vede una volta sola`,
+      inviteExpires: (date: string) => `scade il ${date}`,
+      inviteFailed: 'non si è potuto creare l’invito',
+      inviteConflict: 'quell’indirizzo ha già un invito in attesa',
       legacyTitle: 'nomi che avevi scritto prima che esistesse questa schermata',
       legacyNote:
         'Erano testo libero nel tuo vecchio profilo. Non puntano a niente. Cerca ognuno e aggiungilo davvero.',
       legacySearch: 'trovalo',
-      summaryTitle: 'organizzazione',
-      summary: (count: number) =>
-        count === 1 ? '1 voce' : `${count} voci`,
-      manage: 'gestisci →',
+    },
+    invite: {
+      joining: 'entrando',
+      welcome: 'sei dentro',
+      alreadyIn: 'eri già in questa organizzazione',
+      staleSession: 'Sei dentro, ma questo browser ha bisogno di un momento. Esci e rientra.',
+      unknown: 'Questo link di invito non è valido. Chiedine uno nuovo a chi te l’ha mandato.',
+      spent: 'Questo invito è già stato usato.',
+      expired: 'Questo invito è scaduto. Chiedine uno nuovo a chi te l’ha mandato.',
+      failed: 'Qualcosa è andato storto accettando l’invito.',
+      leave: 'vai a laiive',
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
@@ -1056,6 +1158,8 @@ export const translations: Record<Language, Translations> = {
       relationMember: 'membre',
       evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
       yourSeat: 'el teu lloc',
+      address: 'adreça',
+      eventsAll: (total: number) => `els ${total}`,
       website: 'web',
       phone: 'telèfon',
       contactEmail: 'correu de contacte',
@@ -1085,18 +1189,41 @@ export const translations: Record<Language, Translations> = {
       claimConflict: 'ja ho gestiones',
       claimMissing: 'no ho hem trobat al graf',
       rosterTitle: 'qui hi és',
-      rosterNote: 'Les invitacions encara no estan obertes.',
       seatOwner: 'propietari',
       seatAdmin: 'administrador',
       seatMember: 'membre',
+      inviteTitle: 'convida algú',
+      inviteNote:
+        'Reps un enllaç per enviar-l’hi tu. Funciona un cop, només per a aquella adreça, i dura 14 dies.',
+      inviteEmail: 'el seu correu',
+      inviteSend: 'crea un enllaç',
+      invitePending: 'pendents d’acceptar',
+      inviteCopy: 'copia l’enllaç',
+      inviteCopied: 'enllaç copiat',
+      inviteCopyFailed: 'no s’ha pogut copiar: selecciona l’enllaç i copia’l a mà',
+      inviteRevoke: 'cancel·la',
+      inviteRevoked: 'invitació cancel·lada',
+      inviteRevokeFailed: 'no s’ha pogut cancel·lar',
+      inviteReady: (email: string) =>
+        `enllaç a punt per a ${email}: copia’l ara, només es mostra un cop`,
+      inviteExpires: (date: string) => `caduca el ${date}`,
+      inviteFailed: 'no s’ha pogut crear la invitació',
+      inviteConflict: 'aquella adreça ja té una invitació pendent',
       legacyTitle: 'noms que vas escriure abans que existís aquesta pantalla',
       legacyNote:
         'Eren text lliure al teu perfil antic. No apunten enlloc. Cerca cadascun i afegeix-lo de debò.',
       legacySearch: 'troba’l',
-      summaryTitle: 'organització',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entrades`,
-      manage: 'gestiona →',
+    },
+    invite: {
+      joining: 'entrant',
+      welcome: 'ja hi ets',
+      alreadyIn: 'ja eres en aquesta organització',
+      staleSession: 'Ja hi ets, però aquest navegador necessita un moment. Tanca la sessió i torna a entrar.',
+      unknown: 'Aquest enllaç d’invitació no és vàlid. Demana’n un de nou a qui te l’ha enviat.',
+      spent: 'Aquesta invitació ja s’ha fet servir.',
+      expired: 'Aquesta invitació ha caducat. Demana’n una de nova a qui te l’ha enviat.',
+      failed: 'Alguna cosa ha fallat acceptant la invitació.',
+      leave: 'ves a laiive',
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",

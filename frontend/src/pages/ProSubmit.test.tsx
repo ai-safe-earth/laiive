@@ -22,7 +22,11 @@ vi.mock("@/api/organizations", () => ({
   useMyOrgs: () => ({ data: data.orgs, isLoading: false }),
   useCreateOrg: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock("@/api/profile", () => ({ usePromoterProfile: () => ({ data: null }) }));
+vi.mock("@/api/profile", () => ({
+  usePromoterProfile: () => ({ data: null }),
+  // UserMenu sits in the pro header and reads this for the initials chip.
+  useProfile: () => ({ data: { id: "u1", display_name: "Oscar" } }),
+}));
 vi.mock("@/auth/becomePromoter", () => ({ becomePromoter: vi.fn() }));
 // jsdom has no layout; the chat scrolls to its last message on mount.
 Element.prototype.scrollIntoView = vi.fn();

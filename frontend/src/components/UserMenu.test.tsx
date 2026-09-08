@@ -6,6 +6,12 @@ import { UserMenu } from "./UserMenu";
 import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
 
+// The chip reads the profile for its initials; every spec here mocks the
+// Supabase client, so this keeps the menu from reaching for one.
+vi.mock("@/api/profile", () => ({
+  useProfile: () => ({ data: { id: "u1", display_name: "Oscar Arroyo" } }),
+}));
+
 const auth = vi.hoisted(() => ({
   state: {
     user: { id: "user-1", email: "promoter@example.com" } as unknown,

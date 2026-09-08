@@ -33,6 +33,7 @@ export interface Organization {
   id: string;
   kind: OrgKind;
   display_name: string;
+  address: string | null;
   website: string | null;
   phone: string | null;
   contact_email: string | null;
@@ -61,6 +62,8 @@ export interface RosterSeat {
   role: OrgRole;
   relation: MemberRelation | null;
   created_at: string;
+  /** null when the profile is unreadable — see useRoster. */
+  display_name: string | null;
 }
 
 /** What `GET /api/claims` answers for one entity — booleans, never rows. */
@@ -75,6 +78,7 @@ export const orgKeys = {
   claims: (orgId: string) => ["org-claims", orgId] as const,
   events: (orgId: string, uids: string[]) => ["org-events", orgId, uids] as const,
   roster: (orgId: string) => ["org-roster", orgId] as const,
+  invitations: (orgId: string) => ["org-invitations", orgId] as const,
   entitySearch: (type: EntityType, q: string) => ["entity-search", type, q] as const,
 };
 
@@ -110,7 +114,7 @@ export function useMyOrgs(userId: string | undefined) {
       const { data, error } = await supabase
         .from("organization_members")
         .select(
-          "role, relation, organizations (id, kind, display_name, website, phone, contact_email)",
+          "role, relation, organizations (id, kind, display_name, address, website, phone, contact_email)",
         )
         .eq("user_id", userId!);
       if (error) throw new Error(error.message);
@@ -152,7 +156,9 @@ export function useCreateOrg(userId: string | undefined) {
   });
 }
 
-export type OrgPatch = Partial<Pick<Organization, "display_name" | "website" | "phone" | "contact_email">>;
+export type OrgPatch = Partial<
+  Pick<Organization, "display_name" | "address" | "website" | "phone" | "contact_email">
+>;
 
 export function useUpdateOrg(userId: string | undefined) {
   const queryClient = useQueryClient();
@@ -226,7 +232,20 @@ export function useOrgEvents(orgId: string | undefined, uids: string[]) {
   });
 }
 
-/** Read-only until the invitation routes land (phase D2 tail). */
+/**
+ * The seats in one organization, each with the person's name.
+ *
+ * Two statements, not one embed: organization_members.user_id references
+ * auth.users, not public.profiles, and the auth schema is not exposed, so
+ * PostgREST has no relationship to traverse. One query key, one cache entry.
+ *
+ * A name is null whenever the profile is unreadable, which the caller renders
+ * as the uid exactly as it did before migration 25. That is deliberate — this
+ * degrades on an environment where the policy has not been applied yet rather
+ * than failing, so the two can ship in either order.
+ *
+ * Adding a seat is still not possible here; that arrives with invitations.
+ */
 export function useRoster(orgId: string | undefined) {
   return useQuery({
     queryKey: orgKeys.roster(orgId ?? "none"),
@@ -237,7 +256,30 @@ export function useRoster(orgId: string | undefined) {
         .select("user_id, role, relation, created_at")
         .eq("org_id", orgId!);
       if (error) throw new Error(error.message);
-      return (data ?? []) as RosterSeat[];
+      const seats = (data ?? []) as Omit<RosterSeat, "display_name">[];
+      if (!seats.length) return [];
+
+      const { data: profiles, error: nameError } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in(
+          "id",
+          seats.map((seat) => seat.user_id),
+        );
+      // A failed name lookup is not a failed roster: the seats are the answer,
+      // the names are the courtesy.
+      if (nameError) return seats.map((seat) => ({ ...seat, display_name: null }));
+
+      const named = new Map(
+        ((profiles ?? []) as { id: string; display_name: string | null }[]).map((row) => [
+          row.id,
+          row.display_name,
+        ]),
+      );
+      return seats.map((seat) => ({
+        ...seat,
+        display_name: named.get(seat.user_id) ?? null,
+      }));
     },
   });
 }
@@ -295,6 +337,109 @@ export function useWithdrawClaim(orgId: string | undefined) {
       if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.claims(orgId) });
     },
   });
+}
+
+/** A pending invitation, as the roster lists it. Never the token or its hash. */
+export interface PendingInvitation {
+  id: string;
+  email: string;
+  role: OrgRole;
+  expires_at: string;
+  created_at: string;
+}
+
+/** What POST answers with — `token` is readable here and nowhere ever again. */
+export interface IssuedInvitation extends Omit<PendingInvitation, "created_at"> {
+  token: string;
+}
+
+export interface InviteInput {
+  email: string;
+  role: OrgRole;
+}
+
+/**
+ * Invitations still waiting on someone, newest first.
+ *
+ * Read straight from Supabase like the claims list, because the policy for it
+ * already exists: "admins read invitations" (20260819000011) scopes this to
+ * organizations the caller administers, so a member seat gets an empty list
+ * rather than a 403. The three columns that matter are named explicitly —
+ * `token_hash` is uninteresting but there is no reason to pull it over the
+ * wire, and `select *` would.
+ *
+ * Accepted invitations are kept as history and deliberately not shown: the
+ * person is in the roster above, which is the better answer to "did they join".
+ */
+export function usePendingInvitations(orgId: string | undefined) {
+  return useQuery({
+    queryKey: orgKeys.invitations(orgId ?? "none"),
+    enabled: Boolean(orgId),
+    queryFn: async (): Promise<PendingInvitation[]> => {
+      const { data, error } = await supabase
+        .from("organization_invitations")
+        .select("id, email, role, expires_at, created_at")
+        .eq("org_id", orgId!)
+        .is("accepted_at", null)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as PendingInvitation[];
+    },
+  });
+}
+
+/**
+ * Invite an address. The response carries the token once; there is no way to
+ * read it again, by design, so the caller must do something with it there and
+ * then. Revoke and re-invite is the way back to a live link.
+ */
+export function useInvite(orgId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: InviteInput): Promise<IssuedInvitation> => {
+      const response = await apiFetch(`/api/orgs/${encodeURIComponent(orgId!)}/invitations`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      return (await response.json()) as IssuedInvitation;
+    },
+    onSuccess: () => {
+      if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.invitations(orgId) });
+    },
+  });
+}
+
+export function useRevokeInvitation(orgId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invitationId: string) => {
+      await apiFetch(`/api/invitations/${encodeURIComponent(invitationId)}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.invitations(orgId) });
+    },
+  });
+}
+
+/** What the invite page shows once a link has been redeemed. */
+export interface AcceptedInvitation {
+  org_id: string;
+  role: OrgRole;
+  /** True when the seat was already there — a second click on the same link. */
+  already: boolean;
+}
+
+/**
+ * Redeem a link. A plain function rather than a hook because its one caller is
+ * an effect on a route, not a control someone presses — same shape as
+ * `fetchClaimState`.
+ */
+export async function acceptInvitation(token: string): Promise<AcceptedInvitation> {
+  const response = await apiFetch("/api/invitations/accept", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  return (await response.json()) as AcceptedInvitation;
 }
 
 /** Whether an entity is already spoken for — the per-hit state in the picker. */

@@ -18,7 +18,9 @@
 -- dropped below is the real one, then applies 22 and exercises it. Every
 -- PASS/FAIL is a raise notice; a failure aborts under ON_ERROR_STOP=1.
 --
--- Last run 2026-09-01: all nine checks passed. Check 10 (migration 23) added 2026-09-05, not yet run.
+-- Last run 2026-09-08: all twelve checks passed. That run was the first for
+-- check 12 (migration 26); the run before it was the first for checks 10 and 11
+-- (migrations 23 and 25).
 
 \set ON_ERROR_STOP on
 \echo '=== stubbing the Supabase surface ==='
@@ -675,3 +677,151 @@ select
    from information_schema.column_privileges
    where grantee = 'authenticated' and table_name = 'organization_members'
      and privilege_type = 'UPDATE') as members_may_update;
+
+
+\echo '=== replaying 20260908000025_org_mate_profiles ==='
+-- profiles was never stubbed in this file: nothing before migration 25 read
+-- it. The shape is 20260813000001's, minus the trigger function, which needs
+-- user_roles' trigger and is not what check 11 is about.
+create table public.profiles (
+    id uuid primary key references auth.users (id) on delete cascade,
+    display_name text,
+    ui_language text not null default 'en'
+    check (ui_language in ('en', 'es', 'it', 'ca')),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+-- Checks 1-10 run as the table owner, which bypasses RLS entirely unless it is
+-- forced -- they assert grants and constraints, never a policy. Check 11 is the
+-- first that asks whether a policy REFUSES somebody, so it has to force it.
+-- FORCE belongs to this script only; the real migration must never carry it.
+alter table public.profiles force row level security;
+
+-- Supabase grants these by default; the stub does not. The policy's subquery
+-- runs as the querying role, so authenticated needs both.
+grant select on public.profiles to authenticated;
+grant select on public.organization_members to authenticated;
+
+create policy "users read own profile"
+on public.profiles for select
+using (auth.uid() = id);
+
+create function public.shares_org_with(other uuid, uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+    select exists (
+        select 1
+        from public.organization_members mine
+        inner join public.organization_members theirs
+            on mine.org_id = theirs.org_id
+        where mine.user_id = uid and theirs.user_id = other
+    );
+$$;
+
+create policy "members read their org mates' profiles"
+on public.profiles for select
+using (public.shares_org_with(id, auth.uid()));
+
+alter table public.organizations add column address text;
+grant update (address) on public.organizations to authenticated;
+
+\echo '--- 11. 25: an org mate reads your name, a stranger does not ---'
+-- :agency_id is check 10's org, founded by c. Seat b beside them; a stays out.
+insert into public.profiles (id, display_name) values
+    ('00000000-0000-0000-0000-00000000000a', 'Alone'),
+    ('00000000-0000-0000-0000-00000000000b', 'Mate'),
+    ('00000000-0000-0000-0000-00000000000c', 'Founder');
+insert into public.organization_members (org_id, user_id, role)
+values (:'agency_id', '00000000-0000-0000-0000-00000000000b', 'member');
+
+set role authenticated;
+set test.uid = '00000000-0000-0000-0000-00000000000c';
+select
+  (select count(*) from public.profiles
+   where id = '00000000-0000-0000-0000-00000000000b') as mate_visible_to_founder,
+  (select count(*) from public.profiles
+   where id = '00000000-0000-0000-0000-00000000000a') as stranger_hidden_from_founder,
+  (select count(*) from public.profiles
+   where id = '00000000-0000-0000-0000-00000000000c') as own_row_still_visible;
+
+-- a is in no organization: the OR-ed policies must leave them exactly as before.
+set test.uid = '00000000-0000-0000-0000-00000000000a';
+select
+  (select count(*) from public.profiles
+   where id = '00000000-0000-0000-0000-00000000000a') as loner_reads_own_row,
+  (select count(*) from public.profiles
+   where id = '00000000-0000-0000-0000-00000000000b') as loner_reads_nobody_else;
+reset role;
+set test.uid = '';
+
+\echo '--- expected: 1, 0, 1 then 1, 0 ---'
+
+
+\echo '=== replaying 20260908000026_invitation_membership ==='
+-- Statements only, comments stripped -- the reasoning lives in the migration.
+create function public.grant_pro_on_org_membership()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.user_roles (user_id, role)
+  values (new.user_id, 'pro')
+  on conflict (user_id) do nothing;
+
+  update public.user_roles
+  set
+      role = 'pro',
+      updated_at = now()
+  where user_id = new.user_id and role = 'user';
+
+  return new;
+end;
+$$;
+
+create trigger grant_pro_on_org_membership
+after insert on public.organization_members
+for each row execute function public.grant_pro_on_org_membership();
+
+revoke execute on function public.grant_pro_on_org_membership()
+from authenticated, anon, public;
+
+\echo '--- 12. 26: a seat grants pro, and never demotes an admin ---'
+-- Three fresh accounts because the trigger is insert-only and every fixture
+-- above was already seated before it existed. :agency_id is check 10's org.
+--   d is an admin  -- the guarded update must not touch them
+--   e is a plain user -- the case the whole trigger exists for
+--   f has no user_roles row at all -- the belt, for an account handle_new_user
+--     never covered
+insert into auth.users (id) values
+    ('00000000-0000-0000-0000-00000000000d'),
+    ('00000000-0000-0000-0000-00000000000e'),
+    ('00000000-0000-0000-0000-00000000000f');
+insert into public.user_roles (user_id, role) values
+    ('00000000-0000-0000-0000-00000000000d', 'admin'),
+    ('00000000-0000-0000-0000-00000000000e', 'user');
+
+insert into public.organization_members (org_id, user_id, role) values
+    (:'agency_id', '00000000-0000-0000-0000-00000000000d', 'member'),
+    (:'agency_id', '00000000-0000-0000-0000-00000000000e', 'member'),
+    (:'agency_id', '00000000-0000-0000-0000-00000000000f', 'member');
+
+select
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000e') as plain_user_becomes_pro,
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000d') as admin_is_not_demoted,
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000f') as missing_row_is_created,
+  (select count(*) from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000f') as exactly_one_row;
+
+\echo '--- expected: pro, admin, pro, 1 ---'
