@@ -25,8 +25,11 @@ const data = vi.hoisted(() => ({
   /** The uids the page last asked for — the window, not the fixture. */
   requested: [] as string[],
   promoter: null as unknown,
+  invitations: [] as unknown[],
   create: vi.fn(),
   setRelation: vi.fn(),
+  invite: vi.fn(),
+  revoke: vi.fn(),
 }));
 
 vi.mock("@/api/organizations", () => ({
@@ -45,6 +48,9 @@ vi.mock("@/api/organizations", () => ({
   useSetRelation: () => ({ mutateAsync: data.setRelation, isPending: false }),
   useCreateClaim: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawClaim: () => ({ mutate: vi.fn() }),
+  usePendingInvitations: () => ({ data: data.invitations }),
+  useInvite: () => ({ mutate: data.invite, isPending: false }),
+  useRevokeInvitation: () => ({ mutate: data.revoke, isPending: false }),
 }));
 vi.mock("@/api/profile", () => ({
   usePromoterProfile: () => ({ data: data.promoter }),
@@ -84,8 +90,11 @@ beforeEach(() => {
   data.events = [];
   data.requested = [];
   data.promoter = null;
+  data.invitations = [];
   data.create.mockReset().mockResolvedValue("org-1");
   data.setRelation.mockReset().mockResolvedValue(undefined);
+  data.invite.mockReset();
+  data.revoke.mockReset();
 });
 
 describe("/pro/org", () => {
@@ -333,6 +342,76 @@ describe("/pro/org", () => {
     expect(screen.getByText("Ana Beck Quartet")).toBeInTheDocument();
     // They are not claimable in place: a name is not a uid.
     expect(screen.queryByRole("button", { name: en.org.claim })).not.toBeInTheDocument();
+  });
+
+  it("offers the invite control to an admin, with no way to grant ownership", () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    expect(screen.getByText(en.org.inviteTitle)).toBeInTheDocument();
+    expect(screen.getByLabelText(en.org.inviteEmail)).toBeInTheDocument();
+    // member and admin only. Handing an organisation over by link is a
+    // different act, and the gateway refuses `owner` too.
+    const roles = screen.getByRole("combobox", { name: en.org.rosterTitle });
+    const offered = Array.from(roles.querySelectorAll("option")).map((o) => o.textContent);
+    expect(offered).toEqual([en.org.seatMember, en.org.seatAdmin]);
+  });
+
+  it("hides the invite control from a plain member seat", () => {
+    // "admins read invitations" would give them an empty list anyway, and the
+    // gateway 403s the POST: a control whose only outcome is a refusal.
+    data.orgs = [{ ...OWNED, role: "member" }];
+    renderPage();
+    expect(screen.queryByText(en.org.inviteTitle)).not.toBeInTheDocument();
+  });
+
+  it("asks for the typed address and the chosen seat", async () => {
+    data.orgs = [OWNED];
+    renderPage();
+
+    await userEvent.type(screen.getByLabelText(en.org.inviteEmail), "ana@sala.cat");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: en.org.rosterTitle }),
+      "admin",
+    );
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteSend }));
+
+    expect(data.invite).toHaveBeenCalledWith(
+      { email: "ana@sala.cat", role: "admin" },
+      expect.anything(),
+    );
+  });
+
+  it("will not send an empty address", () => {
+    data.orgs = [OWNED];
+    renderPage();
+    expect(screen.getByRole("button", { name: en.org.inviteSend })).toBeDisabled();
+  });
+
+  it("lists what is still pending, and revokes by id", async () => {
+    data.orgs = [OWNED];
+    data.invitations = [
+      {
+        id: "inv-1",
+        email: "ana@sala.cat",
+        role: "member",
+        expires_at: "2026-09-22T00:00:00Z",
+        created_at: "2026-09-08T00:00:00Z",
+      },
+    ];
+    renderPage();
+
+    expect(screen.getByText(en.org.invitePending)).toBeInTheDocument();
+    expect(screen.getByText("ana@sala.cat")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: en.org.inviteRevoke }));
+    expect(data.revoke).toHaveBeenCalledWith("inv-1", expect.anything());
+  });
+
+  it("says nothing about pending invitations when there are none", () => {
+    data.orgs = [OWNED];
+    renderPage();
+    expect(screen.queryByText(en.org.invitePending)).not.toBeInTheDocument();
   });
 
   it("sends a signed-out visitor to the promoter door", () => {

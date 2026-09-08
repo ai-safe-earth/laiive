@@ -6,14 +6,18 @@ import { ApiError } from "@/api/client";
 import {
   useCreateClaim,
   useEntitySearch,
+  useInvite,
   useMyOrgs,
   useOrgClaims,
   useOrgEvents,
+  usePendingInvitations,
+  useRevokeInvitation,
   useRoster,
   useSetRelation,
   useUpdateOrg,
   useWithdrawClaim,
   type Claim,
+  type IssuedInvitation,
   type MemberRelation,
   type OrgKind,
   type OrgMembership,
@@ -32,7 +36,7 @@ import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { OrgIdentity, RelationSelect } from "@/components/OrgIdentity";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Input, PRO_FIELD } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
@@ -256,6 +260,7 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
 
       <Roster
         org={org}
+        mayEdit={mayEdit}
         onDescribeSeat={describeSeat}
         describing={setRelation.isPending}
       />
@@ -517,10 +522,12 @@ export function seatLabel(role: OrgRole, t: ReturnType<typeof useTranslation>["t
  */
 function Roster({
   org,
+  mayEdit,
   onDescribeSeat,
   describing,
 }: {
   org: OrgMembership;
+  mayEdit: boolean;
   onDescribeSeat: (relation: MemberRelation) => void;
   describing: boolean;
 }) {
@@ -573,7 +580,155 @@ function Roster({
           );
         })}
       </ul>
-      <p className="text-sm text-pro-muted">{t.org.rosterNote}</p>
+      {mayEdit && <Invitations org={org} />}
+    </div>
+  );
+}
+
+/**
+ * Inviting somebody, and the invitations already out.
+ *
+ * Only inside the roster inset, and only for an owner or admin — the gateway
+ * refuses a member seat anyway, and a control that always fails is worse than
+ * no control. The pending list is read straight from Supabase under the
+ * "admins read invitations" policy, so a member seat would see an empty list
+ * even if this rendered for them.
+ *
+ * The link is shown, not sent: there is no mail provider in this project, so
+ * the admin copies it and delivers it however they already talk to the person.
+ * It is readable exactly once, which is why it lands in state here rather than
+ * being re-fetched — the gateway keeps only a hash and cannot show it again.
+ */
+function Invitations({ org }: { org: OrgMembership }) {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<OrgRole>("member");
+  const [issued, setIssued] = useState<IssuedInvitation | null>(null);
+  const { data: pending } = usePendingInvitations(org.id);
+  const invite = useInvite(org.id);
+  const revoke = useRevokeInvitation(org.id);
+
+  /** The whole URL, built here because only the browser knows its own origin. */
+  const linkFor = (token: string) => `${window.location.origin}/invite/${token}`;
+
+  const copy = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(linkFor(token));
+      toast.success(t.org.inviteCopied);
+    } catch {
+      // Clipboard access is refused outside a secure context and in some
+      // embedded browsers. The link is on screen and selectable either way.
+      toast.error(t.org.inviteCopyFailed);
+    }
+  };
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    invite.mutate(
+      { email: email.trim(), role },
+      {
+        onSuccess: (created) => {
+          setIssued(created);
+          setEmail("");
+          toast.success(t.org.inviteReady(created.email));
+        },
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            toast.error(t.org.inviteConflict);
+          } else {
+            toast.error(t.org.inviteFailed);
+          }
+        },
+      },
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-2.5 border-t border-pro-border pt-3">
+      <Label>{t.org.inviteTitle}</Label>
+      <p className="text-sm leading-[1.45] text-pro-muted">{t.org.inviteNote}</p>
+
+      <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
+        <Input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder={t.org.inviteEmail}
+          aria-label={t.org.inviteEmail}
+          tone="pro"
+        />
+        <select
+          value={role}
+          onChange={(event) => setRole(event.target.value as OrgRole)}
+          aria-label={t.org.rosterTitle}
+          className={cn(
+            "h-11 rounded-full border px-4 text-base [color-scheme:dark]",
+            "focus-visible:outline-none focus-visible:ring-2",
+            PRO_FIELD,
+          )}
+        >
+          {/* No `owner`: the gateway refuses it, because handing an
+              organization over by link is a different act than staffing it. */}
+          <option value="member">{t.org.seatMember}</option>
+          <option value="admin">{t.org.seatAdmin}</option>
+        </select>
+        <Button
+          variant="cyan"
+          type="submit"
+          className="flex-none"
+          disabled={invite.isPending || !email.trim()}
+        >
+          {t.org.inviteSend}
+        </Button>
+      </form>
+
+      {issued && (
+        <div className="flex flex-col gap-2 rounded-[14px] border border-pro-accent/45 bg-pro-accent/10 px-3.5 py-3">
+          <p className="text-sm text-pro-fg">{t.org.inviteReady(issued.email)}</p>
+          {/* Selectable, so the link survives a refused clipboard. `break-all`
+              because a base64url token has no spaces to wrap at. */}
+          <code className="break-all font-mono text-xs text-pro-muted">
+            {linkFor(issued.token)}
+          </code>
+          <Button
+            variant="proNeutral"
+            className="self-start"
+            onClick={() => void copy(issued.token)}
+          >
+            {t.org.inviteCopy}
+          </Button>
+        </div>
+      )}
+
+      {(pending ?? []).length > 0 && (
+        <>
+          <Label>{t.org.invitePending}</Label>
+          <ul className="flex flex-col gap-2">
+            {(pending ?? []).map((row) => (
+              <li key={row.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-pro-muted">{row.email}</span>
+                <span className="hidden text-sm text-pro-dim sm:inline">
+                  {t.org.inviteExpires(new Date(row.expires_at).toLocaleDateString())}
+                </span>
+                <Badge>{seatLabel(row.role, t)}</Badge>
+                <Button
+                  variant="proNeutral"
+                  className="h-8 flex-none px-3 text-sm"
+                  disabled={revoke.isPending}
+                  onClick={() =>
+                    revoke.mutate(row.id, {
+                      onSuccess: () => toast.success(t.org.inviteRevoked),
+                      onError: () => toast.error(t.org.inviteRevokeFailed),
+                    })
+                  }
+                >
+                  {t.org.inviteRevoke}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

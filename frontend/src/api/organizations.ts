@@ -78,6 +78,7 @@ export const orgKeys = {
   claims: (orgId: string) => ["org-claims", orgId] as const,
   events: (orgId: string, uids: string[]) => ["org-events", orgId, uids] as const,
   roster: (orgId: string) => ["org-roster", orgId] as const,
+  invitations: (orgId: string) => ["org-invitations", orgId] as const,
   entitySearch: (type: EntityType, q: string) => ["entity-search", type, q] as const,
 };
 
@@ -336,6 +337,109 @@ export function useWithdrawClaim(orgId: string | undefined) {
       if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.claims(orgId) });
     },
   });
+}
+
+/** A pending invitation, as the roster lists it. Never the token or its hash. */
+export interface PendingInvitation {
+  id: string;
+  email: string;
+  role: OrgRole;
+  expires_at: string;
+  created_at: string;
+}
+
+/** What POST answers with — `token` is readable here and nowhere ever again. */
+export interface IssuedInvitation extends Omit<PendingInvitation, "created_at"> {
+  token: string;
+}
+
+export interface InviteInput {
+  email: string;
+  role: OrgRole;
+}
+
+/**
+ * Invitations still waiting on someone, newest first.
+ *
+ * Read straight from Supabase like the claims list, because the policy for it
+ * already exists: "admins read invitations" (20260819000011) scopes this to
+ * organizations the caller administers, so a member seat gets an empty list
+ * rather than a 403. The three columns that matter are named explicitly —
+ * `token_hash` is uninteresting but there is no reason to pull it over the
+ * wire, and `select *` would.
+ *
+ * Accepted invitations are kept as history and deliberately not shown: the
+ * person is in the roster above, which is the better answer to "did they join".
+ */
+export function usePendingInvitations(orgId: string | undefined) {
+  return useQuery({
+    queryKey: orgKeys.invitations(orgId ?? "none"),
+    enabled: Boolean(orgId),
+    queryFn: async (): Promise<PendingInvitation[]> => {
+      const { data, error } = await supabase
+        .from("organization_invitations")
+        .select("id, email, role, expires_at, created_at")
+        .eq("org_id", orgId!)
+        .is("accepted_at", null)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as PendingInvitation[];
+    },
+  });
+}
+
+/**
+ * Invite an address. The response carries the token once; there is no way to
+ * read it again, by design, so the caller must do something with it there and
+ * then. Revoke and re-invite is the way back to a live link.
+ */
+export function useInvite(orgId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: InviteInput): Promise<IssuedInvitation> => {
+      const response = await apiFetch(`/api/orgs/${encodeURIComponent(orgId!)}/invitations`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      return (await response.json()) as IssuedInvitation;
+    },
+    onSuccess: () => {
+      if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.invitations(orgId) });
+    },
+  });
+}
+
+export function useRevokeInvitation(orgId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invitationId: string) => {
+      await apiFetch(`/api/invitations/${encodeURIComponent(invitationId)}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      if (orgId) void queryClient.invalidateQueries({ queryKey: orgKeys.invitations(orgId) });
+    },
+  });
+}
+
+/** What the invite page shows once a link has been redeemed. */
+export interface AcceptedInvitation {
+  org_id: string;
+  role: OrgRole;
+  /** True when the seat was already there — a second click on the same link. */
+  already: boolean;
+}
+
+/**
+ * Redeem a link. A plain function rather than a hook because its one caller is
+ * an effect on a route, not a control someone presses — same shape as
+ * `fetchClaimState`.
+ */
+export async function acceptInvitation(token: string): Promise<AcceptedInvitation> {
+  const response = await apiFetch("/api/invitations/accept", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  return (await response.json()) as AcceptedInvitation;
 }
 
 /** Whether an entity is already spoken for — the per-hit state in the picker. */
