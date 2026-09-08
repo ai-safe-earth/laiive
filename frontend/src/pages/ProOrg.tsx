@@ -504,7 +504,7 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
   );
 }
 
-function seatLabel(role: OrgRole, t: ReturnType<typeof useTranslation>["t"]) {
+export function seatLabel(role: OrgRole, t: ReturnType<typeof useTranslation>["t"]) {
   return role === "owner" ? t.org.seatOwner : role === "admin" ? t.org.seatAdmin : t.org.seatMember;
 }
 

@@ -141,9 +141,6 @@ export interface Translations {
     legacyTitle: string;
     legacyNote: string;
     legacySearch: string;
-    summaryTitle: string;
-    summary: (count: number) => string;
-    manage: string;
   };
   pro: {
     needsPro: string;
@@ -365,10 +362,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'These were free text on your old profile. They point at nothing. Search for each one and add it properly.',
       legacySearch: 'find it',
-      summaryTitle: 'organisation',
-      summary: (count: number) =>
-        count === 1 ? '1 entry' : `${count} entries`,
-      manage: 'manage →',
     },
     pro: {
       needsPro: "Publishing events needs a pro account.",
@@ -611,10 +604,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Eran texto libre en tu perfil antiguo. No apuntan a nada. Busca cada uno y añádelo bien.',
       legacySearch: 'buscarlo',
-      summaryTitle: 'organización',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entradas`,
-      manage: 'gestionar →',
     },
     pro: {
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
@@ -857,10 +846,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Erano testo libero nel tuo vecchio profilo. Non puntano a niente. Cerca ognuno e aggiungilo davvero.',
       legacySearch: 'trovalo',
-      summaryTitle: 'organizzazione',
-      summary: (count: number) =>
-        count === 1 ? '1 voce' : `${count} voci`,
-      manage: 'gestisci →',
     },
     pro: {
       needsPro: "Per pubblicare eventi serve un account promoter.",
@@ -1103,10 +1088,6 @@ export const translations: Record<Language, Translations> = {
       legacyNote:
         'Eren text lliure al teu perfil antic. No apunten enlloc. Cerca cadascun i afegeix-lo de debò.',
       legacySearch: 'troba’l',
-      summaryTitle: 'organització',
-      summary: (count: number) =>
-        count === 1 ? '1 entrada' : `${count} entrades`,
-      manage: 'gestiona →',
     },
     pro: {
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
