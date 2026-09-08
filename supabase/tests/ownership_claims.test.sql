@@ -18,8 +18,9 @@
 -- dropped below is the real one, then applies 22 and exercises it. Every
 -- PASS/FAIL is a raise notice; a failure aborts under ON_ERROR_STOP=1.
 --
--- Last run 2026-09-08: all eleven checks passed. That run was the first for
--- check 10 (migration 23) and check 11 (migration 25).
+-- Last run 2026-09-08: all twelve checks passed. That run was the first for
+-- check 12 (migration 26); the run before it was the first for checks 10 and 11
+-- (migrations 23 and 25).
 
 \set ON_ERROR_STOP on
 \echo '=== stubbing the Supabase surface ==='
@@ -761,3 +762,66 @@ reset role;
 set test.uid = '';
 
 \echo '--- expected: 1, 0, 1 then 1, 0 ---'
+
+
+\echo '=== replaying 20260908000026_invitation_membership ==='
+-- Statements only, comments stripped -- the reasoning lives in the migration.
+create function public.grant_pro_on_org_membership()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.user_roles (user_id, role)
+  values (new.user_id, 'pro')
+  on conflict (user_id) do nothing;
+
+  update public.user_roles
+  set
+      role = 'pro',
+      updated_at = now()
+  where user_id = new.user_id and role = 'user';
+
+  return new;
+end;
+$$;
+
+create trigger grant_pro_on_org_membership
+after insert on public.organization_members
+for each row execute function public.grant_pro_on_org_membership();
+
+revoke execute on function public.grant_pro_on_org_membership()
+from authenticated, anon, public;
+
+\echo '--- 12. 26: a seat grants pro, and never demotes an admin ---'
+-- Three fresh accounts because the trigger is insert-only and every fixture
+-- above was already seated before it existed. :agency_id is check 10's org.
+--   d is an admin  -- the guarded update must not touch them
+--   e is a plain user -- the case the whole trigger exists for
+--   f has no user_roles row at all -- the belt, for an account handle_new_user
+--     never covered
+insert into auth.users (id) values
+    ('00000000-0000-0000-0000-00000000000d'),
+    ('00000000-0000-0000-0000-00000000000e'),
+    ('00000000-0000-0000-0000-00000000000f');
+insert into public.user_roles (user_id, role) values
+    ('00000000-0000-0000-0000-00000000000d', 'admin'),
+    ('00000000-0000-0000-0000-00000000000e', 'user');
+
+insert into public.organization_members (org_id, user_id, role) values
+    (:'agency_id', '00000000-0000-0000-0000-00000000000d', 'member'),
+    (:'agency_id', '00000000-0000-0000-0000-00000000000e', 'member'),
+    (:'agency_id', '00000000-0000-0000-0000-00000000000f', 'member');
+
+select
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000e') as plain_user_becomes_pro,
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000d') as admin_is_not_demoted,
+  (select role::text from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000f') as missing_row_is_created,
+  (select count(*) from public.user_roles
+   where user_id = '00000000-0000-0000-0000-00000000000f') as exactly_one_row;
+
+\echo '--- expected: pro, admin, pro, 1 ---'
