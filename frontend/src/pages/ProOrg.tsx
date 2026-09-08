@@ -83,17 +83,7 @@ export default function ProOrg() {
         ) : (
           <>
             {orgs && orgs.length > 1 && (
-              <div className="flex flex-wrap gap-2">
-                {orgs.map((candidate) => (
-                  <Button
-                    key={candidate.id}
-                    variant={candidate.id === org.id ? "cyan" : "proNeutral"}
-                    onClick={() => setSelectedId(candidate.id)}
-                  >
-                    {candidate.display_name}
-                  </Button>
-                ))}
-              </div>
+              <OrgTabs orgs={orgs} currentId={org.id} onPick={setSelectedId} />
             )}
             <OrgDetails org={org} mayEdit={mayEdit} />
             <PublishedEvents org={org} />
@@ -104,6 +94,52 @@ export default function ProOrg() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+/**
+ * One tab per organization you hold a seat in.
+ *
+ * ponytail: visual tabs on toggle buttons, not the ARIA tab pattern. Real
+ * role="tab" needs a roving tabindex and arrow-key handling, and the "panel"
+ * here is the whole page below with no focusable entry point worth moving to.
+ * Declaring the role without the keyboard behaviour is worse than not
+ * declaring it — a reader announces "tab, 1 of 3" and the arrows do nothing.
+ * If anyone adds the roles later, add the roving tabindex in the same edit.
+ *
+ * Plain <button>: our Button is a pill by construction and a tab is not.
+ */
+function OrgTabs({
+  orgs,
+  currentId,
+  onPick,
+}: {
+  orgs: OrgMembership[];
+  currentId: string;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="-mx-4 flex gap-1 overflow-x-auto border-b border-pro-border px-4 sm:mx-0 sm:px-0">
+      {orgs.map((candidate) => {
+        const current = candidate.id === currentId;
+        return (
+          <button
+            key={candidate.id}
+            type="button"
+            aria-pressed={current}
+            onClick={() => onPick(candidate.id)}
+            className={cn(
+              "min-h-11 whitespace-nowrap border-b-2 px-4 text-md transition-colors",
+              current
+                ? "border-pro-accent text-pro-fg"
+                : "border-transparent text-pro-muted hover:text-pro-fg",
+            )}
+          >
+            {candidate.display_name}
+          </button>
+        );
+      })}
     </div>
   );
 }
