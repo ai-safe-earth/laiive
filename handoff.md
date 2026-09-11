@@ -1,42 +1,48 @@
-# HANDOFF - laiive (updated 2026-09-09)
+# HANDOFF - laiive (updated 2026-09-11)
 
 State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Plans:
 `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md` (evolution, A-G) and
 `~/.claude/plans/pro-user-settings-is-optimized-metcalfe.md` (pro settings, five phases).
 
-**`v0.4.0` is live at https://laiive.com** (2026-09-08): migration 26 applied, gateway on
-Fly, SPA from `main`. `develop` is **3 commits ahead** — PR #102, undeployed, and unlike
-phase 1 this one does need a gateway deploy.
+**`v0.4.1` is tagged and merged back** (2026-09-10, PR #104): `origin/main` and
+`origin/develop` are the same commit, so nothing is queued. The ownership backfill ran —
+the nine pre-v0.3.0 events are filed and `backfill_ownership.sql` is gone.
 
 ## Pro settings — 2 of 5 phases done
 
 Phase 1 (#98): `/pro/org` is three labelled bands; `/account` is personal settings plus
 every organisation you belong to. Phase 2 (#100): invitations — an owner or admin invites
 an address and gets a link to send by hand, there being no mail provider in this project.
-Accepting grants `pro` through a trigger, so an invitee who is not yet a promoter can
-redeem, and binds to the invited address via the verified email claim. Adversarial review
-caught the one that mattered: the signed-out flow never worked, because `/auth` deletes
-the postAuth stash on mount by design. Fixed with `?next=` — guarding the mount clear
-alone would not survive `googleSignIn` overwriting the stash on the way out.
+Accepting grants `pro` through a trigger and binds to the verified email claim.
 
 **Phases 3-5:** entity edit path (~4-5d, **is** roadmap Phase E), dedup (~4d), wizard (~2d).
 
-## What first real use turned up (#102)
+## PR #103 — dependency advisories, open and green
 
-Publishing never asked which organisation it was for — `orgForPublish` fell back to
-`seats[0]` unordered while `ProSubmit` printed `orgs[0]` from a different query. Fixed.
+All 13 checks pass. Two commits: the lockfile bumps (fastify 5.11.3 -> 5.12.3, fast-uri
+4.1.2 -> 4.1.4 plus ajv's nested 3.1.5 -> 3.1.7, react-router 6.30.4 -> 6.30.6), and the
+source fix the bump turned out to need. **Not in v0.4.1**, and it changes gateway source,
+so merging it means a Fly deploy, not a Cloudflare-only release.
 
-That was **not** why the reported events were missing: all nine predate v0.3.0
-(2026-09-06), which first recorded ownership on a publish, so they have no
-`entity_ownership` row. `backfill_ownership.sql` is untracked in the repo root, verified,
-awaiting a Supabase run. Events only — the same publishes made three venue nodes for one
-room, and filing those would make the duplication permanent. Phase 4's case, with evidence.
+fastify 5.12 dropped the numeric `trustProxy` hop count from the types *and* the runtime,
+silently: `trustProxy: 1` does not throw, it stops honouring `X-Forwarded-For`, so
+`request.ip` becomes the ingress address and every anonymous user shares one rate-limit
+bucket. None of the six fastify advisories is about `trustProxy` — an unrelated narrowing
+rode along with a security release. Now `(_address, hop) => hop < 1`, the same rule the
+number expressed; `true` would take a spoofed first hop. Measured against 5.12.3, not read
+off the docs. The existing `sse-ratelimit-logging` test caught the runtime half, CI's
+typecheck the other.
+
+Two advisories the earlier count missed: react-router-dom on the **frontend**, and vitest,
+left alone deliberately — its fix is a 3 -> 4 major and vitest never ships.
 
 ## Shipped but barely exercised
 
 Invitations never redeemed by a second real account. Six adoption probe checks never ran,
 `start_at_claim` has never met a real model, and no sweep has run since the `now()` fix.
-Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
+Nothing anywhere sets `verified` on a claim, so "in review" is permanent. The venue
+duplication the backfill deliberately skipped — three nodes for one room — is still there,
+and is Phase 4's case with evidence.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -44,7 +50,7 @@ Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-09-09",
+  "updated": "2026-09-11",
   "deadline": null,
   "people": ["oscar"],
   "plans": [
@@ -62,16 +68,10 @@ Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
   ],
   "blockers": [
     {
-      "text": "Two npm advisories on the gateway lockfile, both unassessed: fast-uri (high) and fastify (medium), services/gateway/package-lock.json. The GitHub UI reports 8 high and 3 moderate, which is the same alerts counted across branches - gh api repos/ai-safe-earth/laiive/dependabot/alerts deduplicates to two packages. Neither has been looked at and the gateway is the only published surface, so this is the one security item ahead of feature work",
+      "text": "The deployed gateway still carries the unpatched fastify and fast-uri. PR #103 fixes both and is green, but it is not in v0.4.1, so production runs them until that PR is merged and make fly-deploy-gateway runs. The gateway is the only published surface, which is why this stays ahead of feature work",
       "severity": "high",
       "owner": "oscar",
       "since": "2026-09-06"
-    },
-    {
-      "text": "The owner cannot see nine of their own published events on /pro/org, because they were published before v0.3.0 (2026-09-06) added ownership recording and so have no entity_ownership row. backfill_ownership.sql is untracked in the repo root, generated from the graph by owner_id and verified against postgres:16-alpine - 9 rows inserted, idempotent on re-run because the ON CONFLICT names the partial index predicate. It is a Supabase write, so it is oscar's to run, and the file should be deleted afterwards",
-      "severity": "medium",
-      "owner": "oscar",
-      "since": "2026-09-09"
     },
     {
       "text": "Accepting an invitation binds to the verified email claim, which assumes an account cannot freely change its Supabase email. Supabase requires confirmation on both addresses by default, but the project setting is unverified - if secure email change is off, somebody holding a leaked invite link could set their account email to the invited address and redeem it. Read it in the same GET /v1/projects/<ref>/config/auth call as the redirect allow-list",
@@ -110,10 +110,10 @@ Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
       "since": "2026-08-21"
     },
     {
-      "text": "develop is 3 commits ahead of main and undeployed - PR #102, merged 2026-09-09. It carries the publish-organization fix and the roster and invite simplifications, so unlike phase 1 this one does need a gateway deploy as well as the Cloudflare build. Small, but the pattern of quiet backlog is what produced the twelve-day and sixty-commit versions of this same line",
+      "text": "A dependency bump can change runtime behaviour with no error and no type error, and a lockfile-only diff is not evidence of a no-op. fastify 5.12 dropped numeric trustProxy from the runtime as well as the types; only an existing test stood between that and a production rate-limit collapse. The gateway happened to have a test for it, which is luck rather than policy - the other lockfile bumps this repo will take are not all covered",
       "severity": "low",
       "owner": "oscar",
-      "since": "2026-09-09"
+      "since": "2026-09-11"
     },
     {
       "text": "flows/serve.py is not running, so no schedule fires. Every sweep so far was triggered by hand; the admin dashboard shows this as a reasoned scheduler verdict instead of a silent next-run time. When it first runs, the stale backfill-nightly deployment in Prefect Cloud must be deleted by hand",
@@ -124,21 +124,7 @@ Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
   ],
   "nextSteps": [
     {
-      "title": "Run backfill_ownership.sql in the Supabase SQL editor, then delete the file - it is untracked in the repo root. Nine events this account published become visible on /pro/org, which is the thing actually blocking daily use. Verified idempotent, so a second run is harmless. Events only on purpose: the venues would carry three nodes for one room into the org page permanently",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Evolution - six areas",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Read the two npm advisories on the gateway lockfile - fast-uri (high) and fastify (medium) - and decide whether a bump is a one-line lockfile change or a fastify major. gh api repos/ai-safe-earth/laiive/dependabot/alerts is the deduplicated view; the UI count is the same alerts across branches. The gateway is the only published surface, so this is the one security item ahead of feature work",
-      "est": 1,
-      "owner": "oscar",
-      "phase": "Evolution - six areas",
-      "plan": "roadmap"
-    },
-    {
-      "title": "Ship the three develop commits as v0.4.1: release PR develop -> main, merge as a merge commit, make release on main (which now works from PowerShell), push with --follow-tags AND then git push origin <tag> because cz writes a lightweight tag that --follow-tags ignores, make fly-deploy-gateway, then merge main back into develop LOCALLY. The gateway changed this time, so it is not a Cloudflare-only release",
+      "title": "Merge PR #103 into develop, then ship it: release PR develop -> main, make release on main, push with --follow-tags AND git push origin <tag> because cz writes a lightweight tag, then make fly-deploy-gateway, then merge main back into develop locally. The gateway source changed, so a Cloudflare-only release would leave the advisories live in production and the trustProxy fix undeployed",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
@@ -178,12 +164,19 @@ Nothing anywhere sets `verified` on a claim, so "in review" is permanent.
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",
       "plan": "roadmap"
+    },
+    {
+      "title": "Decide whether vitest goes 3 -> 4 on its own, away from a security release. It is the one open advisory left after #103, the fix is a major, and it is a devDependency that never ships - so it is a maintenance call, not a security one",
+      "est": 1,
+      "owner": "oscar",
+      "phase": "Evolution - six areas",
+      "plan": "roadmap"
     }
   ],
   "sessions": [
-    {"date": "2026-09-06", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
     {"date": "2026-09-08", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
-    {"date": "2026-09-09", "model": "opus-5", "person": "oscar", "credits": null, "hours": null}
+    {"date": "2026-09-09", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
+    {"date": "2026-09-11", "model": "opus-5", "person": "oscar", "credits": null, "hours": null}
   ]
 }
 ```
