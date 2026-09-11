@@ -27,7 +27,10 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
     // `true`: that would trust a client-supplied X-Forwarded-For chain of any
     // length, which is a rate-limit bypass. Requires the ingress to preserve the
     // client IP (externalTrafficPolicy: Local).
-    trustProxy: 1,
+    // Spelled as a predicate because fastify 5.12 dropped the numeric hop count
+    // from both the types and the runtime, silently: `trustProxy: 1` there reads
+    // the socket address and the bucket collapses. `hop < 1` is the same rule.
+    trustProxy: (_address, hop) => hop < 1,
   });
 
   await app.register(cors, {
