@@ -23,7 +23,6 @@ import {
   type OrgMembership,
   type OrgRole,
 } from "@/api/organizations";
-import { usePromoterProfile } from "@/api/profile";
 import { LOOKUP_CHUNK } from "@/api/savedEvents";
 import { useAuth } from "@/auth/AuthProvider";
 import { claimTarget } from "@/auth/claimTarget";
@@ -36,7 +35,7 @@ import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { OrgIdentity, RelationSelect } from "@/components/OrgIdentity";
 import { Button } from "@/components/ui/Button";
-import { Input, PRO_FIELD } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
@@ -95,7 +94,6 @@ export default function ProOrg() {
             </Group>
             <Group label={t.org.claimsTitle}>
               <ManagedEntities org={org} mayEdit={mayEdit} />
-              <LegacyNames />
             </Group>
             <Group label={t.org.eventsTitle}>
               <PublishedEvents org={org} />
@@ -544,15 +542,9 @@ function Roster({
   return (
     <div className="flex flex-col gap-2.5 rounded-[14px] border border-pro-border bg-pro-elevated px-3.5 py-3">
       <Label>{t.org.rosterTitle}</Label>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-pro-dim">{t.org.yourSeat}</span>
-        <Badge>{seatLabel(org.role, t)}</Badge>
-        <RelationSelect
-          value={org.relation ?? ""}
-          onChange={onDescribeSeat}
-          disabled={describing}
-        />
-      </div>
+      {/* One list, your own row included. The seat used to be stated twice —
+          a "your seat" line above the list, and your name inside it — which
+          made the compartment read as two subjects instead of one. */}
       <ul className="flex flex-col gap-2">
         {(seats ?? []).map((seat) => {
           const mine = seat.user_id === user?.id;
@@ -562,7 +554,7 @@ function Roster({
           // without that policy looks exactly like it used to.
           const name = seat.display_name || (mine ? user?.email : null);
           return (
-            <li key={seat.user_id} className="flex items-center gap-2">
+            <li key={seat.user_id} className="flex flex-wrap items-center gap-2">
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-sm",
@@ -572,8 +564,21 @@ function Roster({
               >
                 {name || seat.user_id}
               </span>
-              {seat.relation && (
-                <span className="text-sm text-pro-dim">{relationLabel[seat.relation]}</span>
+              {/* Your part in the organisation is editable in place; everyone
+                  else's is a label. It is description, never permission — the
+                  Badge beside it is the seat that actually decides anything. */}
+              {mine ? (
+                <span className="w-36 flex-none">
+                  <RelationSelect
+                    value={org.relation ?? ""}
+                    onChange={onDescribeSeat}
+                    disabled={describing}
+                  />
+                </span>
+              ) : (
+                seat.relation && (
+                  <span className="text-sm text-pro-dim">{relationLabel[seat.relation]}</span>
+                )
               )}
               <Badge>{seatLabel(seat.role, t)}</Badge>
             </li>
@@ -602,7 +607,7 @@ function Roster({
 function Invitations({ org }: { org: OrgMembership }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<OrgRole>("member");
+  const [showWhat, setShowWhat] = useState(false);
   const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const { data: pending } = usePendingInvitations(org.id);
   const invite = useInvite(org.id);
@@ -624,8 +629,11 @@ function Invitations({ org }: { org: OrgMembership }) {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    // No role sent: every invitation is a member seat. Promoting somebody is a
+    // separate act with separate consequences, and the picker made the common
+    // case carry a decision nobody was asking to make.
     invite.mutate(
-      { email: email.trim(), role },
+      { email: email.trim() },
       {
         onSuccess: (created) => {
           setIssued(created);
@@ -645,8 +653,31 @@ function Invitations({ org }: { org: OrgMembership }) {
 
   return (
     <div className="flex flex-col gap-2.5 border-t border-pro-border pt-3">
-      <Label>{t.org.inviteTitle}</Label>
-      <p className="text-sm leading-[1.45] text-pro-muted">{t.org.inviteNote}</p>
+      {/* The explanation is real but it is not news every time you look at
+          this panel — how the link travels is worth reading once. Behind a
+          disclosure, so the default state is a label and a box. */}
+      <div className="flex items-center gap-2">
+        <Label>{t.org.inviteTitle}</Label>
+        <button
+          type="button"
+          onClick={() => setShowWhat((open) => !open)}
+          aria-expanded={showWhat}
+          aria-label={t.org.inviteWhat}
+          className={cn(
+            "flex h-5 w-5 flex-none items-center justify-center rounded-full border",
+            "font-mono text-2xs leading-none transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent",
+            showWhat
+              ? "border-pro-accent text-pro-accent"
+              : "border-pro-border text-pro-dim hover:text-pro-fg",
+          )}
+        >
+          i
+        </button>
+      </div>
+      {showWhat && (
+        <p className="text-sm leading-[1.45] text-pro-muted">{t.org.inviteNote}</p>
+      )}
 
       <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
         <Input
@@ -657,21 +688,6 @@ function Invitations({ org }: { org: OrgMembership }) {
           aria-label={t.org.inviteEmail}
           tone="pro"
         />
-        <select
-          value={role}
-          onChange={(event) => setRole(event.target.value as OrgRole)}
-          aria-label={t.org.rosterTitle}
-          className={cn(
-            "h-11 rounded-full border px-4 text-base [color-scheme:dark]",
-            "focus-visible:outline-none focus-visible:ring-2",
-            PRO_FIELD,
-          )}
-        >
-          {/* No `owner`: the gateway refuses it, because handing an
-              organization over by link is a different act than staffing it. */}
-          <option value="member">{t.org.seatMember}</option>
-          <option value="admin">{t.org.seatAdmin}</option>
-        </select>
         <Button
           variant="cyan"
           type="submit"
@@ -730,37 +746,5 @@ function Invitations({ org }: { org: OrgMembership }) {
         </>
       )}
     </div>
-  );
-}
-
-/**
- * The free-text venue and artist names from the old promoter profile.
- *
- * Rendered once, as history rather than as claims, and deliberately not
- * auto-migrated: a name is not a uid, and matching "Apolo" to the right room
- * needs a human eye. Each one is a prompt to search and claim it properly.
- */
-function LegacyNames() {
-  const { user } = useAuth();
-  const { t } = useTranslation();
-  const { data: promoter } = usePromoterProfile(user?.id);
-  const names = [...(promoter?.managed_venues ?? []), ...(promoter?.managed_artists ?? [])];
-  if (!names.length) return null;
-
-  return (
-    <Panel className="flex flex-col gap-3 px-5 py-[18px]">
-      <Label>{t.org.legacyTitle}</Label>
-      <p className="text-sm leading-[1.5] text-pro-muted">{t.org.legacyNote}</p>
-      <ul className="flex flex-wrap gap-2">
-        {names.map((name) => (
-          <li
-            key={name}
-            className="rounded-full border border-pro-border bg-pro-elevated px-3 py-[7px] text-sm text-pro-muted"
-          >
-            {name}
-          </li>
-        ))}
-      </ul>
-    </Panel>
   );
 }

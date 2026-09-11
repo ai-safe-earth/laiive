@@ -6,6 +6,11 @@
 # invalid model ID) and env vars beat the env_file in pydantic and dotenv.
 -include .env
 
+# Every recipe, not just the rich-using ones: rich's cp1252 console writer dies
+# on accented output on this machine *after* the command has already succeeded,
+# and a per-recipe prefix only works when make's shell is a POSIX one.
+export PYTHONIOENCODING := utf-8
+
 # ----------------- docker compose ---------------------------------------------------------------
 build:
 	docker compose build
@@ -86,13 +91,16 @@ test-all:
 # --------------- release (see CONTRIBUTING.md) ----------------------------------------------------
 # Run on main, after the release PR from develop has merged: cz reads the
 # Conventional Commits since the last tag, picks the version, writes the
-# CHANGELOG section, commits and tags. PYTHONIOENCODING because rich's cp1252
-# console writer dies on this machine after the command has already succeeded.
+# CHANGELOG section, commits and tags. PYTHONIOENCODING is exported at the top
+# of this file rather than prefixed here: a `VAR=value cmd` prefix is shell
+# syntax, and make runs recipes through cmd.exe from PowerShell, which reads it
+# as a command name and fails with "'PYTHONIOENCODING' is not recognized".
+# Exporting works whatever shell make ends up with.
 release:
-	PYTHONIOENCODING=utf-8 uvx --from commitizen==3.13.0 cz bump --changelog --yes
+	uvx --from commitizen==3.13.0 cz bump --changelog --yes
 
 release-dry-run:
-	PYTHONIOENCODING=utf-8 uvx --from commitizen==3.13.0 cz bump --changelog --dry-run --yes
+	uvx --from commitizen==3.13.0 cz bump --changelog --dry-run --yes
 
 # --------------- deploy (Fly.io, see DEPLOY.md) ---------------------------------------------------
 # The build context must be services/ (the Dockerfiles COPY shared/ + the service);

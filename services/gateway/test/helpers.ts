@@ -29,6 +29,7 @@ export async function startSupabaseStub() {
   const members: Record<string, unknown>[] = [];
   const ownership: Record<string, unknown>[] = [];
   const invitations: Record<string, unknown>[] = [];
+  const memberQueries: string[] = [];
   const promoterProfiles: Record<string, unknown>[] = [];
   // Every create_organization call, and what it was asked as. The route has to
   // send the *user's* token, not the service key, or auth.uid() is null in the
@@ -99,6 +100,10 @@ export async function startSupabaseStub() {
     if (req.url?.startsWith("/rest/v1/organization_members")) {
       const f = filtersOf(req.url);
       if (req.method === "GET") {
+        // The raw query, so a test can assert the route asked for a defined
+        // order — `seats[0]` decides where a publish is filed, and unordered
+        // that is whatever the heap returns.
+        memberQueries.push(req.url);
         json(res, 200, members.filter((row) => matches(row, f)));
         return;
       }
@@ -231,6 +236,7 @@ export async function startSupabaseStub() {
     logInserts,
     feedbackInserts,
     members,
+    memberQueries,
     ownership,
     invitations,
     promoterProfiles,

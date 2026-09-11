@@ -75,11 +75,20 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
   const db = createSupabaseAdmin(config);
   const pro = { preHandler: requireRole("pro") };
 
-  /** Orgs this user belongs to, with their seat. One query, reused by all three. */
+  /**
+   * Orgs this user belongs to, with their seat. One query, reused by all three.
+   *
+   * Ordered, and that is not cosmetic. `orgForPublish` falls back to `seats[0]`
+   * when the caller names no organization, and PostgREST returns rows in
+   * whatever order the heap gives without an `order` — so for somebody in two
+   * organizations, every publish was filed against an arbitrary one, and the
+   * one `/pro/org` was showing had no reason to be it. Oldest first, so the
+   * fallback is "the organization you founded first" rather than a coin toss.
+   */
   async function seatsOf(userId: string): Promise<MemberRow[]> {
     return db.select<MemberRow>(
       "organization_members",
-      `select=org_id,role&user_id=eq.${encodeURIComponent(userId)}`,
+      `select=org_id,role&user_id=eq.${encodeURIComponent(userId)}&order=created_at.asc`,
     );
   }
 
@@ -516,7 +525,10 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     userId: string,
     accessToken: string | undefined,
     request: FastifyRequest,
+    /** The organization the publisher named, already checked against their seats. */
+    chosen?: string,
   ): Promise<string | null> {
+    if (chosen) return chosen;
     const seats = await seatsOf(userId);
     if (seats[0]) return seats[0].org_id;
     if (!accessToken) return null;
@@ -556,6 +568,26 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     const user = request.user;
     if (!user) return reply.code(401).send({ error: "authentication required" });
 
+    // Which organization this is being published for. Checked here, before the
+    // graph write, because it is the only point where refusing is still free —
+    // ownership is recorded afterwards, and by then the event exists.
+    //
+    // Membership, not administration: a `member` seat may publish for the org,
+    // it just may not speak for it on a claim. That is the line 20260819000011
+    // draws and this route keeps it.
+    const { org_id: namedOrg, ...forwarded } = (request.body ?? {}) as Record<string, unknown>;
+    let chosenOrg: string | undefined;
+    if (namedOrg !== undefined) {
+      if (typeof namedOrg !== "string" || namedOrg.length === 0) {
+        return reply.code(400).send({ error: "org_id must be an organization id" });
+      }
+      const seats = await seatsOf(user.id);
+      if (!seats.some((seat) => seat.org_id === namedOrg)) {
+        return reply.code(403).send({ error: "you do not belong to that organization" });
+      }
+      chosenOrg = namedOrg;
+    }
+
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "x-user-id": user.id,
@@ -569,7 +601,9 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       upstream = await fetch(`${config.pusherUrl}/validate-event`, {
         method: "POST",
         headers,
-        body: JSON.stringify(request.body ?? {}),
+        // Without org_id: it is the gateway's business, and the pusher's
+        // request model would reject a field it does not know about.
+        body: JSON.stringify(forwarded),
       });
     } catch (error) {
       request.log.error({ err: error }, "publish upstream unreachable");
@@ -590,7 +624,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     // here leaves the event published and says so, rather than 500ing over a
     // write the promoter already succeeded at.
     try {
-      const orgId = await orgForPublish(user.id, bearer(request), request);
+      const orgId = await orgForPublish(user.id, bearer(request), request, chosenOrg);
       if (!orgId) {
         warnings.push("Published, but not recorded against an organisation yet.");
       } else {
