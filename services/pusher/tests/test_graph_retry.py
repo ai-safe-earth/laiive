@@ -9,7 +9,7 @@ in-process; these pin the retry to transient errors only.
 from unittest.mock import MagicMock
 
 from laiive_shared import EventDraft
-from laiive_shared.neo4j_writer import WriteResult
+from laiive_shared.neo4j_writer import UpdateResult, WriteResult
 
 from agent import graph
 
@@ -64,3 +64,28 @@ def test_transient_signatures_match_what_the_driver_actually_says():
         "SessionExpired: Failed to obtain connection towards 'READ' server."
     )
     assert not graph.is_transient_graph_error("constraint violation")
+
+
+def test_update_wrapper_shares_the_transient_retry(monkeypatch):
+    flap = UpdateResult(
+        status="error", message="Unable to retrieve routing information"
+    )
+    ok = UpdateResult(status="updated", uid="e-1")
+    calls = []
+
+    def fake_shared(session, uid, fields, **kwargs):
+        calls.append(uid)
+        return flap if len(calls) == 1 else ok
+
+    poisoned = MagicMock(name="poisoned")
+    fresh = MagicMock(name="fresh")
+    monkeypatch.setattr(graph, "_shared_update_event", fake_shared)
+    monkeypatch.setattr(graph, "_driver", poisoned)
+    monkeypatch.setattr(graph, "_build_driver", lambda: fresh)
+
+    result = graph.update_event("e-1", {"price_min": 5})
+
+    assert result.status == "updated"
+    assert len(calls) == 2
+    poisoned.close.assert_called_once()
+    assert graph._driver is fresh

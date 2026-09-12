@@ -105,9 +105,19 @@ class FakeNeo4jSession:
         self.queries = []
         self.dedup_hit = dedup_hit
         self.venue_node = venue_node
+        # What an owner edit's load-current-node query reads back (cur_*
+        # columns); tests set it via mock_neo4j.fake_session.update_node.
+        self.update_node = None
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        # Update branches first: an update's venue load and SET both contain
+        # "MATCH (v:Venue {uid: $uid})", which the resolve branch would
+        # otherwise swallow.
+        if "AS cur_name" in query:
+            return FakeNeo4jResult(single=self.update_node)
+        if "AS updated_uid" in query:
+            return FakeNeo4jResult(single={"updated_uid": params["uid"]})
         if "MATCH (v:Venue {uid: $uid})" in query:
             return FakeNeo4jResult(single=self.venue_node)
         # Matched on the columns, not the whole RETURN line: the writer grew
