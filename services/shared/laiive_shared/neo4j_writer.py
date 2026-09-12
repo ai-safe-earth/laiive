@@ -198,17 +198,24 @@ def write_event(
     # The node is the truth when a uid was picked: the draft's spelling of the
     # venue or its city must not fork a second identity beside it.
     if venue_uid:
-        picked = session.run(
-            """
-            MATCH (v:Venue {uid: $uid})-[:LOCATED_IN]->(c:City)
-            RETURN v.name AS name, v.name_norm AS name_norm,
-                   v.address AS address,
-                   v.location.latitude AS lat, v.location.longitude AS lng,
-                   c.name AS city, c.country_code AS country_code
-            LIMIT 1
-            """,
-            uid=venue_uid,
-        ).single()
+        # Guarded like the write below: these reads run before the big try,
+        # and an Aura routing flap here used to escape as a raw exception and
+        # a bare 500, instead of the typed error this module promises.
+        try:
+            picked = session.run(
+                """
+                MATCH (v:Venue {uid: $uid})-[:LOCATED_IN]->(c:City)
+                RETURN v.name AS name, v.name_norm AS name_norm,
+                       v.address AS address,
+                       v.location.latitude AS lat, v.location.longitude AS lng,
+                       c.name AS city, c.country_code AS country_code
+                LIMIT 1
+                """,
+                uid=venue_uid,
+            ).single()
+        except Exception as e:
+            logger.error("Venue resolve failed: %s", e)
+            return WriteResult(status="error", message=str(e))
         if picked is None:
             return WriteResult(
                 status="invalid",
@@ -261,16 +268,20 @@ def write_event(
     # night contradicts the promise, and leaves the guess standing as the only
     # version. So an unowned listing is *adopted* by the promoter rather than
     # duplicated beside it or replaced under it.
-    existing = session.run(
-        """
-        MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
-        WHERE date(e.start_at) = date(datetime($start_at))
-        RETURN e.uid AS uid, e.name AS name, e.owner_id AS owner_id LIMIT 1
-        """,
-        name_norm=norm(name),
-        venue_norm=ident.name_norm,
-        start_at=start_at.isoformat(),
-    ).single()
+    try:
+        existing = session.run(
+            """
+            MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
+            WHERE date(e.start_at) = date(datetime($start_at))
+            RETURN e.uid AS uid, e.name AS name, e.owner_id AS owner_id LIMIT 1
+            """,
+            name_norm=norm(name),
+            venue_norm=ident.name_norm,
+            start_at=start_at.isoformat(),
+        ).single()
+    except Exception as e:
+        logger.error("Dedup probe failed: %s", e)
+        return WriteResult(status="error", message=str(e))
 
     # Adoption keeps the uid. Saved lists, entity_ownership rows, embeddings and
     # the search report that discovered it all point at it; deleting the node

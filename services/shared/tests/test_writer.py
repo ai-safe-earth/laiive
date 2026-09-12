@@ -174,6 +174,27 @@ def test_unparseable_date_is_invalid():
     assert result.missing == ["start_at"]
 
 
+def test_a_graph_failure_before_the_write_is_a_typed_error_not_a_raise():
+    # The dedup probe and the venue resolve run before the guarded write; an
+    # Aura routing flap there escaped as a raw exception and a bare 500 on
+    # 2026-09-12. Every neo4j failure must come back as status="error".
+    class FlappingSession(FakeSession):
+        def run(self, query, **params):
+            raise RuntimeError("Unable to retrieve routing information")
+
+    result = write_event(FlappingSession(), DRAFT.model_copy(), source="pro_submission")
+    assert result.status == "error"
+    assert "routing" in result.message
+
+    result = write_event(
+        FlappingSession(),
+        DRAFT.model_copy(),
+        source="pro_submission",
+        venue_uid="v-1",
+    )
+    assert result.status == "error"
+
+
 def test_duplicate_probe_short_circuits_on_somebody_elses_event():
     session = FakeSession(
         dedup_hit={"uid": "existing-uid", "name": "Ana Beck Quartet", "owner_id": "u-9"}

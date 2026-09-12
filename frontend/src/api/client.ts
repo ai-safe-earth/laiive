@@ -47,8 +47,20 @@ export async function apiFetch(
 
 async function errorMessage(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as { message?: string; error?: string };
-    return body.message ?? body.error ?? `request failed (${response.status})`;
+    const body = (await response.json()) as {
+      message?: string;
+      error?: string;
+      // FastAPI's HTTPException speaks `detail`; the pusher's duplicate and
+      // outage messages pass through the gateway in that shape, and without
+      // this they all rendered as "request failed (409)".
+      detail?: string;
+    };
+    return (
+      body.message ??
+      body.error ??
+      (typeof body.detail === "string" ? body.detail : undefined) ??
+      `request failed (${response.status})`
+    );
   } catch {
     return `request failed (${response.status})`;
   }
