@@ -245,3 +245,61 @@ describe("what the correction layer changed", () => {
     expect(screen.queryByText(en.form.checkThis)).not.toBeInTheDocument();
   });
 });
+
+describe("edit mode", () => {
+  const EDIT_DRAFT: EventDraft = {
+    name: "Jazz Night",
+    artists: ["Ana Beck Quartet"],
+    start_at: "2026-09-01T21:00",
+    venue: "Quasimodo",
+    address: "Kantstrasse 12a",
+    city: "Berlin",
+    price_min: 12,
+  };
+
+  function renderEdit(onSave = vi.fn()) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <LanguageProvider>
+          <EventForm
+            draft={EDIT_DRAFT}
+            missing={[]}
+            onSave={onSave}
+            saving={false}
+            mode="edit"
+          />
+        </LanguageProvider>
+      </QueryClientProvider>,
+    );
+    return { onSave };
+  }
+
+  it("locks the identity fields and the lineup", () => {
+    renderEdit();
+    expect(screen.getByLabelText(/^venue/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^address/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^city/i)).toBeDisabled();
+    expect(screen.getByDisplayValue("Ana Beck Quartet")).toBeDisabled();
+    expect(screen.queryByText(en.form.addArtist)).not.toBeInTheDocument();
+  });
+
+  it("says save, not publish", async () => {
+    const { onSave } = renderEdit();
+    expect(screen.getByText(en.form.editTitle)).toBeInTheDocument();
+    const save = screen.getByRole("button", { name: en.form.saveChanges });
+    await userEvent.click(save);
+    expect(onSave).toHaveBeenCalled();
+  });
+
+  it("still edits the open fields", async () => {
+    const { onSave } = renderEdit();
+    const price = screen.getByLabelText(new RegExp("^" + en.form.labels.price_min, "i"));
+    await userEvent.clear(price);
+    await userEvent.type(price, "15");
+    await userEvent.click(screen.getByRole("button", { name: en.form.saveChanges }));
+    expect(onSave.mock.calls[0]![0].price_min).toBe(15);
+  });
+});

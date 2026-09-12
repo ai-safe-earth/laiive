@@ -1,8 +1,9 @@
-import type { ArtistHit, VenueHit } from "@shared/protocol";
-import { useState } from "react";
+import type { ArtistHit, EventCard, EventDraft, VenueHit } from "@shared/protocol";
+import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
+import { editEvent } from "@/api/push";
 import {
   useCreateClaim,
   useEntitySearch,
@@ -31,6 +32,7 @@ import { claimTarget } from "@/auth/claimTarget";
 // admin-specific. Reused rather than copied.
 import { Badge, Label, Panel } from "@/admin/ui";
 import { EventCardView } from "@/components/EventCardView";
+import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
 import { OrgIdentity, RelationSelect } from "@/components/OrgIdentity";
@@ -281,9 +283,87 @@ function OrgDetails({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) 
 /** How many of the most recently published events open by default. */
 const RECENT_EVENTS = 5;
 
+/** The card, reshaped for EventForm. `address` comes back under its draft
+ * name; `genre` stays null because the card does not carry it — the diff
+ * below only sends what the promoter touched, so the stored genre survives.
+ * start_at keeps the venue's wall clock, which is what the writer re-zones. */
+function cardToDraft(card: EventCard): EventDraft {
+  return {
+    name: card.name,
+    artists: card.artists ?? [],
+    start_at: (card.start_at ?? "").slice(0, 16),
+    venue: card.venue ?? null,
+    venue_type: card.venue_type ?? null,
+    address: card.venue_address ?? null,
+    city: card.city ?? null,
+    price_min: card.price_min ?? null,
+    price_max: card.price_max ?? null,
+    price_currency: card.price_currency ?? null,
+    description: card.description ?? null,
+    genre: null,
+    ticket_url: card.ticket_url ?? null,
+  };
+}
+
+const EDITABLE_EVENT_FIELDS = [
+  "name",
+  "start_at",
+  "description",
+  "genre",
+  "price_min",
+  "price_max",
+  "price_currency",
+  "ticket_url",
+] as const;
+
+/** Only what changed: the writer is PATCH-semantics (an explicit null
+ * clears), and every field sent lands in the audit log. */
+function diffEditable(
+  before: EventDraft,
+  after: EventDraft,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of EDITABLE_EVENT_FIELDS) {
+    const prev = before[key] ?? null;
+    const next = after[key] ?? null;
+    if (prev !== next) out[key] = next;
+  }
+  return out;
+}
+
 function PublishedEvents({ org }: { org: OrgMembership }) {
   const { language, t } = useTranslation();
   const { user, role } = useAuth();
+  const [editing, setEditing] = useState<EventCard | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  // Memoized, or every parent render hands EventForm a fresh draft identity
+  // and its refresh effect wipes whatever the promoter has typed.
+  const editDraft = useMemo(
+    () => (editing ? cardToDraft(editing) : null),
+    [editing],
+  );
+
+  const saveEdit = async (draft: EventDraft) => {
+    if (!editing || !editDraft) return;
+    const fields = diffEditable(editDraft, draft);
+    if (!Object.keys(fields).length) {
+      setEditing(null);
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const result = await editEvent(editing.uid, fields);
+      for (const warning of result.warnings) toast.warning(warning);
+      setEditing(null);
+      // refetch, not invalidateQueries: this component renders in tests with
+      // the hooks module mocked and no QueryClient in the tree.
+      await refetchCards?.();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : String(error));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
   const { data: claims } = useOrgClaims(org.id);
   // useOrgClaims already orders created_at descending, so this is
   // most-recently-published first without a second query.
@@ -298,7 +378,7 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
   // it. The step is LOOKUP_CHUNK so one click is exactly one round trip — the
   // retriever refuses more uids than that in a single lookup.
   const shown = uids.slice(0, limit);
-  const { data: cards } = useOrgEvents(org.id, shown);
+  const { data: cards, refetch: refetchCards } = useOrgEvents(org.id, shown);
 
   // Newest night first. A promoter opens this to see what they last put up,
   // and the graph answers in the order the uids were asked for. A card with no
@@ -315,15 +395,46 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
         <ul className="flex flex-col gap-3">
           {sorted.map((card) => (
             <li key={card.uid}>
-              {/* No save control: this is the promoter's own listing, not a
-                  night they are deciding whether to attend. `claimTo` is inert
-                  for a pro_submission card - the invitation only renders for a
-                  listing that came from the web sweep. */}
-              <EventCardView
-                card={card}
-                language={language}
-                claimTo={claimTarget(Boolean(user), role)}
-              />
+              {editing?.uid === card.uid && editDraft ? (
+                <div className="flex flex-col gap-2">
+                  <EventForm
+                    draft={editDraft}
+                    missing={[]}
+                    onSave={saveEdit}
+                    saving={savingEdit}
+                    mode="edit"
+                  />
+                  <Button
+                    variant="proNeutral"
+                    className="self-start"
+                    onClick={() => setEditing(null)}
+                  >
+                    {t.org.editCancel}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {/* No save control: this is the promoter's own listing, not a
+                      night they are deciding whether to attend. `claimTo` is inert
+                      for a pro_submission card - the invitation only renders for a
+                      listing that came from the web sweep. */}
+                  <EventCardView
+                    card={card}
+                    language={language}
+                    claimTo={claimTarget(Boolean(user), role)}
+                  />
+                  {/* Edit lives on the event row — never beside "stop managing"
+                      in the entities panel, where it would read as destroying
+                      the thing (ProOrg.tsx:209-219's lesson). */}
+                  <Button
+                    variant="proNeutral"
+                    className="self-start"
+                    onClick={() => setEditing(card)}
+                  >
+                    {t.org.editEvent}
+                  </Button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

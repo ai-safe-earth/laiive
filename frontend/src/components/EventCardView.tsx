@@ -111,13 +111,17 @@ export function EventCardView({
   // are only approximately right.
   const approximate = card.geocode_precision === "city_centroid";
   const place = [card.venue, card.city].filter(Boolean).join(", ");
-  // Swept from a listing page rather than submitted by whoever is putting the
-  // night on. Seed rows are ours and pro_submission rows came from a promoter.
-  const fromSearch = card.source !== "seed" && card.source !== "pro_submission";
   // Only a promoter submission is a claim by someone who can actually make it
   // true. Seed rows are ours: real, but nobody at the door vouched for them,
-  // so they get neither mark rather than borrowing the promoter's.
-  const verified = card.source === "pro_submission";
+  // so they get neither mark rather than borrowing the promoter's. `claimed`
+  // is the Phase C field, flipped by the admin verify: once a claim on a
+  // swept listing is verified, the tick wins over the web mark whatever the
+  // source says.
+  const verified = card.source === "pro_submission" || card.claimed === true;
+  // Swept from a listing page rather than submitted by whoever is putting the
+  // night on. Seed rows are ours and pro_submission rows came from a promoter.
+  const fromSearch =
+    !verified && card.source !== "seed" && card.source !== "pro_submission";
   // What this card is actually missing, read off the card — never a guess about
   // why. An empty list is normal: a swept listing can be complete.
   const notStated = [
