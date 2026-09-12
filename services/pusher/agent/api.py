@@ -106,6 +106,14 @@ def _write_or_raise(
     if result.status == "duplicate":
         raise HTTPException(409, result.message)
     if result.status == "error":
+        # A waking Aura already survived one in-process retry by now; tell
+        # the promoter something they can act on rather than a bare 500.
+        if graph.is_transient_graph_error(result.message):
+            raise HTTPException(
+                503,
+                "The events database is briefly unavailable — "
+                "please try again in a moment.",
+            )
         raise HTTPException(500, result.message)
     return result
 

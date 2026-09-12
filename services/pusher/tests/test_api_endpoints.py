@@ -290,6 +290,27 @@ class TestValidateEventDraft:
     def test_no_draft_is_422(self, client):
         assert client.post("/validate-event", json={}).status_code == 422
 
+    def test_a_transient_graph_outage_is_a_503_with_a_human_message(
+        self, client, monkeypatch
+    ):
+        """A waking Aura must reach the promoter as "try again in a moment",
+        not as a bare 500 — which is what 2026-09-12's flap produced."""
+        from laiive_shared.neo4j_writer import WriteResult
+
+        from agent import graph
+
+        monkeypatch.setattr(
+            graph,
+            "write_event",
+            lambda *a, **k: WriteResult(
+                status="error",
+                message="Unable to retrieve routing information",
+            ),
+        )
+        response = client.post("/validate-event", json={"draft": self.DRAFT})
+        assert response.status_code == 503
+        assert "try again" in response.json()["detail"]
+
     def test_response_names_the_event(self, client, mock_neo4j):
         data = client.post("/validate-event", json={"draft": self.DRAFT}).json()
         assert data["event_name"] == "Jazz Night"
