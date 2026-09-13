@@ -290,6 +290,53 @@ class TestValidateEventDraft:
     def test_no_draft_is_422(self, client):
         assert client.post("/validate-event", json={}).status_code == 422
 
+    def test_edit_route_updates_and_returns_the_delta(self, client, mock_neo4j):
+        mock_neo4j.fake_session.update_node = {
+            "cur_name": "Jazz Night",
+            "cur_start_at": "2026-09-01T20:00:00+02:00",
+            "cur_timezone": "Europe/Berlin",
+            "cur_price_min": 22.0,
+            "cur_price_max": 28.0,
+            "cur_price_currency": "EUR",
+            "cur_description": "",
+            "cur_ticket_url": "",
+            "cur_status": "scheduled",
+            "cur_venue_norm": "quasimodo",
+            "cur_venue_lat": 52.52,
+            "cur_venue_lng": 13.405,
+            "cur_genres": [],
+        }
+        response = client.patch("/events/e-1", json={"fields": {"price_min": 10}})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "updated"
+        assert body["changed"] == {"price_min": {"old": 22.0, "new": 10.0}}
+
+    def test_edit_route_404s_a_missing_node(self, client, mock_neo4j):
+        response = client.patch("/venues/v-404", json={"fields": {"capacity": 100}})
+        assert response.status_code == 404
+
+    def test_edit_route_422s_an_uneditable_field(self, client, mock_neo4j):
+        response = client.patch("/artists/a-1", json={"fields": {"name": "New Name"}})
+        assert response.status_code == 422
+
+    def test_edit_route_maps_transient_outage_to_503(self, client, monkeypatch):
+        from laiive_shared.neo4j_writer import UpdateResult
+
+        from agent import graph
+
+        monkeypatch.setattr(
+            graph,
+            "update_event",
+            lambda *a, **k: UpdateResult(
+                status="error",
+                message="Unable to retrieve routing information",
+            ),
+        )
+        response = client.patch("/events/e-1", json={"fields": {"price_min": 5}})
+        assert response.status_code == 503
+        assert "try again" in response.json()["detail"]
+
     def test_a_transient_graph_outage_is_a_503_with_a_human_message(
         self, client, monkeypatch
     ):

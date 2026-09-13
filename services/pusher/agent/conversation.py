@@ -36,7 +36,7 @@ from .converters import extract_drafts_from_text, refine_draft
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-CONVERSATION_PROMPT_VERSION = "v6"
+CONVERSATION_PROMPT_VERSION = "v7"
 
 # Missing fields get one natural round and then the form, which is where an
 # empty box is easiest to fill. A doubt is not that: the form shows one date,
@@ -52,17 +52,20 @@ MAX_DOUBT_ROUNDS = 2
 MAX_EVENTS_PER_TURN = 25
 
 CLARIFY_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
+If the promoter asks to change or cancel an event that is already published, do not build a draft for it — point them to their organisation page (/pro/org), where every published event has an Edit button.
 {missing_note}{doubt_note}
 
 Write ONE short message asking naturally for what you still need — conversational, not a form or a bullet list. Do not repeat back what they already gave you.{doubt_hint}"""
 
 HANDOFF_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
+If the promoter asks to change or cancel an event that is already published, do not build a draft for it — point them to their organisation page (/pro/org), where every published event has an Edit button.
 
 A review form with the extracted event details is being shown to the promoter right now, next to your message.{missing_note}
 
 Write ONE short sentence telling them to check the details and publish when ready{missing_hint}."""
 
 WALK_PROMPT = """You help event promoters publish live music events. Warm, brief, professional.
+If the promoter asks to change or cancel an event that is already published, do not build a draft for it — point them to their organisation page (/pro/org), where every published event has an Edit button.
 
 You are walking the promoter through publishing their events one at a time — one review form per event, in order.{opening_note}{truncation_note}
 

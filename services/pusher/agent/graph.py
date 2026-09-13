@@ -9,7 +9,10 @@ Tests patch _openai / _driver / _geocoder here (see tests/conftest.py).
 from laiive_shared import EventDraft
 from laiive_shared.geocode import NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
-from laiive_shared.neo4j_writer import WriteResult
+from laiive_shared.neo4j_writer import UpdateResult, WriteResult
+from laiive_shared.neo4j_writer import update_artist as _shared_update_artist
+from laiive_shared.neo4j_writer import update_event as _shared_update_event
+from laiive_shared.neo4j_writer import update_venue as _shared_update_venue
 from laiive_shared.neo4j_writer import write_event as _shared_write_event
 from neo4j import GraphDatabase
 from openai import OpenAI
@@ -84,20 +87,25 @@ def _embed_texts(texts: list[str]) -> list[list[float]]:
     return [d.embedding for d in response.data]
 
 
+def _retry_transient(once):
+    """One retry on a fresh driver. Safe to re-send: writes MERGE by identity
+    (the dedup probe runs again) and updates are MATCH-by-uid SETs, so a
+    half-landed first attempt answers "duplicate"/"adopted"/no-op rather
+    than doubling."""
+    result = once()
+    if result.status == "error" and is_transient_graph_error(result.message):
+        _reset_driver()
+        result = once()
+    return result
+
+
 def write_event(
     draft: EventDraft,
     owner_id: str | None = None,
     source: str = "pro_submission",
     venue_uid: str | None = None,
 ) -> WriteResult:
-    result = _write_once(draft, owner_id, source, venue_uid)
-    if result.status == "error" and is_transient_graph_error(result.message):
-        # One retry on a fresh driver. Safe to re-send: the write MERGEs by
-        # identity and the dedup probe runs again, so a half-landed first
-        # attempt answers "duplicate"/"adopted" rather than doubling.
-        _reset_driver()
-        result = _write_once(draft, owner_id, source, venue_uid)
-    return result
+    return _retry_transient(lambda: _write_once(draft, owner_id, source, venue_uid))
 
 
 def _write_once(
@@ -117,3 +125,46 @@ def _write_once(
             geocoder=_geocoder,
             venue_uid=venue_uid,
         )
+
+
+def update_event(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_event(
+                session,
+                uid,
+                fields,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)
+
+
+def update_venue(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_venue(
+                session,
+                uid,
+                fields,
+                geocoder=_geocoder,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)
+
+
+def update_artist(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_artist(
+                session,
+                uid,
+                fields,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)

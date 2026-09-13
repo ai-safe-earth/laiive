@@ -373,3 +373,19 @@ class TestConverters:
 
     def test_document_to_text_txt(self, mock_openai):
         assert document_to_text(b"plain text here", "notes.txt") == "plain text here"
+
+
+def test_every_prompt_points_edits_at_the_route_not_a_form():
+    """The chat must answer "how do I change my event" with the edit UI, not
+    by extracting a fresh draft that dedup then refuses or duplicates."""
+    from agent.conversation import (
+        CLARIFY_PROMPT,
+        CONVERSATION_PROMPT_VERSION,
+        HANDOFF_PROMPT,
+        WALK_PROMPT,
+    )
+
+    for prompt in (CLARIFY_PROMPT, HANDOFF_PROMPT, WALK_PROMPT):
+        assert "/pro/org" in prompt
+        assert "Edit button" in prompt
+    assert CONVERSATION_PROMPT_VERSION == "v7"
