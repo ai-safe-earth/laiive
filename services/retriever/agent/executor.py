@@ -297,7 +297,8 @@ def build_venue_search(q: str, city: str | None) -> tuple[str, dict]:
         "WHERE v.name_norm CONTAINS $q_norm\n"
         + ("AND c.name_norm = $city_norm\n" if city else "")
         + "RETURN v.uid AS uid, v.name AS name, v.venue_type AS venue_type,\n"
-        "       v.address AS address, c.name AS city\n"
+        "       v.address AS address, c.name AS city,\n"
+        "       v.capacity AS capacity, v.description AS description\n"
         "ORDER BY v.name_norm STARTS WITH $q_norm DESC, v.name\n"
         f"LIMIT {ENTITY_LOOKUP_LIMIT}"
     )
@@ -313,8 +314,10 @@ def build_artist_search(q: str) -> tuple[str, dict]:
         "MATCH (a:Artist)\n"
         "WHERE a.name_norm CONTAINS $q_norm\n"
         "OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)\n"
-        "RETURN a.uid AS uid, a.name AS name,\n"
-        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres\n"
+        "OPTIONAL MATCH (a)-[:BASED_IN]->(bc:City)\n"
+        "RETURN a.uid AS uid, a.name AS name, a.description AS description,\n"
+        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres,\n"
+        "       head([x IN collect(DISTINCT bc.name) WHERE x IS NOT NULL]) AS city\n"
         "ORDER BY a.name_norm STARTS WITH $q_norm DESC, a.name\n"
         f"LIMIT {ENTITY_LOOKUP_LIMIT}"
     )
@@ -335,7 +338,8 @@ def build_venues_by_uid(uids: list[str]) -> tuple[str, dict]:
         "MATCH (v:Venue)-[:LOCATED_IN]->(c:City)\n"
         "WHERE v.uid IN $uids\n"
         "RETURN v.uid AS uid, v.name AS name, v.venue_type AS venue_type,\n"
-        "       v.address AS address, c.name AS city"
+        "       v.address AS address, c.name AS city,\n"
+        "       v.capacity AS capacity, v.description AS description"
     )
     return cypher, {"uids": uids}
 
@@ -346,8 +350,10 @@ def build_artists_by_uid(uids: list[str]) -> tuple[str, dict]:
         "MATCH (a:Artist)\n"
         "WHERE a.uid IN $uids\n"
         "OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)\n"
-        "RETURN a.uid AS uid, a.name AS name,\n"
-        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres"
+        "OPTIONAL MATCH (a)-[:BASED_IN]->(bc:City)\n"
+        "RETURN a.uid AS uid, a.name AS name, a.description AS description,\n"
+        "       [x IN collect(DISTINCT g.name) WHERE x IS NOT NULL] AS genres,\n"
+        "       head([x IN collect(DISTINCT bc.name) WHERE x IS NOT NULL]) AS city"
     )
     return cypher, {"uids": uids}
 
