@@ -35,6 +35,9 @@ export async function startSupabaseStub() {
   // send the *user's* token, not the service key, or auth.uid() is null in the
   // function and it refuses - so the test needs to see which was used.
   const rpcCalls: { fn: string; args: unknown; authorization: string }[] = [];
+  // What the user_may_edit RPC answers; tests flip it to exercise the 403.
+  const userMayEdit = { value: true };
+  const editInserts: unknown[] = [];
 
   /** `col=eq.value` pairs out of a PostgREST query string. */
   const filtersOf = (url: string): Record<string, string> => {
@@ -78,6 +81,13 @@ export async function startSupabaseStub() {
       });
       return;
     }
+    if (req.url === "/rest/v1/entity_edits" && req.method === "POST") {
+      void readBody(req).then((raw) => {
+        editInserts.push(JSON.parse(raw));
+        json(res, 201, []);
+      });
+      return;
+    }
     if (req.url?.startsWith("/rest/v1/promoter_profiles") && req.method === "GET") {
       const f = filtersOf(req.url);
       json(res, 200, promoterProfiles.filter((row) => matches(row, f)));
@@ -91,6 +101,10 @@ export async function startSupabaseStub() {
           args: JSON.parse(raw),
           authorization: String(req.headers.authorization ?? ""),
         });
+        if (fn === "user_may_edit") {
+          json(res, 200, userMayEdit.value);
+          return;
+        }
         const orgId = `org-${rpcCalls.length}`;
         members.push({ org_id: orgId, user_id: "bootstrapped", role: "owner" });
         json(res, 200, orgId);
@@ -235,6 +249,8 @@ export async function startSupabaseStub() {
     url,
     logInserts,
     feedbackInserts,
+    userMayEdit,
+    editInserts,
     members,
     memberQueries,
     ownership,
@@ -277,6 +293,11 @@ export async function startUpstreamStub() {
   // What POST /validate-event answers with. Left null, the request falls
   // through to the echo, so the existing proxy tests are unaffected.
   const publishState: { current: { status: number; body: unknown } | null } = {
+    current: null,
+  };
+  // What PATCH /events|venues|artists/{uid} answers. Left null, the request
+  // falls through to the echo.
+  const editState: { current: { status: number; body: unknown } | null } = {
     current: null,
   };
   // The retriever's by-uid entity lookups, which the claim route consults
@@ -328,6 +349,16 @@ export async function startUpstreamStub() {
         return;
       }
 
+      if (
+        req.method === "PATCH" &&
+        /^\/(events|venues|artists)\/[^/]+$/.test(req.url ?? "") &&
+        editState.current !== null
+      ) {
+        res.writeHead(editState.current.status, { "content-type": "application/json" });
+        res.end(JSON.stringify(editState.current.body));
+        return;
+      }
+
       if (req.url === "/chat/stream" && req.method === "POST") {
         res.writeHead(200, {
           "content-type": "text/event-stream",
@@ -358,6 +389,7 @@ export async function startUpstreamStub() {
     seen,
     entities,
     publish: publishState,
+    edit: editState,
     close: () => close(server),
   };
 }
