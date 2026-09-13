@@ -10,6 +10,7 @@ module owns no API clients — that keeps test patching in one place per service
 """
 
 import logging
+import math
 import re
 import uuid
 from collections.abc import Callable
@@ -601,6 +602,666 @@ def write_event(
         artist_uids_created=artist_uids_created,
         warnings=warnings,
         message="Event updated." if adopting else "Event created.",
+    )
+
+
+# ── Owner edits (Phase E) ─────────────────────────────────────────────────────
+#
+# MATCH-by-uid + SET, PATCH semantics: only the fields present in `fields`
+# change, and an explicit None clears where the schema allows it — the form
+# sends a diff, so "absent" and "cleared" stay distinguishable. What adoption
+# deliberately leaves alone stays untouchable here too (uid, created_at), and
+# an edit additionally never touches source/owner_id — adoption sets those
+# because ownership is being transferred; an edit transfers nothing.
+# Authorization is the gateway's user_may_edit question, but VALIDATION lives
+# here: `fields` is the gateway's JSON body unfiltered, and the graph must
+# never hold an int in a string property — the composite-text recipes
+# .strip() them, so one poisoned description would kill the nightly embedding
+# sweep. Venue/artist renames are excluded: name_norm IS the MERGE identity,
+# and a rename is a node-merge design of its own, not a SET.
+
+_EVENT_TEXT_FIELDS = {"name", "start_at", "description", "genre"}
+_EVENT_EDITABLE = _EVENT_TEXT_FIELDS | {
+    "price_min",
+    "price_max",
+    "price_currency",
+    "ticket_url",
+    "status",
+}
+_VENUE_TEXT_FIELDS = {"venue_type", "address", "description"}
+_VENUE_EDITABLE = _VENUE_TEXT_FIELDS | {"capacity"}
+_ARTIST_EDITABLE = {"description", "genres"}
+
+
+class UpdateResult(BaseModel):
+    status: Literal["updated", "duplicate", "invalid", "not_found", "error"]
+    uid: str | None = None
+    # field -> {"old": ..., "new": ...}. Only fields that actually changed
+    # appear; this is the delta the gateway files into entity_edits, so it has
+    # to be the writer's own reading of the node, not the caller's claim.
+    changed: dict[str, dict] = {}
+    warnings: list[str] = []
+    message: str = ""
+
+
+def _refresh_embedding(
+    session, label: str, uid: str, embed_texts: EmbedFn | None, embedding_model: str
+) -> list[str]:
+    """NULL the embedding quartet, then re-embed in place when a client is on
+    hand. The scoped backfill (and the nightly sweep) select only nodes with NO
+    embedding, so an updated node must lose its vector first or it stays stale
+    forever. Best-effort: the edit itself has already landed, so a failure here
+    is a warning, not a lost write."""
+    warnings: list[str] = []
+    try:
+        session.run(
+            f"MATCH (n:{label} {{uid: $uid}}) "
+            "SET n.embedding = NULL, n.embedding_text = NULL, "
+            "n.embedding_model = NULL, n.embedding_updated_at = NULL",
+            uid=uid,
+        )
+        if embed_texts is not None:
+            backfill_embeddings(session, embed_texts, embedding_model, uids=[uid])
+    except Exception as e:
+        logger.error("Re-embedding failed: %s", e)
+        warnings.append(f"Embedding not refreshed: {e}")
+    return warnings
+
+
+def _parse_str(value, clear_to: str | None = "") -> str | None:
+    """A string field's new value. None and blank collapse to `clear_to` —
+    "" where the label's convention is empty-string (events), None where it
+    is an absent property (venue address, which write_event completes with
+    coalesce and therefore must stay NULL when cleared, never "")."""
+    if value is None:
+        return clear_to
+    if not isinstance(value, str):
+        raise TypeError(f"expected a string, got {type(value).__name__}")
+    stripped = value.strip()
+    return clear_to if not stripped else stripped
+
+
+def _parse_price(value) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise TypeError("a price is a number")
+    price = float(value)
+    if not math.isfinite(price):
+        raise ValueError("a price must be finite")
+    return price
+
+
+def _parse_capacity(value) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise TypeError("a capacity is a number")
+    capacity = int(value)
+    if capacity < 0:
+        raise ValueError("a capacity cannot be negative")
+    return capacity
+
+
+def _same_text(new: str | None, old: str | None) -> bool:
+    """write_event leaves unset string properties NULL while the edit parsers
+    floor clears to "" — without this, saving an untouched empty form field
+    files a phantom delta and wipes the embedding for nothing."""
+    return (new or "") == (old or "")
+
+
+def update_event(
+    session,
+    uid: str,
+    fields: dict,
+    *,
+    embed_texts: EmbedFn | None = None,
+    embedding_model: str = "",
+) -> UpdateResult:
+    """Edit an event in place, PATCH-style.
+
+    Editable: name, start_at, description, genre, prices, ticket_url, and
+    status — the last whitelisted to scheduled/cancelled and only ever an
+    explicit field, so a cancel is an intent and never a draft round-trip's
+    side effect. Venue and artists are not editable here (relinking deferred).
+    A name or date change re-runs the dedup probe excluding this uid: an edit
+    must not silently land on another night's key.
+    """
+    unknown = set(fields) - _EVENT_EDITABLE
+    if unknown:
+        return UpdateResult(
+            status="invalid",
+            uid=uid,
+            message=f"These fields cannot be edited: {', '.join(sorted(unknown))}",
+        )
+
+    try:
+        current = session.run(
+            """
+            MATCH (e:Event {uid: $uid})
+            OPTIONAL MATCH (e)-[:HOSTED_AT]->(v:Venue)
+            OPTIONAL MATCH (e)-[:HAS_GENRE]->(g:Genre)
+            RETURN e.name AS cur_name, toString(e.start_at) AS cur_start_at,
+                   e.timezone AS cur_timezone,
+                   e.price_min AS cur_price_min, e.price_max AS cur_price_max,
+                   e.price_currency AS cur_price_currency,
+                   e.description AS cur_description,
+                   e.ticket_url AS cur_ticket_url, e.status AS cur_status,
+                   v.name_norm AS cur_venue_norm,
+                   v.location.latitude AS cur_venue_lat,
+                   v.location.longitude AS cur_venue_lng,
+                   collect(DISTINCT g.slug) AS cur_genres
+            """,
+            uid=uid,
+        ).single()
+    except Exception as e:
+        logger.error("Event load failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+    if current is None:
+        return UpdateResult(status="not_found", uid=uid, message="No such event.")
+
+    changed: dict[str, dict] = {}
+    sets: list[str] = []
+    params: dict = {"uid": uid}
+    warnings: list[str] = []
+
+    if "name" in fields:
+        try:
+            name = _parse_str(fields["name"], clear_to=None)
+        except TypeError:
+            return UpdateResult(
+                status="invalid", uid=uid, message="Invalid value for name."
+            )
+        if name is None:
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message="An event needs a name — it cannot be cleared.",
+            )
+        if name != current["cur_name"]:
+            changed["name"] = {"old": current["cur_name"], "new": name}
+            sets.append("e.name = $name, e.name_norm = $name_norm")
+            params["name"] = name
+            params["name_norm"] = norm(name)
+
+    if "start_at" in fields:
+        raw = fields["start_at"]
+        if not isinstance(raw, str):
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message="start_at must be a date-time string — it cannot be cleared.",
+            )
+        parsed = parse_start_at(raw)
+        if parsed is None:
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message=f"Could not parse start_at: {raw!r}",
+            )
+        timezone = resolve_timezone(current["cur_venue_lat"], current["cur_venue_lng"])
+        if timezone is not None:
+            if parsed.tzinfo is None:
+                # An owner typing "22:00" means 22:00 at the door — the
+                # venue's wall clock, the same rule write_event applies.
+                parsed = parsed.replace(tzinfo=ZoneInfo(timezone))
+            else:
+                parsed = parsed.astimezone(ZoneInfo(timezone))
+        else:
+            warnings.append(
+                "Could not resolve the venue's timezone; the start time is stored as UTC."
+            )
+        if parsed.isoformat() != current["cur_start_at"]:
+            changed["start_at"] = {
+                "old": current["cur_start_at"],
+                "new": parsed.isoformat(),
+            }
+            sets.append(
+                "e.start_at = datetime($start_at), "
+                "e.start_time_known = $start_time_known, e.timezone = $timezone"
+            )
+            params["start_at"] = parsed.isoformat()
+            params["start_time_known"] = has_explicit_time(raw)
+            params["timezone"] = timezone or ""
+
+    scalars: dict[str, tuple[str, Callable]] = {
+        "price_min": ("cur_price_min", _parse_price),
+        "price_max": ("cur_price_max", _parse_price),
+        "price_currency": ("cur_price_currency", lambda v: _parse_str(v) or "EUR"),
+        "description": ("cur_description", _parse_str),
+        "ticket_url": ("cur_ticket_url", _parse_str),
+    }
+    for field, (cur_key, parse) in scalars.items():
+        if field in fields:
+            try:
+                new = parse(fields[field])
+            except (TypeError, ValueError):
+                return UpdateResult(
+                    status="invalid", uid=uid, message=f"Invalid value for {field}."
+                )
+            same = (
+                _same_text(new, current[cur_key])
+                if isinstance(new, str) or new is None
+                else new == current[cur_key]
+            )
+            if not same:
+                changed[field] = {"old": current[cur_key], "new": new}
+                sets.append(f"e.{field} = ${field}")
+                params[field] = new
+
+    if "status" in fields:
+        status = fields["status"]
+        if status not in ("scheduled", "cancelled"):
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message="status must be 'scheduled' or 'cancelled'.",
+            )
+        if status != current["cur_status"]:
+            changed["status"] = {"old": current["cur_status"], "new": status}
+            sets.append("e.status = $status")
+            params["status"] = status
+
+    new_genre = ""
+    if "genre" in fields:
+        raw_genre = fields["genre"]
+        if raw_genre is not None and not isinstance(raw_genre, str):
+            return UpdateResult(
+                status="invalid", uid=uid, message="Invalid value for genre."
+            )
+        cleared = raw_genre is None or not raw_genre.strip()
+        new_genre = "" if cleared else genre_slug(raw_genre)
+        if not cleared and not new_genre:
+            # genre_slug maps filler words ("live", "music") to "" — that is a
+            # rejection, and a rejection must not masquerade as a clear that
+            # deletes the genre the event already has.
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message=f"{raw_genre!r} is not a genre — send null to clear it.",
+            )
+        old_genres = sorted(g for g in (current["cur_genres"] or []) if g)
+        if ([new_genre] if new_genre else []) != old_genres:
+            changed["genre"] = {"old": ", ".join(old_genres), "new": new_genre}
+
+    # ── Dedup re-probe: a moved key must not land on another night ──────────
+    if ("name" in changed or "start_at" in changed) and current["cur_venue_norm"]:
+        try:
+            clash = session.run(
+                """
+                MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
+                WHERE date(e.start_at) = date(datetime($start_at)) AND e.uid <> $uid
+                RETURN e.uid AS uid, e.name AS name, e.owner_id AS owner_id LIMIT 1
+                """,
+                name_norm=params.get("name_norm") or norm(current["cur_name"]),
+                venue_norm=current["cur_venue_norm"],
+                start_at=params.get("start_at") or current["cur_start_at"],
+                uid=uid,
+            ).single()
+        except Exception as e:
+            logger.error("Edit dedup probe failed: %s", e)
+            return UpdateResult(status="error", uid=uid, message=str(e))
+        if clash:
+            return UpdateResult(
+                status="duplicate",
+                uid=uid,
+                message="An event with the same name, date, and venue already exists.",
+            )
+
+    if not changed:
+        return UpdateResult(
+            status="updated", uid=uid, warnings=warnings, message="Nothing changed."
+        )
+
+    # One query, one transaction: the SET and the genre re-link commit or fail
+    # together, so a mid-sequence Aura flap can never land half an edit with
+    # its audit delta reported as an error and its embedding left stale.
+    genre_clause = (
+        """
+        WITH e
+        OPTIONAL MATCH (e)-[r:HAS_GENRE]->(:Genre)
+        DELETE r
+        WITH DISTINCT e
+        FOREACH (_ IN CASE WHEN $genre <> '' THEN [1] ELSE [] END |
+            MERGE (g:Genre {slug: $genre})
+            ON CREATE SET g.name = $genre_name
+            MERGE (e)-[:HAS_GENRE]->(g)
+        )
+        """
+        if "genre" in changed
+        else ""
+    )
+    if "genre" in changed:
+        params["genre"] = new_genre
+        params["genre_name"] = (fields.get("genre") or "").strip().title()
+    try:
+        record = session.run(
+            f"MATCH (e:Event {{uid: $uid}}) "
+            f"SET {', '.join([*sets, 'e.updated_at = datetime()'])}"
+            f"{genre_clause}"
+            " RETURN e.uid AS updated_uid",
+            **params,
+        ).single()
+        if record is None:
+            return UpdateResult(status="not_found", uid=uid, message="No such event.")
+    except Exception as e:
+        logger.error("Event update failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+
+    if _EVENT_TEXT_FIELDS & set(changed):
+        warnings += _refresh_embedding(
+            session, "Event", uid, embed_texts, embedding_model
+        )
+    return UpdateResult(
+        status="updated",
+        uid=uid,
+        changed=changed,
+        warnings=warnings,
+        message="Event updated.",
+    )
+
+
+def update_venue(
+    session,
+    uid: str,
+    fields: dict,
+    *,
+    geocoder: NominatimGeocoder | None = None,
+    address_resolver: AddressResolver | None = None,
+    embed_texts: EmbedFn | None = None,
+    embedding_model: str = "",
+) -> UpdateResult:
+    """Edit a venue in place, PATCH-style.
+
+    Editable: address, venue_type, description, capacity. This is the owner's
+    door the write path defers to: write_event only ever *completes* an empty
+    address, while changing a stated one happens here. An address change
+    re-geocodes under geocode_venue's own plausibility guard; when no new pin
+    can be resolved (a miss, no geocoder, or the address was cleared) the old
+    pin stays but the geocode stamp is removed, which is what puts the venue
+    back in the nightly repair sweep's queue. A cleared address is stored as
+    NULL, never "" — write_event's coalesce completion depends on it.
+    No rename: name_norm is the MERGE identity.
+    """
+    unknown = set(fields) - _VENUE_EDITABLE
+    if unknown:
+        return UpdateResult(
+            status="invalid",
+            uid=uid,
+            message=f"These fields cannot be edited: {', '.join(sorted(unknown))}",
+        )
+
+    try:
+        current = session.run(
+            """
+            MATCH (v:Venue {uid: $uid})
+            OPTIONAL MATCH (v)-[:LOCATED_IN]->(c:City)
+            WITH v, c LIMIT 1
+            RETURN v.name AS cur_name, v.venue_type AS cur_venue_type,
+                   v.address AS cur_address, v.description AS cur_description,
+                   v.capacity AS cur_capacity, c.name AS cur_city,
+                   v.location.latitude AS cur_lat,
+                   v.location.longitude AS cur_lng,
+                   v.geocode_precision AS cur_precision
+            """,
+            uid=uid,
+        ).single()
+    except Exception as e:
+        logger.error("Venue load failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+    if current is None:
+        return UpdateResult(status="not_found", uid=uid, message="No such venue.")
+
+    changed: dict[str, dict] = {}
+    sets: list[str] = []
+    params: dict = {"uid": uid}
+    warnings: list[str] = []
+
+    scalars: dict[str, tuple[str, Callable]] = {
+        "venue_type": ("cur_venue_type", _parse_str),
+        "description": ("cur_description", _parse_str),
+        "capacity": ("cur_capacity", _parse_capacity),
+        "address": ("cur_address", lambda v: _parse_str(v, clear_to=None)),
+    }
+    for field, (cur_key, parse) in scalars.items():
+        if field in fields:
+            try:
+                new = parse(fields[field])
+            except (TypeError, ValueError):
+                return UpdateResult(
+                    status="invalid", uid=uid, message=f"Invalid value for {field}."
+                )
+            same = (
+                _same_text(new, current[cur_key])
+                if isinstance(new, str) or new is None
+                else new == current[cur_key]
+            )
+            if not same:
+                changed[field] = {"old": current[cur_key], "new": new}
+                sets.append(f"v.{field} = ${field}")
+                params[field] = new
+
+    if "address" in changed:
+        repinned = False
+        new_address = params["address"]
+        if new_address and geocoder is not None:
+            city = current["cur_city"] or ""
+            city_geo = geocoder.geocode(city) if city else None
+            venue_geo = geocoder.geocode_venue(
+                current["cur_name"],
+                new_address,
+                city,
+                near=city_geo,
+                address_resolver=address_resolver,
+            )
+            if venue_geo is not None:
+                repinned = True
+                old_pin = (
+                    {"lat": current["cur_lat"], "lng": current["cur_lng"]}
+                    if current["cur_lat"] is not None
+                    else None
+                )
+                changed["location"] = {
+                    "old": old_pin,
+                    "new": {"lat": venue_geo.lat, "lng": venue_geo.lng},
+                }
+                changed["geocode_precision"] = {
+                    "old": current["cur_precision"],
+                    "new": "venue",
+                }
+                sets.append(
+                    "v.location = point({latitude: $venue_lat, longitude: $venue_lng}), "
+                    "v.geocode_precision = $geocode_precision"
+                )
+                params["venue_lat"] = venue_geo.lat
+                params["venue_lng"] = venue_geo.lng
+                params["geocode_precision"] = "venue"
+        if not repinned:
+            # The stamp is what keeps the repair sweep away; an address the
+            # pin no longer matches must go back in its queue.
+            sets.append("v.geocode_precision = NULL, v.geocode_checked_at = NULL")
+            if current["cur_precision"] is not None:
+                changed["geocode_precision"] = {
+                    "old": current["cur_precision"],
+                    "new": None,
+                }
+            warnings.append(
+                "The new address could not be geocoded; the old pin stays "
+                "until the repair sweep re-checks this venue."
+                if new_address
+                else "The address was cleared; the pin stays until the repair "
+                "sweep re-checks this venue."
+            )
+
+    if not changed:
+        return UpdateResult(
+            status="updated", uid=uid, warnings=warnings, message="Nothing changed."
+        )
+
+    try:
+        record = session.run(
+            f"MATCH (v:Venue {{uid: $uid}}) "
+            f"SET {', '.join([*sets, 'v.updated_at = datetime()'])} "
+            "RETURN v.uid AS updated_uid",
+            **params,
+        ).single()
+        if record is None:
+            return UpdateResult(status="not_found", uid=uid, message="No such venue.")
+    except Exception as e:
+        logger.error("Venue update failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+
+    if _VENUE_TEXT_FIELDS & set(changed):
+        warnings += _refresh_embedding(
+            session, "Venue", uid, embed_texts, embedding_model
+        )
+    return UpdateResult(
+        status="updated",
+        uid=uid,
+        changed=changed,
+        warnings=warnings,
+        message="Venue updated.",
+    )
+
+
+def update_artist(
+    session,
+    uid: str,
+    fields: dict,
+    *,
+    embed_texts: EmbedFn | None = None,
+    embedding_model: str = "",
+) -> UpdateResult:
+    """Edit an artist in place, PATCH-style.
+
+    Editable: description, and genres — which REPLACE the artist's HAS_GENRE
+    edges. That is deliberately stronger than tag_artist_genres (which only
+    ever adds): this is the owner speaking about their own act, and their word
+    replaces the machine's. No rename: name_norm is the MERGE identity.
+    """
+    unknown = set(fields) - _ARTIST_EDITABLE
+    if unknown:
+        return UpdateResult(
+            status="invalid",
+            uid=uid,
+            message=f"These fields cannot be edited: {', '.join(sorted(unknown))}",
+        )
+
+    try:
+        current = session.run(
+            """
+            MATCH (a:Artist {uid: $uid})
+            OPTIONAL MATCH (a)-[:HAS_GENRE]->(g:Genre)
+            RETURN a.name AS cur_name, a.description AS cur_description,
+                   collect(DISTINCT g.slug) AS cur_genres
+            """,
+            uid=uid,
+        ).single()
+    except Exception as e:
+        logger.error("Artist load failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+    if current is None:
+        return UpdateResult(status="not_found", uid=uid, message="No such artist.")
+
+    changed: dict[str, dict] = {}
+    warnings: list[str] = []
+    new_desc = None
+    if "description" in fields:
+        try:
+            new_desc = _parse_str(fields["description"])
+        except TypeError:
+            return UpdateResult(
+                status="invalid", uid=uid, message="Invalid value for description."
+            )
+        if not _same_text(new_desc, current["cur_description"]):
+            changed["description"] = {
+                "old": current["cur_description"],
+                "new": new_desc,
+            }
+
+    genre_rows: list[dict] = []
+    if "genres" in fields:
+        raw_list = fields["genres"] if fields["genres"] is not None else []
+        if not isinstance(raw_list, list) or any(
+            not isinstance(g, str) for g in raw_list
+        ):
+            # A bare string here would iterate character by character and
+            # MERGE one-letter Genre nodes — the type check is load-bearing.
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message="genres must be a list of genre names.",
+            )
+        seen: set[str] = set()
+        dropped: list[str] = []
+        for raw in raw_list:
+            if not raw.strip():
+                continue
+            slug = genre_slug(raw)
+            if not slug:
+                dropped.append(raw)
+            elif slug not in seen:
+                seen.add(slug)
+                genre_rows.append({"slug": slug, "name": raw.strip().title()})
+        if dropped and not seen:
+            # All words rejected: refuse rather than silently clearing — send
+            # an empty list to clear.
+            return UpdateResult(
+                status="invalid",
+                uid=uid,
+                message=f"None of these are genres: {', '.join(dropped)}",
+            )
+        if dropped:
+            warnings.append(f"Not recognised as genres: {', '.join(dropped)}")
+        old_genres = sorted(g for g in (current["cur_genres"] or []) if g)
+        if sorted(seen) != old_genres:
+            changed["genres"] = {"old": old_genres, "new": sorted(seen)}
+
+    if not changed:
+        return UpdateResult(
+            status="updated", uid=uid, warnings=warnings, message="Nothing changed."
+        )
+
+    # One query, one transaction — same reasoning as update_event.
+    desc_set = "a.description = $description, " if "description" in changed else ""
+    genre_clause = (
+        """
+        WITH a
+        OPTIONAL MATCH (a)-[r:HAS_GENRE]->(:Genre)
+        DELETE r
+        WITH DISTINCT a
+        FOREACH (tag IN $genres |
+            MERGE (g:Genre {slug: tag.slug})
+            ON CREATE SET g.name = tag.name
+            MERGE (a)-[:HAS_GENRE]->(g)
+        )
+        """
+        if "genres" in changed
+        else ""
+    )
+    try:
+        record = session.run(
+            f"MATCH (a:Artist {{uid: $uid}}) "
+            f"SET {desc_set}a.updated_at = datetime()"
+            f"{genre_clause}"
+            " RETURN a.uid AS updated_uid",
+            uid=uid,
+            description=new_desc,
+            genres=genre_rows,
+        ).single()
+        if record is None:
+            return UpdateResult(status="not_found", uid=uid, message="No such artist.")
+    except Exception as e:
+        logger.error("Artist update failed: %s", e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+
+    warnings += _refresh_embedding(session, "Artist", uid, embed_texts, embedding_model)
+    return UpdateResult(
+        status="updated",
+        uid=uid,
+        changed=changed,
+        warnings=warnings,
+        message="Artist updated.",
     )
 
 
