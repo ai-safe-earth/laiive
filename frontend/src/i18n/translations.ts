@@ -121,6 +121,7 @@ export interface Translations {
     eventsNone: string;
     editEvent: string;
     editCancel: string;
+    capacity: (n: number) => string;
     pending: string;
     verified: string;
     withdraw: string;
@@ -378,6 +379,7 @@ export const translations: Record<Language, Translations> = {
       eventsNone: 'nothing published yet.',
       editEvent: 'edit',
       editCancel: 'cancel',
+      capacity: (n: number) => `capacity ${n}`,
       pending: 'in review',
       verified: 'verified',
       withdraw: 'stop managing',
@@ -649,6 +651,7 @@ export const translations: Record<Language, Translations> = {
       eventsNone: 'aún no has publicado nada.',
       editEvent: 'editar',
       editCancel: 'cancelar',
+      capacity: (n: number) => `aforo ${n}`,
       pending: 'en revisión',
       verified: 'verificado',
       withdraw: 'dejar de gestionar',
@@ -922,6 +925,7 @@ export const translations: Record<Language, Translations> = {
       eventsNone: 'non hai ancora pubblicato niente.',
       editEvent: 'modifica',
       editCancel: 'annulla',
+      capacity: (n: number) => `capienza ${n}`,
       pending: 'in revisione',
       verified: 'verificato',
       withdraw: 'non gestire più',
@@ -1195,6 +1199,7 @@ export const translations: Record<Language, Translations> = {
       eventsNone: 'encara no has publicat res.',
       editEvent: 'edita',
       editCancel: 'cancel·la',
+      capacity: (n: number) => `aforament ${n}`,
       pending: 'en revisió',
       verified: 'verificat',
       withdraw: 'deixa de gestionar',
