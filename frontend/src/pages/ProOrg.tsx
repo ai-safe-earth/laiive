@@ -601,7 +601,20 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
             >
               <span className="min-w-0 flex-1 truncate text-md text-pro-fg">{hit.name}</span>
               <span className="truncate text-sm text-pro-dim">
-                {"city" in hit ? ((hit as VenueHit).city ?? "") : (hit as ArtistHit).genres.join(", ")}
+                {/* Discriminate on `genres`, not `city`: since Phase E both
+                    hit shapes can carry a city. */}
+                {"genres" in hit
+                  ? [(hit as ArtistHit).genres.join(", "), (hit as ArtistHit).city]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : [
+                      (hit as VenueHit).city,
+                      (hit as VenueHit).capacity != null
+                        ? t.org.capacity((hit as VenueHit).capacity!)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
               </span>
               <Button
                 variant="cyan"
