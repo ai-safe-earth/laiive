@@ -5,7 +5,10 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { EventCardView } from "./EventCardView";
 import { claimTarget } from "@/auth/claimTarget";
+import { translations } from "@/i18n/translations";
 import { LanguageProvider } from "@/i18n/useTranslation";
+
+const en = translations.en;
 
 /** The Bergamo gig that started this: 22:00 at the door, 20:00 UTC. */
 const BERGAMO: EventCard = {
@@ -203,5 +206,15 @@ describe("saving a card", () => {
     const pill = screen.getByRole("button", { name: /^saved$/i, pressed: true });
     await user.click(pill);
     expect(onToggleSave).toHaveBeenCalledWith("e1", false);
+  });
+});
+
+describe("the verified mark", () => {
+  it("shows the tick for a swept listing once its claim is verified", () => {
+    // The Phase C line: verified = pro_submission OR card.claimed — a swept
+    // card flips to the tick the moment the admin verifies the claim,
+    // whatever its source says.
+    renderCard({ ...BERGAMO, source: "admin_search", claimed: true });
+    expect(screen.getByLabelText(en.cards.verifiedAria)).toBeInTheDocument();
   });
 });

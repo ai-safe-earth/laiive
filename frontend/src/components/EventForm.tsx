@@ -115,6 +115,7 @@ export function EventForm({
   doubted = [],
   onSave,
   saving,
+  mode = "publish",
 }: {
   draft: EventDraft;
   missing: string[];
@@ -130,7 +131,15 @@ export function EventForm({
   /** The second argument is the picked graph venue's uid, when there is one. */
   onSave: (draft: EventDraft, venueUid: string | null) => void;
   saving: boolean;
+  /**
+   * "edit" reuses the form for an owner's edit of a published event: the
+   * identity fields (venue, address, city) and the lineup are locked — venue
+   * relinking is deferred, and those belong to update_venue anyway — and the
+   * labels stop saying "publish".
+   */
+  mode?: "publish" | "edit";
 }) {
+  const editing = mode === "edit";
   const { t } = useTranslation();
   const [values, setValues] = useState<EventDraft>(draft);
   // Held separately from `values.artists` so a half-typed row survives: the
@@ -283,6 +292,7 @@ export function EventForm({
                 value={displayValue(values, key)}
                 onChange={(event) => update(key, event.target.value)}
                 placeholder={wasMissing ? t.form.missingPlaceholder : ""}
+                disabled={editing && (key === "address" || key === "city")}
                 className={cn(
                   FIELD,
                   isMissing && "border-destructive/60 focus-visible:ring-destructive",
@@ -321,7 +331,7 @@ export function EventForm({
       <div className="flex items-center gap-[11px] pb-2">
         <span className="h-5 w-[5px] flex-none rounded-full bg-pro-accent" />
         <h3 className="font-bebas text-3xl leading-none tracking-[0.05em] text-card-foreground">
-          {t.form.title}
+          {editing ? t.form.editTitle : t.form.title}
         </h3>
         {stillMissing.length > 0 && (
           <span className="ml-auto rounded-full border border-secondary/40 bg-secondary/10 px-2.5 py-[7px] font-mono text-2xs uppercase leading-none tracking-[0.06em] text-secondary">
@@ -372,6 +382,7 @@ export function EventForm({
             <div key={index} className="flex items-center gap-2">
               <Input
                 value={name}
+                disabled={editing}
                 onChange={(event) => setArtist(index, event.target.value)}
                 placeholder={t.form.artistPlaceholder}
                 className={cn(
@@ -380,7 +391,7 @@ export function EventForm({
                     "border-destructive/60 focus-visible:ring-destructive",
                 )}
               />
-              {artists.length > 1 && (
+              {artists.length > 1 && !editing && (
                 <button
                   type="button"
                   onClick={() => setArtists((current) => current.filter((_, i) => i !== index))}
@@ -393,13 +404,15 @@ export function EventForm({
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={() => setArtists((current) => [...current, ""])}
-          className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
-        >
-          {t.form.addArtist}
-        </button>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setArtists((current) => [...current, ""])}
+            className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
+          >
+            {t.form.addArtist}
+          </button>
+        )}
       </div>
 
       <div className="grid gap-x-5 gap-y-3.5 pt-3.5 sm:grid-cols-2">
@@ -426,6 +439,7 @@ export function EventForm({
                 : undefined
             }
             value={values.venue ?? ""}
+            disabled={editing}
             onChange={(event) => {
               update("venue", event.target.value);
               unpick();
@@ -514,7 +528,13 @@ export function EventForm({
           variant="cream"
           disabled={saving || stillMissing.length > 0}
         >
-          {saving ? t.form.publishing : t.form.publish}
+          {saving
+            ? editing
+              ? t.form.savingChanges
+              : t.form.publishing
+            : editing
+              ? t.form.saveChanges
+              : t.form.publish}
         </Button>
         {stillMissing.length > 0 && (
           <span className="text-sm leading-[1.4] text-muted-foreground">
