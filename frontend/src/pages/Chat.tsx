@@ -218,12 +218,12 @@ export default function Chat() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto flex max-w-3xl flex-col gap-3.5 py-4">
+          <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4">
             {messages.map((message, index) =>
               message.role === "user" ? (
                 <p
                   key={index}
-                  className="max-w-[74%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-base leading-[1.4] text-white"
+                  className="max-w-[85%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-4 py-2.5 text-lg leading-[1.45] text-white"
                 >
                   {message.content}
                 </p>
@@ -233,7 +233,7 @@ export default function Chat() {
                   {message.content && (
                     <Markdown
                       text={message.content}
-                      className="whitespace-pre-wrap text-lg leading-[1.5] text-foreground"
+                      className="whitespace-pre-wrap text-xl leading-[1.55] text-foreground"
                     />
                   )}
                   {message.events && message.events.length > 0 && (
