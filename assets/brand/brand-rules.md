@@ -73,10 +73,10 @@ on a 5.5" screen (lifted 2026-08-28).
 
 | token | px | role |
 |---|---|---|
-| `2xs` | 11 | mono badges, status pills |
-| `xs` | 12.5 | mono labels (+0.11em caps), status lines |
-| `sm` | 14 | secondary copy, chips, card pills, price badge (700) |
-| `md` | 15 | buttons, UI copy, toasts, card meta (lifted 2026-09-15) |
+| `2xs` | 11 | promoter and admin badges and status pills only |
+| `xs` | 12.5 | mono section labels and the role line (+0.11em caps) |
+| `sm` | 14 | secondary copy, card pills, price badge (700), status lines, account chip |
+| `md` | 15 | buttons, chips, UI copy, toasts, card meta (lifted 2026-09-15) |
 | `base` | 16 | every input — below 16px iOS zooms the page on focus |
 | `lg` | 17 | your own messages in the chat, 1.45 leading (lifted 2026-09-15) |
 | `xl` | 18 | answers, 1.55 leading (lifted 2026-09-15) |
