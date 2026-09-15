@@ -16,7 +16,7 @@
     --popover: 0 14% 12%;
     --popover-foreground: 37 45% 92%;
 
-    --primary: 325 100% 57%;        /* #FF2AA0  brand + "free". Nothing else. */
+    --primary: 325 100% 57%;        /* #FF2AA0  brand, "free", the account chip */
     --primary-foreground: 0 9% 4%;  /* dark ink on fuchsia — never white below 18px */
     --secondary: 42 100% 50%;       /* #FFB100  price, mic, tickets, card rail */
     --secondary-foreground: 0 9% 4%;
