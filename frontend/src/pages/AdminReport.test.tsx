@@ -138,6 +138,16 @@ describe("dismissing a report", () => {
     expect(api.fetch.mock.calls.find(([path]) => String(path).includes("/dismiss"))).toBeUndefined();
   });
 
+  it("can dismiss a report that found nothing", async () => {
+    // A zero-candidate sweep was a dead end: the action bar hung off the
+    // candidate table, so the only reports you could clear were the ones
+    // worth reading. Most of the 37-report backlog is this shape.
+    api.fetch.mockResolvedValue({ json: async () => ({ ...REPORT, candidates: [] }) });
+    renderReport();
+    expect(await screen.findByRole("button", { name: /dismiss report/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /approve selected/i })).toBeNull();
+  });
+
   it("dismisses with an empty note when the prompt is confirmed empty", async () => {
     // "" is a decision; null is a retreat. The two must not be conflated.
     const user = userEvent.setup();
