@@ -1,17 +1,31 @@
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { MicButton } from "@/components/MicButton";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { FIELD, PRO_FIELD } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 
 /**
- * The one composer, both surfaces: mic on the left, field in the middle, send
- * on the right. The mic is neutral outlined; only the send carries the accent,
- * filled with dark ink — fuchsia on the consumer side, cyan on pro — and while
- * a reply streams the send slot becomes stop. brand-rules.md carries the spec.
+ * The one composer, both surfaces: attach (pro only) on the left, the field in
+ * the middle, then mic and send on the right — the order every chat app has
+ * settled on, so the two controls that act on what you just typed sit next to
+ * it. Only the send carries the accent, filled with dark ink — fuchsia on the
+ * consumer side, cyan on pro — and it keeps that accent while it waits, dimmed
+ * rather than greyed, so the send is never the colourless control in the row.
+ * While a reply streams the send slot becomes stop. brand-rules.md carries the
+ * spec.
+ *
+ * The field grows with the message, one line to six, and then scrolls.
  */
+
+/**
+ * Six lines of 24px, 9px padding either side, 1px border either side. The 9 is
+ * what keeps one line at exactly 44px — the height of the mic and the send it
+ * sits between, and the touch floor they are all held to.
+ */
+const MAX_FIELD_HEIGHT = 164;
+
 export function Composer({
   value,
   onChange,
@@ -41,29 +55,75 @@ export function Composer({
 }) {
   const { t } = useTranslation();
   const pro = accent === "pro";
+  // Lifted out of the mic so the field can show the recording too: a pulsing
+  // 44px pill on its own was not enough to tell somebody the mic is live.
+  const [recording, setRecording] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  // Grow with the content. Height must go back to auto first, or scrollHeight
+  // only ever reports the height we last set and the field never shrinks again.
+  // `recording` is a dependency because the meter's padding rewraps the text:
+  // without it, starting a recording over a typed draft pushes the extra lines
+  // out of a box that never grew.
+  useLayoutEffect(() => {
+    const element = field.current;
+    if (!element) return;
+    element.style.height = "auto";
+    // scrollHeight is the padding box; the field is border-box with a 1px edge
+    // top and bottom, so setting the height to it leaves the content 2px short
+    // and the pill carries a scrollbar at every size, one line included.
+    const edges = element.offsetHeight - element.clientHeight;
+    element.style.height = `${Math.min(element.scrollHeight + edges, MAX_FIELD_HEIGHT)}px`;
+  }, [value, recording]);
+
+  const send = () => {
+    if (isStreaming || disabled || value.trim() === "") return;
+    onSend();
+  };
 
   return (
-    <div className={cn("mx-auto flex max-w-3xl items-center", pro ? "gap-3" : "gap-2.5")}>
+    // items-end, not items-center: when the field grows past one line the
+    // controls stay on the bottom row with it, as they do everywhere else.
+    <div className={cn("mx-auto flex max-w-3xl items-end", pro ? "gap-3" : "gap-2.5")}>
       {attachSlot}
+      <div className="relative min-w-0 flex-1">
+        <textarea
+          ref={field}
+          rows={1}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            // An IME's Enter confirms the candidate word; on a Japanese or
+            // Chinese keyboard that keystroke would otherwise send half a
+            // sentence and clear the rest.
+            if (event.nativeEvent.isComposing) return;
+            // Enter sends, shift+Enter breaks the line — and the composer is
+            // the one place a stray Enter must not queue a second turn.
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            send();
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          className={cn(
+            FIELD,
+            // The literal 164 twice on purpose: tailwind scans this file as
+            // text, so a class built from MAX_FIELD_HEIGHT is never generated.
+            "block max-h-[164px] resize-none overflow-y-auto rounded-[22px] px-4 py-[9px] leading-6",
+            // Room for the meter — nine 8px cells, 16px off the right edge,
+            // and 8px of air — so a typed draft never runs underneath it.
+            recording && "pr-[96px]",
+            pro && PRO_FIELD,
+          )}
+        />
+        {recording && <Waveform />}
+      </div>
       <MicButton
         variant={pro ? "proNeutralOutline" : "neutralOutline"}
         transcribe={transcribe}
         onTranscript={onTranscript}
+        onRecordingChange={setRecording}
         disabled={disabled || isStreaming}
-      />
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) =>
-          event.key === "Enter" &&
-          !isStreaming &&
-          !disabled &&
-          value.trim() !== "" &&
-          onSend()
-        }
-        placeholder={placeholder}
-        aria-label={placeholder}
-        tone={pro ? "pro" : undefined}
       />
       {isStreaming ? (
         // t.chat.stop on both surfaces: there is no pro.stop key, and the word
@@ -80,13 +140,71 @@ export function Composer({
         <Button
           variant={pro ? "cyan" : "primary"}
           size="icon"
-          onClick={onSend}
+          onClick={send}
           disabled={disabled || !value.trim()}
           aria-label={pro ? t.pro.send : t.chat.send}
+          // Waiting, not absent: the disabled send keeps its accent at half
+          // strength instead of taking the grey card fill every other disabled
+          // button wears. Dark ink stays full strength — it is the only thing
+          // holding the glyph up against a 45% fill.
+          className={cn(
+            "disabled:border-transparent",
+            pro
+              ? "disabled:bg-pro-accent/45 disabled:text-background"
+              : "disabled:bg-primary/45 disabled:text-primary-foreground",
+          )}
         >
           <Icon name="send" className="h-[18px] w-[18px]" />
         </Button>
       )}
     </div>
+  );
+}
+
+/** The bar glyphs, quietest to loudest. */
+const BARS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇"];
+const BAR_COUNT = 9;
+
+/**
+ * Proof the mic is live, inside the field where the words will land. A
+ * travelling sine rather than sampled amplitude: the recorder hands back one
+ * Blob at the end, so there is no level to read, and a meter that pretends to
+ * follow a voice it cannot hear is a lie told sixty times a second.
+ *
+ * aria-hidden — the mic button already announces "stop and transcribe", which
+ * is the same fact said once, in words.
+ */
+function Waveform() {
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setFrame((n) => n + 1), 110);
+    return () => clearInterval(timer);
+  }, []);
+
+  const bars = Array.from({ length: BAR_COUNT }, (_, index) => {
+    const level = (Math.sin((frame + index) * 0.7) + 1) / 2;
+    return BARS[Math.round(level * (BARS.length - 1))];
+  });
+
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="recording-waveform"
+      className={cn(
+        "pointer-events-none absolute bottom-0 right-4 flex h-11 items-center",
+        "font-mono text-base leading-none text-secondary",
+      )}
+    >
+      {bars.map((bar, index) => (
+        // A fixed cell per bar. The block glyphs are not monospaced — ▇ is half
+        // again as wide as ▁, measured — so a plain string would jitter between
+        // 94 and 142px as the levels move. Nine 8px cells is 72px, and with the
+        // right-4 offset that sits inside the pr-[96px] the field reserves.
+        <span key={index} className="inline-block w-2 text-center">
+          {bar}
+        </span>
+      ))}
+    </span>
   );
 }

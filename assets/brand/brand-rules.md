@@ -21,12 +21,24 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 - The entire chrome inventory: bare mark + `LAIIVE` top-left; saved then
   account icon top-right (icons only, no labels); the composer, placeholder
   `ask`.
-- **The composer, both surfaces**: warm-neutral outlined mic on the left, pill
-  field in the middle, filled accent send on the right — fuchsia on the
-  consumer side, cyan on pro, dark ink on every filled accent. The accent
-  belongs to the send alone; the mic never wears it. While a reply streams the
-  send slot is stop. Voice is the mic itself; there is no `+`. Attach exists on
-  pro only, warm-neutral, left of the mic.
+- **The composer, both surfaces** (order amended 2026-09-15): attach, field,
+  mic, send — the two controls that act on what you just typed sit next to it,
+  as they do in every other chat app. The field is a pill at one line and grows
+  with the message to six, then scrolls; enter sends, shift+enter breaks the
+  line. The send is filled with the surface's accent — fuchsia on the consumer
+  side, cyan on pro, dark ink on both — and **keeps it at 45% while it waits**
+  rather than taking the grey disabled fill: the send is never the colourless
+  control in the row. The accent belongs to the send alone; the mic never wears
+  it. While a reply streams the send slot is stop. Voice is the mic itself;
+  there is no `+`. Attach exists on pro only, warm-neutral, first in the row.
+- **A live mic is amber** (`#FFB100`, dark ink, pulsing) and puts a bar meter
+  (`▁▂▃▄▅▆▇`, amber, mono) inside the field it is dictating into. The meter is
+  decoration — `aria-hidden` — because the button already says "stop and
+  transcribe". Amber is the only accent the mic may wear, and only while live.
+- **The account chip** is two characters on the surface's accent with dark ink:
+  first and last word of the display name, or the first two letters when there
+  is only one word. No initials at all (no name, no email) keeps the outline
+  account icon instead.
 - Filters, city, date and price are **said**, not selected. An understood
   constraint is echoed in the answer, never rendered as a chip.
 - Language and preferences live in **settings, inside the account menu** — never
@@ -40,8 +52,8 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 
 | Colour | Means | Never |
 |---|---|---|
-| `#FF2AA0` fuchsia | brand, “free”, and the consumer composer’s filled send | a background for body text; the mic |
-| `#FFB100` amber | price, tickets, the card rail | answer text, if it is also on pills |
+| `#FF2AA0` fuchsia | brand, “free”, the consumer composer’s filled send, and the account chip | a background for body text; the mic |
+| `#FFB100` amber | price, tickets, the card rail, a live mic | answer text, if it is also on pills |
 | `#00CFEA` cyan | promoter side only: PRO badge, focus, “in review”, the composer’s filled send | anywhere in the consumer app; the mic |
 | `#E72828` red | errors, delete; the web-sourced card mark and the claim invitation under it (the one exception) | a highlight |
 | `#F4EDE2` cream | every answer laiive gives | card titles (those are `#FFFFFF`) |
@@ -65,9 +77,9 @@ on a 5.5" screen (lifted 2026-08-28).
 | `xs` | 12.5 | mono labels (+0.11em caps), card pills, price badge (700) |
 | `sm` | 14 | card meta, secondary copy, chips |
 | `md` | 15 | buttons, UI copy, toasts |
-| `base` | 16 | user messages, every input — below 16px iOS zooms the page on focus |
-| `lg` | 17 | answers, 1.5 leading |
-| `xl` | 18 | Bebas event titles (+0.03em) |
+| `base` | 16 | every input — below 16px iOS zooms the page on focus |
+| `lg` | 17 | your own messages in the chat, 1.45 leading (lifted 2026-09-15) |
+| `xl` | 18 | answers, 1.55 leading (lifted 2026-09-15); Bebas event titles (+0.03em) |
 | `2xl` | 21 | section heads |
 | `3xl` | 24 | page titles, wordmark (the wordmark alone may go up to 54px) |
 | `4xl` | 28 | pro watermark |

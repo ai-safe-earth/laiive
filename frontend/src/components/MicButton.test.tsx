@@ -17,7 +17,11 @@ beforeEach(() => {
   recorder.state.isRecording = false;
 });
 
-function renderMic(variant: "neutralOutline" | "proNeutralOutline", disabled = false) {
+function renderMic(
+  variant: "neutralOutline" | "proNeutralOutline",
+  disabled = false,
+  onRecordingChange = vi.fn(),
+) {
   render(
     <LanguageProvider>
       <MicButton
@@ -25,6 +29,7 @@ function renderMic(variant: "neutralOutline" | "proNeutralOutline", disabled = f
         disabled={disabled}
         transcribe={vi.fn()}
         onTranscript={vi.fn()}
+        onRecordingChange={onRecordingChange}
       />
     </LanguageProvider>,
   );
@@ -52,6 +57,31 @@ describe("the mic's outline variants", () => {
 
   it("rests when the caller says so", () => {
     expect(renderMic("neutralOutline", true)).toBeDisabled();
+  });
+
+  // Both surfaces: the amber has to beat the pro variant's own fill, and only
+  // tailwind-merge decides that.
+  it.each(["neutralOutline", "proNeutralOutline"] as const)(
+    "fills amber and breathes while the mic is live (%s)",
+    (variant) => {
+      recorder.state.isRecording = true;
+      const mic = renderMic(variant);
+      expect(mic.className).toContain("bg-secondary");
+      expect(mic.className).toContain("text-secondary-foreground");
+      expect(mic.className).toContain("animate-pulse");
+      // The variant's own hover is a separate key to tailwind-merge, so it
+      // survives unless the recording state restates it — and cream on amber
+      // is the 3.45:1 pair the brand rules ban.
+      expect(mic.className).toContain("hover:text-secondary-foreground");
+      expect(mic.className).not.toMatch(/hover:text-(foreground|pro-fg)\b/);
+    },
+  );
+
+  it("tells the composer when the recording starts, so the field can show it", () => {
+    const onRecordingChange = vi.fn();
+    recorder.state.isRecording = true;
+    renderMic("neutralOutline", false, onRecordingChange);
+    expect(onRecordingChange).toHaveBeenCalledWith(true);
   });
 
   it("keeps a recording in progress stoppable even while resting", () => {

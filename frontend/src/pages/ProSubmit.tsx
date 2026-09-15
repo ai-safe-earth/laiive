@@ -347,7 +347,7 @@ export default function ProSubmit() {
             message.role === "user" ? (
               <p
                 key={index}
-                className="max-w-[84%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-base leading-[1.5] text-white"
+                className="max-w-[85%] self-end whitespace-pre-wrap rounded-[22px] bg-muted px-5 py-3 text-lg leading-[1.5] text-white"
               >
                 {message.content}
               </p>
@@ -355,7 +355,7 @@ export default function ProSubmit() {
               <Markdown
                 key={index}
                 text={message.content}
-                className="max-w-[84%] whitespace-pre-wrap text-lg leading-[1.5] text-pro-fg"
+                className="max-w-[85%] whitespace-pre-wrap text-xl leading-[1.55] text-pro-fg"
               />
             ),
           )}

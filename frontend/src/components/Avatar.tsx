@@ -8,16 +8,21 @@ import { cn } from "@/lib/cn";
  * reads as "OA" because the separators become spaces before splitting, which
  * is the shape most addresses take.
  *
- * One word gives one letter. "CH" for "Cher" is a guess about a name we were
- * given in full, and a wrong guess about somebody's name is worse than a
- * smaller chip.
+ * Always two characters. One word gives its first two — "Cher" reads as "CH",
+ * `arroscar@…` as "AR" — because a single letter in a coloured circle reads as
+ * an unfinished chip rather than a monogram.
  */
 export function initials(
   displayName: string | null | undefined,
   email: string | null | undefined,
 ): string {
-  const source =
-    displayName?.trim() || email?.split("@")[0]?.replace(/[._+-]+/g, " ").trim() || "";
+  // Separators become spaces in both sources, not just the email: the second
+  // character of a single word is taken raw, and "O'Brien" as "O'" or "T-Pain"
+  // as "T-" is punctuation in a monogram. Apostrophes included, both shapes —
+  // stage names and Irish surnames are the expected input in an events app.
+  const source = (displayName?.trim() || email?.split("@")[0] || "")
+    .replace(/[._+\-'’]+/g, " ")
+    .trim();
   const words = source.split(/\s+/).filter(Boolean);
   const head = words[0];
   const tail = words[words.length - 1];
@@ -28,7 +33,9 @@ export function initials(
   // ponytail: code points, not graphemes — a ZWJ sequence still splits.
   // Intl.Segmenter if that ever turns up in a real name.
   const first = [...head][0] ?? "";
-  const last = words.length > 1 ? ([...tail][0] ?? "") : "";
+  // Two words give one letter each; a single word gives its own second
+  // character, which is a fact about the name rather than a guess at a surname.
+  const last = words.length > 1 ? ([...tail][0] ?? "") : ([...head][1] ?? "");
   // Locale-aware rather than the ascii table: on a browser set to Turkish or
   // Azeri a dotted "i" becomes "İ". The host locale decides, not the app's.
   return (first + last).toLocaleUpperCase();
@@ -55,10 +62,11 @@ export function Avatar({
     <span
       aria-hidden="true"
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-xs leading-none",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium leading-none",
         // No tracking: two characters plus a letter-space sit off-centre in a
-        // circle. --primary is brand-and-free only, --pro-accent is the badge.
-        pro ? "border border-pro-border bg-pro-control text-pro-fg" : "bg-muted text-foreground",
+        // circle. The chip carries its surface's accent — and dark ink on it,
+        // never cream: white on fuchsia is 3.45:1 and this text is 12.5px.
+        pro ? "bg-pro-accent text-background" : "bg-primary text-primary-foreground",
         className,
       )}
     >
