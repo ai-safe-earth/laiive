@@ -114,25 +114,34 @@ Pages project → connect the GitHub repo:
 
 ## 4c. Restoring the release gate
 
-Flipping the Pages production branch is not safe on its own: the next
-production build would serve whatever `main` points at, and while `main` is
-behind that is a visible rollback — the composer pass and the edit button
-disappear from `laiive.com`. Ship first, then flip.
+Two orderings are load-bearing here and they are easy to get backwards.
 
-1. Release `develop` into `main` the normal way (`CONTRIBUTING.md`): release
-   PR, `make release`, `git push --follow-tags` **and** `git push origin
-   <tag>`.
-2. Deploy every service whose source moved, **search included** — it imports
-   `laiive_shared.neo4j_writer` directly, so a shared-writer change reaches it
-   even when nothing under `services/search` did:
+**Services before the merge.** `CONTRIBUTING.md` "Releasing" step 1: `flyctl`
+builds the working tree, so a deploy needs no tag and no merge, while the SPA
+ships by itself. Deploy the services last and the new SPA calls routes the old
+backends do not have, for as long as the deploy takes. Today that gap is not
+hypothetical — the SPA has been shipping on every merge to `develop`.
+
+**Flip last.** The next production build after the flip serves whatever `main`
+points at. While `main` is behind, that is a visible rollback: the composer
+pass and the edit button vanish from `laiive.com`.
+
+1. Deploy every service whose source moved, from `develop`, **search
+   included** — it imports `laiive_shared.neo4j_writer` directly, so a
+   shared-writer change reaches it even when nothing under `services/search`
+   did:
 
    ```
    make fly-deploy-gateway && make fly-deploy-pusher      && make fly-deploy-retriever && make fly-deploy-search
    ```
 
-3. Confirm `main` and `develop` build identically — the bundle hash at
-   `laiive.com` and at `develop.laiive.pages.dev` should match, as it does
-   today. Only then is the flip a no-op:
+2. Release PR `develop` -> `main` titled `release: vX.Y.Z`, CI green, merge it
+   as a merge commit.
+3. On `main`, `make release`, then push the commit **and** the tag:
+   `git push --follow-tags` and `git push origin <tag>`.
+4. Confirm `main` and `develop` build identically before flipping. `cz bump`
+   touches only `.cz.toml` and `CHANGELOG.md` — neither reaches the bundle —
+   so the two hashes should be equal, as they are today:
 
    ```
    for h in laiive.com develop.laiive.pages.dev; do
@@ -140,13 +149,12 @@ disappear from `laiive.com`. Ship first, then flip.
    done
    ```
 
-4. Pages → Settings → Builds & deployments → **Production branch → `main`**.
-5. Merge `main` back into `develop` locally (never as a PR with `main` as the
+5. Pages -> Settings -> Builds & deployments -> **Production branch -> `main`**.
+6. Merge `main` back into `develop` locally (never as a PR with `main` as the
    head branch — see `CLAUDE.md`).
 
 After this, a merge into `develop` reaches `develop.laiive.pages.dev` only,
-and `laiive.com` moves when a release does. The services were always manual,
-so the SPA is the only thing whose behaviour changes.
+and `laiive.com` moves when a release does.
 
 ## 4b. laiive.com as the custom domain
 
