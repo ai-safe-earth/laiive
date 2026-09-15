@@ -34,7 +34,7 @@ export function splitByTime(
 /** Mono small-caps section rule, the voice used for every other label here. */
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-2xs uppercase tracking-[0.11em] text-ink-dim">{children}</p>
+    <p className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">{children}</p>
   );
 }
 
@@ -91,7 +91,7 @@ export default function Saved() {
 
       <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 sm:p-6">
         {loading && (
-          <p className="animate-pulse font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
+          <p className="animate-pulse font-mono text-sm uppercase tracking-[0.11em] text-ink-dim">
             {t.savedPage.title}
           </p>
         )}
@@ -102,7 +102,7 @@ export default function Saved() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="min-h-11 rounded-full bg-field-border px-3.5 text-sm leading-tight text-white transition-colors hover:bg-muted"
+              className="min-h-11 rounded-full bg-field-border px-3.5 text-md leading-tight text-white transition-colors hover:bg-muted"
             >
               {t.savedPage.retry}
             </button>
@@ -112,7 +112,7 @@ export default function Saved() {
         {!loading && !isError && upcoming.length === 0 && past.length === 0 && (
           <div className="flex flex-col gap-1.5 pt-10">
             <p className="text-lg leading-[1.5] text-foreground">{t.savedPage.empty}</p>
-            <p className="font-mono text-xs text-ink-dim">{t.savedPage.emptyHint}</p>
+            <p className="font-mono text-sm text-ink-dim">{t.savedPage.emptyHint}</p>
           </div>
         )}
 

@@ -95,6 +95,15 @@ Pages project → connect the GitHub repo:
   builds automatically — that is the point of the two-branch model, see
   `CONTRIBUTING.md`). The default branch is `develop`, so Pages will offer
   that one first; change it.
+
+  > **This step was skipped, and production has been building `develop`
+  > since.** Observed 2026-09-15: `laiive.com`, `laiive.pages.dev` and
+  > `develop.laiive.pages.dev` all served the same bundle
+  > (`index-Dnr1KIhR.js`), and that bundle carried #116's mic meter and the
+  > #110-#113 edit UI — neither of which is on `main`, 38 commits behind at
+  > v0.4.2. The gateway on Fly is ahead of the tag too: `PATCH
+  > /api/events/:uid` answers 401 where an unknown path answers 404, so
+  > #111's edit routes are deployed. Restoring the gate is §4c.
 - Root directory: `frontend` (the clone is the whole repo, so the
   `@shared` → `../services/shared/ts` alias resolves at build)
 - Build command: `npm run build`  ·  Output: `dist`
@@ -102,6 +111,50 @@ Pages project → connect the GitHub repo:
   `VITE_API_URL=https://laiive-gateway.fly.dev` (or the custom domain),
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `public/_redirects` ships the SPA fallback; no wrangler.toml needed.
+
+## 4c. Restoring the release gate
+
+Two orderings are load-bearing here and they are easy to get backwards.
+
+**Services before the merge.** `CONTRIBUTING.md` "Releasing" step 1: `flyctl`
+builds the working tree, so a deploy needs no tag and no merge, while the SPA
+ships by itself. Deploy the services last and the new SPA calls routes the old
+backends do not have, for as long as the deploy takes. Today that gap is not
+hypothetical — the SPA has been shipping on every merge to `develop`.
+
+**Flip last.** The next production build after the flip serves whatever `main`
+points at. While `main` is behind, that is a visible rollback: the composer
+pass and the edit button vanish from `laiive.com`.
+
+1. Deploy every service whose source moved, from `develop`, **search
+   included** — it imports `laiive_shared.neo4j_writer` directly, so a
+   shared-writer change reaches it even when nothing under `services/search`
+   did:
+
+   ```
+   make fly-deploy-gateway && make fly-deploy-pusher      && make fly-deploy-retriever && make fly-deploy-search
+   ```
+
+2. Release PR `develop` -> `main` titled `release: vX.Y.Z`, CI green, merge it
+   as a merge commit.
+3. On `main`, `make release`, then push the commit **and** the tag:
+   `git push --follow-tags` and `git push origin <tag>`.
+4. Confirm `main` and `develop` build identically before flipping. `cz bump`
+   touches only `.cz.toml` and `CHANGELOG.md` — neither reaches the bundle —
+   so the two hashes should be equal, as they are today:
+
+   ```
+   for h in laiive.com develop.laiive.pages.dev; do
+     curl -s "https://$h/" | grep -o 'src="/assets/[^"]*"'
+   done
+   ```
+
+5. Pages -> Settings -> Builds & deployments -> **Production branch -> `main`**.
+6. Merge `main` back into `develop` locally (never as a PR with `main` as the
+   head branch — see `CLAUDE.md`).
+
+After this, a merge into `develop` reaches `develop.laiive.pages.dev` only,
+and `laiive.com` moves when a release does.
 
 ## 4b. laiive.com as the custom domain
 

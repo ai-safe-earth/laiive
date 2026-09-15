@@ -4,18 +4,32 @@ State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Plans:
 `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md` (evolution, A-G) and
 `~/.claude/plans/pro-user-settings-is-optimized-metcalfe.md` (pro settings, five phases).
 
-**`v0.4.2` is live.** Unreleased on `develop`: #107-#115 (graph errors, dedup eval set, vitest
-4, pro settings phase 3 / Phase E, lookup fields, js-yaml). Next release is a **Fly deploy of
-gateway + pusher + retriever** plus the SPA.
+**`v0.4.2` is the tag; it is not what is live.** Cloudflare Pages' production branch was never
+changed from the default, so `laiive.com` has been continuously deploying `develop` - all three
+hosts served the same bundle on 2026-09-15, carrying #116's mic meter and the #110-#113 edit UI.
+The gateway is ahead of the tag too (`PATCH /api/events/:uid` answers 401, an unknown path 404).
+**The owner has decided to restore the gate**; the ordered procedure is `DEPLOY.md` §4c, added
+in #120. Flipping the Pages branch before releasing would roll `laiive.com` back to v0.4.2, so
+the order is: release, deploy all four services, confirm the two bundle hashes match, then flip.
 
-## Open now: #116, the frontend UI pass
+Unreleased on `develop`: #107-#117 (graph errors, dedup eval set, vitest 4, pro settings phase 3
+/ Phase E, lookup fields, js-yaml, the #116 composer pass, the report dismiss fix). Next release
+is **v0.5.0**: gateway + pusher + retriever **and search** on Fly, plus the SPA. Search is in the
+list because `services/search/agent/graph.py` imports `laiive_shared.neo4j_writer` directly and
+the shared writer grew 714 lines this cycle.
 
-`feat/composer-order-and-phone-size`, 4 commits, 14/14 green, mergeable, 6 behind `develop`.
-Composer order attach/field/mic/send, field grows one line to six (44→164px), live mic amber
-with a unicode meter in the field, account chip two characters on the surface accent, answers
-18px / own messages 17px / bubbles 85%. Two root fixes ride along: `Button` gained `shrink-0`
-(every icon button had been 38.4x44 since the composer was built) and `useRecorder` releases
-in a `finally`. `brand-rules.md` is amended in the same PR: it said mic-left.
+## Open now: #119, the consumer app at phone size
+
+`feat/card-type-at-phone-size`, 2 commits, all checks green, mergeable, sitting on #117.
+#116 lifted only the conversation. This lifts everything around it: Bebas event titles
+`xl`->`2xl` (condensed caps at 18px read nearer 14), card body lines `sm`->`md`, card pills
+and the price badge `xs`->`sm`, chips `sm`->`md`, status lines and hints `xs`->`sm`, `/saved`
+section rules and the menu role line `2xs`->`xs`, account chip initials `xs`->`sm`. The pill's
+44px touch overlay is recentred (`-top-7`->`-top-6`) so the floor still holds exactly.
+`2xs` is now promoter and admin chrome only; inputs stay at `base` (iOS zooms below 16px).
+`brand-rules.md`'s type table is amended in the same PR. The role line is the one change that
+reaches the promoter surface - `UserMenu` is one component on both. Pro and admin screens are
+untouched and have not been looked at on a phone.
 
 ## Phase 3 shipped
 
@@ -24,20 +38,26 @@ pusher `PATCH /events|venues|artists/{uid}`, gateway routes asking `user_may_edi
 filing `entity_edits`, an Edit button on `/pro/org` reusing EventForm, prompt v7 pointing
 "change my event" at it. Venue/artist edit **routes** work, their **forms** do not exist;
 rename and relinking are excluded by design (name_norm is the MERGE identity). E3 is **not
-built** — nothing sets `verified`, the claimed-card tick is inert.
+built** - nothing sets `verified`, the claimed-card tick is inert.
 
 ## Dedup evidence, search backlog, dev box
 
 Adoption cannot fire through chat: nameless drafts get derived names and the exact name_norm
-key misses — three attempts, two silent duplicates, zero adoptions. `dedup_review.csv` (in
+key misses - three attempts, two silent duplicates, zero adoptions. `dedup_review.csv` (in
 `services/pusher/evals/`) holds 52 verified cases, 21 of them silent duplicates today, and is
 **merged unreviewed**; the owner's pass over it gates Phase 4.
 
-Search: the `now()` fix is observed (one Bergamo sweep moved both learning tables). Backlog
-**37 dry_run reports / 892 candidates**, zero ever dismissed — no dismiss button on
-zero-candidate reports (`AdminReport.tsx:218-244`), no queue-level dismiss, `running`/`failed`
-never clearable. `Auth.test.tsx` times out on 1-2 specs in the parallel `npm test` here and
-passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, not the code.
+Search: the `now()` fix is observed. Backlog **37 dry_run reports / 892 candidates**, zero ever
+dismissed - #117 fixed the half of that which was a bug (zero-candidate reports had no dismiss
+button at all); the cleanup decision itself is still open. `running`/`failed` reports remain
+unclearable and that one is backend: `dismiss_report` only accepts `dry_run`.
+
+Dev box: `gh pr edit` is **broken against this repo** - every call dies on the GraphQL
+Projects-classic deprecation (`repository.pullRequest.projectCards`). `gh pr create` is fine;
+to edit a title or body use `gh api -X PATCH repos/ai-safe-earth/laiive/pulls/N --input f.json`.
+A `tail`/`ls` naming `docs/pm-log.jsonl` is refused by the deny rule, appends are not.
+`Auth.test.tsx` times out on 1-2 specs in the parallel `npm test` here under load and passes
+alone and on CI: 5s `testTimeout` against a 30s file, not the code.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -68,13 +88,13 @@ passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, no
       "since": "2026-09-13"
     },
     {
-      "text": "Phase G is gated twice: the approval corpus is one-sided (11 approvals all Aug 14-23, zero dismissals ever, so approval-ratio learning would train on era not quality) and the 37-report/892-candidate backlog cleanup decision is pending - dismiss 3 zero-new + ~13 superseded same-city duplicates, plus the one-line dismiss-button fix in AdminReport.tsx:218-244",
+      "text": "Phase G is still gated twice, though the UI half is fixed: the approval corpus is one-sided (11 approvals all Aug 14-23, zero dismissals ever, so approval-ratio learning would train on era not quality) and the 37-report/892-candidate backlog cleanup decision is pending - dismiss 3 zero-new + ~13 superseded same-city duplicates. #117 shipped the missing dismiss button, so the backlog is now actually clearable",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-12"
     },
     {
-      "text": "There is no staging backend. Pages builds an SPA preview per branch but VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s on the preview until a deploy - #116's preview renders the new composer but cannot hold a conversation. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
+      "text": "There is no staging backend, and until the gate is restored there is no production gate either: Pages has been building develop straight to laiive.com. VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s until the services are deployed - and since the SPA ships on merge, that gap has been reaching real users, not just previews. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-03"
@@ -94,7 +114,7 @@ passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, no
   ],
   "nextSteps": [
     {
-      "title": "Review #116 on a real phone, merge it, then ship: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever (shared, pusher, gateway and retriever source all changed since v0.4.2), then merge main back into develop locally",
+      "title": "Review #119 on a real phone, merge it and #120, then ship v0.5.0 and restore the release gate per DEPLOY.md 4c: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever AND fly-deploy-search (search imports the shared writer directly), confirm laiive.com and develop.laiive.pages.dev serve the same bundle hash, THEN flip the Pages production branch to main, then merge main back into develop locally",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
@@ -115,7 +135,7 @@ passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, no
       "plan": "roadmap"
     },
     {
-      "title": "Report backlog cleanup: approve the dismissal list (3 zero-new + ~13 superseded duplicates -> ~21 reviewable reports led by Venaria 100, Romano 64, Bergamo 56, Torino 53) and ship the one-line dismiss-button fix so zero-candidate reports stop being dead ends",
+      "title": "Report backlog cleanup, now that the dismiss button exists: approve the dismissal list (3 zero-new + ~13 superseded duplicates -> ~21 reviewable reports led by Venaria 100, Romano 64, Bergamo 56, Torino 53) and work it down",
       "est": 1,
       "owner": "oscar",
       "phase": "Ingestion + self-improvement",
@@ -131,6 +151,13 @@ passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, no
     {
       "title": "Venue and artist edit forms on /pro/org: the routes, writer whitelists and lookup fields (capacity, description, city) all exist - only the UI is missing",
       "est": 2,
+      "owner": "oscar",
+      "phase": "Evolution - six areas",
+      "plan": "roadmap"
+    },
+    {
+      "title": "Give /pro and /admin the same phone pass #116 and #119 gave the consumer app - they were deliberately excluded and have never been looked at on a 5.5in screen; admin is a desktop tool and exempt from the 44px floor, /pro is not",
+      "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
       "plan": "roadmap"
