@@ -74,13 +74,13 @@ on a 5.5" screen (lifted 2026-08-28).
 | token | px | role |
 |---|---|---|
 | `2xs` | 11 | mono badges, status pills |
-| `xs` | 12.5 | mono labels (+0.11em caps), card pills, price badge (700) |
-| `sm` | 14 | card meta, secondary copy, chips |
-| `md` | 15 | buttons, UI copy, toasts |
+| `xs` | 12.5 | mono labels (+0.11em caps), status lines |
+| `sm` | 14 | secondary copy, chips, card pills, price badge (700) |
+| `md` | 15 | buttons, UI copy, toasts, card meta (lifted 2026-09-15) |
 | `base` | 16 | every input — below 16px iOS zooms the page on focus |
 | `lg` | 17 | your own messages in the chat, 1.45 leading (lifted 2026-09-15) |
-| `xl` | 18 | answers, 1.55 leading (lifted 2026-09-15); Bebas event titles (+0.03em) |
-| `2xl` | 21 | section heads |
+| `xl` | 18 | answers, 1.55 leading (lifted 2026-09-15) |
+| `2xl` | 21 | section heads; Bebas event titles (+0.03em, lifted 2026-09-15) |
 | `3xl` | 24 | page titles, wordmark (the wordmark alone may go up to 54px) |
 | `4xl` | 28 | pro watermark |
 
