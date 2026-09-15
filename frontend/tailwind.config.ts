@@ -8,17 +8,21 @@ export default {
     // Override rather than extend: a stock `text-xs` must not exist to reach
     // for. T-shirt names are load-bearing — tailwind-merge reads any other
     // `text-<word>` as a colour and drops it next to `text-foreground`.
+    // Lifted 2026-09-16: the roles below were already right, the numbers were
+    // not. Card copy sat at 14-15px against iOS's 17pt and Android's 16sp body
+    // defaults, so the primary content read smaller than the OS around it on
+    // every phone. Values only — no role moved, so nothing needed re-tagging.
     fontSize: {
-      "2xs": "0.6875rem", // 11   mono badges, status pills
-      xs: "0.78125rem",   // 12.5 mono labels, card pills, price badge
-      sm: "0.875rem",     // 14   card meta, secondary copy, chips
-      md: "0.9375rem",    // 15   buttons, UI copy, toasts
-      base: "1rem",       // 16   user messages, every input (iOS zooms below 16)
-      lg: "1.0625rem",    // 17   assistant answers
-      xl: "1.125rem",     // 18   Bebas card titles
-      "2xl": "1.3125rem", // 21   section heads
-      "3xl": "1.5rem",    // 24   page titles, wordmarks
-      "4xl": "1.75rem",   // 28   pro watermark
+      "2xs": "0.75rem",    // 12   mono badges, status pills (pro + admin only)
+      xs: "0.84375rem",    // 13.5 mono labels, section rules, the role line
+      sm: "0.9375rem",     // 15   secondary copy, card pills, price badge
+      md: "1rem",          // 16   buttons, chips, UI copy, toasts, card meta
+      base: "1.0625rem",   // 17   every input — iOS zooms the page below 16
+      lg: "1.125rem",      // 18   your own messages in the chat
+      xl: "1.25rem",       // 20   assistant answers
+      "2xl": "1.4375rem",  // 23   section heads, Bebas card titles
+      "3xl": "1.625rem",   // 26   page titles, wordmarks
+      "4xl": "1.875rem",   // 30   pro watermark
     },
     extend: {
       colors: {

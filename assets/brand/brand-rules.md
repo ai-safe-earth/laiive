@@ -71,18 +71,24 @@ names only — never `text-[Npx]`: px ignores the phone's text-size setting, and
 the reference screens were drawn at sizes that read fine on a monitor and not
 on a 5.5" screen (lifted 2026-08-28).
 
+**Lifted again 2026-09-16, values not roles.** Measured on the live site, card
+copy sat at 14-15px while iOS's body default is 17pt and Android's 16sp — the
+primary content read smaller than the OS chrome around it. Every token moved up
+1-2px and no role changed, so nothing was re-tagged. If it still reads small,
+move the numbers here again rather than re-pointing elements at bigger tokens.
+
 | token | px | role |
 |---|---|---|
-| `2xs` | 11 | promoter and admin badges and status pills only |
-| `xs` | 12.5 | mono section labels and the role line (+0.11em caps) |
-| `sm` | 14 | secondary copy, card pills, price badge (700), status lines, account chip |
-| `md` | 15 | buttons, chips, UI copy, toasts, card meta (lifted 2026-09-15) |
-| `base` | 16 | every input — below 16px iOS zooms the page on focus |
-| `lg` | 17 | your own messages in the chat, 1.45 leading (lifted 2026-09-15) |
-| `xl` | 18 | answers, 1.55 leading (lifted 2026-09-15) |
-| `2xl` | 21 | section heads; Bebas event titles (+0.03em, lifted 2026-09-15) |
-| `3xl` | 24 | page titles, wordmark (the wordmark alone may go up to 54px) |
-| `4xl` | 28 | pro watermark |
+| `2xs` | 12 | promoter and admin badges and status pills only |
+| `xs` | 13.5 | mono section labels and the role line (+0.11em caps) |
+| `sm` | 15 | secondary copy, card pills, price badge (700), status lines, account chip |
+| `md` | 16 | buttons, chips, UI copy, toasts, card meta |
+| `base` | 17 | every input — below 16px iOS zooms the page on focus |
+| `lg` | 18 | your own messages in the chat, 1.45 leading |
+| `xl` | 20 | answers, 1.55 leading |
+| `2xl` | 23 | section heads; Bebas event titles (+0.03em) |
+| `3xl` | 26 | page titles, wordmark (the wordmark alone may go up to 54px) |
+| `4xl` | 30 | pro watermark |
 
 - **Bebas Neue** — wordmark (+0.04em) and event titles, caps only. Never body
   copy, never a label, never below `xl`.
