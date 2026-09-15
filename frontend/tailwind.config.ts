@@ -11,20 +11,26 @@ export default {
     // Sized on the device, 2026-09-16. Two rounds of guessing at this from a
     // monitor both undershot; the owner read a ladder of specimens on the
     // phone that was failing (411px layout, 16px root, no zoom — so nothing
-    // was scaling the page) and picked 23px for card meta, against the 16px
-    // it had. Every token carries that same 1.44x. Geometry tied to the type
-    // moved with it — see Composer's field, Button's icon size, Avatar.
+    // was scaling the page) and put card meta at 20px against the 16px it had.
+    //
+    // Still one scale, but no longer one size: every value is multiplied by
+    // `--type-scale`, which is 1 on the consumer app and .9 on the promoter
+    // and admin surfaces (`.surface-pro` in index.css), landing their body
+    // copy on 18 against the consumer's 20. The px comments below are the
+    // consumer numbers. Geometry tied to the type moved with it — Composer's
+    // field, Button's icon size, Avatar — and so did the lockup, which is
+    // sized in px and follows nothing on its own.
     fontSize: {
-      "2xs": "1.0625rem",  // 17   mono badges, status pills (pro + admin only)
-      xs: "1.1875rem",     // 19   mono labels, section rules, the role line
-      sm: "1.3125rem",     // 21   secondary copy, card pills, price badge
-      md: "1.4375rem",     // 23   buttons, chips, UI copy, toasts, card meta
-      base: "1.4375rem",   // 23   every input — iOS zooms the page below 16
-      lg: "1.5625rem",     // 25   your own messages in the chat
-      xl: "1.75rem",       // 28   assistant answers
-      "2xl": "2rem",       // 32   section heads, Bebas card titles
-      "3xl": "2.25rem",    // 36   page titles, wordmarks
-      "4xl": "2.5625rem",  // 41   pro watermark
+      "2xs": "calc(0.9375rem * var(--type-scale, 1))",  // 15  badges, pills
+      xs: "calc(1.0625rem * var(--type-scale, 1))",     // 17  mono labels, rules
+      sm: "calc(1.1875rem * var(--type-scale, 1))",     // 19  card pills, price
+      md: "calc(1.25rem * var(--type-scale, 1))",       // 20  UI copy, card meta
+      base: "calc(1.25rem * var(--type-scale, 1))",     // 20  every input
+      lg: "calc(1.375rem * var(--type-scale, 1))",      // 22  your own messages
+      xl: "calc(1.5625rem * var(--type-scale, 1))",     // 25  answers
+      "2xl": "calc(1.8125rem * var(--type-scale, 1))",  // 29  heads, card titles
+      "3xl": "calc(2rem * var(--type-scale, 1))",       // 32  page titles
+      "4xl": "calc(2.3125rem * var(--type-scale, 1))",  // 37  pro watermark
     },
     extend: {
       colors: {

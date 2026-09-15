@@ -74,30 +74,44 @@ on a 5.5" screen (lifted 2026-08-28).
 **Sized on the device, 2026-09-16.** Two rounds of raising these numbers from a
 monitor both undershot. The owner then read a ladder of specimens on the phone
 that was failing — 411px layout, 16px root, no pinch zoom, so nothing was
-scaling the page — and picked **23px for card meta** against the 16px it had.
-Every token carries that same 1.44x, and no role moved, so nothing was
+scaling the page — and picked **20px for card meta** against the 16px it had.
+Every token carries that same 1.25x, and no role moved, so nothing was
 re-tagged. Do not guess at these from a desktop screen: measure on the phone.
 
-Three pieces of geometry are tied to the type and moved with it. The composer's
-field is **52px on one line**, not 44 (32px of leading, since a 23px face clips
-in a 24px line box), so `Button`'s icon size is 52 to match — text buttons keep
-the 44px floor. The account chip is a 44px circle, because two 21px characters
-do not fit inside 32. The card pill is ~39px tall and its 44px touch overlay is
-recentred on it. The recording meter is the one place a literal px size is
-correct: those block glyphs are a graphic in fixed 8px cells, not type.
+**One scale, two sizes.** The px column is the consumer app. Every token is
+`calc(<n>rem * var(--type-scale, 1))`, and `.surface-pro` sets that multiplier
+to **0.9**, so the promoter and admin surfaces run the same scale nine tenths
+the size — body copy at 18 against the consumer's 20. Those screens are worked
+at a desk for minutes at a time, not read at arm's length on the way to a gig,
+and their tables carry far more per screen. Put `surface-pro` on the page root
+of anything on the promoter or admin side; nothing else needs its own token.
+
+Geometry tied to the type moved with it. The composer's field is **48px on one
+line**, not 44 (28px of leading, since DM Sans wants ~1.3em of box before a
+20px face clips its descenders), so `Button`'s icon size is 48 to match — text
+buttons keep the 44px floor. The account chip is a 36px circle, because two
+19px characters do not fit inside 32. The card pill is ~37px tall and its 44px
+touch overlay is recentred on it. The recording meter is the one place a
+literal px size is correct: those block glyphs are a graphic in fixed 8px
+cells, not type.
+
+**The lockup does not follow the scale** — `Mark` takes a px `size`, so it has
+to be moved by hand whenever the type moves. It carries the same 1.25x on the
+consumer surfaces and 1.125x on the promoter ones. The empty-chat wordmark is
+sized in `vw` and `rem` and was lifted with it.
 
 | token | px | role |
 |---|---|---|
-| `2xs` | 17 | promoter and admin badges and status pills only |
-| `xs` | 19 | mono section labels and the role line (+0.11em caps) |
-| `sm` | 21 | secondary copy, card pills, price badge (700), status lines, account chip |
-| `md` | 23 | buttons, chips, UI copy, toasts, card meta |
-| `base` | 23 | every input — below 16px iOS zooms the page on focus |
-| `lg` | 25 | your own messages in the chat, 1.45 leading |
-| `xl` | 28 | answers, 1.55 leading |
-| `2xl` | 32 | section heads; Bebas event titles (+0.03em) |
-| `3xl` | 36 | page titles, wordmark (the wordmark alone may go up to 54px) |
-| `4xl` | 41 | pro watermark |
+| `2xs` | 15 | promoter and admin badges and status pills only |
+| `xs` | 17 | mono section labels and the role line (+0.11em caps) |
+| `sm` | 19 | secondary copy, card pills, price badge (700), status lines, account chip |
+| `md` | 20 | buttons, chips, UI copy, toasts, card meta |
+| `base` | 20 | every input — below 16px iOS zooms the page on focus |
+| `lg` | 22 | your own messages in the chat, 1.45 leading |
+| `xl` | 25 | answers, 1.55 leading |
+| `2xl` | 29 | section heads; Bebas event titles (+0.03em) |
+| `3xl` | 32 | page titles, wordmark (the wordmark alone may go up to 54px) |
+| `4xl` | 37 | pro watermark |
 
 - **Bebas Neue** — wordmark (+0.04em) and event titles, caps only. Never body
   copy, never a label, never below `xl`.

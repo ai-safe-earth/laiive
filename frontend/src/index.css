@@ -92,6 +92,15 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* The promoter and admin surfaces run the same scale nine tenths the size:
+     body copy at 18 against the consumer app's 20. They are worked at a desk
+     for minutes at a time, not read at arm's length on the way to a gig, and
+     their tables carry far more per screen. Every fontSize token in
+     tailwind.config.ts multiplies by this, so nothing needs its own token. */
+  .surface-pro {
+    --type-scale: 0.9;
+  }
+
   /* Bebas Neue is caps-only by design; the browser must not fake a bold for it. */
   .font-bebas {
     font-weight: 400;

@@ -175,7 +175,7 @@ export default function Chat() {
       {/* The whole chrome inventory: mark + wordmark, saved, account. */}
       <header className="flex-shrink-0 border-b border-rule px-4 pb-2 pt-3 sm:px-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <Mark size={27} />
+          <Mark size={34} />
           <div className="flex items-center">
             {/* Visible signed out too: the route sends you to /auth and
                 back, and a header control that appears on sign-in makes
@@ -197,7 +197,7 @@ export default function Chat() {
           <div className="flex h-full flex-col items-center justify-center gap-8">
             <span
               aria-hidden="true"
-              className="select-none font-bebas text-[26vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[9rem]"
+              className="select-none font-bebas text-[32vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[11rem]"
             >
               laiive
             </span>

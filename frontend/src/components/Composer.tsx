@@ -20,13 +20,13 @@ import { cn } from "@/lib/cn";
  */
 
 /**
- * Six lines of 32px, 9px padding either side, 1px border either side. The 9 is
- * what keeps one line at exactly 52px — the height of the mic and the send it
- * sits between. 32px of leading, not 24, because `base` is 23px now: a 23px
- * face in a 24px line box is cramped and clips its descenders. 52 is the new
+ * Six lines of 28px, 9px padding either side, 1px border either side. The 9 is
+ * what keeps one line at exactly 48px — the height of the mic and the send it
+ * sits between. 28px of leading, not 24, because `base` is 20px now and DM
+ * Sans wants about 1.3em of box before it clips its descenders. 48 is the new
  * number to match when either changes; it is still over the 44px touch floor.
  */
-const MAX_FIELD_HEIGHT = 212;
+const MAX_FIELD_HEIGHT = 188;
 
 export function Composer({
   value,
@@ -109,9 +109,9 @@ export function Composer({
           aria-label={placeholder}
           className={cn(
             FIELD,
-            // The literal 212 twice on purpose: tailwind scans this file as
+            // The literal 188 twice on purpose: tailwind scans this file as
             // text, so a class built from MAX_FIELD_HEIGHT is never generated.
-            "block max-h-[212px] resize-none overflow-y-auto rounded-[22px] px-4 py-[9px] leading-8",
+            "block max-h-[188px] resize-none overflow-y-auto rounded-[22px] px-4 py-[9px] leading-7",
             // Room for the meter — nine 8px cells, 16px off the right edge,
             // and 8px of air — so a typed draft never runs underneath it.
             recording && "pr-[96px]",
@@ -194,10 +194,10 @@ function Waveform() {
       aria-hidden="true"
       data-testid="recording-waveform"
       className={cn(
-        "pointer-events-none absolute bottom-0 right-4 flex h-[52px] items-center",
+        "pointer-events-none absolute bottom-0 right-4 flex h-12 items-center",
         // The one place a literal size is right: these glyphs are a graphic,
         // not type, and they have to stay inside the 8px cells below. `base`
-        // would drag them to 23px and burst the meter out of its reservation.
+        // would drag them to 20px and burst the meter out of its reservation.
         "font-mono text-[15px] leading-none text-secondary",
       )}
     >

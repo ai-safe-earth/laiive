@@ -113,7 +113,7 @@ export default function Account() {
   };
 
   return (
-    <div className={cn("min-h-[100dvh]", pro ? "bg-pro-bg" : "bg-background")}>
+    <div className={cn("min-h-[100dvh]", pro ? "surface-pro bg-pro-bg" : "bg-background")}>
       <header
         className={cn(
           "flex items-center gap-2 border-b px-3 py-2 sm:px-4",

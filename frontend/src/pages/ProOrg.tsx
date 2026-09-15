@@ -68,7 +68,7 @@ export default function ProOrg() {
   if (role !== "pro" && role !== "admin") return <Navigate to="/pro" replace />;
 
   return (
-    <div className="min-h-[100dvh] bg-pro-bg">
+    <div className="surface-pro min-h-[100dvh] bg-pro-bg">
       <header className="flex items-center gap-3 border-b border-pro-border px-4 py-3 sm:px-6">
         <Link
           to="/pro"
@@ -77,7 +77,7 @@ export default function ProOrg() {
         >
           <Icon name="back" />
         </Link>
-        <Mark size={24} />
+        <Mark size={27} />
         <span className="font-mono text-2xs uppercase tracking-[0.11em] text-pro-dim">
           {t.org.title}
         </span>

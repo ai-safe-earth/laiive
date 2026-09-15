@@ -98,8 +98,8 @@ export default function Invite() {
   }, [isLoading, user, token, navigate, queryClient]);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
-      <Mark size={30} />
+    <div className="surface-pro flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
+      <Mark size={34} />
       {failure ? (
         <>
           <p className="max-w-sm text-md leading-[1.5] text-pro-muted">{failure}</p>

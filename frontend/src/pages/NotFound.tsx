@@ -6,7 +6,7 @@ export default function NotFound() {
   const { t } = useTranslation();
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-background p-6">
-      <Mark size={30} />
+      <Mark size={38} />
       <p className="font-bebas text-[54px] leading-none tracking-[0.04em] text-foreground/[0.14]">
         404
       </p>

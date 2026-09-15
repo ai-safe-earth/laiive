@@ -117,9 +117,9 @@ export default function ProSubmit() {
     user && role !== "admin" && (role !== "pro" || (orgs ?? []).length === 0);
   if (!user || needsIdentity) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
+      <div className="surface-pro flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
         <span className="flex items-center gap-2.5">
-          <Mark size={30} />
+          <Mark size={34} />
           <ProBadge />
         </span>
         {user ? (
@@ -288,7 +288,7 @@ export default function ProSubmit() {
   };
 
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
+    <div className="surface-pro relative flex h-[100dvh] flex-col overflow-hidden bg-pro-bg">
       {/* First child, so it paints under everything positioned after it. The
           root is the clip, not the scroll region, so the ground stays still
           while the conversation moves over it. */}
@@ -299,7 +299,7 @@ export default function ProSubmit() {
               menu, where the way to every other surface already is — a logo
               that navigates somewhere else is a door nobody means to open. */}
           <span className="flex min-w-0 items-center gap-2.5">
-            <Mark size={27} />
+            <Mark size={30} />
             <ProBadge />
             {/* The organization this publish will be filed against, and a way
                 to change it when there is more than one. It used to print
