@@ -1,44 +1,43 @@
-# HANDOFF - laiive (updated 2026-09-13)
+# HANDOFF - laiive (updated 2026-09-15)
 
 State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Plans:
 `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md` (evolution, A-G) and
 `~/.claude/plans/pro-user-settings-is-optimized-metcalfe.md` (pro settings, five phases).
 
-**`v0.4.2` is live** (advisories + the trustProxy fix, gateway deployed). Everything since
-sits on `develop` unreleased: graceful graph errors (#107), the dedup eval set (#108),
-vitest 4 (#109), and **pro settings phase 3 / Phase E (#110-#113)**. The next release is a
-**Fly deploy of gateway + pusher + retriever** plus the SPA — not Cloudflare-only.
+**`v0.4.2` is live.** Unreleased on `develop`: #107-#115 (graph errors, dedup eval set, vitest
+4, pro settings phase 3 / Phase E, lookup fields, js-yaml). Next release is a **Fly deploy of
+gateway + pusher + retriever** plus the SPA.
 
-## Phase 3 shipped — what exists now
+## Open now: #116, the frontend UI pass
 
-Events are editable end to end: `update_event/venue/artist` in the shared writer (PATCH
-semantics, per-field old/new deltas), pusher `PATCH /events|venues|artists/{uid}`, gateway
-routes asking `user_may_edit` before the write and filing `entity_edits` after (migration
-22's first callers), an Edit button on `/pro/org`'s event cards reusing EventForm, and the
-chat (prompt v7) pointing "change my event" at that button. Venue/artist edit **routes**
-work; their **forms** do not exist yet. Venue rename and artist relinking are excluded by
-design (name_norm is the MERGE identity). E3 (admin verify/revoke) is **not built**, so
-nothing sets `verified` yet and the card tick for claimed swept listings stays inert.
-Open PRs: #114 (venue/artist hits carry capacity/city/description), #115 (js-yaml patch).
+`feat/composer-order-and-phone-size`, 4 commits, 14/14 green, mergeable, 6 behind `develop`.
+Composer order attach/field/mic/send, field grows one line to six (44→164px), live mic amber
+with a unicode meter in the field, account chip two characters on the surface accent, answers
+18px / own messages 17px / bubbles 85%. Two root fixes ride along: `Button` gained `shrink-0`
+(every icon button had been 38.4x44 since the composer was built) and `useRecorder` releases
+in a `finally`. `brand-rules.md` is amended in the same PR: it said mic-left.
 
-## The dedup evidence and its eval set
+## Phase 3 shipped
 
-The live flyer test proved adoption cannot fire through chat: nameless drafts get derived
-names and the exact name_norm key misses — three attempts, two silent duplicates (both
-deleted), zero adoptions. `services/pusher/evals/dedup_review.csv` holds 52 verified
-cases (21 end in a silent duplicate today) — **merged unreviewed**; the owner's
-verdict/should_instead pass is the gate for Phase 4 and turns it into
-`datasets/dedup/test_cases.json`.
+Events are editable end to end: `update_*` in the shared writer (PATCH, per-field deltas),
+pusher `PATCH /events|venues|artists/{uid}`, gateway routes asking `user_may_edit` then
+filing `entity_edits`, an Edit button on `/pro/org` reusing EventForm, prompt v7 pointing
+"change my event" at it. Venue/artist edit **routes** work, their **forms** do not exist;
+rename and relinking are excluded by design (name_norm is the MERGE identity). E3 is **not
+built** — nothing sets `verified`, the claimed-card tick is inert.
 
-## Search
+## Dedup evidence, search backlog, dev box
 
-The `now()` fix is observed, not believed: one Bergamo sweep moved both learning tables
-(a domain crossed to `blocked`, query `runs` incremented). The review backlog is **37
-dry_run reports / 892 candidates** (the old 17 was stale), zero ever dismissed — the
-dismiss button does not render on zero-candidate reports (`AdminReport.tsx:218-244`,
-action bar inside `candidates.length > 0`), there is no queue-level dismiss, and
-`running`/`failed` reports cannot be cleared at all. All 11 approvals date Aug 14-23.
-Dependabot: 13 stale alerts clear on rescan; the real pair (js-yaml) is #115.
+Adoption cannot fire through chat: nameless drafts get derived names and the exact name_norm
+key misses — three attempts, two silent duplicates, zero adoptions. `dedup_review.csv` (in
+`services/pusher/evals/`) holds 52 verified cases, 21 of them silent duplicates today, and is
+**merged unreviewed**; the owner's pass over it gates Phase 4.
+
+Search: the `now()` fix is observed (one Bergamo sweep moved both learning tables). Backlog
+**37 dry_run reports / 892 candidates**, zero ever dismissed — no dismiss button on
+zero-candidate reports (`AdminReport.tsx:218-244`), no queue-level dismiss, `running`/`failed`
+never clearable. `Auth.test.tsx` times out on 1-2 specs in the parallel `npm test` here and
+passes 14/14 alone and on CI: 5s `testTimeout` against a 30s file under load, not the code.
 
 <!-- pmctl:handoff v1 -->
 ```json
@@ -46,7 +45,7 @@ Dependabot: 13 stale alerts clear on rescan; the real pair (js-yaml) is #115.
   "project": "laiive",
   "org": "ai safe earth",
   "status": "amber",
-  "updated": "2026-09-13",
+  "updated": "2026-09-15",
   "deadline": null,
   "people": ["oscar"],
   "plans": [
@@ -75,7 +74,7 @@ Dependabot: 13 stale alerts clear on rescan; the real pair (js-yaml) is #115.
       "since": "2026-09-12"
     },
     {
-      "text": "There is no staging backend. Pages builds an SPA preview per branch but VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s on the preview until a deploy. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
+      "text": "There is no staging backend. Pages builds an SPA preview per branch but VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s on the preview until a deploy - #116's preview renders the new composer but cannot hold a conversation. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-03"
@@ -95,7 +94,7 @@ Dependabot: 13 stale alerts clear on rescan; the real pair (js-yaml) is #115.
   ],
   "nextSteps": [
     {
-      "title": "Merge #114 and #115, then ship: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever (shared, pusher, gateway and retriever source all changed since v0.4.2), then merge main back into develop locally",
+      "title": "Review #116 on a real phone, merge it, then ship: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever (shared, pusher, gateway and retriever source all changed since v0.4.2), then merge main back into develop locally",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
@@ -145,9 +144,9 @@ Dependabot: 13 stale alerts clear on rescan; the real pair (js-yaml) is #115.
     }
   ],
   "sessions": [
-    {"date": "2026-09-09", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
     {"date": "2026-09-11", "model": "opus-5", "person": "oscar", "credits": null, "hours": null},
-    {"date": "2026-09-13", "model": "fable-5", "person": "oscar", "credits": null, "hours": null}
+    {"date": "2026-09-13", "model": "fable-5", "person": "oscar", "credits": null, "hours": null},
+    {"date": "2026-09-15", "model": "opus-5", "person": "oscar", "credits": null, "hours": null}
   ]
 }
 ```

@@ -32,6 +32,7 @@ position is a durable differentiator rather than a niche one.
 | 2026-08-16 | branding | Identity baseline recorded | Lowercase `laiive`, 🫦 mark, direct second-person voice; laiive.com live as the public domain. |
 | 2026-08-16 | docs | Project split defined | Claude Code owns the repo and implementation; this Claude project owns strategy, design, marketing and go-to-market. |
 | 2026-08-29 | branding | Type scale replaced in brand-rules.md | The v1 scale (answers 15px, card meta 12.5px, pills 11px) was drawn on a 360px static mock and read as unusably small on a real phone — the app's natural environment. Replaced by one rem scale, ten named tokens from 11 to 28px, with every input at 16px so iOS stops zooming on focus. The rules now forbid hard-coded px sizes outright: px ignores the phone's own text-size setting. |
+| 2026-09-15 | branding | Composer order, live mic and account chip amended in brand-rules.md | The rules specified mic-left, field-middle, send-right; the app now uses the order every other chat app settled on — attach, field, mic, send — with a field that grows to six lines, so the rules were amended with their date rather than left contradicting the product. Two states they never described are now normative: a live mic is amber with dark ink and a unicode bar meter inside the field, and the account chip is two characters on the surface's accent. Reading sizes lifted a second time for the phone (answers 18px, own messages 17px, bubbles 85%), which the type table follows. |
 
 ## Open questions
 
@@ -47,7 +48,7 @@ position is a durable differentiator rather than a niche one.
 {
   "project": "laiive",
   "org": "ai safe earth",
-  "updated": "2026-08-29",
+  "updated": "2026-09-15",
   "description": "laiive is a global cultural agenda that connects people with live music events, answering 'what can I do tonight?' instead of returning a list to scroll. It serves people who want to get out of the house and into a real room, and the small promoters, venues and artists who need those people to know their event exists.",
   "strategy": "Win the small, community-scale end of live culture that big ticketing platforms ignore, city by city, using an agent stack over a Neo4j knowledge graph. The bet: promoter-published supply densified per city makes the answers good enough to become the default way to decide a night out, with an AI-safe, anti-feed position as the differentiator.",
   "productStatus": [
@@ -56,7 +57,8 @@ position is a durable differentiator rather than a niche one.
     { "date": "2026-08-16", "track": "strategy", "title": "Architecture bet recorded", "note": "Retriever and Pusher agents over Neo4j, HITL validation, internet search as complementary feed only" },
     { "date": "2026-08-16", "track": "branding", "title": "Identity baseline recorded", "note": "Lowercase wordmark, lips mark, direct second-person voice, laiive.com" },
     { "date": "2026-08-16", "track": "docs", "title": "Project split defined", "note": "Claude Code owns implementation; Claude project owns strategy, design, marketing, GTM" },
-    { "date": "2026-08-29", "track": "branding", "title": "Type scale replaced in brand-rules.md", "note": "The v1 scale was drawn on a 360px static mock and read as unusably small on a real phone. One rem scale, ten tokens from 11 to 28px, inputs at 16px; hard-coded px sizes now forbidden" }
+    { "date": "2026-08-29", "track": "branding", "title": "Type scale replaced in brand-rules.md", "note": "The v1 scale was drawn on a 360px static mock and read as unusably small on a real phone. One rem scale, ten tokens from 11 to 28px, inputs at 16px; hard-coded px sizes now forbidden" },
+    { "date": "2026-09-15", "track": "branding", "title": "Composer order, live mic and account chip amended in brand-rules.md", "note": "Composer order becomes attach, field, mic, send with a field that grows to six lines; a live mic is amber with a unicode bar meter in the field; the account chip is two characters on the surface accent. Reading sizes lifted again for the phone and the type table follows" }
   ]
 }
 ```
