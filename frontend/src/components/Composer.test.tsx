@@ -1,11 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "./Composer";
 import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
 
 const en = translations.en;
+
+// The mic owns the recorder; a spec that wants the field's meter has to put a
+// recording in progress from here.
+const recorder = vi.hoisted(() => ({
+  state: { isRecording: false, start: vi.fn(), stop: vi.fn() },
+}));
+vi.mock("@/audio/useRecorder", () => ({ useRecorder: () => recorder.state }));
+
+beforeEach(() => {
+  recorder.state.isRecording = false;
+});
 
 function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
   const handlers = {
@@ -15,7 +26,7 @@ function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
     transcribe: vi.fn(),
     onTranscript: vi.fn(),
   };
-  render(
+  const { container } = render(
     <LanguageProvider>
       <Composer
         value=""
@@ -26,7 +37,7 @@ function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
       />
     </LanguageProvider>,
   );
-  return handlers;
+  return { ...handlers, container };
 }
 
 describe("the shared composer", () => {
@@ -99,5 +110,56 @@ describe("the shared composer", () => {
   it("has no attach control of its own", () => {
     renderComposer();
     expect(screen.queryByRole("button", { name: en.pro.attach })).toBeNull();
+  });
+
+  it("orders the row attach, field, mic, send", () => {
+    const { container } = renderComposer({
+      attachSlot: <button type="button" aria-label={en.pro.attach} />,
+    });
+    const row = [...container.querySelectorAll("button, textarea")].map(
+      (element) => element.getAttribute("aria-label"),
+    );
+    expect(row).toEqual([en.pro.attach, en.chat.placeholder, en.voice.speak, en.chat.send]);
+  });
+
+  it("sends on Enter without leaving the newline behind", async () => {
+    const user = userEvent.setup();
+    const { onSend, onChange } = renderComposer({ value: "jazz tonight" });
+
+    await user.type(screen.getByRole("textbox"), "{Enter}");
+    expect(onSend).toHaveBeenCalledTimes(1);
+    // The field is a textarea now: without preventDefault the turn goes out
+    // and a stray "\n" stays in the box.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("breaks the line on shift+Enter instead of sending", async () => {
+    const user = userEvent.setup();
+    const { onSend, onChange } = renderComposer({ value: "jazz tonight" });
+
+    await user.type(screen.getByRole("textbox"), "{Shift>}{Enter}{/Shift}");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith("jazz tonight\n");
+  });
+
+  it("keeps the send accent while it waits, rather than going grey", () => {
+    renderComposer();
+    const send = screen.getByRole("button", { name: en.chat.send });
+    expect(send).toBeDisabled();
+    expect(send.className).toContain("disabled:bg-primary/45");
+    expect(send.className).not.toContain("disabled:bg-card");
+  });
+
+  it("draws the meter in the field only while the mic is live", () => {
+    expect(renderComposer().container.querySelector("[data-testid=recording-waveform]"))
+      .toBeNull();
+
+    recorder.state.isRecording = true;
+    const { container } = renderComposer();
+    const meter = container.querySelector("[data-testid=recording-waveform]");
+    expect(meter).not.toBeNull();
+    // Bars, not letters — and the same amber the live mic wears.
+    expect(meter?.textContent).toMatch(/^[▁▂▃▄▅▆▇]+$/u);
+    expect(meter?.className).toContain("text-secondary");
   });
 });

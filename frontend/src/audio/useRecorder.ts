@@ -37,13 +37,23 @@ export function useRecorder() {
     const media = recorder.current;
     if (!media) throw new Error("not recording");
 
-    const recording = await new Promise<Blob>((resolve) => {
-      media.onstop = () => resolve(new Blob(chunks.current, { type: "audio/webm" }));
-      media.stop();
-    });
-
-    release();
-    return recording;
+    try {
+      return await new Promise<Blob>((resolve) => {
+        const collected = () => resolve(new Blob(chunks.current, { type: "audio/webm" }));
+        media.onstop = collected;
+        // A recorder whose tracks ended on their own — permission revoked from
+        // the browser's own UI, the device unplugged, the tab backgrounded on a
+        // phone — is already inactive. stop() would throw there and onstop
+        // would never fire, and the caller would be left holding a recording
+        // that never ends: mic lit, button stuck, meter running.
+        if (media.state === "inactive") collected();
+        else media.stop();
+      });
+    } finally {
+      // Unconditional: a throw here must still release the tracks and clear
+      // the flag, or the light stays on for the rest of the session.
+      release();
+    }
   }, [release]);
 
   return { isRecording, start, stop };
