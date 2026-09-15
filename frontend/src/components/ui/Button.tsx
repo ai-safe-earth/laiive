@@ -53,7 +53,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-full leading-none",
+        // shrink-0 is what keeps a pill a pill. Flex items shrink by default,
+        // and the composer's field asks for 100% of the row — so the mic and
+        // the send were being squeezed to 38x44 ovals, under the 44px floor,
+        // on every screen width. A button is never the thing that gives way.
+        "inline-flex shrink-0 items-center justify-center gap-2 rounded-full leading-none",
         "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         // The disabled pill is #241B1B on a #3A2E2E hairline, as the reference
