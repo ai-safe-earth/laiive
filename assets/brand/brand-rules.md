@@ -71,24 +71,33 @@ names only — never `text-[Npx]`: px ignores the phone's text-size setting, and
 the reference screens were drawn at sizes that read fine on a monitor and not
 on a 5.5" screen (lifted 2026-08-28).
 
-**Lifted again 2026-09-16, values not roles.** Measured on the live site, card
-copy sat at 14-15px while iOS's body default is 17pt and Android's 16sp — the
-primary content read smaller than the OS chrome around it. Every token moved up
-1-2px and no role changed, so nothing was re-tagged. If it still reads small,
-move the numbers here again rather than re-pointing elements at bigger tokens.
+**Sized on the device, 2026-09-16.** Two rounds of raising these numbers from a
+monitor both undershot. The owner then read a ladder of specimens on the phone
+that was failing — 411px layout, 16px root, no pinch zoom, so nothing was
+scaling the page — and picked **23px for card meta** against the 16px it had.
+Every token carries that same 1.44x, and no role moved, so nothing was
+re-tagged. Do not guess at these from a desktop screen: measure on the phone.
+
+Three pieces of geometry are tied to the type and moved with it. The composer's
+field is **52px on one line**, not 44 (32px of leading, since a 23px face clips
+in a 24px line box), so `Button`'s icon size is 52 to match — text buttons keep
+the 44px floor. The account chip is a 44px circle, because two 21px characters
+do not fit inside 32. The card pill is ~39px tall and its 44px touch overlay is
+recentred on it. The recording meter is the one place a literal px size is
+correct: those block glyphs are a graphic in fixed 8px cells, not type.
 
 | token | px | role |
 |---|---|---|
-| `2xs` | 12 | promoter and admin badges and status pills only |
-| `xs` | 13.5 | mono section labels and the role line (+0.11em caps) |
-| `sm` | 15 | secondary copy, card pills, price badge (700), status lines, account chip |
-| `md` | 16 | buttons, chips, UI copy, toasts, card meta |
-| `base` | 17 | every input — below 16px iOS zooms the page on focus |
-| `lg` | 18 | your own messages in the chat, 1.45 leading |
-| `xl` | 20 | answers, 1.55 leading |
-| `2xl` | 23 | section heads; Bebas event titles (+0.03em) |
-| `3xl` | 26 | page titles, wordmark (the wordmark alone may go up to 54px) |
-| `4xl` | 30 | pro watermark |
+| `2xs` | 17 | promoter and admin badges and status pills only |
+| `xs` | 19 | mono section labels and the role line (+0.11em caps) |
+| `sm` | 21 | secondary copy, card pills, price badge (700), status lines, account chip |
+| `md` | 23 | buttons, chips, UI copy, toasts, card meta |
+| `base` | 23 | every input — below 16px iOS zooms the page on focus |
+| `lg` | 25 | your own messages in the chat, 1.45 leading |
+| `xl` | 28 | answers, 1.55 leading |
+| `2xl` | 32 | section heads; Bebas event titles (+0.03em) |
+| `3xl` | 36 | page titles, wordmark (the wordmark alone may go up to 54px) |
+| `4xl` | 41 | pro watermark |
 
 - **Bebas Neue** — wordmark (+0.04em) and event titles, caps only. Never body
   copy, never a label, never below `xl`.

@@ -8,21 +8,23 @@ export default {
     // Override rather than extend: a stock `text-xs` must not exist to reach
     // for. T-shirt names are load-bearing — tailwind-merge reads any other
     // `text-<word>` as a colour and drops it next to `text-foreground`.
-    // Lifted 2026-09-16: the roles below were already right, the numbers were
-    // not. Card copy sat at 14-15px against iOS's 17pt and Android's 16sp body
-    // defaults, so the primary content read smaller than the OS around it on
-    // every phone. Values only — no role moved, so nothing needed re-tagging.
+    // Sized on the device, 2026-09-16. Two rounds of guessing at this from a
+    // monitor both undershot; the owner read a ladder of specimens on the
+    // phone that was failing (411px layout, 16px root, no zoom — so nothing
+    // was scaling the page) and picked 23px for card meta, against the 16px
+    // it had. Every token carries that same 1.44x. Geometry tied to the type
+    // moved with it — see Composer's field, Button's icon size, Avatar.
     fontSize: {
-      "2xs": "0.75rem",    // 12   mono badges, status pills (pro + admin only)
-      xs: "0.84375rem",    // 13.5 mono labels, section rules, the role line
-      sm: "0.9375rem",     // 15   secondary copy, card pills, price badge
-      md: "1rem",          // 16   buttons, chips, UI copy, toasts, card meta
-      base: "1.0625rem",   // 17   every input — iOS zooms the page below 16
-      lg: "1.125rem",      // 18   your own messages in the chat
-      xl: "1.25rem",       // 20   assistant answers
-      "2xl": "1.4375rem",  // 23   section heads, Bebas card titles
-      "3xl": "1.625rem",   // 26   page titles, wordmarks
-      "4xl": "1.875rem",   // 30   pro watermark
+      "2xs": "1.0625rem",  // 17   mono badges, status pills (pro + admin only)
+      xs: "1.1875rem",     // 19   mono labels, section rules, the role line
+      sm: "1.3125rem",     // 21   secondary copy, card pills, price badge
+      md: "1.4375rem",     // 23   buttons, chips, UI copy, toasts, card meta
+      base: "1.4375rem",   // 23   every input — iOS zooms the page below 16
+      lg: "1.5625rem",     // 25   your own messages in the chat
+      xl: "1.75rem",       // 28   assistant answers
+      "2xl": "2rem",       // 32   section heads, Bebas card titles
+      "3xl": "2.25rem",    // 36   page titles, wordmarks
+      "4xl": "2.5625rem",  // 41   pro watermark
     },
     extend: {
       colors: {
