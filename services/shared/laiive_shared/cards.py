@@ -65,6 +65,10 @@ class VenueHit(BaseModel):
     venue_type: str | None = None
     address: str | None = None
     city: str | None = None
+    # The owner-editable facts (Phase E): written by update_venue, shown on
+    # the org page's entity rows and pickers.
+    capacity: int | None = None
+    description: str | None = None
 
 
 class VenueLookupResult(BaseModel):
@@ -75,6 +79,9 @@ class ArtistHit(BaseModel):
     uid: str
     name: str
     genres: list[str] = []
+    # BASED_IN city and the owner-written description (Phase E).
+    city: str | None = None
+    description: str | None = None
 
 
 class ArtistLookupResult(BaseModel):
