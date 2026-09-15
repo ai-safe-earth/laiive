@@ -4,11 +4,19 @@ State only. Rules: `CLAUDE.md`. Programme: `docs/roadmap/01-program.md`. Plans:
 `~/.claude/plans/read-claude-md-and-handoff-md-sparkling-star.md` (evolution, A-G) and
 `~/.claude/plans/pro-user-settings-is-optimized-metcalfe.md` (pro settings, five phases).
 
-**`v0.4.2` is live.** Unreleased on `develop`: #107-#117 (graph errors, dedup eval set, vitest
-4, pro settings phase 3 / Phase E, lookup fields, js-yaml, the #116 composer pass, the report
-dismiss fix). Next release is **v0.5.0**: a Fly deploy of gateway + pusher + retriever **and
-search**, plus the SPA. Search is in the list because `services/search/agent/graph.py` imports
-`laiive_shared.neo4j_writer` directly and the shared writer grew 714 lines this cycle.
+**`v0.4.2` is the tag; it is not what is live.** Cloudflare Pages' production branch was never
+changed from the default, so `laiive.com` has been continuously deploying `develop` - all three
+hosts served the same bundle on 2026-09-15, carrying #116's mic meter and the #110-#113 edit UI.
+The gateway is ahead of the tag too (`PATCH /api/events/:uid` answers 401, an unknown path 404).
+**The owner has decided to restore the gate**; the ordered procedure is `DEPLOY.md` §4c, added
+in #120. Flipping the Pages branch before releasing would roll `laiive.com` back to v0.4.2, so
+the order is: release, deploy all four services, confirm the two bundle hashes match, then flip.
+
+Unreleased on `develop`: #107-#117 (graph errors, dedup eval set, vitest 4, pro settings phase 3
+/ Phase E, lookup fields, js-yaml, the #116 composer pass, the report dismiss fix). Next release
+is **v0.5.0**: gateway + pusher + retriever **and search** on Fly, plus the SPA. Search is in the
+list because `services/search/agent/graph.py` imports `laiive_shared.neo4j_writer` directly and
+the shared writer grew 714 lines this cycle.
 
 ## Open now: #119, the consumer app at phone size
 
@@ -86,7 +94,7 @@ alone and on CI: 5s `testTimeout` against a 30s file, not the code.
       "since": "2026-09-12"
     },
     {
-      "text": "There is no staging backend. Pages builds an SPA preview per branch but VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s on the preview until a deploy - #119's preview renders the new type scale but cannot hold a conversation. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
+      "text": "There is no staging backend, and until the gate is restored there is no production gate either: Pages has been building develop straight to laiive.com. VITE_API_URL is one project-level variable pointing at the single production gateway, so any frontend change on develop needing a new route 404s until the services are deployed - and since the SPA ships on merge, that gap has been reaching real users, not just previews. Pages supports separate Preview and Production variables; the fix costs a second gateway, pusher and retriever on Fly plus a decision about whether preview publishes write into the production graph",
       "severity": "medium",
       "owner": "oscar",
       "since": "2026-09-03"
@@ -106,7 +114,7 @@ alone and on CI: 5s `testTimeout` against a 30s file, not the code.
   ],
   "nextSteps": [
     {
-      "title": "Review #119 on a real phone, merge it, then ship v0.5.0: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever AND fly-deploy-search (search imports the shared writer directly), then merge main back into develop locally",
+      "title": "Review #119 on a real phone, merge it and #120, then ship v0.5.0 and restore the release gate per DEPLOY.md 4c: release PR develop -> main, make release, push with --follow-tags AND git push origin <tag>, then make fly-deploy-gateway AND fly-deploy-pusher AND fly-deploy-retriever AND fly-deploy-search (search imports the shared writer directly), confirm laiive.com and develop.laiive.pages.dev serve the same bundle hash, THEN flip the Pages production branch to main, then merge main back into develop locally",
       "est": 1,
       "owner": "oscar",
       "phase": "Evolution - six areas",
