@@ -95,6 +95,15 @@ Pages project → connect the GitHub repo:
   builds automatically — that is the point of the two-branch model, see
   `CONTRIBUTING.md`). The default branch is `develop`, so Pages will offer
   that one first; change it.
+
+  > **This step was skipped, and production has been building `develop`
+  > since.** Observed 2026-09-15: `laiive.com`, `laiive.pages.dev` and
+  > `develop.laiive.pages.dev` all served the same bundle
+  > (`index-Dnr1KIhR.js`), and that bundle carried #116's mic meter and the
+  > #110-#113 edit UI — neither of which is on `main`, 38 commits behind at
+  > v0.4.2. The gateway on Fly is ahead of the tag too: `PATCH
+  > /api/events/:uid` answers 401 where an unknown path answers 404, so
+  > #111's edit routes are deployed. Restoring the gate is §4c.
 - Root directory: `frontend` (the clone is the whole repo, so the
   `@shared` → `../services/shared/ts` alias resolves at build)
 - Build command: `npm run build`  ·  Output: `dist`
@@ -102,6 +111,42 @@ Pages project → connect the GitHub repo:
   `VITE_API_URL=https://laiive-gateway.fly.dev` (or the custom domain),
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `public/_redirects` ships the SPA fallback; no wrangler.toml needed.
+
+## 4c. Restoring the release gate
+
+Flipping the Pages production branch is not safe on its own: the next
+production build would serve whatever `main` points at, and while `main` is
+behind that is a visible rollback — the composer pass and the edit button
+disappear from `laiive.com`. Ship first, then flip.
+
+1. Release `develop` into `main` the normal way (`CONTRIBUTING.md`): release
+   PR, `make release`, `git push --follow-tags` **and** `git push origin
+   <tag>`.
+2. Deploy every service whose source moved, **search included** — it imports
+   `laiive_shared.neo4j_writer` directly, so a shared-writer change reaches it
+   even when nothing under `services/search` did:
+
+   ```
+   make fly-deploy-gateway && make fly-deploy-pusher      && make fly-deploy-retriever && make fly-deploy-search
+   ```
+
+3. Confirm `main` and `develop` build identically — the bundle hash at
+   `laiive.com` and at `develop.laiive.pages.dev` should match, as it does
+   today. Only then is the flip a no-op:
+
+   ```
+   for h in laiive.com develop.laiive.pages.dev; do
+     curl -s "https://$h/" | grep -o 'src="/assets/[^"]*"'
+   done
+   ```
+
+4. Pages → Settings → Builds & deployments → **Production branch → `main`**.
+5. Merge `main` back into `develop` locally (never as a PR with `main` as the
+   head branch — see `CLAUDE.md`).
+
+After this, a merge into `develop` reaches `develop.laiive.pages.dev` only,
+and `laiive.com` moves when a release does. The services were always manual,
+so the SPA is the only thing whose behaviour changes.
 
 ## 4b. laiive.com as the custom domain
 
