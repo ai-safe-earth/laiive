@@ -6,6 +6,7 @@ import { Redis } from "ioredis";
 import { registerAuth } from "./auth.js";
 import type { GatewayConfig } from "./config.js";
 import { registerFeedback } from "./feedback.js";
+import { registerEdits } from "./edits.js";
 import { registerOrgs } from "./orgs.js";
 import { registerConversationLogging } from "./logging.js";
 import { registerProxies } from "./proxy.js";
@@ -124,9 +125,14 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
     /^\/api\/publish(\/|\?|$)/,
     /^\/api\/push\/validate-event(\/|\?|$)/,
     /^\/api\/admin\/search(\/|\?|$)/,
+    // The owner edit routes: a PATCH writes to the graph like a publish does,
+    // so the switch's own rule ("every route that turns model output into a
+    // permanent graph node") covers them.
+    /^\/api\/(events|venues|artists)\/[^/?]+(\?|$)/,
   ];
   app.addHook("onRequest", async (request, reply) => {
-    if (!config.writesDisabled || request.method !== "POST") return;
+    if (!config.writesDisabled) return;
+    if (request.method !== "POST" && request.method !== "PATCH") return;
     if (!WRITE_ROUTES.some((route) => route.test(request.url))) return;
     request.log.warn({ url: request.url }, "writes disabled");
     return reply.code(503).send({ error: "publishing is paused" });
@@ -161,6 +167,7 @@ export async function buildServer(config: GatewayConfig): Promise<FastifyInstanc
 
   registerFeedback(app, config);
   registerOrgs(app, config);
+  registerEdits(app, config);
   registerProxies(app, config);
   registerConversationLogging(app, config);
 

@@ -119,6 +119,9 @@ export interface Translations {
     /** Events this organisation published. Ownership is recorded on publish. */
     eventsTitle: string;
     eventsNone: string;
+    editEvent: string;
+    editCancel: string;
+    capacity: (n: number) => string;
     pending: string;
     verified: string;
     withdraw: string;
@@ -207,6 +210,10 @@ export interface Translations {
     ticketInvalid: string;
     publish: string;
     publishing: string;
+    /** Edit-mode labels: the same form, reused for an owner's edit. */
+    editTitle: string;
+    saveChanges: string;
+    savingChanges: string;
     fillHint: (fields: string) => string;
     addArtist: string;
     removeArtist: string;
@@ -370,6 +377,9 @@ export const translations: Record<Language, Translations> = {
       claimsNone: 'nothing yet.',
       eventsTitle: 'events you published',
       eventsNone: 'nothing published yet.',
+      editEvent: 'edit',
+      editCancel: 'cancel',
+      capacity: (n: number) => `capacity ${n}`,
       pending: 'in review',
       verified: 'verified',
       withdraw: 'stop managing',
@@ -473,6 +483,9 @@ export const translations: Record<Language, Translations> = {
       ticketInvalid: "that does not look like a web address",
       publish: "publish to laiive",
       publishing: "publishing…",
+      editTitle: "edit event",
+      saveChanges: "save changes",
+      savingChanges: "saving…",
       fillHint: (fields) => `fill ${fields} — by typing here or just telling the assistant`,
       addArtist: "+ add artist",
       removeArtist: "remove artist",
@@ -636,6 +649,9 @@ export const translations: Record<Language, Translations> = {
       claimsNone: 'todavía nada.',
       eventsTitle: 'eventos que has publicado',
       eventsNone: 'aún no has publicado nada.',
+      editEvent: 'editar',
+      editCancel: 'cancelar',
+      capacity: (n: number) => `aforo ${n}`,
       pending: 'en revisión',
       verified: 'verificado',
       withdraw: 'dejar de gestionar',
@@ -741,6 +757,9 @@ export const translations: Record<Language, Translations> = {
       ticketInvalid: "eso no parece una dirección web",
       publish: "publicar en laiive",
       publishing: "publicando…",
+      editTitle: "editar evento",
+      saveChanges: "guardar cambios",
+      savingChanges: "guardando…",
       fillHint: (fields) => `rellena ${fields} — escribiendo aquí o diciéndoselo al asistente`,
       addArtist: "+ añadir artista",
       removeArtist: "quitar artista",
@@ -904,6 +923,9 @@ export const translations: Record<Language, Translations> = {
       claimsNone: 'ancora niente.',
       eventsTitle: 'eventi che hai pubblicato',
       eventsNone: 'non hai ancora pubblicato niente.',
+      editEvent: 'modifica',
+      editCancel: 'annulla',
+      capacity: (n: number) => `capienza ${n}`,
       pending: 'in revisione',
       verified: 'verificato',
       withdraw: 'non gestire più',
@@ -1009,6 +1031,9 @@ export const translations: Record<Language, Translations> = {
       ticketInvalid: "non sembra un indirizzo web",
       publish: "pubblica su laiive",
       publishing: "pubblico…",
+      editTitle: "modifica evento",
+      saveChanges: "salva modifiche",
+      savingChanges: "salvataggio…",
       fillHint: (fields) => `completa ${fields} — scrivendo qui o dicendolo all'assistente`,
       addArtist: "+ aggiungi artista",
       removeArtist: "rimuovi artista",
@@ -1172,6 +1197,9 @@ export const translations: Record<Language, Translations> = {
       claimsNone: 'encara res.',
       eventsTitle: 'esdeveniments que has publicat',
       eventsNone: 'encara no has publicat res.',
+      editEvent: 'edita',
+      editCancel: 'cancel·la',
+      capacity: (n: number) => `aforament ${n}`,
       pending: 'en revisió',
       verified: 'verificat',
       withdraw: 'deixa de gestionar',
@@ -1277,6 +1305,9 @@ export const translations: Record<Language, Translations> = {
       ticketInvalid: "això no sembla una adreça web",
       publish: "publica a laiive",
       publishing: "publicant…",
+      editTitle: "edita l'esdeveniment",
+      saveChanges: "desa els canvis",
+      savingChanges: "desant…",
       fillHint: (fields) => `omple ${fields} — escrivint aquí o dient-ho a l'assistent`,
       addArtist: "+ afegir artista",
       removeArtist: "treure artista",

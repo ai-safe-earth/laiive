@@ -6,14 +6,28 @@ describe("the initials on the account chip", () => {
     expect(initials("Oscar Arroyo Vega", "x@y.com")).toBe("OV");
   });
 
-  it("gives one letter for one word, rather than guessing at the second", () => {
-    expect(initials("Cher", "x@y.com")).toBe("C");
+  it("takes the first two characters of a single word, never a guessed surname", () => {
+    expect(initials("Cher", "x@y.com")).toBe("CH");
   });
 
   it("falls back to the email, splitting the local part on its separators", () => {
     expect(initials(null, "oscar.arroyo@gmail.com")).toBe("OA");
-    expect(initials(null, "arroscar@gmail.com")).toBe("A");
+    expect(initials(null, "arroscar@gmail.com")).toBe("AR");
     expect(initials("   ", "ana-beck@x.com")).toBe("AB");
+  });
+
+  it("gives one letter only when there is no second one", () => {
+    expect(initials("X", null)).toBe("X");
+  });
+
+  it("never puts punctuation in the chip", () => {
+    // The second character of a single word is taken raw, so a stage name or
+    // an Irish surname would otherwise read "T-" and "O'".
+    expect(initials("O'Brien", null)).toBe("OB");
+    expect(initials("T-Pain", null)).toBe("TP");
+    expect(initials("Jean-Pierre", null)).toBe("JP");
+    expect(initials("D’Angelo", null)).toBe("DA");
+    expect(initials(null, "o'brien@x.com")).toBe("OB");
   });
 
   it("keeps accents and non-latin scripts whole", () => {
@@ -29,11 +43,11 @@ describe("the initials on the account chip", () => {
   });
 
   it("upper-cases through the reader's locale", () => {
-    expect(initials("ana", null)).toBe("A");
+    expect(initials("ana", null)).toBe("AN");
     // toLocaleUpperCase follows the host locale, so a browser set to Turkish
     // gets "İ" here and an English one gets "I". Asserting either would be
     // asserting the test runner's locale, so this only pins the casing itself.
-    expect(initials("işık", null)).toHaveLength(1);
+    expect(initials("işık", null)).toHaveLength(2);
   });
 
   it("returns nothing when there is nothing to work with", () => {

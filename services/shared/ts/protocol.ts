@@ -66,6 +66,9 @@ export interface VenueHit {
   venue_type?: string | null;
   address?: string | null;
   city?: string | null;
+  // The owner-editable facts (Phase E).
+  capacity?: number | null;
+  description?: string | null;
 }
 
 export interface VenueLookupResult {
@@ -77,6 +80,9 @@ export interface ArtistHit {
   uid: string;
   name: string;
   genres: string[];
+  // BASED_IN city and the owner-written description (Phase E).
+  city?: string | null;
+  description?: string | null;
 }
 
 export interface ArtistLookupResult {

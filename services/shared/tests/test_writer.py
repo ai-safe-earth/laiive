@@ -25,7 +25,9 @@ class FakeSession:
     """Answers the venue-by-uid resolve, the dedup probe, the write, and the
     backfill queries in order."""
 
-    def __init__(self, dedup_hit=None, venue_node=None, artist_uids=None):
+    def __init__(
+        self, dedup_hit=None, venue_node=None, artist_uids=None, update_node=None
+    ):
         self.queries: list[tuple[str, dict]] = []
         self._dedup_hit = dedup_hit
         self._venue_node = venue_node
@@ -33,9 +35,20 @@ class FakeSession:
         # writer did not propose is an artist that already existed and kept
         # its own, which is exactly what MERGE does.
         self._artist_uids = artist_uids
+        # What an update's load-current-node query reads back (cur_* columns).
+        self._update_node = update_node
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        # The update branches come first: an update's venue load and SET both
+        # contain "MATCH (v:Venue {uid: $uid})", which the resolve branch
+        # below would otherwise swallow.
+        if "AS cur_name" in query:  # an update's load of the current node
+            return FakeResult(single=self._update_node)
+        if "AS updated_uid" in query:  # an update's SET write
+            return FakeResult(single={"updated_uid": params["uid"]})
+        if "FOREACH (tag IN $genres" in query:  # genre replace on an artist
+            return FakeResult(rows=[])
         if "MATCH (v:Venue {uid: $uid})" in query:
             return FakeResult(single=self._venue_node)
         # Matched on the columns rather than on the whole RETURN line: adding
@@ -172,6 +185,27 @@ def test_unparseable_date_is_invalid():
     result = write_event(FakeSession(), draft, source="pro_submission")
     assert result.status == "invalid"
     assert result.missing == ["start_at"]
+
+
+def test_a_graph_failure_before_the_write_is_a_typed_error_not_a_raise():
+    # The dedup probe and the venue resolve run before the guarded write; an
+    # Aura routing flap there escaped as a raw exception and a bare 500 on
+    # 2026-09-12. Every neo4j failure must come back as status="error".
+    class FlappingSession(FakeSession):
+        def run(self, query, **params):
+            raise RuntimeError("Unable to retrieve routing information")
+
+    result = write_event(FlappingSession(), DRAFT.model_copy(), source="pro_submission")
+    assert result.status == "error"
+    assert "routing" in result.message
+
+    result = write_event(
+        FlappingSession(),
+        DRAFT.model_copy(),
+        source="pro_submission",
+        venue_uid="v-1",
+    )
+    assert result.status == "error"
 
 
 def test_duplicate_probe_short_circuits_on_somebody_elses_event():

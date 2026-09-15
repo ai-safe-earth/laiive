@@ -9,7 +9,10 @@ Tests patch _openai / _driver / _geocoder here (see tests/conftest.py).
 from laiive_shared import EventDraft
 from laiive_shared.geocode import NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
-from laiive_shared.neo4j_writer import WriteResult
+from laiive_shared.neo4j_writer import UpdateResult, WriteResult
+from laiive_shared.neo4j_writer import update_artist as _shared_update_artist
+from laiive_shared.neo4j_writer import update_event as _shared_update_event
+from laiive_shared.neo4j_writer import update_venue as _shared_update_venue
 from laiive_shared.neo4j_writer import write_event as _shared_write_event
 from neo4j import GraphDatabase
 from openai import OpenAI
@@ -17,14 +20,52 @@ from openai import OpenAI
 from config import settings
 
 _openai = OpenAI(api_key=settings.openai_api_key)
-_driver = GraphDatabase.driver(
-    settings.neo4j_uri,
-    auth=(settings.neo4j_user, settings.neo4j_password),
-    connection_timeout=10,
-    # One writer replica, one write at a time per request — a small pool keeps
-    # this service's share of Aura's connection budget out of the retriever's way.
-    max_connection_pool_size=settings.neo4j_max_pool_size,
+
+
+def _build_driver():
+    return GraphDatabase.driver(
+        settings.neo4j_uri,
+        auth=(settings.neo4j_user, settings.neo4j_password),
+        connection_timeout=10,
+        # One writer replica, one write at a time per request — a small pool keeps
+        # this service's share of Aura's connection budget out of the retriever's way.
+        max_connection_pool_size=settings.neo4j_max_pool_size,
+    )
+
+
+_driver = _build_driver()
+
+# What a paused-or-waking Aura sounds like through the shared writer's typed
+# error. Matched on the message because the writer already swallowed the
+# exception type — and that is fine: these strings are the driver's own.
+_TRANSIENT_SIGNATURES = (
+    "routing information",
+    "write service",
+    "read service",
+    "SessionExpired",
+    "ServiceUnavailable",
+    "defunct connection",
 )
+
+
+def is_transient_graph_error(message: str) -> bool:
+    """A graph failure that a retry (or a rebuilt driver) can heal."""
+    return any(s.lower() in message.lower() for s in _TRANSIENT_SIGNATURES)
+
+
+def _reset_driver() -> None:
+    """Replace the module driver: a driver that built its routing table while
+    Aura was paused keeps failing after Aura is back, until it is rebuilt —
+    on 2026-09-12 the pusher stayed not_ready through a whole flap recovery
+    and needed a process restart. A fresh driver reconnects immediately."""
+    global _driver
+    try:
+        _driver.close()
+    except Exception:  # noqa: BLE001 - a poisoned driver may fail to close
+        pass
+    _driver = _build_driver()
+
+
 _geocoder = NominatimGeocoder(
     cache_path=settings.geocode_cache_path,
     store=RedisGeocodeStore(settings.redis_url) if settings.redis_url else None,
@@ -46,11 +87,32 @@ def _embed_texts(texts: list[str]) -> list[list[float]]:
     return [d.embedding for d in response.data]
 
 
+def _retry_transient(once):
+    """One retry on a fresh driver. Safe to re-send: writes MERGE by identity
+    (the dedup probe runs again) and updates are MATCH-by-uid SETs, so a
+    half-landed first attempt answers "duplicate"/"adopted"/no-op rather
+    than doubling."""
+    result = once()
+    if result.status == "error" and is_transient_graph_error(result.message):
+        _reset_driver()
+        result = once()
+    return result
+
+
 def write_event(
     draft: EventDraft,
     owner_id: str | None = None,
     source: str = "pro_submission",
     venue_uid: str | None = None,
+) -> WriteResult:
+    return _retry_transient(lambda: _write_once(draft, owner_id, source, venue_uid))
+
+
+def _write_once(
+    draft: EventDraft,
+    owner_id: str | None,
+    source: str,
+    venue_uid: str | None,
 ) -> WriteResult:
     with _driver.session(database=settings.neo4j_database) as session:
         return _shared_write_event(
@@ -63,3 +125,46 @@ def write_event(
             geocoder=_geocoder,
             venue_uid=venue_uid,
         )
+
+
+def update_event(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_event(
+                session,
+                uid,
+                fields,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)
+
+
+def update_venue(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_venue(
+                session,
+                uid,
+                fields,
+                geocoder=_geocoder,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)
+
+
+def update_artist(uid: str, fields: dict) -> UpdateResult:
+    def once() -> UpdateResult:
+        with _driver.session(database=settings.neo4j_database) as session:
+            return _shared_update_artist(
+                session,
+                uid,
+                fields,
+                embed_texts=_embed_texts,
+                embedding_model=settings.embedding_model,
+            )
+
+    return _retry_transient(once)

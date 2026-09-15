@@ -119,3 +119,29 @@ export async function saveEvent(
   });
   return (await response.json()) as SavedEvent;
 }
+
+/** What the gateway answers an edit with — the writer's UpdateResult. */
+export interface EventEditResult {
+  status: string;
+  uid: string | null;
+  /** Per-field {old, new} delta — only what actually changed. */
+  changed: Record<string, { old: unknown; new: unknown }>;
+  warnings: string[];
+  message: string;
+}
+
+/**
+ * PATCH one published event. `fields` carries ONLY what changed — the writer
+ * is PATCH-semantics (an explicit null clears), so sending untouched fields
+ * would file phantom deltas into the audit log.
+ */
+export async function editEvent(
+  uid: string,
+  fields: Record<string, unknown>,
+): Promise<EventEditResult> {
+  const response = await apiFetch(`/api/events/${encodeURIComponent(uid)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fields }),
+  });
+  return (await response.json()) as EventEditResult;
+}

@@ -106,8 +106,35 @@ def _write_or_raise(
     if result.status == "duplicate":
         raise HTTPException(409, result.message)
     if result.status == "error":
+        # A waking Aura already survived one in-process retry by now; tell
+        # the promoter something they can act on rather than a bare 500.
+        if graph.is_transient_graph_error(result.message):
+            raise HTTPException(
+                503,
+                "The events database is briefly unavailable — "
+                "please try again in a moment.",
+            )
         raise HTTPException(500, result.message)
     return result
+
+
+def _updated_or_raise(result):
+    """Map an UpdateResult onto HTTP, mirroring _write_or_raise."""
+    if result.status == "invalid":
+        raise HTTPException(422, result.message)
+    if result.status == "duplicate":
+        raise HTTPException(409, result.message)
+    if result.status == "not_found":
+        raise HTTPException(404, result.message)
+    if result.status == "error":
+        if graph.is_transient_graph_error(result.message):
+            raise HTTPException(
+                503,
+                "The events database is briefly unavailable — "
+                "please try again in a moment.",
+            )
+        raise HTTPException(500, result.message)
+    return result.model_dump()
 
 
 # ============== Health ==============
@@ -123,6 +150,7 @@ def root():
             "chat_stream": "/chat/stream (POST) - SSE streaming",
             "ingest": "/ingest (POST, multipart) - audio/image/document/url → text",
             "validate": "/validate-event (POST)",
+            "edit": "/events|venues|artists/{uid} (PATCH) - owner edits",
         },
     }
 
@@ -300,3 +328,35 @@ async def validate_event(
         "venue_created": result.venue_created,
         "artist_uids_created": result.artist_uids_created,
     }
+
+
+# ============== Owner edits (Phase E) ==============
+#
+# Thin wrappers over the shared update functions, reachable only through the
+# gateway (internal key + explicit named routes there): authorization is the
+# gateway's user_may_edit question, asked BEFORE it calls here, and the audit
+# row is its to write AFTER — this service only performs the graph write.
+
+
+class EditRequest(BaseModel):
+    """PATCH body: only the fields to change; an explicit null clears."""
+
+    fields: dict
+
+
+@app.patch("/events/{uid}")
+async def edit_event(uid: str, request: EditRequest):
+    result = await asyncio.to_thread(graph.update_event, uid, request.fields)
+    return _updated_or_raise(result)
+
+
+@app.patch("/venues/{uid}")
+async def edit_venue(uid: str, request: EditRequest):
+    result = await asyncio.to_thread(graph.update_venue, uid, request.fields)
+    return _updated_or_raise(result)
+
+
+@app.patch("/artists/{uid}")
+async def edit_artist(uid: str, request: EditRequest):
+    result = await asyncio.to_thread(graph.update_artist, uid, request.fields)
+    return _updated_or_raise(result)
