@@ -56,13 +56,14 @@ function formatPrice(card: EventCard, free: string): string | null {
 }
 
 /**
- * A pill sized as the brand draws it (12.5px, ~31px tall) but with a 44px
- * touch target underneath — the artwork's spacing and the accessibility floor
- * both hold, which they do not if the pill is simply grown to 44px.
+ * A pill kept visually compact (14px, ~32px tall) with a 44px touch target
+ * underneath — the artwork's spacing and the accessibility floor both hold,
+ * which they do not if the pill is simply grown to 44px. The `after` overlay
+ * is recentred on the taller pill: (44 - 32) / 2 = 6.
  */
 const PILL =
-  "relative inline-flex items-center rounded-full px-3 py-[9px] text-xs font-medium leading-none " +
-  "transition-colors after:absolute after:inset-x-0 after:-top-[7px] after:h-11 after:content-['']";
+  "relative inline-flex items-center rounded-full px-3 py-[9px] text-sm font-medium leading-none " +
+  "transition-colors after:absolute after:inset-x-0 after:-top-[6px] after:h-11 after:content-['']";
 
 export function EventCardView({
   card,
@@ -141,7 +142,7 @@ export function EventCardView({
     <article className="rounded-[20px] border border-hairline/[0.07] bg-card px-[15px] py-[13px]">
       <header className="flex items-baseline justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <h4 className="min-w-0 truncate font-bebas text-xl leading-[1.05] tracking-[0.03em] text-card-foreground">
+          <h4 className="min-w-0 truncate font-bebas text-2xl leading-[1.05] tracking-[0.03em] text-card-foreground">
             {card.name}
           </h4>
           {(fromSearch || verified) && (
@@ -170,7 +171,7 @@ export function EventCardView({
         {price && (
           <span
             className={cn(
-              "flex-none rounded-full px-[9px] py-[5px] text-xs font-bold leading-none text-primary-foreground",
+              "flex-none rounded-full px-[9px] py-[5px] text-sm font-bold leading-none text-primary-foreground",
               // Free is the one thing fuchsia says besides the brand itself.
               isFree ? "bg-primary" : "bg-secondary",
             )}
@@ -181,16 +182,16 @@ export function EventCardView({
       </header>
 
       {card.artists.length > 0 && (
-        <p className="truncate pt-1 text-sm leading-[1.45] text-muted-foreground">
+        <p className="truncate pt-1 text-md leading-[1.45] text-muted-foreground">
           {card.artists.join(", ")}
         </p>
       )}
       {meta && (
-        <p className="pt-1 text-sm leading-[1.45] text-muted-foreground">{meta}</p>
+        <p className="pt-1 text-md leading-[1.45] text-muted-foreground">{meta}</p>
       )}
 
       {showProvenance && (
-        <div className="pt-2 text-sm leading-[1.45] text-muted-foreground">
+        <div className="pt-2 text-md leading-[1.45] text-muted-foreground">
           {fromSearch ? (
             <>
               <p>
@@ -226,7 +227,7 @@ export function EventCardView({
       )}
 
       {expanded && card.description && (
-        <p className="whitespace-pre-wrap pt-2 text-sm leading-[1.5] text-muted-foreground">
+        <p className="whitespace-pre-wrap pt-2 text-md leading-[1.5] text-muted-foreground">
           {card.description}
         </p>
       )}
@@ -240,7 +241,7 @@ export function EventCardView({
             approximate={approximate}
           />
           {approximate && (
-            <p className="text-sm leading-[1.45] text-muted-foreground">
+            <p className="text-md leading-[1.45] text-muted-foreground">
               {t.cards.approximate}
             </p>
           )}
@@ -248,7 +249,7 @@ export function EventCardView({
             href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex min-h-11 items-center gap-1 text-md text-muted-foreground transition-colors hover:text-foreground"
           >
             {t.cards.openMaps}
             <Icon name="share" className="h-3.5 w-3.5" />

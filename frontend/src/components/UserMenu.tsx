@@ -82,7 +82,7 @@ export function UserMenu() {
               </p>
               <p
                 className={cn(
-                  "font-mono text-2xs uppercase tracking-[0.11em]",
+                  "font-mono text-xs uppercase tracking-[0.11em]",
                   pro ? "text-pro-dim" : "text-ink-dim",
                 )}
               >

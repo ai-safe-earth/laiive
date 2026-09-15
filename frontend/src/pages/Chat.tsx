@@ -210,7 +210,7 @@ export default function Chat() {
                   key={example}
                   type="button"
                   onClick={() => void send(example)}
-                  className="min-h-11 rounded-full bg-field-border px-3.5 text-sm leading-tight text-white transition-colors hover:bg-muted"
+                  className="min-h-11 rounded-full bg-field-border px-3.5 text-md leading-tight text-white transition-colors hover:bg-muted"
                 >
                   {example}
                 </button>
@@ -260,7 +260,7 @@ export default function Chat() {
             )}
 
             {status && (
-              <p className="animate-pulse font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
+              <p className="animate-pulse font-mono text-sm uppercase tracking-[0.11em] text-ink-dim">
                 {status}
               </p>
             )}
@@ -326,7 +326,7 @@ export function TurnFeedback({ requestId }: { requestId: string }) {
     return (
       <p
         role="status"
-        className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim"
+        className="font-mono text-sm uppercase tracking-[0.11em] text-ink-dim"
       >
         {t.chat.feedbackThanks}
       </p>
