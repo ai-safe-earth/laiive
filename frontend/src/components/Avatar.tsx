@@ -62,10 +62,11 @@ export function Avatar({
     <span
       aria-hidden="true"
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-sm font-medium leading-none",
+        "flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-mono text-sm font-medium leading-none",
         // No tracking: two characters plus a letter-space sit off-centre in a
         // circle. The chip carries its surface's accent — and dark ink on it,
-        // never cream: white on fuchsia is 3.45:1 and this text is 12.5px.
+        // never cream: white on fuchsia is 3.45:1. The circle is 44px because
+        // two 21px characters no longer fit inside 32.
         pro ? "bg-pro-accent text-background" : "bg-primary text-primary-foreground",
         className,
       )}
