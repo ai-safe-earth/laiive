@@ -215,12 +215,12 @@ export default function AdminReport() {
         {isLoading && <Panel><Empty>{A.report.loading}</Empty></Panel>}
         {isError && <Panel><Empty>{A.report.failed}</Empty></Panel>}
 
-        {data && candidates.length === 0 && <Panel><Empty>{A.report.empty}</Empty></Panel>}
-
-        {data && candidates.length > 0 && (
-          <>
-            {!settled && (
-              <div className="flex flex-wrap items-center gap-2">
+        {/* A report with no candidates is still dismissable, so the bar hangs off
+            the status, not off the table below it. */}
+        {data && !settled && (
+          <div className="flex flex-wrap items-center gap-2">
+            {candidates.length > 0 && (
+              <>
                 <AdminButton onClick={selectAllNew}>{A.report.selectAll}</AdminButton>
                 <AdminButton onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
                   {A.report.clear}
@@ -228,21 +228,29 @@ export default function AdminReport() {
                 <span className="text-sm tabular-nums text-pro-dim">
                   {A.report.selected(selected.size)}
                 </span>
-                <span className="ml-auto flex gap-2">
-                  <AdminButton variant="danger" onClick={onDismiss} disabled={dismiss.isPending}>
-                    {dismiss.isPending ? A.report.dismissing : A.report.dismiss}
-                  </AdminButton>
-                  <AdminButton
-                    variant="primary"
-                    onClick={onApprove}
-                    disabled={selected.size === 0 || approve.isPending}
-                  >
-                    {approve.isPending ? A.report.approving : A.report.approve}
-                  </AdminButton>
-                </span>
-              </div>
+              </>
             )}
+            <span className="ml-auto flex gap-2">
+              <AdminButton variant="danger" onClick={onDismiss} disabled={dismiss.isPending}>
+                {dismiss.isPending ? A.report.dismissing : A.report.dismiss}
+              </AdminButton>
+              {candidates.length > 0 && (
+                <AdminButton
+                  variant="primary"
+                  onClick={onApprove}
+                  disabled={selected.size === 0 || approve.isPending}
+                >
+                  {approve.isPending ? A.report.approving : A.report.approve}
+                </AdminButton>
+              )}
+            </span>
+          </div>
+        )}
 
+        {data && candidates.length === 0 && <Panel><Empty>{A.report.empty}</Empty></Panel>}
+
+        {data && candidates.length > 0 && (
+          <>
             <Panel className="overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
