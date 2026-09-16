@@ -228,7 +228,13 @@ export default function Chat() {
           /* Under the header and behind everything below it, with only the
              composer floating over the top. aria-hidden and silent: it is
              atmosphere, it says nothing the page does not, and a tap anywhere
-             on it skips. */
+             on it skips.
+
+             `contain`, not `cover`: the chat area is tall and portrait and the
+             cut is not, so covering it would scale the film until it filled
+             the height and throw away most of its width. Fitted to the width
+             and centred in what is left, which is the whole frame, uncropped —
+             the same reason the promoter walkthrough lost its aspect box. */
           <video
             aria-hidden="true"
             src="/laiive-intro.mp4"
@@ -239,7 +245,7 @@ export default function Chat() {
             onClick={() => setIntro("leaving")}
             onTransitionEnd={() => setIntro("done")}
             className={cn(
-              "absolute inset-0 z-10 h-full w-full object-cover transition-opacity duration-1000",
+              "absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-1000",
               intro === "leaving" ? "opacity-0" : "opacity-100",
             )}
           />
