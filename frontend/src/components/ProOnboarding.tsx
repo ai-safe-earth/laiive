@@ -59,13 +59,18 @@ export function ProOnboarding() {
   if (!open) return null;
 
   return (
-    <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-card px-5 py-[18px]">
+    <section className="flex flex-col gap-3.5 overflow-hidden rounded-[20px] border border-pro-border bg-pro-card pb-[18px]">
       {/* No heading and no copy: the cut shows what this is faster than a line
-          naming it, which is the whole reason the steps came out. */}
+          naming it, which is the whole reason the steps came out.
+
+          Edge to edge, and no `aspect` box: a fixed 16/9 frame with
+          `object-cover` cropped whatever the cut actually is, and what it took
+          off was the bottom — where the product is. The video sets its own
+          height from its own dimensions, so nothing is ever cut again. */}
       <video
         ref={setSpeed}
         aria-label={t.pro.onboardingVideo}
-        className="aspect-[16/9] w-full rounded-[14px] border border-pro-border bg-pro-bg object-cover"
+        className="block w-full bg-pro-bg"
         src="/pro-walkthrough.mp4"
         autoPlay
         muted
@@ -79,8 +84,13 @@ export function ProOnboarding() {
           no separate confirm, because there is nothing else on the panel. */}
       <label
         htmlFor="pro-onboarding-hide"
-        className="flex min-h-11 cursor-pointer items-center gap-2.5 font-mono text-xs text-pro-accent"
+        className="mx-5 flex min-h-11 cursor-pointer items-center gap-2.5 font-mono text-xs text-pro-accent"
       >
+        {/* `appearance-none`: the platform checkbox is a white box, which on
+            this ground is the loudest thing on the panel and louder than the
+            video it sits under. Drawn as a grey outline instead. No tick glyph
+            — checking it is what closes the panel, so the checked state is
+            never on screen long enough to read. */}
         <input
           id="pro-onboarding-hide"
           type="checkbox"
@@ -89,7 +99,7 @@ export function ProOnboarding() {
             remember();
             setOpen(false);
           }}
-          className="h-4 w-4 flex-none accent-pro-accent"
+          className="h-4 w-4 flex-none appearance-none rounded-[4px] border border-pro-dim bg-transparent transition-colors checked:bg-pro-dim hover:border-pro-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pro-accent"
         />
         {t.pro.onboardingDismiss}
       </label>

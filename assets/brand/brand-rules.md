@@ -134,6 +134,31 @@ sized in `vw` and `rem` and is equally stuck; move both together.
   changes direction, and it is the one coloured item: fuchsia back to laiive,
   cyan into pro — the accent of where it leads, not where it sits.
 
+## Film
+
+Two cuts, and they are the only moving pictures in the product.
+
+- **The opening film** runs once when somebody arrives at the chat: fitted to
+  the full width under the header and centred in the height, with the composer
+  floating over it and the bar dropping its fill and rule so the picture
+  carries underneath. It fades into the grey wordmark, which is where the
+  empty chat rests anyway — the film ends by becoming the ground rather than
+  by disappearing off it.
+- It **stands down** for a promoter crossing back from /pro or /admin, for a
+  reader who has asked their system for less motion, and when the browser
+  cannot say which. A tap anywhere skips it, and asking a question skips it.
+- **The promoter walkthrough** on /pro/org runs edge to edge in its panel and
+  sets its own height from its own dimensions. Never an `aspect` box with
+  `object-cover`: that cropped the bottom of the cut, which is where the
+  product was.
+- **Neither is ever cropped.** `object-contain` or no object-fit at all, never
+  `cover`, and never a fixed `aspect` box: the chat area is tall and portrait
+  and these cuts are not, so covering throws away the sides, and a 16/9 frame
+  over the walkthrough took the bottom off — where the product was.
+- Both are silent, loop or end on their own, and carry no copy. The
+  walkthrough's numbered steps were removed because the cut shows the same
+  four moves — a video that needs a caption beside it is the wrong cut.
+
 ## Voice
 
 - Second person, present tense, short. Answer first, reason second. Numbers only
