@@ -26,12 +26,11 @@ import {
 } from "@/api/organizations";
 import { LOOKUP_CHUNK } from "@/api/savedEvents";
 import { useAuth } from "@/auth/AuthProvider";
-import { claimTarget } from "@/auth/claimTarget";
 // Label, Badge and Panel are pro-palette primitives that happen to live under
 // admin/: they are built on pro.* and status.* tokens, not on anything
 // admin-specific. Reused rather than copied.
 import { Badge, Label, Panel } from "@/admin/ui";
-import { EventCardView } from "@/components/EventCardView";
+import { formatWhen } from "@/components/EventCardView";
 import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
@@ -108,21 +107,37 @@ export default function ProOrg() {
 }
 
 /**
- * A titled band of panels.
+ * A titled band of panels, which folds away.
  *
  * What the organisation IS and what it MANAGES were six sibling panels in one
  * stack, two of them titled "venues and artists you manage" and "manage a
- * venue or an artist" and adjacent — which is the confusion this fixes. The
- * heading and its rule do the separating; there is no fourth pro ground and
- * this does not need one.
+ * venue or an artist" and adjacent — which is the confusion the heading and
+ * its rule fixed. Folding is the second half of that: three bands is still a
+ * long page on a phone, and a promoter who came to check one thing should be
+ * able to put the other two away.
+ *
+ * ponytail: native `<details>`, not a useState and a conditional. The browser
+ * brings the open/closed state, the keyboard behaviour and the semantics for
+ * free, and they are the parts a hand-rolled disclosure gets wrong. Open by
+ * default — a promoter arriving to an accordion of closed labels has to hunt
+ * for what used to be in front of them.
+ *
+ * No chevron in the icon set (14 symbols, and adding one is a brand change),
+ * so `plus` turns 45 degrees into a close cross. It reads as the same control
+ * in both states, which a chevron and an × would not.
  */
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="font-bebas text-2xl leading-none tracking-[0.04em] text-pro-fg">{label}</h2>
-      <div className="h-px bg-pro-border" />
-      {children}
-    </section>
+    <details open className="group">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-pro-border pb-3 [&::-webkit-details-marker]:hidden">
+        <h2 className="font-bebas text-2xl leading-none tracking-[0.04em] text-pro-fg">{label}</h2>
+        <Icon
+          name="plus"
+          className="h-4 w-4 flex-none text-pro-dim transition-transform group-open:rotate-45"
+        />
+      </summary>
+      <div className="pt-3">{children}</div>
+    </details>
   );
 }
 
@@ -333,7 +348,6 @@ function diffEditable(
 
 function PublishedEvents({ org }: { org: OrgMembership }) {
   const { language, t } = useTranslation();
-  const { user, role } = useAuth();
   const [editing, setEditing] = useState<EventCard | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   // Memoized, or every parent render hands EventForm a fresh draft identity
@@ -392,11 +406,17 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
       {!uids.length ? (
         <p className="text-sm text-pro-muted">{t.org.eventsNone}</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        /* A list, not a stack of cards. The card is built to sell a night to
+           somebody deciding whether to go — provenance mark, price badge, map,
+           save, tickets. None of that is what a promoter is doing here: they
+           are finding one of their own listings among many and opening it. Two
+           lines and a rule scan far faster, and ten of them fit where three
+           cards did. */
+        <ul className="flex flex-col divide-y divide-pro-border">
           {sorted.map((card) => (
-            <li key={card.uid}>
+            <li key={card.uid} className="py-2.5 first:pt-0 last:pb-0">
               {editing?.uid === card.uid && editDraft ? (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 py-1">
                   <EventForm
                     draft={editDraft}
                     missing={[]}
@@ -413,27 +433,7 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col gap-1.5">
-                  {/* No save control: this is the promoter's own listing, not a
-                      night they are deciding whether to attend. `claimTo` is inert
-                      for a pro_submission card - the invitation only renders for a
-                      listing that came from the web sweep. */}
-                  <EventCardView
-                    card={card}
-                    language={language}
-                    claimTo={claimTarget(Boolean(user), role)}
-                  />
-                  {/* Edit lives on the event row — never beside "stop managing"
-                      in the entities panel, where it would read as destroying
-                      the thing (ProOrg.tsx:209-219's lesson). */}
-                  <Button
-                    variant="proNeutral"
-                    className="self-start"
-                    onClick={() => setEditing(card)}
-                  >
-                    {t.org.editEvent}
-                  </Button>
-                </div>
+                <EventRow card={card} language={language} onEdit={() => setEditing(card)} />
               )}
             </li>
           ))}
@@ -449,6 +449,51 @@ function PublishedEvents({ org }: { org: OrgMembership }) {
         </Button>
       )}
     </Panel>
+  );
+}
+
+/**
+ * One published event: what it is on the first line, where and when on the
+ * second, and the way in to change it at the end of the first.
+ *
+ * Smaller than body copy on purpose — `sm` over `xs` — because this is an
+ * index, read by scanning down the left edge for a name you already know.
+ * Both lines truncate rather than wrap: a wrapped title pushes every row below
+ * it out of alignment and the scan stops working.
+ */
+function EventRow({
+  card,
+  language,
+  onEdit,
+}: {
+  card: EventCard;
+  language: string;
+  onEdit: () => void;
+}) {
+  const { t } = useTranslation();
+  const when = formatWhen(card.start_at, language, card.start_time_known !== false, card.timezone);
+  // Group, venue, date — in that order, because two of a promoter's nights at
+  // the same venue are told apart by who is playing.
+  const line = [card.artists.join(", "), card.venue, when].filter(Boolean).join(" · ");
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-3">
+        <p className="min-w-0 flex-1 truncate text-sm text-pro-fg">{card.name}</p>
+        {/* Edit lives on the event row — never beside "stop managing" in the
+            entities panel, where it would read as destroying the thing
+            (ProOrg.tsx:209-219's lesson). A 26px control with the pills' 44px
+            overlay under it: the row is an index, and a full-height button on
+            every line would double the page. */}
+        <button
+          type="button"
+          onClick={onEdit}
+          className="relative flex-none rounded-full border border-pro-border px-3 py-1 font-mono text-2xs uppercase tracking-[0.11em] text-pro-muted transition-colors after:absolute after:inset-x-0 after:-top-[9px] after:h-11 after:content-[''] hover:text-pro-fg"
+        >
+          {t.org.editEvent}
+        </button>
+      </div>
+      <p className="truncate text-xs text-pro-dim">{line || "—"}</p>
+    </div>
   );
 }
 

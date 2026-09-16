@@ -137,3 +137,7 @@ node_modules/
 # aisg audit output (generated: wall-clock stamps, dirty sha, absolute paths)
 audit-report*.json
 audit-baseline.json
+
+# The walkthrough source. The cut that actually ships is copied to
+# frontend/public/pro-walkthrough.mp4; keeping both in git stores it twice.
+assets/*.mp4

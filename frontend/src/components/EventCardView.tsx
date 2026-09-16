@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { EventMap } from "./EventMap";
 
 /** "sáb 15 nov, 21:00" in the user's language, or null when the date is absent. */
-function formatWhen(
+export function formatWhen(
   startAt: string | null | undefined,
   language: string,
   timeKnown: boolean,
