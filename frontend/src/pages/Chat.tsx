@@ -76,6 +76,18 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
 
+  // The film hides the example chips and holds the composer bar transparent
+  // while it runs, so anything that stops it from ending strands the chat
+  // under a picture that may not even be on screen: a 404, a slow fetch of
+  // three megabytes, a refused autoplay, a tab backgrounded before it starts.
+  // The cut is seven seconds; past fifteen it is not coming, and the second,
+  // shorter guard covers a fade whose transitionend never arrives.
+  useEffect(() => {
+    if (intro === "done") return;
+    const giveUp = setTimeout(() => setIntro("done"), intro === "playing" ? 15000 : 1500);
+    return () => clearTimeout(giveUp);
+  }, [intro]);
+
   // Location is optional: "near me" queries need it, everything else does not,
   // so a denied permission is not worth a toast.
   useEffect(() => {
@@ -224,6 +236,39 @@ export default function Chat() {
       </header>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {isEmpty && (
+          /* The grey the film lands on.
+             Same 1080x1080 viewBox and the same `meet` fit as the cut, so the
+             two are laid out by identical rules and the letters coincide at
+             every screen size instead of at one. The numbers are measured off
+             the film's own last frame: ink from x 192 to 876, baseline at
+             y 441, cap height 232, stable between luminance thresholds 40 and
+             60 so that is the letters and not their glow.
+
+             Bebas sits its caps at 0.70em, so 232/0.70 gives the 330. The 16.4
+             of tracking is 0.0497em, a hair over the 0.04em brand-rules.md
+             gives the lockup: the cut was set fractionally wider, and 685 of
+             ink is the target here, not the rule. `x` is 182 rather than 192
+             because L carries a 10px left side bearing at this size, and it is
+             the ink that has to line up, not the origin. */
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 1080 1080"
+            preserveAspectRatio="xMidYMid meet"
+            className="pointer-events-none absolute inset-0 h-full w-full select-none text-foreground/[0.05]"
+          >
+            <text
+              x="182"
+              y="441"
+              fill="currentColor"
+              className="font-bebas"
+              fontSize="330"
+              letterSpacing="16.4"
+            >
+              LAIIVE
+            </text>
+          </svg>
+        )}
         {intro !== "done" && (
           /* Under the header and behind everything below it, with only the
              composer floating over the top. aria-hidden and silent: it is
@@ -243,23 +288,19 @@ export default function Chat() {
             playsInline
             onEnded={() => setIntro("leaving")}
             onClick={() => setIntro("leaving")}
+            // Straight to done, no fade: there is nothing to fade out.
+            onError={() => setIntro("done")}
             onTransitionEnd={() => setIntro("done")}
             className={cn(
-              "absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-1000",
+              "absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-500",
               intro === "leaving" ? "opacity-0" : "opacity-100",
             )}
           />
         )}
 
-      <div className="relative min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
+      <div className="relative z-0 min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
         {isEmpty ? (
           <div className="flex h-full flex-col items-center justify-center gap-8">
-            <span
-              aria-hidden="true"
-              className="select-none font-bebas text-[29vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[10rem]"
-            >
-              laiive
-            </span>
             {/* Three real queries, sent verbatim. An empty chat gives no
                 clue what it will understand, and a promoter's event is
                 only found if somebody asks in a shape that reaches it. */}
