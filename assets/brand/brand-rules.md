@@ -71,33 +71,45 @@ names only — never `text-[Npx]`: px ignores the phone's text-size setting, and
 the reference screens were drawn at sizes that read fine on a monitor and not
 on a 5.5" screen (lifted 2026-08-28).
 
-**Sized on the device, 2026-09-16.** Two rounds of raising these numbers from a
-monitor both undershot. The owner then read a ladder of specimens on the phone
-that was failing — 411px layout, 16px root, no pinch zoom, so nothing was
-scaling the page — and picked **23px for card meta** against the 16px it had.
-Every token carries that same 1.44x, and no role moved, so nothing was
+**Sized on the device, 2026-09-16.** Three rounds: two raises guessed from a
+monitor both undershot, 23 overshot, and **18** is where body copy settled.
+The number came from reading a ladder of specimens on the phone that was
+failing — 411px layout, 16px root, no pinch zoom, so nothing was scaling the
+page. Every token carries that 1.125x and no role moved, so nothing was
 re-tagged. Do not guess at these from a desktop screen: measure on the phone.
 
-Three pieces of geometry are tied to the type and moved with it. The composer's
-field is **52px on one line**, not 44 (32px of leading, since a 23px face clips
-in a 24px line box), so `Button`'s icon size is 52 to match — text buttons keep
-the 44px floor. The account chip is a 44px circle, because two 21px characters
-do not fit inside 32. The card pill is ~39px tall and its 44px touch overlay is
-recentred on it. The recording meter is the one place a literal px size is
-correct: those block glyphs are a graphic in fixed 8px cells, not type.
+One scale, one size, both surfaces. The promoter and admin screens briefly ran
+at nine tenths of the consumer app through a `--type-scale` multiplier, on the
+reasoning that a desk tool wants denser copy than a phone — then the consumer
+number came down to the 18 those surfaces were asking for, the two met, and
+the multiplier was deleted rather than left at 1.
+
+Geometry is tied to the type. 18px in a 24px line box is 1.33em, the room DM
+Sans wants before it clips its descenders, and that is what keeps the
+composer's field at **44px on one line** — the height of the send beside it
+and the touch floor everything here is held to. A larger `base` needs a larger
+line box and a taller field with it. The account chip is a 36px circle; the
+card pill is ~35px tall with its 44px touch overlay recentred on it. The
+recording meter is the one place a literal px size is correct: those block
+glyphs are a graphic in fixed 8px cells, not type.
+
+**The lockup follows no scale.** `Mark` takes a px `size`, so it has to be
+moved by hand whenever the type moves — it sat at 27 through three rounds of
+lifting the type around it before anyone noticed. The empty-chat wordmark is
+sized in `vw` and `rem` and is equally stuck; move both together.
 
 | token | px | role |
 |---|---|---|
-| `2xs` | 17 | promoter and admin badges and status pills only |
-| `xs` | 19 | mono section labels and the role line (+0.11em caps) |
-| `sm` | 21 | secondary copy, card pills, price badge (700), status lines, account chip |
-| `md` | 23 | buttons, chips, UI copy, toasts, card meta |
-| `base` | 23 | every input — below 16px iOS zooms the page on focus |
-| `lg` | 25 | your own messages in the chat, 1.45 leading |
-| `xl` | 28 | answers, 1.55 leading |
-| `2xl` | 32 | section heads; Bebas event titles (+0.03em) |
-| `3xl` | 36 | page titles, wordmark (the wordmark alone may go up to 54px) |
-| `4xl` | 41 | pro watermark |
+| `2xs` | 13.5 | mono badges and status pills |
+| `xs` | 15 | mono section labels and the role line (+0.11em caps) |
+| `sm` | 17 | secondary copy, card pills, price badge (700), status lines, account chip |
+| `md` | 18 | buttons, chips, UI copy, toasts, card meta |
+| `base` | 18 | every input — below 16px iOS zooms the page on focus |
+| `lg` | 20 | your own messages in the chat, 1.45 leading |
+| `xl` | 22 | answers, 1.55 leading |
+| `2xl` | 26 | section heads; Bebas event titles (+0.03em) |
+| `3xl` | 29 | page titles, wordmark (the wordmark alone may go up to 54px) |
+| `4xl` | 33 | pro watermark |
 
 - **Bebas Neue** — wordmark (+0.04em) and event titles, caps only. Never body
   copy, never a label, never below `xl`.
@@ -105,6 +117,22 @@ correct: those block glyphs are a graphic in fixed 8px cells, not type.
 - **IBM Plex Mono** — labels, hex values, status pills, technical chrome only.
 - Touch targets ≥ 44px on every consumer and promoter control; admin screens
   are desktop tools and exempt.
+
+## Chrome
+
+- The header and the composer bar are **chrome a thumb rests on, not page**.
+  Both sit a step above the ground on `--chrome` / `--pro-chrome`, and the
+  composer field a step above that. They were at or below the ground and read
+  as holes rather than as surfaces.
+- **The header never scrolls away.** In the chat its flex column pins it; on
+  every `min-h-[100dvh]` page it is `sticky top-0` over an opaque fill.
+- **Attach and mic live inside the composer field**, messenger-style, ghosted
+  rather than outlined — inside the field there is no ground to lift them off,
+  and a bordered pill inside a bordered pill is two frames saying one thing.
+  The send stays outside as the only filled control in the row.
+- A promoter's account menu is **the same on both surfaces**. Only the crossing
+  changes direction, and it is the one coloured item: fuchsia back to laiive,
+  cyan into pro — the accent of where it leads, not where it sits.
 
 ## Voice
 
