@@ -69,7 +69,7 @@ export default function ProOrg() {
 
   return (
     <div className="min-h-[100dvh] bg-pro-bg">
-      <header className="flex items-center gap-3 border-b border-pro-border px-4 py-3 sm:px-6">
+      <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-pro-border bg-pro-chrome px-4 py-3 sm:px-6">
         <Link
           to="/pro"
           aria-label={t.org.back}
@@ -77,7 +77,7 @@ export default function ProOrg() {
         >
           <Icon name="back" />
         </Link>
-        <Mark size={24} />
+        <Mark size={27} />
         <span className="font-mono text-2xs uppercase tracking-[0.11em] text-pro-dim">
           {t.org.title}
         </span>

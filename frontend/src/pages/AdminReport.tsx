@@ -191,7 +191,7 @@ export default function AdminReport() {
 
   return (
     <div className="min-h-[100dvh] bg-pro-bg">
-      <header className="flex items-center justify-between gap-3 border-b border-pro-border px-5 py-4">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-pro-border bg-pro-chrome px-5 py-4">
         <div className="flex min-w-0 items-baseline gap-3">
           <h1 className="truncate font-bebas text-3xl leading-none tracking-[0.03em] text-pro-fg">
             {data?.city ?? A.title}

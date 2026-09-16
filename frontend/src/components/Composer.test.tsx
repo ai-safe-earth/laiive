@@ -87,8 +87,10 @@ describe("the shared composer", () => {
   it("keeps the fuchsia on the send alone on the consumer side", () => {
     renderComposer({ value: "x" });
     expect(screen.getByRole("button", { name: en.chat.send }).className).toContain("bg-primary");
+    // The mic moved inside the field, so it carries no frame of its own now —
+    // what matters is still that it never wears the send's accent.
     const mic = screen.getByRole("button", { name: en.voice.speak });
-    expect(mic.className).toContain("border-field-border");
+    expect(mic.className).not.toContain("bg-primary");
     expect(mic.className).not.toContain("border-primary");
   });
 
@@ -98,7 +100,7 @@ describe("the shared composer", () => {
       "bg-pro-accent",
     );
     const mic = screen.getByRole("button", { name: en.voice.speak });
-    expect(mic.className).toContain("border-pro-border");
+    expect(mic.className).not.toContain("bg-pro-accent");
     expect(mic.className).not.toContain("border-pro-accent");
   });
 
@@ -112,14 +114,23 @@ describe("the shared composer", () => {
     expect(screen.queryByRole("button", { name: en.pro.attach })).toBeNull();
   });
 
-  it("orders the row attach, field, mic, send", () => {
+  it("puts attach and mic inside the field and leaves the send outside", () => {
+    // Messenger shape. Reading order is field, then the two controls sitting
+    // in it, then the send — which is also the tab order, and the only control
+    // outside the pill is the one that commits.
     const { container } = renderComposer({
       attachSlot: <button type="button" aria-label={en.pro.attach} />,
     });
     const row = [...container.querySelectorAll("button, textarea")].map(
       (element) => element.getAttribute("aria-label"),
     );
-    expect(row).toEqual([en.pro.attach, en.chat.placeholder, en.voice.speak, en.chat.send]);
+    expect(row).toEqual([en.chat.placeholder, en.pro.attach, en.voice.speak, en.chat.send]);
+
+    const field = screen.getByRole("textbox");
+    const inField = field.parentElement as HTMLElement;
+    expect(inField).toContainElement(screen.getByRole("button", { name: en.pro.attach }));
+    expect(inField).toContainElement(screen.getByRole("button", { name: en.voice.speak }));
+    expect(inField).not.toContainElement(screen.getByRole("button", { name: en.chat.send }));
   });
 
   it("sends on Enter without leaving the newline behind", async () => {

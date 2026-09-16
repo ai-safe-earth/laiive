@@ -37,14 +37,10 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 /**
- * 44px floor on every target. The icon size is 52 rather than the floor
- * because the composer's mic and send flank a field that is 52px on one line
- * — they are sized to it, and a 44px pill next to a 52px field reads as a
- * mistake. Text buttons keep the floor: 23px copy fits 44px comfortably.
- */
+/** 44px floor on every target, including the icon buttons. */
 const SIZES: Record<Size, string> = {
   default: "h-11 px-6 text-md font-medium",
-  icon: "h-[52px] w-[52px]",
+  icon: "h-11 w-11",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

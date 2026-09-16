@@ -173,7 +173,7 @@ export default function Auth() {
   return (
     <div className={cn("flex min-h-[100dvh] flex-col items-center justify-center p-6", isPro ? "bg-pro-bg" : "bg-background")}>
       <Link to="/" className="mb-8 flex items-center gap-2.5">
-        <Mark size={30} />
+        <Mark size={34} />
         {isPro && <ProBadge />}
       </Link>
 

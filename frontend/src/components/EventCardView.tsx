@@ -56,14 +56,14 @@ function formatPrice(card: EventCard, free: string): string | null {
 }
 
 /**
- * A pill kept visually compact (21px, ~39px tall) with a 44px touch target
+ * A pill kept visually compact (17px, ~35px tall) with a 44px touch target
  * underneath — the artwork's spacing and the accessibility floor both hold,
  * which they do not if the pill is simply grown to 44px. The `after` overlay
- * is recentred on the taller pill: (44 - 39) / 2 = 2.5, rounded to 3.
+ * is recentred on the taller pill: (44 - 35) / 2 = 4.5, rounded to 5.
  */
 const PILL =
   "relative inline-flex items-center rounded-full px-3 py-[9px] text-sm font-medium leading-none " +
-  "transition-colors after:absolute after:inset-x-0 after:-top-[3px] after:h-11 after:content-['']";
+  "transition-colors after:absolute after:inset-x-0 after:-top-[5px] after:h-11 after:content-['']";
 
 export function EventCardView({
   card,
