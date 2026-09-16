@@ -11,9 +11,11 @@ import { useTranslation } from "@/i18n/useTranslation";
  * screen said what the four steps were. This is the deliberate exception, and
  * it is one panel, dismissible for good.
  *
- * The walkthrough video ships from /public and plays silently on loop: it is
- * illustration, so it is aria-hidden and the numbered steps below stay the
- * accessible account of the same four moves.
+ * The numbered steps that used to sit under the video are gone: the new cut
+ * shows the four moves in the product itself, and a written list beside it was
+ * the same thing said twice. That leaves the video carrying the whole panel,
+ * so it is no longer aria-hidden — it takes a label naming what it shows,
+ * which is what a screen reader now gets in place of the steps.
  */
 const STORAGE_KEY = "laiive-pro-onboarding-seen";
 
@@ -58,12 +60,11 @@ export function ProOnboarding() {
 
   return (
     <section className="flex flex-col gap-3.5 rounded-[20px] border border-pro-border bg-pro-card px-5 py-[18px]">
-      {/* No heading: the video opens the panel and shows what this is faster
-          than a line of copy naming it. The numbered steps under it carry the
-          same account for anyone who cannot see the video. */}
+      {/* No heading and no copy: the cut shows what this is faster than a line
+          naming it, which is the whole reason the steps came out. */}
       <video
         ref={setSpeed}
-        aria-hidden="true"
+        aria-label={t.pro.onboardingVideo}
         className="aspect-[16/9] w-full rounded-[14px] border border-pro-border bg-pro-bg object-cover"
         src="/pro-walkthrough.mp4"
         autoPlay
@@ -72,25 +73,26 @@ export function ProOnboarding() {
         playsInline
       />
 
-      <ol className="flex flex-col gap-1.5">
-        {t.pro.onboardingSteps.map((step, index) => (
-          <li key={step} className="flex gap-2.5 text-md leading-[1.45] text-pro-muted">
-            <span className="font-mono text-xs leading-[1.6] text-pro-accent">{index + 1}</span>
-            {step}
-          </li>
-        ))}
-      </ol>
-
-      <button
-        type="button"
-        onClick={() => {
-          remember();
-          setOpen(false);
-        }}
-        className="min-h-11 self-start rounded-full font-mono text-xs text-pro-accent transition-opacity hover:opacity-80"
+      {/* A checkbox, not a button: "don't show this again" is a preference
+          about future visits, and a button that makes the panel vanish reads
+          as closing it for now. Ticking it is the whole interaction — there is
+          no separate confirm, because there is nothing else on the panel. */}
+      <label
+        htmlFor="pro-onboarding-hide"
+        className="flex min-h-11 cursor-pointer items-center gap-2.5 font-mono text-xs text-pro-accent"
       >
+        <input
+          id="pro-onboarding-hide"
+          type="checkbox"
+          onChange={(event) => {
+            if (!event.target.checked) return;
+            remember();
+            setOpen(false);
+          }}
+          className="h-4 w-4 flex-none accent-pro-accent"
+        />
         {t.pro.onboardingDismiss}
-      </button>
+      </label>
     </section>
   );
 }

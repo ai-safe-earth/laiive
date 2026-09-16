@@ -20,13 +20,13 @@ import { cn } from "@/lib/cn";
  */
 
 /**
- * Six lines of 32px, 9px padding either side, 1px border either side. The 9 is
- * what keeps one line at exactly 52px — the height of the mic and the send it
- * sits between. 32px of leading, not 24, because `base` is 23px now: a 23px
- * face in a 24px line box is cramped and clips its descenders. 52 is the new
- * number to match when either changes; it is still over the 44px touch floor.
+ * Six lines of 24px, 9px padding either side, 1px border either side. The 9 is
+ * what keeps one line at exactly 44px — the height of the send beside it, and
+ * the touch floor everything here is held to. 24px of leading is 1.33em on an
+ * 18px face, the room DM Sans wants before it clips its descenders; a larger
+ * `base` would need a larger line box and a taller field with it.
  */
-const MAX_FIELD_HEIGHT = 212;
+const MAX_FIELD_HEIGHT = 164;
 
 export function Composer({
   value,
@@ -84,10 +84,9 @@ export function Composer({
   };
 
   return (
-    // items-end, not items-center: when the field grows past one line the
-    // controls stay on the bottom row with it, as they do everywhere else.
+    // items-end, not items-center: when the field grows past one line the send
+    // stays on the bottom row with it, as it does everywhere else.
     <div className={cn("mx-auto flex max-w-3xl items-end", pro ? "gap-3" : "gap-2.5")}>
-      {attachSlot}
       <div className="relative min-w-0 flex-1">
         <textarea
           ref={field}
@@ -109,24 +108,42 @@ export function Composer({
           aria-label={placeholder}
           className={cn(
             FIELD,
-            // The literal 212 twice on purpose: tailwind scans this file as
+            // The literal 164 twice on purpose: tailwind scans this file as
             // text, so a class built from MAX_FIELD_HEIGHT is never generated.
-            "block max-h-[212px] resize-none overflow-y-auto rounded-[22px] px-4 py-[9px] leading-8",
-            // Room for the meter — nine 8px cells, 16px off the right edge,
-            // and 8px of air — so a typed draft never runs underneath it.
-            recording && "pr-[96px]",
+            "block max-h-[164px] resize-none overflow-y-auto rounded-[22px] px-4 py-[9px] leading-6",
+            // Right-hand room for the controls that now sit inside the pill,
+            // and for the meter when it joins them to their left: one 44px
+            // button on the consumer side, two on the promoter's, plus 72px of
+            // meter and a little air while recording. Literal classes rather
+            // than built strings — tailwind scans this file as text.
+            recording
+              ? pro
+                ? "pr-[172px]"
+                : "pr-[128px]"
+              : pro
+                ? "pr-[92px]"
+                : "pr-12",
             pro && PRO_FIELD,
           )}
         />
-        {recording && <Waveform />}
+        {recording && <Waveform className={pro ? "right-[96px]" : "right-[52px]"} />}
+        {/* Attach and mic sit inside the pill, the way a messenger draws them,
+            and the send stays outside as the one filled control in the row.
+            `ghost` rather than an outline: inside the field there is no ground
+            to lift them off, and a bordered pill inside a bordered pill is two
+            frames saying the same thing. `bottom-0` keeps them on the last
+            line as the field grows. */}
+        <span className="absolute bottom-0 right-1 flex items-end">
+          {attachSlot}
+          <MicButton
+            variant="ghost"
+            transcribe={transcribe}
+            onTranscript={onTranscript}
+            onRecordingChange={setRecording}
+            disabled={disabled || isStreaming}
+          />
+        </span>
       </div>
-      <MicButton
-        variant={pro ? "proNeutralOutline" : "neutralOutline"}
-        transcribe={transcribe}
-        onTranscript={onTranscript}
-        onRecordingChange={setRecording}
-        disabled={disabled || isStreaming}
-      />
       {isStreaming ? (
         // t.chat.stop on both surfaces: there is no pro.stop key, and the word
         // is the same. If consumer copy ever diverges, pro grows its own key.
@@ -176,7 +193,7 @@ const BAR_COUNT = 9;
  * aria-hidden — the mic button already announces "stop and transcribe", which
  * is the same fact said once, in words.
  */
-function Waveform() {
+function Waveform({ className }: { className?: string }) {
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
@@ -194,18 +211,20 @@ function Waveform() {
       aria-hidden="true"
       data-testid="recording-waveform"
       className={cn(
-        "pointer-events-none absolute bottom-0 right-4 flex h-[52px] items-center",
+        "pointer-events-none absolute bottom-0 flex h-11 items-center",
+        className,
         // The one place a literal size is right: these glyphs are a graphic,
         // not type, and they have to stay inside the 8px cells below. `base`
-        // would drag them to 23px and burst the meter out of its reservation.
+        // would drag them to 18px and burst the meter out of its reservation.
         "font-mono text-[15px] leading-none text-secondary",
       )}
     >
       {bars.map((bar, index) => (
         // A fixed cell per bar. The block glyphs are not monospaced — ▇ is half
         // again as wide as ▁, measured — so a plain string would jitter between
-        // 94 and 142px as the levels move. Nine 8px cells is 72px, and with the
-        // right-4 offset that sits inside the pr-[96px] the field reserves.
+        // 94 and 142px as the levels move. Nine 8px cells is 72px, which is why
+        // the caller offsets the meter past the in-field controls and the field
+        // reserves both.
         <span key={index} className="inline-block w-2 text-center">
           {bar}
         </span>

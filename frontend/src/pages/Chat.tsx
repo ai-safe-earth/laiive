@@ -173,9 +173,9 @@ export default function Chat() {
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
       {/* The whole chrome inventory: mark + wordmark, saved, account. */}
-      <header className="flex-shrink-0 border-b border-rule px-4 pb-2 pt-3 sm:px-5">
+      <header className="flex-shrink-0 border-b border-rule bg-chrome px-4 pb-2 pt-3 sm:px-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <Mark size={27} />
+          <Mark size={30} />
           <div className="flex items-center">
             {/* Visible signed out too: the route sends you to /auth and
                 back, and a header control that appears on sign-in makes
@@ -197,7 +197,7 @@ export default function Chat() {
           <div className="flex h-full flex-col items-center justify-center gap-8">
             <span
               aria-hidden="true"
-              className="select-none font-bebas text-[26vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[9rem]"
+              className="select-none font-bebas text-[29vw] leading-none tracking-[0.04em] text-foreground/[0.05] sm:text-[10rem]"
             >
               laiive
             </span>
@@ -269,7 +269,7 @@ export default function Chat() {
         )}
       </div>
 
-      <div className="flex-shrink-0 border-t border-rule px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 sm:px-5">
+      <div className="flex-shrink-0 border-t border-rule bg-chrome px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 sm:px-5">
         <Composer
           value={input}
           onChange={setInput}

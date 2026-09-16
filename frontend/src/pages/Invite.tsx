@@ -99,7 +99,7 @@ export default function Invite() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
-      <Mark size={30} />
+      <Mark size={34} />
       {failure ? (
         <>
           <p className="max-w-sm text-md leading-[1.5] text-pro-muted">{failure}</p>
