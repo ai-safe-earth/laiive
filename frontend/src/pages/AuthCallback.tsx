@@ -41,7 +41,7 @@ export default function AuthCallback() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-background p-6 text-center">
-      <Mark size={30} />
+      <Mark size={34} />
       <p className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">
         {t.auth.finishing}
       </p>

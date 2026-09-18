@@ -20,9 +20,12 @@ repos:
         # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
         exclude: "tsconfig.*\\.json$|\\.vscode/"
       - id: check-added-large-files
-        # The pro walkthrough video is product media the SPA serves; it is the
-        # one deliberate exception to the 500 KB ceiling.
-        exclude: "^frontend/public/pro-walkthrough\\.mp4$"
+        # The films the SPA serves are product media and the one deliberate
+        # exception to the 500 KB ceiling: the promoter walkthrough and the
+        # opening intro. Named by directory rather than one by one — the rule
+        # is "a cut we ship to the browser", not those two filenames. Source
+        # cuts stay out of git entirely (.gitignore, assets/*.mp4).
+        exclude: "^frontend/public/[^/]+\\.mp4$"
       - id: end-of-file-fixer
         exclude: "^frontend/(dist|public)/|\\.svg$"
       - id: trailing-whitespace

@@ -20,7 +20,7 @@ describe("the promoter walkthrough", () => {
     // setup.ts clears storage between tests, so this is a fresh promoter.
     renderPanel();
     expect(
-      screen.getByRole("button", { name: en.pro.onboardingDismiss }),
+      screen.getByRole("checkbox", { name: en.pro.onboardingDismiss }),
     ).toBeInTheDocument();
   });
 
@@ -28,7 +28,7 @@ describe("the promoter walkthrough", () => {
     // bg-pro-bg-card was never a generated class; the panel sat transparent.
     renderPanel();
     const section = screen
-      .getByRole("button", { name: en.pro.onboardingDismiss })
+      .getByRole("checkbox", { name: en.pro.onboardingDismiss })
       .closest("section");
     expect(section?.className).toContain("bg-pro-card");
   });
@@ -42,20 +42,27 @@ describe("the promoter walkthrough", () => {
     expect(video?.defaultPlaybackRate).toBe(0.75);
   });
 
-  it("stays gone after it is dismissed", async () => {
+  it("names the video, now that the steps beside it are gone", () => {
+    // It used to be aria-hidden with the numbered steps carrying the account
+    // of the same four moves. The steps went; the name has to stay.
+    renderPanel();
+    expect(screen.getByLabelText(en.pro.onboardingVideo).tagName).toBe("VIDEO");
+  });
+
+  it("stays gone once the box is ticked", async () => {
     const user = userEvent.setup();
     const { unmount } = renderPanel();
 
-    await user.click(screen.getByRole("button", { name: en.pro.onboardingDismiss }));
+    await user.click(screen.getByRole("checkbox", { name: en.pro.onboardingDismiss }));
     expect(
-      screen.queryByRole("button", { name: en.pro.onboardingDismiss }),
+      screen.queryByRole("checkbox", { name: en.pro.onboardingDismiss }),
     ).not.toBeInTheDocument();
 
     // The point of the flag: a reload must not bring it back.
     unmount();
     renderPanel();
     expect(
-      screen.queryByRole("button", { name: en.pro.onboardingDismiss }),
+      screen.queryByRole("checkbox", { name: en.pro.onboardingDismiss }),
     ).not.toBeInTheDocument();
   });
 
@@ -72,7 +79,7 @@ describe("the promoter walkthrough", () => {
     try {
       renderPanel();
       expect(
-        screen.getByRole("button", { name: en.pro.onboardingDismiss }),
+        screen.getByRole("checkbox", { name: en.pro.onboardingDismiss }),
       ).toBeInTheDocument();
     } finally {
       Storage.prototype.getItem = original;

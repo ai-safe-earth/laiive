@@ -8,17 +8,29 @@ export default {
     // Override rather than extend: a stock `text-xs` must not exist to reach
     // for. T-shirt names are load-bearing — tailwind-merge reads any other
     // `text-<word>` as a colour and drops it next to `text-foreground`.
+    // Sized on the device across three rounds, settling 2026-09-16 on 18px for
+    // body copy. Guessing at this from a monitor undershot twice and then
+    // overshot once at 23; the number that stuck came from reading a ladder of
+    // specimens on the phone that was failing — 411px layout, 16px root, no
+    // pinch zoom, so nothing was scaling the page. Do not move these from a
+    // desktop screen: measure on the phone.
+    //
+    // One scale, one size, both surfaces. The promoter and admin screens were
+    // briefly run at nine tenths of the consumer app on the reasoning that a
+    // desk tool wants denser copy — but the consumer number then came down to
+    // the 18 those surfaces were asking for, so the two met and there is
+    // nothing left to multiply.
     fontSize: {
-      "2xs": "0.6875rem", // 11   mono badges, status pills
-      xs: "0.78125rem",   // 12.5 mono labels, card pills, price badge
-      sm: "0.875rem",     // 14   card meta, secondary copy, chips
-      md: "0.9375rem",    // 15   buttons, UI copy, toasts
-      base: "1rem",       // 16   user messages, every input (iOS zooms below 16)
-      lg: "1.0625rem",    // 17   assistant answers
-      xl: "1.125rem",     // 18   Bebas card titles
-      "2xl": "1.3125rem", // 21   section heads
-      "3xl": "1.5rem",    // 24   page titles, wordmarks
-      "4xl": "1.75rem",   // 28   pro watermark
+      "2xs": "0.84375rem", // 13.5 mono badges, status pills
+      xs: "0.9375rem",     // 15   mono labels, section rules, the role line
+      sm: "1.0625rem",     // 17   secondary copy, card pills, price badge
+      md: "1.125rem",      // 18   buttons, chips, UI copy, toasts, card meta
+      base: "1.125rem",    // 18   every input — iOS zooms the page below 16
+      lg: "1.25rem",       // 20   your own messages in the chat
+      xl: "1.375rem",      // 22   assistant answers
+      "2xl": "1.625rem",   // 26   section heads, Bebas card titles
+      "3xl": "1.8125rem",  // 29   page titles, wordmarks
+      "4xl": "2.0625rem",  // 33   pro watermark
     },
     extend: {
       colors: {
@@ -58,6 +70,7 @@ export default {
         // Chrome surfaces off reference-screens.html. Not accents — grounds.
         "ink-dim": "hsl(var(--ink-dim))",
         hairline: "hsl(var(--hairline))",
+        chrome: "hsl(var(--chrome))",
         field: {
           DEFAULT: "hsl(var(--field))",
           border: "hsl(var(--field-border))",
@@ -70,6 +83,7 @@ export default {
           card: "hsl(var(--pro-bg-card))",
           border: "hsl(var(--pro-border))",
           control: "hsl(var(--pro-control))",
+          chrome: "hsl(var(--pro-chrome))",
           fg: "hsl(var(--pro-fg))",
           muted: "hsl(var(--pro-muted))",
           dim: "hsl(var(--pro-dim))",

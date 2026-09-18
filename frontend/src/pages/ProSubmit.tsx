@@ -119,7 +119,7 @@ export default function ProSubmit() {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-pro-bg p-6 text-center">
         <span className="flex items-center gap-2.5">
-          <Mark size={30} />
+          <Mark size={34} />
           <ProBadge />
         </span>
         {user ? (
@@ -299,7 +299,7 @@ export default function ProSubmit() {
               menu, where the way to every other surface already is — a logo
               that navigates somewhere else is a door nobody means to open. */}
           <span className="flex min-w-0 items-center gap-2.5">
-            <Mark size={27} />
+            <Mark size={30} />
             <ProBadge />
             {/* The organization this publish will be filed against, and a way
                 to change it when there is more than one. It used to print
@@ -389,7 +389,7 @@ export default function ProSubmit() {
 
       {/* Cyan accents per brand-rules.md: outlined mic, filled send. Only the
           attach control stays warm-neutral, so the accent means "speak or send". */}
-      <div className="flex-shrink-0 border-t border-pro-border px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
+      <div className="flex-shrink-0 border-t border-pro-border bg-pro-chrome px-4 pb-[max(env(safe-area-inset-bottom),16px)] pt-4 sm:px-6">
         <Composer
           value={input}
           onChange={setInput}

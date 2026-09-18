@@ -76,7 +76,7 @@ export default function Saved() {
 
   return (
     <div className="min-h-[100dvh] bg-background">
-      <header className="flex items-center gap-2 border-b border-rule px-3 py-2 sm:px-4">
+      <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-rule bg-chrome px-3 py-2 sm:px-4">
         <Link
           to="/"
           aria-label={t.savedPage.back}

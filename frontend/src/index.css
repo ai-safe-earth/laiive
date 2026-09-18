@@ -37,7 +37,11 @@
 
     /* Surfaces the tokens above do not name, taken off reference-screens.html. */
     --hairline: 0 0% 100%;          /* used at 7% for the card edge */
-    --field: 0 11% 8%;              /* #171313  composer field */
+    /* The chat's two fixed bars and the field in one of them. Both used to be
+       at or below the page ground, which read as holes rather than as chrome
+       a thumb rests on; they now sit a clear step above it. */
+    --chrome: 0 12% 9%;             /* #1A1414  header and composer bars */
+    --field: 0 14% 12%;             /* #241B1B  composer field */
     --field-border: 0 14% 15%;      /* #2E2222  composer field edge, neutral pills */
     --control: 0 12% 9%;            /* #1A1414  round composer controls */
     --rule: 0 14% 11%;              /* #221A1A  header / composer separators */
@@ -52,8 +56,11 @@
     --pro-border: 10 13% 18%;       /* #332927 */
     /* The composer's own ground: field and round controls. Transparent
        controls disappeared into the page — on the promoter side the ground
-       carries the watermark, so an unfilled pill reads as a hole in it. */
-    --pro-control: 10 10% 14%;      /* #282220  pro composer field + controls */
+       carries the watermark, so an unfilled pill reads as a hole in it. The
+       field is a solid grey for the same reason a tint was not enough: the
+       watermark showed through it. */
+    --pro-control: 18 12% 16%;      /* #2E2724  pro composer field + controls */
+    --pro-chrome: 15 13% 12%;       /* #221C1A  pro header and composer bars */
     --pro-fg: 17 21% 94%;           /* #F2EDEB */
     --pro-muted: 13 9% 60%;         /* #A2938F */
     --pro-dim: 13 7% 51%;           /* #8B7D79 */

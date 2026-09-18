@@ -179,7 +179,7 @@ export interface Translations {
     publishingAs: string;
     needsPro: string;
     signInLink: string;
-    onboardingSteps: string[];
+    onboardingVideo: string;
     onboardingDismiss: string;
     statusExtracting: string;
     readingFile: (name: string) => string;
@@ -432,12 +432,7 @@ export const translations: Record<Language, Translations> = {
       publishingAs: "publishing as",
       needsPro: "Publishing events needs a pro account.",
       signInLink: "sign in →",
-      onboardingSteps: [
-        "Drop a flyer, a PDF or a photo — or just type it, or say it out loud.",
-        "laiive reads it and fills the form. Every field is yours to correct.",
-        "Confirm, and the event is live.",
-        "Somebody searching laiive for a night like yours finds it.",
-      ],
+      onboardingVideo: "How publishing works on laiive, in four steps",
       onboardingDismiss: "don't show this again",
       statusExtracting: "reading what you sent…",
       readingFile: (name) => `reading ${name}…`,
@@ -706,12 +701,7 @@ export const translations: Record<Language, Translations> = {
       publishingAs: "publicando como",
       needsPro: "Para publicar eventos necesitas una cuenta de promotor.",
       signInLink: "inicia sesión →",
-      onboardingSteps: [
-        "Suelta un cartel, un PDF o una foto — o escríbelo, o dilo en voz alta.",
-        "laiive lo lee y rellena el formulario. Todos los campos son tuyos para corregir.",
-        "Confirma, y el evento está publicado.",
-        "Alguien que busque en laiive una noche como la tuya lo encuentra.",
-      ],
+      onboardingVideo: "Cómo se publica en laiive, en cuatro pasos",
       onboardingDismiss: "no volver a mostrar",
       statusExtracting: "leyendo lo que has enviado…",
       readingFile: (name) => `leyendo ${name}…`,
@@ -980,12 +970,7 @@ export const translations: Record<Language, Translations> = {
       publishingAs: "pubblichi come",
       needsPro: "Per pubblicare eventi serve un account promoter.",
       signInLink: "accedi →",
-      onboardingSteps: [
-        "Trascina un volantino, un PDF o una foto — oppure scrivilo, o dillo a voce.",
-        "laiive lo legge e compila il modulo. Ogni campo è tuo da correggere.",
-        "Conferma, e l'evento è pubblicato.",
-        "Chi cerca su laiive una serata come la tua la trova.",
-      ],
+      onboardingVideo: "Come si pubblica su laiive, in quattro passaggi",
       onboardingDismiss: "non mostrare più",
       statusExtracting: "leggo quello che hai inviato…",
       readingFile: (name) => `leggo ${name}…`,
@@ -1254,12 +1239,7 @@ export const translations: Record<Language, Translations> = {
       publishingAs: "publicant com a",
       needsPro: "Per publicar esdeveniments cal un compte de promotor.",
       signInLink: "inicia sessió →",
-      onboardingSteps: [
-        "Deixa-hi un cartell, un PDF o una foto — o escriu-ho, o digues-ho en veu alta.",
-        "laiive ho llegeix i omple el formulari. Tots els camps són teus per corregir.",
-        "Confirma, i l'esdeveniment ja hi és.",
-        "Qui busqui a laiive una nit com la teva la troba.",
-      ],
+      onboardingVideo: "Com es publica a laiive, en quatre passos",
       onboardingDismiss: "no ho tornis a mostrar",
       statusExtracting: "llegint el que has enviat…",
       readingFile: (name) => `llegint ${name}…`,

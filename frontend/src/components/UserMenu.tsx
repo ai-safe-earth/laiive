@@ -77,7 +77,7 @@ export function UserMenu() {
           <div className="flex items-center gap-2.5 px-3 pb-2 pt-2">
             <Avatar displayName={profile?.display_name} email={user.email} pro={pro} />
             <div className="min-w-0">
-              <p className={cn("truncate text-md", pro ? "text-pro-fg" : "text-popover-foreground")}>
+              <p className={cn("truncate text-sm", pro ? "text-pro-fg" : "text-popover-foreground")}>
                 {user.email}
               </p>
               <p
@@ -99,24 +99,33 @@ export function UserMenu() {
           >
             {t.menu.settings}
           </MenuLink>
-          {/* The two surfaces are linked from here and nowhere else — a logo
-              that navigates to a different product is a door nobody means to
-              open. Only a promoter sees either: to somebody who is not one,
-              /pro is a refusal screen, and the ways to become one are on
-              /account and the promoter door at /auth?kind=pro. */}
-          {isPromoter && !onPromoterSurface && (
-            <MenuLink to="/pro" icon="flyer" pro={pro} onNavigate={() => setOpen(false)}>
-              {t.menu.pro}
-            </MenuLink>
-          )}
-          {isPromoter && onPromoterSurface && (
+          {/* A promoter gets the same menu on both surfaces. It used to differ
+              — the organisation screen only reachable from /pro, the crossing
+              only offered in the direction you were not facing — which meant
+              the way back to your own events depended on where you happened to
+              be standing. Only a promoter sees these at all: to somebody who
+              is not one, /pro is a refusal screen, and the ways to become one
+              are on /account and the promoter door at /auth?kind=pro. */}
+          {isPromoter && (
             <>
-              {/* The organisation screen has no other way in from the chat. */}
               <MenuLink to="/pro/org" icon="saved" pro={pro} onNavigate={() => setOpen(false)}>
                 {t.org.title}
               </MenuLink>
-              <MenuLink to="/" icon="back" pro={pro} onNavigate={() => setOpen(false)}>
-                {t.menu.toLaiive}
+              {/* The one coloured item in the list, and it wears the accent of
+                  the place it leads to rather than the place it sits in: this
+                  is the door between two products, and the colour is what says
+                  which side you land on. */}
+              <MenuLink
+                to={onPromoterSurface ? "/" : "/pro"}
+                icon={onPromoterSurface ? "back" : "flyer"}
+                pro={pro}
+                accent={onPromoterSurface ? "consumer" : "pro"}
+                // The chat reads this to know it is being returned to rather
+                // than opened, and holds the intro back.
+                state={{ from: pathname }}
+                onNavigate={() => setOpen(false)}
+              >
+                {onPromoterSurface ? t.menu.toLaiive : t.menu.pro}
               </MenuLink>
             </>
           )}
@@ -145,15 +154,21 @@ export function UserMenu() {
   );
 }
 
-const ITEM = "flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-base transition-colors";
+// `sm`, not `base`: this is a short list of destinations scanned at a glance,
+// not copy anybody reads, and at body size five of them fill a phone.
+const ITEM = "flex w-full items-center gap-2.5 rounded-full px-3 py-2.5 text-left text-sm transition-colors";
 const ITEM_CONSUMER = "text-popover-foreground hover:bg-muted";
 const ITEM_PRO = "text-pro-fg hover:bg-pro-control";
+/** The crossing between the two products, in the colour of where it goes. */
+const ITEM_TO_CONSUMER = "font-medium text-primary hover:bg-muted";
+const ITEM_TO_PRO = "font-medium text-pro-accent hover:bg-pro-control";
 
 function MenuLink({
   to,
   icon,
   pro,
   state,
+  accent,
   onNavigate,
   children,
 }: {
@@ -161,17 +176,28 @@ function MenuLink({
   icon: IconName;
   pro: boolean;
   state?: { from: string };
+  /** Only the crossing sets this; every other item is the surface's own ink. */
+  accent?: "consumer" | "pro";
   onNavigate: () => void;
   children: React.ReactNode;
 }) {
+  const tone = accent === "consumer" ? ITEM_TO_CONSUMER : accent === "pro" ? ITEM_TO_PRO : null;
   return (
     <Link
       to={to}
       state={state}
       onClick={onNavigate}
-      className={cn(ITEM, pro ? ITEM_PRO : ITEM_CONSUMER)}
+      className={cn(ITEM, pro ? ITEM_PRO : ITEM_CONSUMER, tone)}
     >
-      <Icon name={icon} className={cn("h-[18px] w-[18px]", pro ? "text-pro-dim" : "text-ink-dim")} />
+      <Icon
+        name={icon}
+        className={cn(
+          "h-[18px] w-[18px]",
+          // The crossing's icon takes the accent too, or the row reads as a
+          // coloured label with somebody else's icon in front of it.
+          accent ? "text-current" : pro ? "text-pro-dim" : "text-ink-dim",
+        )}
+      />
       {children}
     </Link>
   );

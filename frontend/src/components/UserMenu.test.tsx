@@ -93,13 +93,20 @@ describe("who sees a door to the other surface", () => {
     expect(labels).not.toContain(en.menu.pro);
   });
 
-  it("offers the organisation screen only from the promoter surface", async () => {
-    // /pro/org had no way in from the chat at all.
-    expect(await openMenuAt("/pro")).toContain(en.org.title);
+  // It used to be reachable only from /pro, which made the way back to your
+  // own events depend on where you happened to be standing. The two surfaces
+  // now offer the same four, differing only in which way the crossing points.
+  // Links only — sign out is a button, and it is on both.
+  it("gives a promoter the same destinations from the chat", async () => {
+    expect(await openMenuAt("/")).toEqual([en.menu.settings, en.org.title, en.menu.pro]);
   });
 
-  it("does not offer it from the consumer chat", async () => {
-    expect(await openMenuAt("/")).not.toContain(en.org.title);
+  it("gives a promoter the same destinations from the promoter surface", async () => {
+    expect(await openMenuAt("/pro")).toEqual([
+      en.menu.settings,
+      en.org.title,
+      en.menu.toLaiive,
+    ]);
   });
 
   it("shows a plain user neither door, nor the admin one", async () => {

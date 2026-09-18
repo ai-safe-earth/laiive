@@ -36,6 +36,7 @@ const VARIANTS: Record<Variant, string> = {
   proNeutral: "border border-pro-border bg-pro-control text-pro-muted hover:text-pro-fg",
 };
 
+/**
 /** 44px floor on every target, including the icon buttons. */
 const SIZES: Record<Size, string> = {
   default: "h-11 px-6 text-md font-medium",
