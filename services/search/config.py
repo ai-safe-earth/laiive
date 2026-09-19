@@ -48,7 +48,8 @@ class Settings(BaseSettings):
     # max_pages, applied after the calls, bounds the OpenAI extraction bill.
     #
     # results_per_query is free, so it sits at Tavily's practical ceiling.
-    # max_pages is the one that costs: it is pages x one gpt-4o-mini extraction.
+    # max_pages is the one that costs: a searched page is one gpt-4o-mini
+    # extraction, a vouched one up to extraction.AGENDA_MAX_CHUNKS of them.
     # It has to scale with the number of query templates or the extra queries
     # are paid for and then truncated away unread — five templates reaching
     # five kinds of site is pointless if only the first one's results survive.
