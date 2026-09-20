@@ -8,7 +8,37 @@ gives a year. Shown the live page on 2026-09-19 - still July's programme - the
 model moved the nights to September and October, "2026-09-31" among them.
 
 The question this folder answers: **does resolving those dates in code first,
-and handing the model the dated text, do better than the model alone?**
+and handing the model the dated text, do better than the model alone?** And a
+second one, asked by the owner: most of the club's nights are not concerts -
+**how are they kept out?**
+
+## The test set: the page as the site shows it
+
+`live_page.py` reads the one page a person can open and check line by line:
+the live calendar, 25 entries, a "Luglio" heading that runs on into August
+without saying so (`VEN 31` is 31 July; the `SAB 1` after it is 1 August, and
+1 July was a Wednesday). It is read on two days - 30 June, when every night is
+still to come, and 19 September, when the page was fetched and every night is
+over, so the right answer is nothing. Results: `live_page_summary.md`, and
+`live_page_results.csv` with one row per entry, in the site's order.
+
+**Decided on 2026-09-19, from this set:** Ink Club is a vouched source, read
+through `agent/preparse.py` (it moved there from this folder), and the
+extraction prompt (search-v2) spells out what counts as live music. That list
+was tried here first: the prompt used to say only "skip anything that is not
+live music", and on this page that let all ten non-music nights through. With
+the list, one or two get through, and 9 to 12 of the 12 music nights are kept,
+varying from run to run - the ones dropped are nights whose title is not the
+music ("LOCK IN: RESIDENZA ARTISTICA", then "a seguire ... OPEN JAM"). The
+`preparse` approach below is now exactly what a sweep does.
+
+What `music` means in `truth.csv` is two labellers' reading, not a decision:
+three entries are `unsure`, and the owner's call overrules them.
+
+Everything below this section - three more pages, three reading days - is the
+wider regression set (`run_eval.py`). Two of those pages are older versions of
+the calendar from the Wayback Machine and one is synthetic, so they are not what
+the site shows today.
 
 ## The three approaches
 
@@ -16,7 +46,7 @@ and handing the model the dated text, do better than the model alone?**
 | --- | --- |
 | `llm` | the page as fetched, no help. What production would do today. |
 | `llm_hint` | the page as fetched, plus the best site hint that could be written (it is in `run_eval.py`). This is what a `search_sources.extraction_hints` row buys. |
-| `preparse_llm` | the page with every entry line rewritten by `preparse.py` as `2026-07-02 (giovedì 2 luglio 2026) club`. The model still decides what is live music, what it is called and who plays. |
+| `preparse_llm` | the page with every entry line rewritten by `agent/preparse.py` as `2026-07-02 (giovedì 2 luglio 2026) club`. The model still decides what is live music, what it is called and who plays. |
 
 All three use the production extractor, prompt and model
 (`agent.extraction`, `gpt-4o-mini`), through the same code path a vouched page

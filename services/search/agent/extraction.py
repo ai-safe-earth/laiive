@@ -18,7 +18,18 @@ from config import settings
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-EXTRACTION_PROMPT_VERSION = "search-v1"
+# v2 spells out what "live music" means. "Skip anything that is not live music"
+# alone let every one of Ink Club's ten non-music nights through (tournaments,
+# a screen-printing lab, closing-down drinks); with the list below, one or two.
+# It keeps 9 to 12 of the page's 12 music nights, varying from run to run: what
+# it drops is a night whose title is not the music ("LOCK IN: RESIDENZA
+# ARTISTICA", then "a seguire SYNTH CAFE': OPEN JAM"). Placing the list just
+# before the page text instead varied the same way. On the other vouched pages
+# it dropped four listings and added none: a photo exhibition and a
+# science-fair schools day, rightly, and a choir workshop with a live orchestra
+# and Druso's "Balera" with no act named, which are arguable. Measured
+# 2026-09-19 (evals/inkclub_dates/live_page.py).
+EXTRACTION_PROMPT_VERSION = "search-v2"
 
 EXTRACTION_PROMPT = """Extract upcoming live music events from this web page. Today is {today}.
 The page was found searching for live music in {city}; its URL is {url}.
@@ -47,6 +58,13 @@ each entry carries ONLY the fields you can actually identify:
 
 Rules:
 - Skip past events, undated events, and anything that is not live music.
+- Live music means a concert or band night, a DJ set, a jam session, or a singer,
+  choir or ensemble performing for an audience. It does NOT include, even at a
+  music venue: tournaments and games, workshops, courses, laboratories and artist
+  residencies, talks, readings and screenings, markets, swap parties and clothes
+  exchanges, drinks or closing nights (for example "ultimo giro"), and parties
+  with no music act named. When an entry mixes the two (a swap party with a DJ
+  set, a residency followed by an open jam), keep it, and name the music act.
 - One entry per event. Omit any field that is not present. NEVER invent data.
 - Numbers for prices — no currency symbols.
 - A missing price is not a free event. Leave price_min out entirely unless the

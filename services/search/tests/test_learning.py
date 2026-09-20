@@ -676,10 +676,31 @@ class TestVouchedPagesAreReadInWholeEntries:
             for call in mock_tavily.post.call_args_list
             if "extract" in call.args[0]
         }
-        assert all("ecodibergamo.it" in url for url in asked["advanced"])
         assert any("category=musica" in url for url in asked["advanced"])
+        # Basic dropped Ink Club's day lines on both archived versions.
+        assert "https://www.inkclub.bergamo.it/calendario" in asked["advanced"]
         assert not any("ecodibergamo.it" in url for url in asked["basic"])
+        assert not any("inkclub" in url for url in asked["basic"])
         assert "https://livemusicdieci10.it/" in asked["basic"]
+
+    def test_a_weekday_calendar_reaches_the_model_already_dated(
+        self, mock_learning_http, mock_tavily, mock_openai, monkeypatch
+    ):
+        """Shown "GIO 2" under "Luglio" as printed, the model moved July's
+        nights to September. The source says so, and the dates are resolved
+        before the page is read."""
+        page = "Luglio\nGIO 2club\ndalle 22:00\nPUNK ROCK RADUNO\n#liveband\n"
+        monkeypatch.setitem(
+            conftest.TAVILY_EXTRACT_PAYLOAD,
+            "results",
+            [{"url": "https://www.inkclub.bergamo.it/calendario", "raw_content": page}],
+        )
+        mock_tavily.post.return_value = http_response(payload={"results": []})
+        discovery.sweep_city("Bergamo")
+        ink = [p for p in _prompts(mock_openai) if "inkclub.bergamo.it" in p]
+        assert len(ink) == 1
+        assert "(giovedì 2 luglio" in ink[0]
+        assert "\nGIO 2club" not in ink[0]
 
     def test_only_the_sources_that_say_so_are_read_in_chunks(self):
         assert learning.date_first("ecodibergamo.it")

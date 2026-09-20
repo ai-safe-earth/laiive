@@ -127,14 +127,10 @@ BLOCK_MAX_YIELD = 0.05
 # here and never guessed, because on a page that puts the title first a cut
 # at a date line parts every title from its date.
 #
-# Deliberately absent: Ink Club, https://www.inkclub.bergamo.it/calendario. The
-# page reads fine and the extractor cannot date it. It is one month heading
-# ("Luglio") and then "GIO 2", "VEN 3"... running on into the next month with
-# no new heading, and shown that on 2026-09-19 — still July's programme — both
-# gpt-4o-mini and gpt-4o, with and without a hint spelling the format out,
-# moved the nights to September and October, "2026-09-31" among them. A source
-# that turns a stale page into future gigs is worse than no source. It needs
-# the dates resolved in code before the model sees them.
+# `weekday_calendar` is for a page that prints a month heading and then only
+# "GIO 2", "VEN 3"..., running on into the next month with no new heading and
+# never a year. The model cannot date that (see Ink Club's entry), so the
+# dates are resolved in code before it reads the page: agent/preparse.py.
 SEED_SOURCES: dict[str, dict] = {
     "drusobg.com": {
         "cities": ["Bergamo"],
@@ -183,6 +179,22 @@ SEED_SOURCES: dict[str, dict] = {
         # dated DD.MM.YY, and every live is free entry.
         "agenda": ["https://livemusicdieci10.it/"],
     },
+    "inkclub.bergamo.it": {
+        "cities": ["Bergamo"],
+        # The ARCI circle in via Carducci, and its other rooms (Crotta, Ninfea).
+        # Shown this calendar as it is — on 2026-09-19 still July's programme,
+        # "Luglio" running on into August unannounced — gpt-4o-mini and gpt-4o,
+        # with and without a hint, moved the nights to September and October,
+        # "2026-09-31" among them. With the dates resolved first: 25 of 25
+        # right, and nothing shown as upcoming from the stale page.
+        "weekday_calendar": True,
+        # After resolving, each entry opens with its ISO date.
+        "date_first": True,
+        # Basic kept the day lines on the live page and dropped them on both
+        # archived versions, which would leave nothing to resolve.
+        "depth": "advanced",
+        "agenda": ["https://www.inkclub.bergamo.it/calendario"],
+    },
 }
 
 
@@ -196,6 +208,11 @@ def programme_of(domain: str, text: str) -> str:
 def date_first(domain: str) -> bool:
     """Whether this vouched source says its entries open with their date."""
     return bool(SEED_SOURCES.get(domain, {}).get("date_first"))
+
+
+def weekday_calendar(domain: str) -> bool:
+    """Whether this vouched source's dates must be resolved in code first."""
+    return bool(SEED_SOURCES.get(domain, {}).get("weekday_calendar"))
 
 
 def agenda_urls(city: str, depth: str = "basic") -> list[str]:

@@ -13,15 +13,12 @@ import csv
 import json
 import pathlib
 import re
-import sys
 from datetime import date
 from unittest.mock import patch
 
-from agent import extraction
+from agent import extraction, preparse
 
 HERE = pathlib.Path(__file__).parent
-sys.path.insert(0, str(HERE))
-import preparse  # noqa: E402 - beside this file, not a package
 
 URL = "https://www.inkclub.bergamo.it/calendario"
 

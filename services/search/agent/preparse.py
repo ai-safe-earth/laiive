@@ -1,8 +1,11 @@
 """Resolve a weekday-and-day club calendar into explicit dates, in code.
 
-A candidate for agent/, kept here until the evaluation beside it says whether
-it earns a place there. It rewrites text and decides nothing else: which
-entries are live music, what they are called and who plays stay the model's.
+For a vouched source whose SEED_SOURCES entry says `weekday_calendar`. It
+rewrites text and decides nothing else: which entries are live music, what
+they are called and who plays stay the model's. Measured before it was used,
+in evals/inkclub_dates: on Ink Club's live page the model alone dated 7 of 25
+nights wrong and, reading the stale page, showed 15 as still to come; after
+this, 25 of 25 right and none shown.
 
 The format is Ink Club's: a month name alone on a line, then entries that
 open with a weekday and a day ("GIO 5#pub", "SAB 25Ninfea"), running on into

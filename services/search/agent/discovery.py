@@ -14,7 +14,7 @@ from laiive_shared.normalize import norm, source_domain
 from loguru import logger
 from pydantic import BaseModel
 
-from agent import extraction, graph, learning, tavily
+from agent import extraction, graph, learning, preparse, tavily
 from config import settings
 
 # One phrasing reaches one kind of site, and the language of the phrasing picks
@@ -251,6 +251,12 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         is_vouched = hit.url in vouched
         if is_vouched:
             text = learning.programme_of(domain, text)
+        if is_vouched and learning.weekday_calendar(domain):
+            text, unresolved = preparse.resolve(text, datetime.now().date())
+            if unresolved:
+                # Left as printed for the model and the reviewer, never forced
+                # onto a date; worth a line, since the page is a vouched one.
+                logger.warning(f"{hit.url}: no date fits {unresolved}")
         found = extraction.extract_events_from_page(
             text,
             url=hit.url,
