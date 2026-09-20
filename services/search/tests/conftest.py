@@ -27,6 +27,11 @@ import pytest
 # import time of agent.api — blank it before any test module imports the app.
 # Enforcement itself is covered in shared's test_internal_auth.py.
 os.environ["INTERNAL_API_KEY"] = ""
+# The real Tavily key rides in the Authorization header of every (mocked) call,
+# and pytest prints a failing assertion's call arguments — so a red test on a
+# dev box put part of a live key into the terminal and into whatever read it.
+# Same dummy CI uses. An environment variable outranks the .env file.
+os.environ["TAVILY_API_KEY"] = "tvly-ci-dummy"  # pragma: allowlist secret
 
 EXTRACTION_JSON = json.dumps(
     {
@@ -102,8 +107,10 @@ def mock_genre_lookup():
 TAVILY_EXTRACT_PAYLOAD = {
     "results": [
         {
-            "url": "https://drusobg.it/",
-            "raw_content": "DRUSO agenda - Test Night at Test Venue",
+            "url": "https://www.drusobg.com/event-list",
+            # Dated, as a listing is: a vouched page with no dates in its
+            # text is not read at all (extraction._dated).
+            "raw_content": "DRUSO agenda - Test Night at Test Venue, sab 19 set",
         }
     ],
     "failed_results": [],
@@ -119,7 +126,20 @@ def mock_tavily():
 
     def post(url, *args, **kwargs):
         if "extract" in url:
-            return http_response(payload=TAVILY_EXTRACT_PAYLOAD)
+            # Only the pages that were asked for, as the real endpoint does. A
+            # sweep makes one extract call per depth, and answering each of
+            # them with the same page would have that page read twice.
+            asked = kwargs.get("json", {}).get("urls", [])
+            return http_response(
+                payload={
+                    **TAVILY_EXTRACT_PAYLOAD,
+                    "results": [
+                        result
+                        for result in TAVILY_EXTRACT_PAYLOAD["results"]
+                        if result["url"] in asked
+                    ],
+                }
+            )
         # Deferred rather than captured, so the established idiom still works:
         # a test that sets post.return_value is changing the *search* answer,
         # and side_effect would otherwise silently outrank it.
