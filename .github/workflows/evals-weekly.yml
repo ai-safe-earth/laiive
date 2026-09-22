@@ -58,7 +58,8 @@ jobs:
         run: |
           uv sync
           uv run --no-sync python -m pytest -v -m integration \
-            --timeout=180 tests/test_eval_cases.py tests/test_classifier_cases.py \
+            --timeout=180 tests/test_eval_cases.py \
+            tests/test_classifier_cases.py tests/test_composer_cases.py \
             | tee eval-run.txt
 
       - name: Summarise
@@ -77,6 +78,7 @@ jobs:
             echo "XPASS is information, not a failure. Two tiers are"
             echo "xfail(strict=False): \`expected_patterns\`, until phase 4"
             echo "replaces regex over generated Cypher with execute-and-compare,"
-            echo "and the classifier set's six \`known_gap\` cases — an XPASS"
-            echo "there means the prompt grew the behaviour the label asked for."
+            echo "and the seven \`known_gap\` cases across the classifier and"
+            echo "answer-quality sets — an XPASS there means the prompt grew"
+            echo "the behaviour the label asked for."
           } >> "$GITHUB_STEP_SUMMARY"

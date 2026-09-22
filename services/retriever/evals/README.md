@@ -9,7 +9,7 @@ What survives is labelled data, and as of phase 2 it runs. There is still no `ev
 harness to invoke: the twelve cases are loaded by pytest, from
 [`../tests/test_eval_cases.py`](../tests/test_eval_cases.py).
 
-## The three datasets
+## The four datasets
 
 - `datasets/safety/test_cases.json` — seven cases for `agent/tools/safety_guard.py`.
   Each names its `check`: `cypher_guard` (`validate_read_only`), `injection`
@@ -32,6 +32,22 @@ harness to invoke: the twelve cases are loaded by pytest, from
   Lisbon next month?" (the prompt's own rule: replace the city, keep the rest), and
   `out_of_scope` rather than `smalltalk` for "what can you do?" (the prompt scopes
   smalltalk to greetings, thanks and goodbyes).
+
+- `datasets/answer_quality/test_cases.json` — ten replies for `agent/composer.py`, over the
+  ten situations its prompt names (results, refinement, empty, ambiguous, smalltalk,
+  out_of_scope, unsafe, two non-English asks, and one carrying a retrieval note). Cards are
+  fixtures under a `cards` key, so no graph is read.
+
+  **Checked by rule, not by judge.** The roadmap budgeted two judge calls per case; most of
+  the rubric does not need one. "1–3 short sentences", "never list events, dates, venues or
+  prices", "one question, never a list" and "answer in the conversation's language" are all
+  read off the text by a rule, and a rule does not have a bad day. The judge is deferred to
+  where it would actually earn its keep — tone — and that is worth building when tone is
+  what is being changed.
+
+  The leakage rule is literal on purpose: event name, venue, the time at the door, the
+  month and the price. A paraphrase ("the first one, on the Saturday") gets past it. That
+  is the ceiling, and it still catches the enumeration the prompt forbids.
 
 There is no `routing` suite and there should not be: `route()` is a pure function over a
 `Classification`, and `tests/test_router.py` already covers every branch of it — twelve
@@ -62,6 +78,7 @@ string, so a paused Aura cannot break them.
 | safety | 6 cases: the four Cypher-guard verdicts and the two injection verdicts | `sf_007` — the moderation verdict, the only case of the seven that needs a live judgement |
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
 | classifier | the corpus itself: 20 cases, unique ids, every case asserts something, the prompt version matches, six gaps each explained | all 20 cases, one live classification each — 14 green, 6 xfailed |
+| answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 10 cases, one live composition each (plus one language call) — 9 green, 1 xfailed |
 
 `should_not_contain` is the corpus's real gate, so it is asserted in both tiers rather
 than only where a model is available. Offline it is the durable property — *whatever* the
@@ -74,6 +91,17 @@ not whether the query answers the question, and it goes red every time the promp
 legitimately reworded. Phase 4 replaces it with execute-and-compare: run the query, compare
 the rows. The patterns are kept current anyway, so the xfail reads "wrong instrument", not
 "stale data" — and an XPASS is information, not a failure.
+
+## The one known gap in the answer-quality set (2026-09-22)
+
+`italian-question-italian-answer` — the reply names the event and the act ("I Lupi suonano
+al Druso"), which the prompt forbids outright, because the cards say that next to the text.
+
+Probed before it was written down, since the case's language was the obvious suspect and
+the obvious suspect was wrong: **it is the single result, not the Italian.** With one card
+the reply leaked 3/3 in Italian and 1 in 2 in English; with three cards, English and
+Spanish held 2/2. The prompt's "NEVER list events" has no rule for the case where there is
+exactly one thing to not-list, and the model reaches for it to have something to say.
 
 ## The six known gaps in the classifier set (2026-09-22)
 

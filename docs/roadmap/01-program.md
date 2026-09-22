@@ -95,7 +95,7 @@ report and a markdown diff, over six suites:
 | classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case | **done** — 20 cases, `evals/datasets/classifier/`, run by `tests/test_classifier_cases.py`, weekly |
 | cypher | generated Cypher passes the guard, `EXPLAIN`s cleanly, returns the standard shape | one call per case | 5 cases exist; `expected_patterns` is the wrong instrument, execute-and-compare replaces it |
 | retrieval | recall@k over a frozen graph fixture; an integration tier against live Aura | graph only | not built |
-| answer quality | judge rubric: grounded, no listing leakage, right language, 1–3 sentences, tone | two calls per case | not built |
+| answer quality | rules over the live reply: sentence budget, no listing leakage, one question, right language, invents nothing | one call per case, plus one for language | **done** — 10 cases, `evals/datasets/answer_quality/`, run by `tests/test_composer_cases.py`, weekly. The judge is deferred to tone, which is the only part of the rubric no rule reads |
 | safety | injection, moderation, write-gate cases | mixed | 7 cases, wired |
 
 The deterministic tier runs in CI on every push; the LLM suites run weekly
@@ -112,6 +112,12 @@ without a shared location returns no plan and answers "nothing found" instead of
 where they are, and "find me something" does the same. Both are the prompt's own
 `ambiguous` rule going unused. Fixing them is a prompt change measured by this suite,
 which is what the suite was for.
+
+The answer-quality set found one, and the probe mattered more than the finding: with a
+**single** result the composer names the event and the act in its text, which the prompt
+forbids outright — 3/3 in Italian, 1 in 2 in English, while three results held. The
+obvious reading was "Italian leaks"; it is the one-result case, which the prompt has no
+rule for.
 
 ## 4. Multi-provider model routing
 
