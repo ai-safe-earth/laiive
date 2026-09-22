@@ -61,11 +61,18 @@ sessions of 2026-08-18, and the numbers any change here should be compared again
 - No date poisoning (the heaviest day is 5 events at 5 venues) and no non-music events in the
   corpus. There are no duplicate events; the duplication is in venues.
 
-**One turn, one trace.** Langfuse currently wraps only the retriever's OpenAI client
-(`services/retriever/agent/utils/llm_utils.py`); pusher and search use bare clients. All three
-get the same wrapper, and `pipeline.run_turn` opens a trace with spans for
-`classify → route → execute → compose`, tagged with prompt version, model per role, language,
-resolved constraints, plan kind, row count, latency and cost.
+**One turn, one trace.** Tracing moved from Langfuse to **Arize Phoenix**
+(`services/shared/laiive_shared/tracing.py`), which changes the shape of this item: Langfuse
+wrapped a *client*, so it reached only calls built by the retriever's factory and the "all three
+get the same wrapper" plan meant refactoring the pusher's and search's module-level clients.
+OpenInference instruments the `openai` *module*, so one `setup_tracing()` call per service
+covers every client it holds, untouched — the wrapper half of this item is done.
+What remains is the trace *shape*: `pipeline.run_turn` opening one span per turn with children
+for `classify → route → execute → compose`, tagged with prompt version, model per role,
+language, resolved constraints, plan kind, row count, latency and cost. Note the constraint
+found while migrating: `run_turn` is a sync generator consumed by Starlette's threadpool, so a
+span held open across `yield`s does not stay current — child spans need the parent context
+passed explicitly rather than inherited.
 
 **Capture responses, not just requests.** `services/gateway/src/logging.ts` logs the request
 side only. Response capture for `/api/chat/*` — final text, card uids, classification — is what
@@ -92,7 +99,7 @@ because they cost money. `make eval-*` targets mirror the per-service test targe
 A new `services/shared/laiive_shared/llm.py`: one call surface over OpenAI, Anthropic and
 OpenRouter, resolving **roles** (`classifier`, `cypher`, `composer`, `extraction`,
 `language_detect`, `judge`, `embeddings`) to provider-prefixed model ids, with retries, a
-fallback chain on provider outage, per-call cost accounting and Langfuse tracing. It must
+fallback chain on provider outage, per-call cost accounting and Phoenix tracing. It must
 preserve **token streaming** — `composer.compose_stream` is the one path where fake-streaming
 has regressed twice.
 

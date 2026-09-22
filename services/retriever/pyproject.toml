@@ -9,8 +9,11 @@ dependencies = [
     # eval_records: the PostgREST insert (laiive-shared already ships httpx,
     # so this costs the image nothing)
     "httpx>=0.27.0",
+    # Tracing comes with laiive-shared now (laiive_shared.tracing): langfuse was
+    # a direct dep here because the wrapper lived in this service's client
+    # factory. Phoenix instruments the openai module instead, so the dep belongs
+    # where every service can reach it.
     "laiive-shared",
-    "langfuse>=3.12.0",
     "loguru>=0.7.3",
     "neo4j>=6.0.3",
     "openai>=2.14.0",

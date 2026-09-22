@@ -19,6 +19,7 @@ from laiive_shared import (
     WalkState,
     install_internal_auth,
     register_health,
+    setup_tracing,
     sse_frame,
 )
 from loguru import logger
@@ -53,6 +54,18 @@ register_health(
 # Defence in depth behind the NetworkPolicy — matters most here, since this is
 # the service that writes. Unset key = no-op (local runs, compose, tests).
 install_internal_auth(app, expected=settings.internal_api_key)
+
+# This service had no tracing at all: its OpenAI clients are module-level in
+# conversation.py, converters.py and graph.py, and the old Langfuse wrapper only
+# ever reached clients built by the retriever's factory. The instrumentor patches
+# the openai module, so all three are covered without being touched — but only if
+# this runs before they issue their first call, which module scope guarantees.
+tracing_on = setup_tracing(
+    "pusher",
+    enabled=settings.phoenix_enabled,
+    endpoint=settings.phoenix_collector_endpoint,
+    api_key=settings.phoenix_api_key,
+)
 
 
 # ============== Pydantic Models ==============

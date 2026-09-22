@@ -45,8 +45,8 @@ hand with `flyctl secrets set -a <app> KEY=value ...` if you prefer:
 | app | keys |
 | --- | --- |
 | laiive-gateway | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY`, `CORS_ALLOW_ORIGINS` (the Pages domain, see §5) |
-| laiive-retriever | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (eval_records writes there; both default to `""`, so it stays silent without them), `INTERNAL_API_KEY`, `LANGFUSE_ENABLED` + `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` |
-| laiive-pusher | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY` |
+| laiive-retriever | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (eval_records writes there; both default to `""`, so it stays silent without them), `INTERNAL_API_KEY`, `PHOENIX_ENABLED` + `PHOENIX_COLLECTOR_ENDPOINT`/`PHOENIX_API_KEY` |
+| laiive-pusher | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY`, `PHOENIX_ENABLED` + `PHOENIX_COLLECTOR_ENDPOINT`/`PHOENIX_API_KEY` |
 | laiive-search | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY` |
 | laiive-redis | none (6PN-only; set `--requirepass` in `redis.toml`'s process + a `REDIS_URL` password everywhere if the org is ever shared) |
 
@@ -93,7 +93,7 @@ Pages project → connect the GitHub repo:
 
 - **Production branch: `main`** (`develop` and every PR then get preview
   builds automatically — that is the point of the two-branch model, see
-  `CONTRIBUTING.md`). The default branch is `develop`, so Pages will offer
+  `README.md`, *Contributing*). The default branch is `develop`, so Pages will offer
   that one first; change it.
 
   > **This step was skipped, and production has been building `develop`
@@ -116,7 +116,7 @@ Pages project → connect the GitHub repo:
 
 Two orderings are load-bearing here and they are easy to get backwards.
 
-**Services before the merge.** `CONTRIBUTING.md` "Releasing" step 1: `flyctl`
+**Services before the merge.** `README.md` "Releasing" step 1: `flyctl`
 builds the working tree, so a deploy needs no tag and no merge, while the SPA
 ships by itself. Deploy the services last and the new SPA calls routes the old
 backends do not have, for as long as the deploy takes. Today that gap is not
@@ -316,7 +316,7 @@ Sources and access dates: `docs/references.md`.
   with an admin JWT → 202 + `report_id` in seconds; poll
   `GET /api/admin/search/reports/{id}` until `dry_run`.
 - Phase 6 acceptance trace: take an `X-Request-Id` from a browser chat,
-  find it in Supabase `conversation_logs` and in the Langfuse trace.
+  find it in Supabase `conversation_logs` and in the Phoenix trace.
 
 ## Known limits (accepted for the first deploy)
 

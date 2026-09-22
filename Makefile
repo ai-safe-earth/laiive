@@ -27,6 +27,12 @@ down:
 logs:
 	docker compose logs -f
 
+# The trace collector alone — the rest of the dev compose is idle shells, so
+# `up-dev` is the wrong tool when all you want is somewhere for spans to land.
+phoenix:
+	docker compose up -d phoenix
+	@echo "Phoenix UI: http://localhost:6006"
+
 # --------------- shells into service containers -------------------------------------------------
 shell-pusher:
 	docker exec -it laiive-pusher sh
@@ -88,7 +94,7 @@ test-all:
 	make test-search
 	make test-gateway
 
-# --------------- release (see CONTRIBUTING.md) ----------------------------------------------------
+# --------------- release (see README.md, Releasing) ----------------------------------------------------
 # Run on main, after the release PR from develop has merged: cz reads the
 # Conventional Commits since the last tag, picks the version, writes the
 # CHANGELOG section, commits and tags. PYTHONIOENCODING is exported at the top

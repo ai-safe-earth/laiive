@@ -19,6 +19,15 @@ dependencies = [
     # dev box here resolves nothing without this. Unconditional rather than
     # platform-gated so the dev box and the Fly images agree on one tz version.
     "tzdata>=2024.1",
+    # Tracing (laiive_shared.tracing). Here rather than per service because the
+    # instrumentor patches the `openai` module, so whichever service imports it
+    # gets traced — putting it in one place is what lets the pusher and search
+    # be traced without either of them growing a client factory.
+    # arize-phoenix-otel is the client half only; it is versioned separately
+    # from the Phoenix server and does not pull it in.
+    "arize-phoenix-otel>=0.16.0",
+    # register(auto_instrument=True) is a no-op for OpenAI without this.
+    "openinference-instrumentation-openai>=0.1.60",
 ]
 
 [dependency-groups]

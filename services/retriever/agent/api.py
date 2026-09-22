@@ -17,6 +17,7 @@ from laiive_shared import (
     VenueLookupResult,
     install_internal_auth,
     register_health,
+    setup_tracing,
     sse_frame,
     transcribe,
 )
@@ -105,6 +106,15 @@ register_health(
 # Defence in depth behind the NetworkPolicy: the gateway injects the key, the
 # probes are exempt, and an unset key is a no-op (local runs, compose, tests).
 install_internal_auth(app, expected=settings.internal_api_key)
+
+# Before the first OpenAI call: the instrumentor patches the openai module, so
+# this has to run while `Pipeline` is still unbuilt (it is — lazily, below).
+tracing_on = setup_tracing(
+    "retriever",
+    enabled=settings.phoenix_enabled,
+    endpoint=settings.phoenix_collector_endpoint,
+    api_key=settings.phoenix_api_key,
+)
 
 _pipeline: Pipeline | None = None
 
@@ -492,14 +502,8 @@ def _generate(
     yield sse_frame(Done(request_id=request_id))
 
 
-# ============== Metrics and Observability ==============
-
-
-@app.get("/metrics")
-def get_metrics():
-    """Simple metrics endpoint. For detailed observability, use Langfuse."""
-    return {
-        "status": "operational",
-        "langfuse_enabled": settings.langfuse_enabled,
-        "note": "Detailed metrics and traces available in Langfuse dashboard",
-    }
+# `GET /metrics` used to live here and returned a constant: a hardcoded
+# "operational", the tracing flag, and a note pointing at a dashboard that was
+# off by default. Nothing called it and the gateway never proxied it, so it was
+# unreachable as well as empty. Real per-turn numbers are in Supabase
+# `eval_records` (evals/queries.sql); traces are in Phoenix.

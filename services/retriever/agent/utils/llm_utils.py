@@ -10,18 +10,14 @@ from config import settings
 
 
 def get_openai_client() -> OpenAI:
-    """The one OpenAI client factory (Langfuse-wrapped when tracing is on)."""
-    if settings.langfuse_enabled:
-        from langfuse import Langfuse
+    """The one OpenAI client factory.
 
-        Langfuse(
-            public_key=settings.langfuse_public_key,
-            secret_key=settings.langfuse_secret_key,
-            host=settings.langfuse_host,
-        )
-        from langfuse.openai import OpenAI as LangfuseOpenAI
-
-        return LangfuseOpenAI(api_key=settings.openai_api_key)
+    It used to branch on `langfuse_enabled` and return a wrapped client, which
+    is why only this service was ever traced. Tracing is no longer a property of
+    the client: `laiive_shared.tracing.setup_tracing` instruments the openai
+    module once at startup, so a plain client is traced and the pusher's
+    module-level clients are too.
+    """
     return OpenAI(api_key=settings.openai_api_key)
 
 

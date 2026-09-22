@@ -22,6 +22,10 @@ import pytest
 # pydantic-settings. Enforcement itself is covered in shared's
 # test_internal_auth.py.
 os.environ["INTERNAL_API_KEY"] = ""
+# Likewise: PHOENIX_ENABLED=true in the root .env would instrument the openai
+# module for the whole suite and ship test spans to the dev collector, mixed in
+# with real turns. Tests never trace.
+os.environ["PHOENIX_ENABLED"] = "false"
 
 # Relative, not a literal. A hard-coded date silently rots into the past, and
 # the correction layer then reads every fixture as "did you mean a later date?"

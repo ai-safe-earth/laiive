@@ -21,6 +21,7 @@ from .language import (
     normalize_language,
     reply_language_instruction,
 )
+from .tracing import setup_tracing
 from .speech import (
     ALLOWED_AUDIO_SUFFIXES,
     MAX_AUDIO_BYTES,
@@ -54,6 +55,7 @@ __all__ = [
     "check_draft",
     "register_health",
     "install_internal_auth",
+    "setup_tracing",
     "LIVENESS_PATH",
     "READINESS_PATH",
     "MessageDelta",

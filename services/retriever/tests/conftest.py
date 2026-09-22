@@ -14,3 +14,7 @@ os.environ["INTERNAL_API_KEY"] = ""
 # test fire a live eval_records insert. Empty URL no-ops the write.
 os.environ["SUPABASE_URL"] = ""
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""
+# Same trap once more: a dev box with PHOENIX_ENABLED=true in the root .env
+# would instrument the openai module for the whole suite and ship test spans to
+# whatever collector is configured, mixed in with real turns.
+os.environ["PHOENIX_ENABLED"] = "false"

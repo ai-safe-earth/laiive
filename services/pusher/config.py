@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # Shared with the gateway; empty disables the check (see internal_auth.py).
     internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
+    # Tracing into Arize Phoenix (laiive_shared.tracing). This service never had
+    # tracing: its three module-level OpenAI clients were outside the Langfuse
+    # wrapper. The instrumentor patches the openai module, so they are covered
+    # here without being touched.
+    phoenix_enabled: bool = Field(False, alias="PHOENIX_ENABLED")
+    phoenix_collector_endpoint: str = Field(
+        "http://localhost:6006", alias="PHOENIX_COLLECTOR_ENDPOINT"
+    )
+    phoenix_api_key: str = Field("", alias="PHOENIX_API_KEY")
+
 
 try:
     settings = Settings()
