@@ -33,7 +33,10 @@ class TestHealthEndpoints:
 
     def test_health(self, client, mock_neo4j):
         data = client.get("/health").json()
-        assert data == {"status": "ok", "checks": {"api": "ok", "neo4j": "ok"}}
+        assert data["status"] == "ok"
+        assert data["checks"] == {"api": "ok", "neo4j": "ok"}
+        # telemetry is reported beside the checks, never as one of them
+        assert data["telemetry"]["push_records_writes_failed"] == 0
 
     def test_health_neo4j_down(self, client, mock_neo4j):
         mock_neo4j.verify_connectivity.side_effect = Exception("down")
@@ -500,10 +503,10 @@ class TestValidateEventDraft:
         original = pusher_api._write_or_raise
         started = threading.Event()
 
-        def slow_write(draft, owner_id, venue_uid=None):
+        def slow_write(draft, owner_id, venue_uid=None, request_id=""):
             started.set()
             time.sleep(0.3)
-            return original(draft, owner_id, venue_uid)
+            return original(draft, owner_id, venue_uid, request_id)
 
         async def exercise():
             # Watch how long the loop goes without getting a turn. A handler that

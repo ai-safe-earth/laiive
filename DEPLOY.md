@@ -46,7 +46,7 @@ hand with `flyctl secrets set -a <app> KEY=value ...` if you prefer:
 | --- | --- |
 | laiive-gateway | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY`, `CORS_ALLOW_ORIGINS` (the Pages domain, see §5) |
 | laiive-retriever | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (eval_records writes there; both default to `""`, so it stays silent without them), `INTERNAL_API_KEY`, `PHOENIX_ENABLED` + `PHOENIX_COLLECTOR_ENDPOINT`/`PHOENIX_API_KEY` |
-| laiive-pusher | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY`, `PHOENIX_ENABLED` + `PHOENIX_COLLECTOR_ENDPOINT`/`PHOENIX_API_KEY` |
+| laiive-pusher | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `INTERNAL_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (push_records writes there; both default to `""`, so it stays silent without them), `PHOENIX_ENABLED` + `PHOENIX_COLLECTOR_ENDPOINT`/`PHOENIX_API_KEY` |
 | laiive-search | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `OPENAI_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `INTERNAL_API_KEY` |
 | laiive-redis | none (6PN-only; set `--requirepass` in `redis.toml`'s process + a `REDIS_URL` password everywhere if the org is ever shared) |
 

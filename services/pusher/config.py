@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # Shared with the gateway; empty disables the check (see internal_auth.py).
     internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
 
+    # push_records: the write verdict, joined to the gateway's conversation_logs
+    # on request_id. Empty URL disables the write — local runs and tests. This
+    # makes the pusher the fourth holder of the full-RLS-bypass service key; the
+    # standing mitigation is a scoped insert-only Postgres role for all four,
+    # which is tracked and not done.
+    supabase_url: str = Field("", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field("", alias="SUPABASE_SERVICE_ROLE_KEY")
+
     # Tracing into Arize Phoenix (laiive_shared.tracing). This service never had
     # tracing: its three module-level OpenAI clients were outside the Langfuse
     # wrapper. The instrumentor patches the openai module, so they are covered

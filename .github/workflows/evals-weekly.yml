@@ -1,0 +1,80 @@
+# The integration tier of the eval cases, on a schedule.
+#
+# ci.yml runs `-m "not integration"` and is right to: CI should not need an
+# OpenAI key on every push. But nothing ran the other tier either, so eleven
+# live assertions only executed when somebody typed the command — which is
+# exactly how the corpus they belong to went stale for five months before
+# anyone noticed (docs/explain/eval-phase-2.html §6.2).
+#
+# Weekly, not nightly: traffic here is hand-triggered and a nightly run on a
+# project this size is noise that gets muted, which is the same failure in a
+# new costume.
+#
+# continue-on-error on purpose. These assertions are about what a model emits,
+# so a red run is a prompt to go and read, not a broken build — and a job that
+# can block nothing is a job nobody is tempted to delete. The summary below is
+# what gets read.
+
+name: evals (weekly)
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 06:00 UTC, before the weekly corpus read
+  workflow_dispatch:       # and on demand, which is how it will mostly run
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # No Neo4j: the Cypher cases assert on what the model generates against a
+    # static schema string, so a paused Aura cannot turn a model regression
+    # into a red run. OpenAI is the only dependency.
+    env:
+      UV_PYTHON: "3.13"
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # config.py requires these; the integration tier touches neither.
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: unused  # pragma: allowlist secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Fail loudly if the key is missing
+        # Without this the suite "passes" by collecting nothing, and a silently
+        # empty eval run is worse than no eval run.
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY repo secret is not set — the integration tier cannot run"
+            exit 1
+          fi
+
+      - name: Run the integration tier
+        id: evals
+        continue-on-error: true
+        working-directory: services/retriever
+        run: |
+          uv sync
+          uv run --no-sync python -m pytest -v -m integration \
+            --timeout=180 tests/test_eval_cases.py \
+            | tee eval-run.txt
+
+      - name: Summarise
+        if: always()
+        working-directory: services/retriever
+        run: |
+          {
+            echo "## Retriever eval cases — integration tier"
+            echo
+            echo "Outcome: \`${{ steps.evals.outcome }}\`"
+            echo
+            echo '```'
+            tail -n 25 eval-run.txt 2>/dev/null || echo "no output captured"
+            echo '```'
+            echo
+            echo "XPASS on \`expected_patterns\` is information, not a failure:"
+            echo "that tier is xfail(strict=False) until phase 4 replaces regex"
+            echo "over generated Cypher with execute-and-compare."
+          } >> "$GITHUB_STEP_SUMMARY"

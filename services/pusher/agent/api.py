@@ -1,6 +1,8 @@
 """Pusher API — multimodal event submission via chat, voice and image."""
 
 import asyncio
+import threading
+import time
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
@@ -28,7 +30,7 @@ from starlette.concurrency import run_in_threadpool
 
 from config import settings
 
-from . import graph
+from . import graph, push_records
 from .conversation import WalkInput, process_turn
 from .converters import (
     UnreadableDocument,
@@ -110,10 +112,46 @@ class ValidateEventRequest(BaseModel):
 # ============== Helpers ==============
 
 
+def _record(request_id: str, *, start: float, **fields) -> None:
+    """Fire-and-forget the write verdict, off the caller's latency.
+
+    A daemon thread for the same reason the retriever's eval_records write uses
+    one, and with the same ceiling: unbounded at high write rates, and a thread
+    caught mid-POST at shutdown loses its record. Writes are hand-triggered
+    today, so that is a long way off — but see _write_eval_record in the
+    retriever for the upgrade path when it is not.
+
+    ponytail: duplicated rather than shared with the retriever's copy. Five
+    lines, and the two are likely to diverge (this one should grow a bounded
+    queue first, since a scheduled sweep will burst).
+    """
+    threading.Thread(
+        target=push_records.write,
+        args=(request_id,),
+        kwargs={**fields, "latency_ms": int((time.perf_counter() - start) * 1000)},
+        daemon=True,
+    ).start()
+
+
 def _write_or_raise(
-    draft: EventDraft, owner_id: str | None, venue_uid: str | None = None
+    draft: EventDraft,
+    owner_id: str | None,
+    venue_uid: str | None = None,
+    request_id: str = "",
 ):
+    start = time.perf_counter()
     result = graph.write_event(draft, owner_id=owner_id, venue_uid=venue_uid)
+    # Before the raises, not after: duplicate, invalid and error all leave this
+    # function as HTTPExceptions, and those are the verdicts worth having.
+    _record(
+        request_id,
+        start=start,
+        kind="create",
+        entity_type="event",
+        result=result,
+        user_id=owner_id,
+        draft=draft.model_dump(mode="json"),
+    )
     if result.status == "invalid":
         raise HTTPException(422, result.message)
     if result.status == "duplicate":
@@ -131,8 +169,22 @@ def _write_or_raise(
     return result
 
 
-def _updated_or_raise(result):
+def _updated_or_raise(
+    result,
+    request_id: str = "",
+    entity_type: str = "event",
+    user_id: str | None = None,
+    start: float | None = None,
+):
     """Map an UpdateResult onto HTTP, mirroring _write_or_raise."""
+    _record(
+        request_id,
+        start=start if start is not None else time.perf_counter(),
+        kind="edit",
+        entity_type=entity_type,
+        result=result,
+        user_id=user_id,
+    )
     if result.status == "invalid":
         raise HTTPException(422, result.message)
     if result.status == "duplicate":
@@ -178,7 +230,17 @@ def health():
         logger.warning(f"Neo4j health check failed: {e}")
         checks["neo4j"] = "error"
     all_ok = all(v == "ok" for v in checks.values())
-    return {"status": "ok" if all_ok else "degraded", "checks": checks}
+    return {
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+        # Not a check: a failed verdict record never degrades a write, by
+        # design. Reported so a rotated service-role key cannot quietly empty
+        # push_records while this endpoint keeps saying ok. Process-local.
+        "telemetry": {
+            "push_records_writes_failed": push_records.writes_failed,
+            "tracing": tracing_on,
+        },
+    }
 
 
 # ============== SSE Chat ==============
@@ -319,6 +381,7 @@ async def ingest(
 @app.post("/validate-event")
 async def validate_event(
     request: ValidateEventRequest,
+    raw: Request,
     x_user_id: Optional[str] = Header(None),
 ):
     """Publish a form-approved event — the only write trigger."""
@@ -328,7 +391,7 @@ async def validate_event(
     # and the MERGE — off the event loop, or one submission stalls the whole
     # process. Same shape as `/chat/stream` above.
     result = await asyncio.to_thread(
-        _write_or_raise, draft, x_user_id, request.venue_uid
+        _write_or_raise, draft, x_user_id, request.venue_uid, request_id_from(raw)
     )
     return {
         "success": True,
@@ -362,18 +425,36 @@ class EditRequest(BaseModel):
 
 
 @app.patch("/events/{uid}")
-async def edit_event(uid: str, request: EditRequest):
+async def edit_event(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_event, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "event", x_user_id, start)
 
 
 @app.patch("/venues/{uid}")
-async def edit_venue(uid: str, request: EditRequest):
+async def edit_venue(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_venue, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "venue", x_user_id, start)
 
 
 @app.patch("/artists/{uid}")
-async def edit_artist(uid: str, request: EditRequest):
+async def edit_artist(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_artist, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "artist", x_user_id, start)
