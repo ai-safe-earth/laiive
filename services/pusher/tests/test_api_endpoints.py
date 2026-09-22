@@ -52,6 +52,39 @@ class TestChatStreamRequests:
         assert response.status_code == 422
 
 
+class TestRequestIdIsTheGateways:
+    """The id this service reports must be the one the gateway logged under.
+
+    It used to mint its own uuid4 per turn, so `conversation_logs` held the
+    gateway's id while the pusher's stdout and its done frame held a different
+    one, and no query could join them. Nothing failed when that was true, which
+    is why it stayed true — hence these two.
+    """
+
+    def test_gateway_header_is_adopted(self, client, mock_openai):
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "full event info"}]},
+            headers={"x-request-id": "gateway-minted-id"},
+        )
+        assert response.headers["x-request-id"] == "gateway-minted-id"
+        done = [
+            line
+            for line in response.text.splitlines()
+            if line.startswith("data: ") and "gateway-minted-id" in line
+        ]
+        assert done, "the done frame must carry the gateway's id, not a local one"
+
+    def test_direct_call_still_gets_an_id(self, client, mock_openai):
+        """No gateway, no header — a curl at 8003 must not 500."""
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "full event info"}]},
+        )
+        assert response.status_code == 200
+        assert response.headers["x-request-id"]
+
+
 class TestChatStreamV2:
     def test_form_extracted_frame(self, client, mock_openai):
         body = client.post(

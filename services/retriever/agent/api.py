@@ -1,6 +1,5 @@
 import threading
 import time
-import uuid
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -17,6 +16,7 @@ from laiive_shared import (
     VenueLookupResult,
     install_internal_auth,
     register_health,
+    request_id_from,
     setup_tracing,
     sse_frame,
     transcribe,
@@ -64,11 +64,9 @@ def log_turn(
     ).info("turn: {}", user_message)
 
 
-def _request_id(raw: Request) -> str:
-    """The gateway's id, so the record joins conversation_logs; the gateway
-    strips client-sent copies, so the header is trustworthy. Minted locally
-    only for direct calls (tests, curl against 8002)."""
-    return raw.headers.get("x-request-id") or str(uuid.uuid4())
+# _request_id used to live here; it is laiive_shared.request_id_from now, so the
+# pusher can hold the same contract instead of minting its own id. That module
+# says why the header is trustworthy.
 
 
 def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
@@ -227,7 +225,18 @@ def health():
 
     all_ok = all(v == "ok" for v in checks.values())
     return JSONResponse(
-        content={"status": "ok" if all_ok else "degraded", "checks": checks},
+        content={
+            "status": "ok" if all_ok else "degraded",
+            "checks": checks,
+            # Not a check: a failing telemetry write never degrades the service,
+            # by design. It is reported here because the alternative is that a
+            # rotated service-role key quietly empties the eval corpus while
+            # this endpoint keeps saying "ok". Process-local, resets on deploy.
+            "telemetry": {
+                "eval_records_writes_failed": eval_records.writes_failed,
+                "tracing": tracing_on,
+            },
+        },
         status_code=200 if all_ok else 503,
     )
 
@@ -409,7 +418,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, raw: Request):
     """JSON response endpoint."""
-    request_id = _request_id(raw)
+    request_id = request_id_from(raw)
     result = TurnResult()
     start = time.perf_counter()
     try:
@@ -445,7 +454,7 @@ def chat(request: ChatRequest, raw: Request):
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequestSSE, raw: Request):
     """SSE streaming endpoint — real streaming from the composer."""
-    request_id = _request_id(raw)
+    request_id = request_id_from(raw)
     if not request.messages:
         raise HTTPException(400, "No messages provided")
 

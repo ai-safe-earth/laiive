@@ -1,10 +1,9 @@
 """Pusher API — multimodal event submission via chat, voice and image."""
 
 import asyncio
-import uuid
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from laiive_shared import (
     ALLOWED_AUDIO_SUFFIXES,
@@ -19,6 +18,7 @@ from laiive_shared import (
     WalkState,
     install_internal_auth,
     register_health,
+    request_id_from,
     setup_tracing,
     sse_frame,
 )
@@ -185,11 +185,15 @@ def health():
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatStreamRequest):
+async def chat_stream(request: ChatStreamRequest, raw: Request):
     """Submission chat. One clarification round, then the form — always."""
     if not request.messages:
         raise HTTPException(400, "No messages provided")
-    request_id = str(uuid.uuid4())
+    # This was a locally minted uuid4, which meant the service's logs and its
+    # done frame carried an id that appeared in no table: the gateway had
+    # already written conversation_logs under its own. Same contract as the
+    # retriever now.
+    request_id = request_id_from(raw)
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     walk = (
         WalkInput(drafts=request.walk.drafts, cursor=request.walk.cursor)

@@ -21,6 +21,7 @@ from .language import (
     normalize_language,
     reply_language_instruction,
 )
+from .request_id import request_id_from
 from .tracing import setup_tracing
 from .speech import (
     ALLOWED_AUDIO_SUFFIXES,
@@ -56,6 +57,7 @@ __all__ = [
     "register_health",
     "install_internal_auth",
     "setup_tracing",
+    "request_id_from",
     "LIVENESS_PATH",
     "READINESS_PATH",
     "MessageDelta",
