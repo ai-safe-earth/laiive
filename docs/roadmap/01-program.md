@@ -89,17 +89,29 @@ classification. The gateway's contribution is the request id both services now a
 `python -m evals.run --suite <name> [--models a,b] [--baseline <report>]` CLI writing a JSON
 report and a markdown diff, over six suites:
 
-| suite | what it asserts | cost |
-|---|---|---|
-| routing | `route()` output vs expected `PlanKind` per sub-query | free |
-| classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case |
-| cypher | generated Cypher passes the guard, `EXPLAIN`s cleanly, returns the standard shape | one call per case |
-| retrieval | recall@k over a frozen graph fixture; an integration tier against live Aura | graph only |
-| answer quality | judge rubric: grounded, no listing leakage, right language, 1–3 sentences, tone | two calls per case |
-| safety | injection, moderation, write-gate cases | mixed |
+| suite | what it asserts | cost | state |
+|---|---|---|---|
+| routing | `route()` output vs expected `PlanKind` per sub-query | free | **dropped** — `route()` is a pure function and `tests/test_router.py` covers all twelve branches; a dataset would restate it in JSON |
+| classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case | **done** — 20 cases, `evals/datasets/classifier/`, run by `tests/test_classifier_cases.py`, weekly |
+| cypher | generated Cypher passes the guard, `EXPLAIN`s cleanly, returns the standard shape | one call per case | 5 cases exist; `expected_patterns` is the wrong instrument, execute-and-compare replaces it |
+| retrieval | recall@k over a frozen graph fixture; an integration tier against live Aura | graph only | not built |
+| answer quality | judge rubric: grounded, no listing leakage, right language, 1–3 sentences, tone | two calls per case | not built |
+| safety | injection, moderation, write-gate cases | mixed | 7 cases, wired |
 
-The deterministic tier runs in CI on every push; the LLM suites run nightly or on demand,
-because they cost money. `make eval-*` targets mirror the per-service test targets.
+The deterministic tier runs in CI on every push; the LLM suites run weekly
+(`.github/workflows/evals-weekly.yml`) or on demand, because they cost money.
+
+The `python -m evals.run` CLI is **deferred, not dropped**: what every suite so far needs is
+a loader and assertions, and pytest is both. The CLI earns its keep at `--models a,b` — a
+sweep of the same suite across providers — which is phase 4's question, not this phase's.
+
+**What the classifier set found on its first run** is the point of building it: six gaps,
+listed in `services/retriever/evals/README.md`, each xfailed with its own sentence so a
+weekly red run means a regression. Two cost a user an answer outright — "gigs near me"
+without a shared location returns no plan and answers "nothing found" instead of asking
+where they are, and "find me something" does the same. Both are the prompt's own
+`ambiguous` rule going unused. Fixing them is a prompt change measured by this suite,
+which is what the suite was for.
 
 ## 4. Multi-provider model routing
 
