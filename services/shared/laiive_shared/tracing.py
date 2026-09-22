@@ -18,7 +18,12 @@ the caller. A collector that is down costs traces, never requests.
 """
 
 import logging
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from urllib.parse import urlparse
+
+from opentelemetry import trace
+from opentelemetry.trace import Span, Tracer, set_span_in_context, use_span
 
 logger = logging.getLogger(__name__)
 
@@ -76,3 +81,58 @@ def setup_tracing(
         return False
     logger.info("Phoenix tracing on: %s -> %s", service, endpoint)
     return True
+
+
+# ---------------------------------------------------------------- span shape
+#
+# A streamed turn is a *sync generator* consumed by Starlette's threadpool, and
+# that decides the shape of everything below. Starlette calls `next()` on the
+# generator once per frame, each call on a thread of its own with a *copy* of
+# the context — so a span made current inside one `next()` is not current in
+# the next one, and `start_as_current_span` held open across a `yield` neither
+# parents the later stages nor detaches cleanly (it logs "Failed to detach
+# context" when the generator is closed on a different thread).
+#
+# So parenting is passed explicitly, never inherited: the turn span is started
+# without being made current, and each stage names it as its parent. A stage
+# is made current only for the stretch of blocking work inside it, which never
+# spans a `yield` — that is what puts the auto-instrumented OpenAI spans
+# underneath the right stage instead of at the root.
+
+
+def get_tracer(service: str) -> Tracer:
+    """The tracer for a service. A no-op unless setup_tracing() registered one."""
+    return trace.get_tracer(f"laiive.{service}")
+
+
+def start_child(
+    tracer: Tracer,
+    parent: Span,
+    name: str,
+    attributes: Mapping[str, object] | None = None,
+) -> Span:
+    """Start a span parented to `parent` explicitly, *without* making it current.
+
+    For work that outlives one `next()` call (the composer's token stream):
+    make it current per call with `use_span(span, end_on_exit=False)` and end
+    it yourself.
+    """
+    return tracer.start_span(
+        name, context=set_span_in_context(parent), attributes=dict(attributes or {})
+    )
+
+
+@contextmanager
+def stage(
+    tracer: Tracer,
+    parent: Span,
+    name: str,
+    attributes: Mapping[str, object] | None = None,
+) -> Iterator[Span]:
+    """One pipeline stage: parented to `parent`, current for the block's duration.
+
+    The block must not `yield` to the client — see the note above.
+    """
+    span = start_child(tracer, parent, name, attributes)
+    with use_span(span, end_on_exit=True):
+        yield span

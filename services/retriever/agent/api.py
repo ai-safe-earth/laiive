@@ -428,6 +428,7 @@ def chat(request: ChatRequest, raw: Request):
             _location_dict(request.location),
             timezone=request.timezone,
             result=result,
+            request_id=request_id,
         )
         return ChatResponse(
             request_id=request_id,
@@ -493,7 +494,12 @@ def _generate(
     start = time.perf_counter()
     try:
         for payload in get_pipeline().run_turn(
-            user_message, history, location, result=result, timezone=timezone
+            user_message,
+            history,
+            location,
+            result=result,
+            timezone=timezone,
+            request_id=request_id,
         ):
             yield sse_frame(payload)
     except Exception as e:

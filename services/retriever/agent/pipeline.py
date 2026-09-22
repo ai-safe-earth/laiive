@@ -4,23 +4,28 @@ Stateless per request — the client sends history + location; the classifier
 re-derives the resolved constraint state each turn. Yields shared-protocol
 payload models; the API layer wraps them as named SSE events."""
 
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from laiive_shared import EventCard, EventsResult, MessageDelta, Status
 from laiive_shared.geocode import NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
+from laiive_shared.tracing import get_tracer, stage, start_child
 from loguru import logger
+from opentelemetry.trace import use_span
 
 from config import settings
 
-from .classifier import Classification, Classifier
-from .composer import Composer
+from .classifier import CLASSIFIER_PROMPT_VERSION, Classification, Classifier
+from .composer import COMPOSER_PROMPT_VERSION, Composer
 from .executor import Executor
 from .router import route
-from .tools.query_builder import QueryBuilderTool
+from .tools.query_builder import QUERY_BUILDER_PROMPT_VERSION, QueryBuilderTool
 from .tools.safety_guard import SafetyGuardTool
 from .utils.llm_utils import embedding_with_retry, get_openai_client
+
+tracer = get_tracer("retriever")
 
 
 @dataclass
@@ -98,17 +103,72 @@ class Pipeline:
         location: dict | None = None,
         result: TurnResult | None = None,
         timezone: str | None = None,
+        request_id: str = "",
     ) -> Iterator[MessageDelta | EventsResult | Status]:
         """Stream one turn. Pass a TurnResult to collect side data as it runs.
 
         `timezone` is the asker's IANA zone; it decides what "today" means.
+        `request_id` is the gateway's, and is what joins this turn's trace to
+        its `eval_records` row and to the gateway's own log line.
         """
         result = result if result is not None else TurnResult()
 
-        result.unsafe = settings.enable_moderation and (
-            self.safety.detect_injection(user_message)
-            or self.safety.moderate(user_message)
+        turn = tracer.start_span(
+            "turn",
+            attributes={
+                # Phoenix reads these three to show the span as a chain with a
+                # question and an answer rather than an unnamed block.
+                "openinference.span.kind": "CHAIN",
+                "input.value": user_message,
+                "laiive.request_id": request_id,
+                "laiive.timezone": timezone or "",
+                "laiive.has_location": bool(location),
+                "laiive.history_turns": len(history or []),
+                "laiive.model.classifier": settings.classifier_model,
+                "laiive.model.query_builder": settings.query_builder_model,
+                "laiive.model.composer": settings.composer_model,
+                "laiive.prompt.classifier": CLASSIFIER_PROMPT_VERSION,
+                "laiive.prompt.query_builder": QUERY_BUILDER_PROMPT_VERSION,
+                "laiive.prompt.composer": COMPOSER_PROMPT_VERSION,
+            },
         )
+        try:
+            yield from self._traced_turn(
+                turn, user_message, history, location, result, timezone
+            )
+        except Exception as e:
+            turn.record_exception(e)
+            raise
+        finally:
+            # Also the path a client disconnect takes (GeneratorExit), which is
+            # why the span is ended here and not after the last yield.
+            turn.set_attributes(
+                {
+                    "output.value": result.text,
+                    "laiive.unsafe": result.unsafe,
+                    "laiive.card_count": len(result.cards),
+                    "laiive.errors": result.errors,
+                    "laiive.notes": result.notes,
+                }
+            )
+            turn.end()
+
+    def _traced_turn(
+        self,
+        turn,
+        user_message: str,
+        history: list[dict] | None,
+        location: dict | None,
+        result: TurnResult,
+        timezone: str | None,
+    ) -> Iterator[MessageDelta | EventsResult | Status]:
+        """The turn itself. Every stage names `turn` as its parent explicitly —
+        see the span-shape note in `laiive_shared.tracing`."""
+        if settings.enable_moderation:
+            with stage(tracer, turn, "moderate"):
+                result.unsafe = self.safety.detect_injection(
+                    user_message
+                ) or self.safety.moderate(user_message)
 
         if result.unsafe:
             result.classification = Classification(
@@ -116,15 +176,48 @@ class Pipeline:
             )
         else:
             yield Status(state="classifying")
-            result.classification = self.classifier.classify(
-                user_message, history, has_location=bool(location), timezone=timezone
-            )
-            plans = route(result.classification, has_location=bool(location))
+            with stage(tracer, turn, "classify") as span:
+                result.classification = self.classifier.classify(
+                    user_message,
+                    history,
+                    has_location=bool(location),
+                    timezone=timezone,
+                )
+                span.set_attributes(
+                    {
+                        "laiive.query_type": result.classification.query_type,
+                        "laiive.moment": result.classification.moment,
+                        "laiive.language": result.classification.language,
+                        "laiive.sub_queries": json.dumps(
+                            [
+                                c.model_dump(mode="json", exclude_none=True)
+                                for c in result.classification.sub_queries
+                            ],
+                            ensure_ascii=False,
+                        ),
+                    }
+                )
+            with stage(tracer, turn, "route") as span:
+                plans = route(result.classification, has_location=bool(location))
+                span.set_attribute(
+                    "laiive.plan_kinds", [str(plan.kind) for plan in plans]
+                )
             if plans:
                 yield Status(state="searching")
                 seen: set = set()
                 for plan in plans:
-                    outcome = self.executor.execute(plan, location, timezone)
+                    with stage(
+                        tracer, turn, "execute", {"laiive.plan_kind": str(plan.kind)}
+                    ) as span:
+                        outcome = self.executor.execute(plan, location, timezone)
+                        span.set_attributes(
+                            {
+                                "laiive.row_count": len(outcome.cards),
+                                "laiive.cypher": outcome.cypher or "",
+                                "laiive.note": outcome.note or "",
+                                "laiive.error": outcome.error or "",
+                            }
+                        )
                     if outcome.cypher:
                         result.cyphers.append(outcome.cypher)
                     if outcome.note:
@@ -142,16 +235,42 @@ class Pipeline:
                 yield EventsResult(events=result.cards)
 
         yield Status(state="composing")
-        for delta in self.composer.compose_stream(
-            user_message,
-            history,
-            result.classification,
-            result.cards,
-            unsafe=result.unsafe,
-            notes=result.notes,
-        ):
-            result.text += delta
-            yield MessageDelta(text=delta)
+        yield from self._compose(turn, user_message, history, result)
+
+    def _compose(
+        self,
+        turn,
+        user_message: str,
+        history: list[dict] | None,
+        result: TurnResult,
+    ) -> Iterator[MessageDelta]:
+        """Compose, one token per yield.
+
+        The only stage that outlives a `yield`, so its span cannot be held open
+        with a `with` block: it is made current around each `next()` instead,
+        which is what nests the composer's OpenAI span under it.
+        """
+        span = start_child(tracer, turn, "compose")
+        try:
+            deltas = self.composer.compose_stream(
+                user_message,
+                history,
+                result.classification,
+                result.cards,
+                unsafe=result.unsafe,
+                notes=result.notes,
+            )
+            while True:
+                with use_span(span, end_on_exit=False):
+                    try:
+                        delta = next(deltas)
+                    except StopIteration:
+                        break
+                result.text += delta
+                yield MessageDelta(text=delta)
+        finally:
+            span.set_attribute("laiive.text_length", len(result.text))
+            span.end()
 
     def run_turn_collected(
         self,
@@ -160,6 +279,7 @@ class Pipeline:
         location: dict | None = None,
         timezone: str | None = None,
         result: TurnResult | None = None,
+        request_id: str = "",
     ) -> TurnResult:
         """Non-streaming variant for the JSON endpoint.
 
@@ -169,7 +289,12 @@ class Pipeline:
         if result is None:
             result = TurnResult()
         for _ in self.run_turn(
-            user_message, history, location, result=result, timezone=timezone
+            user_message,
+            history,
+            location,
+            result=result,
+            timezone=timezone,
+            request_id=request_id,
         ):
             pass
         return result

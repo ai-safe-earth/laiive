@@ -38,9 +38,16 @@ class FakePipeline:
         self.moment = moment
 
     def run_turn(
-        self, user_message, history=None, location=None, result=None, timezone=None
+        self,
+        user_message,
+        history=None,
+        location=None,
+        result=None,
+        timezone=None,
+        request_id="",
     ):
         self.seen_timezone = timezone
+        self.seen_request_id = request_id
         result.classification = Classification(
             query_type="event_search", moment=self.moment
         )
@@ -57,14 +64,25 @@ class FakePipeline:
             yield MessageDelta(text=delta)
 
     def run_turn_collected(
-        self, user_message, history=None, location=None, timezone=None, result=None
+        self,
+        user_message,
+        history=None,
+        location=None,
+        timezone=None,
+        result=None,
+        request_id="",
     ):
         from agent.pipeline import TurnResult
 
         if result is None:
             result = TurnResult()
         for _ in self.run_turn(
-            user_message, history, location, result=result, timezone=timezone
+            user_message,
+            history,
+            location,
+            result=result,
+            timezone=timezone,
+            request_id=request_id,
         ):
             pass
         return result
@@ -205,6 +223,8 @@ class TestRequestId:
             "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-123"}
         ).json()
         assert data["request_id"] == "gw-123"
+        # And it reaches the pipeline, which is what puts it on the turn's span.
+        assert api_module._pipeline.seen_request_id == "gw-123"
 
     def test_direct_calls_still_get_an_id(self, client):
         data = client.post("/chat", json={"message": "jazz"}).json()

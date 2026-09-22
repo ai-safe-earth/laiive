@@ -66,17 +66,24 @@ sessions of 2026-08-18, and the numbers any change here should be compared again
 wrapped a *client*, so it reached only calls built by the retriever's factory and the "all three
 get the same wrapper" plan meant refactoring the pusher's and search's module-level clients.
 OpenInference instruments the `openai` *module*, so one `setup_tracing()` call per service
-covers every client it holds, untouched — the wrapper half of this item is done.
-What remains is the trace *shape*: `pipeline.run_turn` opening one span per turn with children
-for `classify → route → execute → compose`, tagged with prompt version, model per role,
-language, resolved constraints, plan kind, row count, latency and cost. Note the constraint
-found while migrating: `run_turn` is a sync generator consumed by Starlette's threadpool, so a
-span held open across `yield`s does not stay current — child spans need the parent context
-passed explicitly rather than inherited.
+covers every client it holds, untouched. **Done**, both halves: `pipeline.run_turn` now opens
+one `turn` span with `moderate → classify → route → execute → compose` beneath it, carrying the
+gateway's request id (the join to `eval_records`), prompt version and model per role, language,
+resolved constraints, plan kind, row count and the answer. Latency is the span's own; cost is
+not set here — OpenInference records token counts on each LLM span and Phoenix prices them.
+The constraint found while migrating turned out to be the whole design: `run_turn` is a sync
+generator and Starlette calls `next()` per frame on a thread with a *copy* of the context, so a
+span held across a `yield` neither parents the later stages nor detaches cleanly. Parenting is
+passed explicitly (`laiive_shared.tracing.stage` / `start_child`), and the composer's span —
+the one stage that outlives a `next()` — is made current per token instead of held open.
 
-**Capture responses, not just requests.** `services/gateway/src/logging.ts` logs the request
-side only. Response capture for `/api/chat/*` — final text, card uids, classification — is what
-turns production turns into eval candidates, and it is where the feedback signal lands.
+**Capture responses, not just requests.** **Done, elsewhere than planned.** This item predates
+`eval_records` and `push_records`, which is where response capture landed: the retriever writes
+final text, card uids, classification, cyphers, notes, row count, latency and errors per turn,
+and the pusher writes its write verdict. `services/gateway/src/logging.ts` still logs the
+request side only, and should stay that way — capturing the same answer a second time at the
+edge would be two copies to keep in step, with the gateway the one that cannot see the
+classification. The gateway's contribution is the request id both services now adopt.
 
 **The harness** at `services/retriever/evals/`, rebuilt rather than resurrected. A
 `python -m evals.run --suite <name> [--models a,b] [--baseline <report>]` CLI writing a JSON
