@@ -1,0 +1,37 @@
+# The frozen graph the retrieval and cypher eval suites run against.
+#
+# Separate from docker-compose.yml and .override.yml on purpose: this is not
+# part of running the app. It is a throwaway database that exists for the
+# length of a test run, holds about twenty events from
+# `services/retriever/evals/datasets/retrieval/graph.json`, and is wiped and
+# re-seeded by the test fixture every session.
+#
+# What it buys: the suites can assert *which events come back*, which no mock
+# can answer — a fake driver returns whatever it was told to, whatever the
+# query says. What it does not buy: anything about the real graph's data. That
+# stays the Aura integration tier's job.
+#
+# Ports are deliberately not the defaults. This box already runs another
+# project's Neo4j on 7688/7475 (A02_VaiVia), and 7687 is the one anybody's
+# NEO4J_URI points at by accident — including the root .env, whose Aura URI
+# must never be what a wiping test fixture connects to. NEO4J_TEST_URI (below)
+# is a separate setting for that reason.
+services:
+  neo4j-test:
+    container_name: laiive-neo4j-test
+    image: neo4j:5.26-community
+    ports:
+      - "127.0.0.1:7689:7687"   # bolt — NEO4J_TEST_URI
+      - "127.0.0.1:7476:7474"   # browser, for looking at the fixture by hand
+    environment:
+      NEO4J_AUTH: neo4j/laiive-test-graph  # pragma: allowlist secret
+      # A twenty-event graph does not need the 1G default, and this box runs
+      # Docker Desktop alongside everything else.
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 128m
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "laiive-test-graph", "RETURN 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

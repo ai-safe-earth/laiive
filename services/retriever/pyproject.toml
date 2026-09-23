@@ -38,6 +38,11 @@ dev = [
 [tool.pytest.ini_options]
 markers = [
   "integration: marks tests as integration",
+  # Needs the frozen graph container (docker-compose.test.yml, `make
+  # test-graph-up`) and nothing else: no OpenAI key, no Aura. Its own marker
+  # rather than `integration`, because CI can run it as a service container
+  # while the integration tier stays weekly and keyed.
+  "graph: needs the frozen graph container",
 ]
 
 [tool.uv.sources]

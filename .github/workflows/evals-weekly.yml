@@ -25,16 +25,32 @@ on:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    # No Neo4j: the Cypher cases assert on what the model generates against a
-    # static schema string, so a paused Aura cannot turn a model regression
-    # into a red run. OpenAI is the only dependency.
+    # A Neo4j, but never Aura. The cypher corpus moved from regex over the
+    # generated query to running it and comparing the uids it returns, so it
+    # needs a database — the same throwaway fixture CI's `graph` job uses,
+    # eighteen events seeded per run. Aura stays out of this on purpose: it
+    # auto-pauses, and a paused database would turn every weekly run red for a
+    # reason that has nothing to do with the model.
     env:
       UV_PYTHON: "3.13"
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      # config.py requires these; the integration tier touches neither.
-      NEO4J_URI: bolt://localhost:7687
+      # config.py requires these; the classifier and composer tiers touch neither.
+      NEO4J_URI: bolt://localhost:7689
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: unused  # pragma: allowlist secret
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        ports:
+          - 7689:7687
+        env:
+          NEO4J_AUTH: neo4j/laiive-test-graph # pragma: allowlist secret
+          NEO4J_server_memory_heap_max__size: 512m
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p laiive-test-graph 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
 

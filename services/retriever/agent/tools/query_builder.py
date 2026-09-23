@@ -12,7 +12,7 @@ from ..classifier import now_in
 from ..utils.llm_utils import chat_completion_with_retry, get_openai_client
 from .safety_guard import SafetyGuardTool
 
-QUERY_BUILDER_PROMPT_VERSION = "v2"
+QUERY_BUILDER_PROMPT_VERSION = "v3"
 
 QUERY_BUILDER_PROMPT = """You are a Neo4j Cypher query generator specialized in live music events.
 
@@ -28,6 +28,10 @@ GRAPH MODEL (use exactly these):
 - (a:Artist)-[:BASED_IN]->(c:City)
 - (e:Event)-[:HAS_GENRE]->(g:Genre)   and   (a:Artist)-[:HAS_GENRE]->(g:Genre)
 - Countries are NOT nodes: filter on c.country_code (ISO-3166-1, e.g. 'ES').
+- DIRECTION IS PART OF THE PATTERN. Every arrow above points the only way it
+  exists. `(v:Venue)-[:HOSTED_AT]->(e:Event)` is backwards; it raises no error
+  and returns zero rows, which reads as "there is nothing on" to the person
+  asking. When in doubt, write the relationship undirected: (e)-[:HOSTED_AT]-(v).
 
 IDENTITY & MATCHING:
 - Event/Artist/Venue/City all carry name_norm (lowercase, no diacritics).
@@ -52,6 +56,10 @@ RETURN e.uid AS uid, e.name AS name, e.description AS description,
        v.name AS venue, v.venue_type AS venue_type, c.name AS city,
        v.location.latitude AS lat, v.location.longitude AS lng,
        collect(DISTINCT art.name) AS artists
+
+- That RETURN aggregates, so `e`, `v` and `c` are out of scope after it: any
+  ORDER BY must name a RETURNED ALIAS. Write `ORDER BY start_at`, never
+  `ORDER BY e.start_at` — the second is a syntax error Neo4j refuses to run.
 
 Output the Cypher only. No explanation, no markdown fences.
 

@@ -87,6 +87,21 @@ test-search:
 test-gateway:
 	cd services/gateway && npm test
 
+# --------------- the frozen graph (retrieval + cypher evals) --------------------------------------
+# A throwaway Neo4j on 7689, seeded per test session from
+# services/retriever/evals/datasets/retrieval/graph.json. Without it the `graph`
+# tier skips, which is why `test-retriever` above stays useful on its own.
+test-graph-up:
+	docker compose -f docker-compose.test.yml up -d --wait
+	@echo "frozen graph: bolt://localhost:7689 (browser http://localhost:7476)"
+
+test-graph-down:
+	docker compose -f docker-compose.test.yml down -v
+
+# The tier CI holds: needs the container, needs no OpenAI key.
+test-graph:
+	cd services/retriever && uv run --no-sync pytest -q -m "graph and not integration"
+
 test-all:
 	make test-shared
 	make test-retriever

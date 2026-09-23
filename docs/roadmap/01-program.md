@@ -93,8 +93,8 @@ report and a markdown diff, over six suites:
 |---|---|---|---|
 | routing | `route()` output vs expected `PlanKind` per sub-query | free | **dropped** — `route()` is a pure function and `tests/test_router.py` covers all twelve branches; a dataset would restate it in JSON |
 | classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case | **done** — 20 cases, `evals/datasets/classifier/`, run by `tests/test_classifier_cases.py`, weekly |
-| cypher | generated Cypher passes the guard, `EXPLAIN`s cleanly, returns the standard shape | one call per case | 5 cases exist; `expected_patterns` is the wrong instrument, execute-and-compare replaces it |
-| retrieval | recall@k over a frozen graph fixture; an integration tier against live Aura | graph only | not built |
+| cypher | the generated query is run and the uids it returns are compared to the events the case says it should find | one call per case + the graph | **done** — corpus v3.0, regex replaced by execute-and-compare; found two prompt bugs on its first run |
+| retrieval | recall@k over a frozen graph fixture | graph only, no key | **done** — 14 cases over template, nearby and vector legs, against a throwaway Neo4j seeded through the real writer (`docker-compose.test.yml`, `make test-graph-up`), in CI on every push |
 | answer quality | rules over the live reply: sentence budget, no listing leakage, one question, right language, invents nothing | one call per case, plus one for language | **done** — 10 cases, `evals/datasets/answer_quality/`, run by `tests/test_composer_cases.py`, weekly. The judge is deferred to tone, which is the only part of the rubric no rule reads |
 | safety | injection, moderation, write-gate cases | mixed | 7 cases, wired |
 
@@ -118,6 +118,15 @@ The answer-quality set found one, and the probe mattered more than the finding: 
 forbids outright — 3/3 in Italian, 1 in 2 in English, while three results held. The
 obvious reading was "Italian leaks"; it is the one-result case, which the prompt has no
 rule for.
+
+**And the cypher suite found two on its first run**, both of which a regex over the
+generated query passed happily. The prompt's mandated RETURN aggregates, so the
+`ORDER BY e.start_at` the model appends is a syntax error Neo4j refuses — three of five
+cases died on it, which in production is the long-tail leg failing whenever it sorts by
+date. And `(v:Venue)-[:HOSTED_AT]->(e:Event)`, the relationship backwards, which raises
+nothing and returns zero rows: "there is nothing on". Both are fixed in the prompt (now v3)
+and the suite re-run to prove it. This is the argument for phase 3 in one paragraph: both
+were live, and a green test suite sat next to them the whole time.
 
 ## 4. Multi-provider model routing
 

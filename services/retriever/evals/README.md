@@ -9,7 +9,7 @@ What survives is labelled data, and as of phase 2 it runs. There is still no `ev
 harness to invoke: the twelve cases are loaded by pytest, from
 [`../tests/test_eval_cases.py`](../tests/test_eval_cases.py).
 
-## The four datasets
+## The five datasets
 
 - `datasets/safety/test_cases.json` — seven cases for `agent/tools/safety_guard.py`.
   Each names its `check`: `cypher_guard` (`validate_read_only`), `injection`
@@ -49,6 +49,40 @@ harness to invoke: the twelve cases are loaded by pytest, from
   month and the price. A paraphrase ("the first one, on the Saturday") gets past it. That
   is the ceiling, and it still catches the enumeration the prompt forbids.
 
+- `datasets/retrieval/` — the frozen graph, and the cases read off it.
+  `graph.json` is eighteen events over Madrid, Barcelona and Bergamo, seeded into a
+  throwaway Neo4j by `tests/graph_fixture.py`; `test_cases.json` holds ten recall cases for
+  the template and nearby legs; `vector_cases.json` holds four for the vector leg;
+  `embeddings.json` holds the frozen vectors that make the vector leg free to run.
+
+  **Why a container and not a mock.** Everything above `self.neo4j.execute_read(...)` is
+  pure Python and `tests/test_executor.py` covers it. Below that line is the database, and a
+  `Mock` returns whatever it was told to whatever the query says — it can prove a row maps
+  to a card and nothing at all about whether the query finds the event. So the fixture is a
+  real Neo4j on port 7689 (`make test-graph-up`), wiped and re-seeded per session.
+
+  **Seeded through the writer.** `laiive_shared.neo4j_writer.write_event`, the same path the
+  pusher and the search service use, so uid derivation, `name_norm`, genre families and
+  timezone resolution come out exactly as in production and cannot drift. Two collaborators
+  are frozen instead of live: the geocoder (the fixture's own coordinates, which is what
+  makes the nearby leg's metres assertable) and the embedder.
+
+  **Dates are offsets, not timestamps** — every leg filters on upcoming events, so a fixture
+  of fixed dates would quietly stop testing anything a week after it was written. Every
+  event is at least a day out, since an event later *today* stops being upcoming at its own
+  start time and would fail for whoever ran the suite that evening.
+
+  **Vectors are frozen.** `evals/freeze_embeddings.py` embeds the event texts and each
+  vector case's question once and checks the result in (343 KB). Embedding live would make
+  the same case score differently on different days, and a moving number is not a
+  measurement. The file is valid only for `text-embedding-3-small`; change the model and it
+  must be regenerated, which a test asserts rather than leaves to memory.
+
+  **The ceiling, stated plainly:** green here means the retrieval *code* is right, not that
+  production answers well. The fixture has no bad geocodes, no duplicate venues and no
+  missing genres — which is exactly what the real graph does have. That stays the Aura
+  tier's question.
+
 There is no `routing` suite and there should not be: `route()` is a pure function over a
 `Classification`, and `tests/test_router.py` already covers every branch of it — twelve
 cases including the two the roadmap calls out. A dataset would restate them in JSON.
@@ -79,6 +113,7 @@ string, so a paused Aura cannot break them.
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
 | classifier | the corpus itself: 20 cases, unique ids, every case asserts something, the prompt version matches, six gaps each explained | all 20 cases, one live classification each — 14 green, 6 xfailed |
 | answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 10 cases, one live composition each (plus one language call) — 9 green, 1 xfailed |
+| retrieval | — | **`graph` tier, not `integration`:** 14 recall cases against the frozen graph, no OpenAI key, so CI holds them on every push |
 
 `should_not_contain` is the corpus's real gate, so it is asserted in both tiers rather
 than only where a model is available. Offline it is the durable property — *whatever* the
@@ -91,6 +126,29 @@ not whether the query answers the question, and it goes red every time the promp
 legitimately reworded. Phase 4 replaces it with execute-and-compare: run the query, compare
 the rows. The patterns are kept current anyway, so the xfail reads "wrong instrument", not
 "stale data" — and an XPASS is information, not a failure.
+
+## What execute-and-compare found in the cypher prompt (2026-09-23)
+
+Both found on the first run, both invisible to the regex the corpus used until v3.0, and
+both fixed in `QUERY_BUILDER_PROMPT` (now v3) with the suite re-run to prove it.
+
+1. **The prompt invited a syntax error.** Its mandated RETURN shape ends with
+   `collect(DISTINCT art.name) AS artists`, which aggregates — so `e`, `v` and `c` are out
+   of scope afterwards, and the `ORDER BY e.start_at` the model naturally appended is a
+   syntax error Neo4j refuses. Three of the five cases died on it. In production that is the
+   whole long-tail leg failing whenever it sorts by date. The prompt now says to order by
+   the returned alias, which is what the hand-written templates in `executor.py` have always
+   done.
+2. **The relationship went backwards about half the time.** `(v:Venue)-[:HOSTED_AT]->(e:Event)`
+   is the wrong direction; it raises nothing and returns zero rows, which reaches the person
+   asking as "there is nothing on". The prompt now says direction is part of the pattern,
+   names that exact inversion, and offers the undirected form when in doubt. Three runs green
+   after, where it failed in two of three before.
+
+One label of mine was wrong and is corrected in the dataset: `qg_003` asked for "next
+month", the model read it as the calendar month and dropped a gig two days out. That is a
+defensible reading, and a case about venue matching should not also be a case about what
+"next month" means — the question now says "in the next 30 days".
 
 ## The one known gap in the answer-quality set (2026-09-22)
 

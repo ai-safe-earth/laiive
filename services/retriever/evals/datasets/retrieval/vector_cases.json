@@ -1,0 +1,38 @@
+{
+  "notes": "The vector leg, scored as recall@k rather than as an exact set: ranking by cosine similarity is not a filter, and demanding an exact answer from it would be measuring the wrong thing. Each case is a vibe the router would send to VECTOR (free_text, no structured constraint), with the events a person would expect near the top. `expect` is what must appear inside the top k; `forbidden` is what must not appear at all, which is where the threshold earns its keep - a vector search with nothing close enough should return nothing rather than the least-bad thing in the graph.",
+  "test_cases": [
+    {
+      "id": "intimate-and-acoustic",
+      "free_text": "somewhere small and intimate, just a voice and a guitar",
+      "k": 5,
+      "expect": ["bcn-acoustic-1"],
+      "min_recall": 1.0,
+      "why": "one singer with a guitar, in the fixture's own words"
+    },
+    {
+      "id": "loud-dark-techno",
+      "free_text": "a loud dark warehouse with hard techno until morning",
+      "k": 5,
+      "expect": ["bcn-techno-2", "bcn-techno-1"],
+      "min_recall": 0.5,
+      "why": "industrial techno in a big dark room is the obvious one; the hard-and-fast club night is the second"
+    },
+    {
+      "id": "candle-lit-jazz",
+      "free_text": "candle-lit jazz piano, quiet enough to talk over",
+      "k": 5,
+      "expect": ["mad-jazz-1"],
+      "min_recall": 1.0,
+      "why": "the candle-lit piano trio - the case the roadmap uses as its example of a vibe ask"
+    },
+    {
+      "id": "nothing-like-this-in-the-graph",
+      "free_text": "a silent disco on a boat with a comedy open mic",
+      "k": 5,
+      "expect": [],
+      "forbidden": ["mad-jazz-1", "bcn-techno-2", "bgm-metal-1"],
+      "min_recall": 1.0,
+      "why": "nothing in the fixture is this, so the similarity threshold should return nothing rather than the nearest gig"
+    }
+  ]
+}
