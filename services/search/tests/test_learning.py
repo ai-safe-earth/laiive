@@ -5,7 +5,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import conftest
-from agent import discovery, learning
+from agent import discovery, extraction, learning
 from conftest import http_response
 
 
@@ -86,23 +86,6 @@ class TestRecordSources:
         )
         (row,) = posted(mock_learning_http, "search_sources")
         assert row["status"] == "blocked"
-
-    def test_hints_are_not_lost_by_the_upsert(self, mock_learning_http):
-        """The write replaces the whole row, so anything the owner typed has to
-        be carried through it."""
-        store(
-            mock_learning_http,
-            sources=[
-                {
-                    "domain": "venue.example",
-                    "status": "candidate",
-                    "extraction_hints": "the agenda is the second table",
-                }
-            ],
-        )
-        learning.record_sources({"venue.example": {"pages": 1}})
-        (row,) = posted(mock_learning_http, "search_sources")
-        assert row["extraction_hints"] == "the agenda is the second table"
 
     def test_the_timestamps_are_timestamps(self, mock_learning_http):
         """Both tables shipped `"now()"` as a literal string. PostgREST sends
@@ -202,17 +185,16 @@ class TestSteeringTheSweep:
     def test_a_fresh_database_sweeps_exactly_as_before(self, mock_learning_http):
         """Nothing learned yet is the normal first-run state, and it must not
         change what the sweep does."""
-        templates, trial = discovery.plan_queries()
+        templates = discovery.plan_queries()
         assert templates[:4] == discovery.QUERY_TEMPLATES[:4]
         # The fifth file template now arrives through the trial slot, so a
         # fresh store still runs all five phrasings the file promises.
-        assert trial == discovery.QUERY_TEMPLATES[4]
+        assert templates[-1] == discovery.QUERY_TEMPLATES[4]
 
     def test_one_slot_is_always_a_trial(self, mock_learning_http):
-        planned, trial = discovery.plan_queries()
+        planned = discovery.plan_queries()
         assert len(planned) == 5
-        assert planned[-1] == trial
-        assert trial in discovery.TRIAL_TEMPLATES
+        assert planned[-1] in discovery.TRIAL_TEMPLATES
 
     def test_known_empty_domains_are_excluded_from_every_query(
         self, mock_learning_http, mock_tavily
@@ -269,37 +251,6 @@ class TestSteeringTheSweep:
         mock_learning_http.post.side_effect = RuntimeError("supabase down")
         result = discovery.sweep_city("Torino")
         assert result.candidates
-
-
-class TestExtractionHints:
-    def test_a_sites_note_reaches_the_prompt(self, mock_learning_http, mock_openai):
-        store(
-            mock_learning_http,
-            sources=[
-                {
-                    "domain": "example.com",
-                    "status": "candidate",
-                    "extraction_hints": "the agenda is the second table",
-                }
-            ],
-        )
-        discovery.sweep_city("Torino")
-        prompts = "".join(
-            call.kwargs["messages"][0]["content"]
-            for call in mock_openai.chat.completions.create.call_args_list
-        )
-        assert "the agenda is the second table" in prompts
-
-    def test_no_note_leaves_no_empty_heading(self, mock_learning_http, mock_openai):
-        """An empty "Notes on this site:" reads as an instruction to find
-        something that is not there."""
-        discovery.sweep_city("Torino")
-        prompts = "".join(
-            call.kwargs["messages"][0]["content"]
-            for call in mock_openai.chat.completions.create.call_args_list
-        )
-        assert "Notes on this site" not in prompts
-        assert json.loads  # keeps the import honest
 
 
 class TestWriteBack:
@@ -492,8 +443,6 @@ class TestVouchedPagesAreReadInWholeEntries:
     DASTE = {"url": "https://www.dastebergamo.com/eventi/", "raw_content": ARCHIVE}
 
     def test_the_text_is_cut_only_where_a_line_opens_with_a_date(self):
-        from agent import extraction
-
         chunks = extraction._entry_chunks(self.LISTING)
         assert len(chunks) > 2
         # Nothing lost, nothing repeated: no overlap, so no entry is seen twice.
@@ -507,8 +456,6 @@ class TestVouchedPagesAreReadInWholeEntries:
             assert f"{day} Sab Settembre" in home[0]
 
     def test_a_date_first_page_is_read_a_chunk_at_a_time(self, mock_openai):
-        from agent import extraction
-
         chunks = extraction._entry_chunks(self.LISTING)
         mock_openai.chat.completions.create.side_effect = [
             _reply(_night(f"Night {i}")) for i in range(len(chunks))
@@ -534,21 +481,17 @@ class TestVouchedPagesAreReadInWholeEntries:
     def test_a_page_that_does_not_say_date_first_is_one_call(self, mock_openai):
         """It is the source's to say, never guessed: on a page that puts the
         title first, a cut at a date line parts every title from its date."""
-        from agent import extraction
-        from config import settings
 
         text = self.LISTING * 4
-        assert len(text) > settings.page_max_chars
+        assert len(text) > extraction.PAGE_MAX_CHARS
         extraction.extract_events_from_page(
             text, url="https://x.com", city="Bergamo", vouched=True
         )
         prompts = _prompts(mock_openai)
         assert len(prompts) == 1
-        assert len(prompts[0]) < settings.page_max_chars + 4000
+        assert len(prompts[0]) < extraction.PAGE_MAX_CHARS + 4000
 
     def test_a_page_costs_a_bounded_number_of_calls(self, mock_openai):
-        from agent import extraction
-
         extraction.extract_events_from_page(
             self.LISTING * 40,
             url="https://x.com",
@@ -586,7 +529,6 @@ class TestVouchedPagesAreReadInWholeEntries:
         """Tavily's advanced extract sometimes answers with its basic text, and
         Eppen's then has titles and blurbs and no dates. Read anyway, the model
         dated the titles Oct 1, Oct 2, Oct 3 down the list."""
-        from agent import extraction
 
         text = "Papa Roach – Rise Of The Roach / Fiorella Mannoia in concerto / " * 120
         drafts = extraction.extract_events_from_page(
@@ -596,8 +538,6 @@ class TestVouchedPagesAreReadInWholeEntries:
         assert mock_openai.chat.completions.create.call_count == 0
 
     def test_what_counts_as_a_date(self):
-        from agent import extraction
-
         for dated in (
             "GIO 2club",  # Ink Club: the tag is glued to the day
             "19 Sab Settembre h.11:00",  # Eppen

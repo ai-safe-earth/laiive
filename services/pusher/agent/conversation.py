@@ -83,33 +83,11 @@ _FIELD_LABELS = {
     "price_min": "the ticket price",
 }
 
-# City → currency default for drafts that never stated one (major non-EUR markets).
-CITY_CURRENCY = {
-    "new york": "USD",
-    "los angeles": "USD",
-    "chicago": "USD",
-    "san francisco": "USD",
-    "miami": "USD",
-    "london": "GBP",
-    "manchester": "GBP",
-    "glasgow": "GBP",
-    "edinburgh": "GBP",
-    "zurich": "CHF",
-    "geneva": "CHF",
-    "copenhagen": "DKK",
-    "stockholm": "SEK",
-    "oslo": "NOK",
-    "warsaw": "PLN",
-    "prague": "CZK",
-    "tokyo": "JPY",
-    "toronto": "CAD",
-    "sydney": "AUD",
-    "mexico city": "MXN",
-}
-
-
-def default_currency(city: str | None) -> str:
-    return CITY_CURRENCY.get((city or "").lower().strip(), "EUR")
+# Every city the graph carries is in the euro zone, and the extraction prompt
+# already asks for price_currency "only when stated or implied by symbol". A
+# twenty-city table mapping Tokyo to JPY and Sydney to AUD sat here for the day
+# the product leaves Europe; none of its non-EUR rows ever fired.
+DEFAULT_CURRENCY = "EUR"
 
 
 @dataclass
@@ -190,7 +168,7 @@ def process_turn(
 
     for draft in drafts:
         if draft.city and not draft.price_currency:
-            draft.price_currency = default_currency(draft.city)
+            draft.price_currency = DEFAULT_CURRENCY
     # Before missing_required, because a correction can fill a field in - a city
     # the gazetteer resolves is no longer the empty box it looked like.
     corrections, doubts = _check_all(drafts, geocoder)
@@ -253,7 +231,7 @@ def _walk_turn(messages: list[dict], walk: WalkInput, geocoder=None) -> PusherTu
 
     drafts[cursor] = refine_draft(drafts[cursor], latest_user_text(messages))
     if drafts[cursor].city and not drafts[cursor].price_currency:
-        drafts[cursor].price_currency = default_currency(drafts[cursor].city)
+        drafts[cursor].price_currency = DEFAULT_CURRENCY
     # Only the event under the cursor is re-checked: the others were checked on
     # the turn that produced them and nothing has touched them since, so
     # re-running the city lookup for all of them would spend a geocode apiece

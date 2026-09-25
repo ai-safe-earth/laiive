@@ -203,21 +203,6 @@ def _updated_or_raise(
 # ============== Health ==============
 
 
-@app.get("/")
-def root():
-    return {
-        "service": "laiive pusher API",
-        "version": "0.3.0",
-        "endpoints": {
-            "health": "/health",
-            "chat_stream": "/chat/stream (POST) - SSE streaming",
-            "ingest": "/ingest (POST, multipart) - audio/image/document/url → text",
-            "validate": "/validate-event (POST)",
-            "edit": "/events|venues|artists/{uid} (PATCH) - owner edits",
-        },
-    }
-
-
 @app.get("/health")
 def health():
     checks = {"api": "ok", "neo4j": "unknown"}

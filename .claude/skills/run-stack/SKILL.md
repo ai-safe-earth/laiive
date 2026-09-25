@@ -72,7 +72,7 @@ installed here** — use npm, despite `frontend/package.json` history.
    `VITE_API_URL` (`frontend/.env`, default `http://localhost:8000`), which the gateway allows
    via `CORS_ALLOW_ORIGINS` (default `http://localhost:8081`).
 
-7. Search only when the task needs sweeps — it also needs `SEARCH_ENABLED=true` in the root
+7. Search only when the task needs sweeps — the gateway proxies to it whenever it is up
    `.env` or the gateway answers `/api/admin/search/*` with 503:
    ```powershell
    Set-Location <repo>/services/search; $env:VIRTUAL_ENV=""; uv run --no-sync python -m uvicorn agent.api:app --host 127.0.0.1 --port 8004

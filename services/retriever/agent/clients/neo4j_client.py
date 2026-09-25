@@ -1,30 +1,12 @@
 from neo4j import GraphDatabase, READ_ACCESS
 from neo4j.time import DateTime, Date, Time, Duration
 import time
-from neo4j.exceptions import ServiceUnavailable, TransientError, SessionExpired
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-)
 from config import settings
 from loguru import logger
 
 # TODO  7. No structured logging
 # Current: Mix of loguru and print statements
 # Recommendation: Standardize on structured logging throughout. Configure loguru with JSON formatting for production to enable proper log aggregation and monitoring.
-
-RETRYABLE_NEO4J_ERRORS = (ServiceUnavailable, TransientError, SessionExpired)
-
-neo4j_retry = retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type(RETRYABLE_NEO4J_ERRORS),
-    before_sleep=before_sleep_log(logger, log_level="WARNING"),
-    reraise=True,
-)
 
 
 def convert_neo4j_types(value):
@@ -97,8 +79,32 @@ class Neo4jClient:
                 f"Neo4j read took {int((time.perf_counter() - start) * 1000)}ms"
             )
 
-    # Chat reads ride the retry ladder; the answer is worth waiting for there.
-    execute_read = neo4j_retry(execute_read_once)
+    def execute_read(self, cypher: str, params: dict | None = None) -> list[dict]:
+        """Chat reads, through a managed transaction.
+
+        This used to be `execute_read_once` wrapped in a tenacity ladder that
+        retried ServiceUnavailable, TransientError and SessionExpired with
+        exponential backoff. The driver's own managed transaction retries that
+        same set, which is the whole reason it exists, so the ladder was a
+        second one nested inside the first — and the driver's knows about
+        routing table refreshes and leader switches, which tenacity does not.
+        A waking Aura is the case that matters here.
+        """
+        start = time.perf_counter()
+        try:
+            with self._driver.session(
+                database=settings.neo4j_database, default_access_mode=READ_ACCESS
+            ) as session:
+                return session.execute_read(
+                    lambda tx: [
+                        convert_neo4j_types(r.data())
+                        for r in tx.run(cypher, params or {}, timeout=8.0)
+                    ]
+                )
+        finally:
+            logger.debug(
+                f"Neo4j read took {int((time.perf_counter() - start) * 1000)}ms"
+            )
 
     def get_schema(self, force_refresh: bool = False) -> str:
         if self._schema_cache is not None and not force_refresh:
@@ -128,51 +134,16 @@ class Neo4jClient:
                         raise ValueError("APOC schema data is empty or invalid")
 
                 except Exception as apoc_error:
-                    # Fallback: manually query schema if APOC fails
-                    logger.warning(
-                        f"APOC not available or failed: {apoc_error}. Using fallback method..."
-                    )
-
-                    # Get node labels
-                    labels_result = session.run("CALL db.labels()")
-                    labels = [record["label"] for record in labels_result]
-
-                    # Get relationship types
-                    rels_result = session.run("CALL db.relationshipTypes()")
-                    rel_types = [record["relationshipType"] for record in rels_result]
-
-                    # Build schema manually
-                    schema_data = {}
-                    for label in labels:
-                        # Get sample node to infer properties
-                        sample = session.run(
-                            f"""
-                            MATCH (n:{label})
-                            RETURN n
-                            LIMIT 1
-                        """
-                        ).single()
-
-                        if sample:
-                            node = sample["n"]
-                            properties = {}
-                            for key in node.keys():
-                                if key != "embedding":  # Skip embedding
-                                    value = node[key]
-                                    prop_type = type(value).__name__
-                                    properties[key] = {"type": prop_type}
-
-                            schema_data[label] = {
-                                "type": "node",
-                                "properties": properties,
-                            }
-
-                    # Add relationship types
-                    for rel_type in rel_types:
-                        schema_data[f"_{rel_type}"] = {
-                            "type": "relationship",
-                            "name": rel_type,
-                        }
+                    # A fallback used to live here: it re-derived the schema
+                    # from db.labels(), db.relationshipTypes() and one sample
+                    # node per label, then hand-formatted the result — sixty
+                    # lines inferring what QUERY_BUILDER_PROMPT, the only
+                    # consumer of this string, already spells out in full
+                    # (every node, every property, every relationship
+                    # direction). Aura has APOC; if this ever fires the prompt
+                    # still carries the model.
+                    logger.warning(f"APOC schema unavailable: {apoc_error}")
+                    return "# Schema unavailable; the prompt carries the graph model.\n"
 
                 formatted_schema = "# Node Labels and Properties\n"
 

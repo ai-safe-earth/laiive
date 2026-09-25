@@ -26,11 +26,6 @@ def _frames(body: str) -> list[tuple[str, str]]:
 
 
 class TestHealthEndpoints:
-    def test_root_endpoint(self, client):
-        data = client.get("/").json()
-        assert data["version"] == "0.3.0"
-        assert "validate" in data["endpoints"]
-
     def test_health(self, client, mock_neo4j):
         data = client.get("/health").json()
         assert data["status"] == "ok"

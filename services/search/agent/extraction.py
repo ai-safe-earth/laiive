@@ -31,6 +31,11 @@ _client = OpenAI(api_key=settings.openai_api_key)
 # 2026-09-19 (evals/inkclub_dates/live_page.py).
 EXTRACTION_PROMPT_VERSION = "search-v2"
 
+# How much of a searched page reaches the model. A constant rather than a
+# setting: SEARCH_PAGE_MAX_CHARS was never set anywhere, and this is its only
+# reader. A vouched agenda is chunked instead — see AGENDA_MAX_CHUNKS.
+PAGE_MAX_CHARS = 12000
+
 EXTRACTION_PROMPT = """Extract upcoming live music events from this web page. Today is {today}.
 The page was found searching for live music in {city}; its URL is {url}.
 
@@ -201,7 +206,7 @@ def extract_events_from_page(
         return []
     if not (vouched and date_first):
         return _extract_with_fallback(
-            text[: settings.page_max_chars], url=url, city=city, hint=hint
+            text[:PAGE_MAX_CHARS], url=url, city=city, hint=hint
         )
     drafts: list[EventDraft] = []
     for chunk in _entry_chunks(text):

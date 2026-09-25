@@ -23,7 +23,7 @@ on a legitimate rewording, green on a well-formed query returning nothing.
 
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -166,20 +166,19 @@ def test_generated_mutation_never_reaches_the_driver(keyword):
     """
     tool = QueryBuilderTool(neo4j_client=Mock(), schema="", client=Mock())
     cypher = f"MATCH (e:Event) {keyword} (n:Artist {{name: 'x'}}) RETURN e"
+    tool.client.chat.completions.create.return_value = Mock(
+        choices=[Mock(message=Mock(content=cypher))]
+    )
 
-    with patch(
-        "agent.tools.query_builder.chat_completion_with_retry",
-        return_value=Mock(choices=[Mock(message=Mock(content=cypher))]),
-    ):
-        data = json.loads(tool.run("find concerts by Radiohead"))
+    result = tool.run("find concerts by Radiohead")
 
     # Asserted first because it is the property that matters: if the guard ever
     # stops recognising the keyword, "the driver was called" is a clearer
     # failure than whatever the executed Mock raises downstream.
     tool.neo4j.execute_read.assert_not_called()
-    assert data["status"] == "error"
-    assert "safety" in data["error"].lower()
-    assert keyword in data["violations"]
+    assert result.error
+    assert "safety" in result.error.lower()
+    assert keyword in result.violations
 
 
 # ── query generation: integration ───────────────────────────────────────────

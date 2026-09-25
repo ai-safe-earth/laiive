@@ -318,21 +318,3 @@ def test_pages_with_events_reaches_the_query_ledger(mock_learning_http):
     assert queries, "the sweep should record its queries"
     # The one fixture page yields one event, searched by the first template.
     assert sum(int(row.get("pages_with_events") or 0) for row in queries) == 1
-
-
-def test_the_trial_stat_is_null_when_nothing_is_on_probation(mock_learning_http):
-    """queries[-1] used to be labeled the trial even when select_trial chose
-    nothing — pinning probation on an earned standing phrasing."""
-    rows = [
-        {"template": t, "status": "retired", "runs": 3}
-        for t in discovery.TRIAL_TEMPLATES
-    ]
-
-    def get(url, *args, **kwargs):
-        if "search_queries" in url:
-            return http_response(200, rows)
-        return http_response(200, [])
-
-    mock_learning_http.get.side_effect = get
-    result = discovery.sweep_city("Berlin")
-    assert result.stats["trial_query"] is None

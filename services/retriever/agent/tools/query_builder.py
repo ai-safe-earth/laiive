@@ -4,14 +4,14 @@ Generated queries are read-only-validated before execution and asked to
 return the executor's standard row shape so results still map to EventCards.
 """
 
-import json
+from dataclasses import dataclass, field
 
 from laiive_shared.drafts import strip_fences
 
 from config import settings
 
 from ..classifier import now_in
-from ..utils.llm_utils import chat_completion_with_retry, get_openai_client
+from ..utils.llm_utils import get_openai_client
 from .safety_guard import SafetyGuardTool
 
 QUERY_BUILDER_PROMPT_VERSION = "v3"
@@ -69,6 +69,21 @@ Live schema:
 {schema}"""
 
 
+@dataclass
+class GeneratedQuery:
+    """What the long-tail leg answers with: rows, or the reason there are none.
+
+    `violations` is only ever filled when the guard refused the query, and the
+    eval corpus asserts on it — it is the difference between "the model wrote a
+    DELETE" and "Neo4j was down".
+    """
+
+    cypher: str = ""
+    rows: list[dict] = field(default_factory=list)
+    error: str = ""
+    violations: list[str] = field(default_factory=list)
+
+
 class QueryBuilderTool:
     """Generates and executes read-only Cypher for long-tail questions."""
 
@@ -84,34 +99,33 @@ class QueryBuilderTool:
             self._schema = self.neo4j.get_schema()
         return self._schema
 
-    def run(self, question: str, timezone: str | None = None) -> str:
+    def run(self, question: str, timezone: str | None = None) -> GeneratedQuery:
+        """Generate a query, validate it, run it. Never raises.
+
+        This used to answer with a JSON *string* that the executor parsed back
+        two lines later, and to call a safety-guard method that serialized its
+        verdict for this function to parse in turn — two round-trips inside one
+        process. Both ends now speak the dataclass below.
+        """
         try:
             cypher = self._generate_cypher(question, timezone)
-            safety_data = json.loads(self.safety_guard.run(cypher))
-            if not safety_data.get("is_safe", False):
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "error": f"Query failed safety validation: {safety_data.get('message', 'Unknown violation')}",
-                        "cypher": cypher,
-                        "violations": safety_data.get("violations", []),
-                        "results": [],
-                    }
+            is_safe, violations = self.safety_guard.validate_read_only(cypher)
+            if not is_safe:
+                return GeneratedQuery(
+                    cypher=cypher,
+                    error=(
+                        "Query failed safety validation: forbidden operations "
+                        f"({', '.join(violations)})"
+                    ),
+                    violations=violations,
                 )
 
-            results = self.neo4j.execute_read(cypher)
-            return json.dumps(
-                {
-                    "status": "success",
-                    "cypher": cypher,
-                    "result_count": len(results),
-                    "results": results[: settings.max_results_limit],
-                    "message": f"Found {len(results)} event(s)",
-                },
-                default=str,
+            rows = self.neo4j.execute_read(cypher)
+            return GeneratedQuery(
+                cypher=cypher, rows=rows[: settings.max_results_limit]
             )
         except Exception as e:
-            return json.dumps({"status": "error", "error": str(e), "results": []})
+            return GeneratedQuery(error=str(e))
 
     def _generate_cypher(self, question: str, timezone: str | None = None) -> str:
         # The asker's today, not the server's -- same reason as the classifier.
@@ -121,8 +135,7 @@ class QueryBuilderTool:
         system_prompt = QUERY_BUILDER_PROMPT.format(
             schema=self.db_schema, date_context=date_context
         )
-        response = chat_completion_with_retry(
-            self.client,
+        response = self.client.chat.completions.create(
             model=settings.query_builder_model,
             messages=[
                 {"role": "system", "content": system_prompt},

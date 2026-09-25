@@ -150,57 +150,19 @@ class ChatRequestSSE(BaseModel):
     timezone: Optional[str] = None
 
 
-class ChatRequest(BaseModel):
-    """JSON request format."""
-
-    message: str
-    conversation_history: Optional[List[Message]] = None
-    location: Optional[UserLocation] = None
-    timezone: Optional[str] = None
-
-
-class ChatResponse(BaseModel):
-    request_id: str
-    response: str
-    cypher: Optional[str] = None
-    results: Optional[list[dict]] = None
-    used_query: bool = False
-    needs_more_info: bool = False
-
-
 def _history_dicts(messages: Optional[List[Message]]) -> list[dict] | None:
     if not messages:
         return None
-    return [{"role": m.role, "content": m.content} for m in messages]
+    return [m.model_dump() for m in messages]
 
 
 def _location_dict(location: Optional[UserLocation]) -> dict | None:
     if location is None:
         return None
-    return {
-        "latitude": location.latitude,
-        "longitude": location.longitude,
-        "city": location.city,
-    }
+    return location.model_dump()
 
 
 # ============== Health & Info Endpoints ==============
-
-
-@app.get("/")
-def root():
-    return {
-        "service": "Live Music Events Search Assistant",
-        "version": "0.3.0",
-        "endpoints": {
-            "health": "/health",
-            "schema": "/schema",
-            "events": "/events?uids=… (GET) - cards by uid",
-            "chat": "/chat (POST) - JSON response",
-            "chat/stream": "/chat/stream (POST) - SSE streaming",
-            "docs": "/docs",
-        },
-    }
 
 
 @app.get("/health")
@@ -239,16 +201,6 @@ def health():
         },
         status_code=200 if all_ok else 503,
     )
-
-
-@app.get("/schema")
-def get_schema():
-    try:
-        schema_text = neo4j_client.get_schema(force_refresh=True)
-        return {"schema": schema_text, "status": "ok"}
-    except Exception as e:
-        logger.error(f"Schema fetch failed: {e}")
-        return {"schema": None, "status": "error", "error": str(e)}
 
 
 # ============== Events by uid ==============
@@ -409,41 +361,10 @@ async def transcribe_audio(file: UploadFile = File(...)):
 # ============== Chat Endpoints ==============
 
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest, raw: Request):
-    """JSON response endpoint."""
-    request_id = request_id_from(raw)
-    result = TurnResult()
-    start = time.perf_counter()
-    try:
-        get_pipeline().run_turn_collected(
-            request.message,
-            _history_dicts(request.conversation_history),
-            _location_dict(request.location),
-            timezone=request.timezone,
-            result=result,
-            request_id=request_id,
-        )
-        return ChatResponse(
-            request_id=request_id,
-            response=result.text,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            results=[c.model_dump() for c in result.cards] or None,
-            used_query=result.used_query,
-            needs_more_info=result.needs_more_info,
-        )
-    except Exception as e:
-        logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
-        raise HTTPException(500, "An internal error occurred. Please try again.")
-    finally:
-        log_turn(
-            request_id,
-            request.message,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            card_count=len(result.cards),
-            error="; ".join(result.errors) or None,
-        )
-        _write_eval_record(request_id, result, start)
+# /chat, the non-streaming JSON twin of /chat/stream, used to sit here. Nothing
+# called it: the SPA has only ever used the stream, and the gateway's /api/chat
+# prefix reaches both. It is in git history if a non-streaming client ever needs
+# one; `run_turn_collected` went with it.
 
 
 @app.post("/chat/stream")

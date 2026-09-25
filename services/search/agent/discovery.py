@@ -70,6 +70,14 @@ QUERY_TEMPLATES = [
 # the region rather than the town — because those are exactly the ones a
 # generic "concerti" query does not reach. Add to it freely: a new phrasing
 # costs nothing until the trial slot reaches it.
+# Credits per city per run, one of them the trial slot: raising it buys
+# standing phrasings, not exploration. Boosting a locale in Tavily's ranking
+# (general topic only) is the other half of the same decision - both swept
+# provinces are Italian. Constants rather than settings: neither has ever been
+# set anywhere, and each has exactly one reader.
+QUERY_SLOTS = 5
+SWEEP_COUNTRY = "italy"
+
 TRIAL_TEMPLATES = [
     # The fifth QUERY_TEMPLATES entry. plan_queries gives the file-fallback
     # only slots-1 standing places, so with the default five slots this one
@@ -140,26 +148,26 @@ class SweepResult(BaseModel):
     stats: dict = {}
 
 
-def plan_queries() -> tuple[list[str], str | None]:
-    """(templates this sweep will spend its credits on, the trial among them).
+def plan_queries() -> list[str]:
+    """The templates this sweep will spend its credits on.
 
-    Most slots go to the phrasings that have earned them and one is reserved
-    for a trial, which is the whole reason the vocabulary can improve. Before
-    anything has been learned the file's list is the answer, so a fresh
-    database sweeps exactly as it did before this existed.
+    Most slots go to the phrasings that have earned them and the last is
+    reserved for a trial, which is the whole reason the vocabulary can
+    improve. Before anything has been learned the file's list is the answer,
+    so a fresh database sweeps exactly as it did before this existed.
 
-    The trial is returned by name rather than by position: the stats used to
-    label `queries[-1]` as the trial, which pinned the badge on the last
-    standing phrasing whenever no trial was selected at all.
+    The trial used to be returned beside the list so the stats could name it.
+    Nothing rendered that stat, so the pair is gone; the trial is still the
+    last element when there is one, and `learning.select_trial` is where the
+    concept lives.
     """
-    slots = settings.sweep_query_slots
-    standing = learning.standing_templates(QUERY_TEMPLATES, slots - 1)
+    standing = learning.standing_templates(QUERY_TEMPLATES, QUERY_SLOTS - 1)
     trial = learning.select_trial(TRIAL_TEMPLATES)
     # select_trial refuses standing phrasings, but its store-read can fail and
     # fall back — never run the identical query twice in one sweep.
     if trial and trial in standing:
         trial = None
-    return ([*standing, trial], trial) if trial else (standing[:slots], None)
+    return [*standing, trial] if trial else standing[:QUERY_SLOTS]
 
 
 def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
@@ -167,9 +175,8 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     max_pages = max_pages or settings.sweep_max_pages
     month_year = italian_month_year(datetime.now())
 
-    templates, trial_template = plan_queries()
+    templates = plan_queries()
     include, exclude = learning.domain_filters(city)
-    hints = learning.extraction_hints()
 
     # One credit per call regardless of how many rows come back, so this counts
     # calls, not results. Recorded on the report because a monthly allowance
@@ -210,7 +217,7 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         for hit in tavily.search(
             query,
             settings.sweep_results_per_query,
-            country=settings.sweep_country,
+            country=SWEEP_COUNTRY,
             include_domains=focus,
             # Applied to every slot: dropping a known-empty domain costs
             # nothing and never narrows the field to the already-known.
@@ -241,10 +248,9 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         domain = source_domain(hit.url)
         seen = observed.setdefault(
             domain,
-            {"pages": 0, "pages_with_events": 0, "drafts": 0, "scores": []},
+            {"pages": 0, "pages_with_events": 0},
         )
         seen["pages"] += 1
-        seen["scores"].append(hit.score)
         text = hit.raw_content or hit.content
         if not text.strip():
             continue
@@ -261,7 +267,6 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             text,
             url=hit.url,
             city=city,
-            hint=hints.get(domain, ""),
             vouched=is_vouched,
             # Lets a long listing be read a chunk of whole entries at a time.
             date_first=is_vouched and learning.date_first(domain),
@@ -275,7 +280,6 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             # (learning._query_yield).
             if template := url_query.get(hit.url):
                 events_per_query[template] = events_per_query.get(template, 0) + 1
-        seen["drafts"] += len(found)
         drafts.extend((draft, hit.url) for draft in found)
 
     candidates: list[Candidate] = []
@@ -344,38 +348,18 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         domain: {
             "pages": seen["pages"],
             "pages_with_events": seen["pages_with_events"],
-            "drafts": seen["drafts"],
             "candidates_new": new_per_domain.get(domain, 0),
-            "mean_score": (sum(seen["scores"]) / len(seen["scores"]))
-            if seen["scores"]
-            else 0.0,
         }
         for domain, seen in observed.items()
     }
 
-    read_per_query: dict[str, int] = {}
-    local_per_query: dict[str, int] = {}
-    for hit in pages:
-        template = url_query.get(hit.url)
-        if not template:
-            continue
-        read_per_query[template] = read_per_query.get(template, 0) + 1
-        if source_domain(hit.url).endswith(settings.sweep_local_tld):
-            local_per_query[template] = local_per_query.get(template, 0) + 1
-
     by_query = {
         template: {
-            "pages": read_per_query.get(template, 0),
             # A hardcoded 0 here left the store's decayed counter zeroing
             # forever while looking maintained — a lie the first ranking rule
             # to read it would have believed.
             "pages_with_events": events_per_query.get(template, 0),
             "candidates_new": new_per_query.get(template, 0),
-            "local_domain_share": (
-                local_per_query.get(template, 0) / read_per_query[template]
-            )
-            if read_per_query.get(template)
-            else 0.0,
         }
         for template in queries
     }
@@ -395,10 +379,6 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
         stats={
             "queries": len(queries),
             "tavily_credits": tavily_calls,
-            # The actual trial, or null when none was on probation this sweep.
-            # queries[-1] here mislabeled an earned standing phrasing as the
-            # trial whenever select_trial came back empty.
-            "trial_query": trial_template,
             "domains": len(by_domain),
             "pages_searched": len(pages),
             "pages_with_events": pages_with_events,

@@ -21,7 +21,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from .normalize import norm
+from .normalize import canonical_city_name, norm
 
 # Every weekday name the four supported UI languages can produce, keyed to
 # Python's Monday=0. Matched through `norm`, so accents and case are already
@@ -174,15 +174,6 @@ def tidy_case(value: str) -> str | None:
     return " ".join(w[:1].upper() + w[1:] for w in stripped.split())
 
 
-def city_name_of(display_name: str) -> str:
-    """The place itself out of a geocoder's full label.
-
-    Nominatim answers "Barcelona, Barcelonès, Barcelona, Catalunya, España";
-    the first component is the name the promoter meant.
-    """
-    return (display_name or "").split(",")[0].strip()
-
-
 def check_draft(
     draft,
     *,
@@ -246,7 +237,7 @@ def check_draft(
                 )
             )
         else:
-            canonical = city_name_of(hit.display_name)
+            canonical = canonical_city_name(hit.display_name)
             if canonical and norm(canonical) == norm(draft.city):
                 # Same place, different spelling or case: take the gazetteer's.
                 correct("city", canonical, "spelling from the map")

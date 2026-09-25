@@ -1,5 +1,5 @@
 """SEARCH service API (Phase 5) — internal, reached via the gateway's
-`/api/admin/search/*` (admin only, SEARCH_ENABLED=true).
+`/api/admin/search/*` (admin only).
 
 Sweeps are dry-run and persist a report; approve replays from the stored
 report through the shared writer with source='admin_search'. Endpoints are

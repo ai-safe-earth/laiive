@@ -23,7 +23,7 @@ from .executor import Executor
 from .router import route
 from .tools.query_builder import QUERY_BUILDER_PROMPT_VERSION, QueryBuilderTool
 from .tools.safety_guard import SafetyGuardTool
-from .utils.llm_utils import embedding_with_retry, get_openai_client
+from .utils.llm_utils import get_openai_client
 
 tracer = get_tracer("retriever")
 
@@ -91,8 +91,8 @@ class Pipeline:
         )
 
     def _embed(self, text: str) -> list[float]:
-        response = embedding_with_retry(
-            self.client, model=settings.embeddings_model, input=text
+        response = self.client.embeddings.create(
+            model=settings.embeddings_model, input=text
         )
         return response.data[0].embedding
 
@@ -271,30 +271,3 @@ class Pipeline:
         finally:
             span.set_attribute("laiive.text_length", len(result.text))
             span.end()
-
-    def run_turn_collected(
-        self,
-        user_message: str,
-        history: list[dict] | None = None,
-        location: dict | None = None,
-        timezone: str | None = None,
-        result: TurnResult | None = None,
-        request_id: str = "",
-    ) -> TurnResult:
-        """Non-streaming variant for the JSON endpoint.
-
-        A caller-owned ``result`` keeps the partial turn state readable after
-        an exception, mirroring the stream path's capture guarantee.
-        """
-        if result is None:
-            result = TurnResult()
-        for _ in self.run_turn(
-            user_message,
-            history,
-            location,
-            result=result,
-            timezone=timezone,
-            request_id=request_id,
-        ):
-            pass
-        return result

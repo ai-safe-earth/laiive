@@ -5,7 +5,6 @@ it never actually executed, and OpenAI's moderation endpoint is free and in
 the SDK we already use.
 """
 
-import json
 import re
 
 from loguru import logger
@@ -26,29 +25,6 @@ class SafetyGuardTool:
         return self._client
 
     # ── Cypher guard (regex, no LLM) ────────────────────────────────────────
-
-    def run(self, cypher: str | None) -> str:
-        """Validate a Cypher query for safety. Returns a JSON verdict."""
-        if cypher is None:
-            return json.dumps(
-                {
-                    "is_safe": False,
-                    "message": "Null query provided",
-                    "violations": ["null_query"],
-                }
-            )
-        is_safe, violations = self.validate_read_only(cypher)
-        return json.dumps(
-            {
-                "is_safe": is_safe,
-                "message": (
-                    "Query is safe"
-                    if is_safe
-                    else f"Query contains forbidden operations: {', '.join(violations)}"
-                ),
-                "violations": violations,
-            }
-        )
 
     def validate_read_only(self, cypher: str) -> tuple[bool, list[str]]:
         """Returns (is_safe, violations) for a generated Cypher query."""

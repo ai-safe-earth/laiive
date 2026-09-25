@@ -21,7 +21,6 @@ dependencies = [
     "python-multipart>=0.0.9",
     # only imported when REDIS_URL is set (geocode store for the named-place leg)
     "redis>=5.0",
-    "tenacity>=9.1.2",
     "uvicorn>=0.40.0",
 ]
 
