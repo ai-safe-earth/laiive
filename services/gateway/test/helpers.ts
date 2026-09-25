@@ -402,7 +402,6 @@ export function testConfig(overrides: Partial<GatewayConfig> & { supabaseUrl: st
     retrieverUrl: "http://127.0.0.1:1",
     pusherUrl: "http://127.0.0.1:1",
     searchUrl: "http://127.0.0.1:1",
-    searchEnabled: false,
     writesDisabled: false,
     supabaseServiceRoleKey: "test-service-role-key",
     jwksUrl: `${overrides.supabaseUrl}/auth/v1/.well-known/jwks.json`,

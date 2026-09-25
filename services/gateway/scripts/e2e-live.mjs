@@ -7,8 +7,8 @@
  * verification of real ES256 tokens, role routing, and unbuffered SSE through
  * the proxy.
  *
- * Prerequisites — retriever :8002, pusher :8003, gateway :8000 all running, and
- * SUPABASE_SERVICE_ROLE_KEY set in the root .env.
+ * Prerequisites — retriever :8002, pusher :8003, search :8004 and gateway :8000
+ * all running, and SUPABASE_SERVICE_ROLE_KEY set in the root .env.
  *
  *   node scripts/e2e-live.mjs          (from services/gateway)
  *
@@ -16,9 +16,12 @@
  */
 import path from "node:path";
 import process from "node:process";
-import dotenv from "dotenv";
 
-dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
+try {
+  process.loadEnvFile(path.resolve(process.cwd(), "../../.env"));
+} catch {
+  // No root .env: the check below refuses on the missing keys instead.
+}
 
 const GATEWAY = process.env.E2E_GATEWAY_URL ?? "http://localhost:8000";
 const SUPABASE_URL = (process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
@@ -124,18 +127,18 @@ const chatBody = () =>
 
 /** Reads an SSE response, returning the chunk count and total bytes. */
 async function readStream(res, maxChunks = 40) {
-  const reader = res.body.getReader();
   let chunks = 0;
   let bytes = 0;
   let text = "";
-  while (chunks < maxChunks) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  // Chunk by chunk, never res.text(): "the frames arrived separately" is the
+  // assertion, and a buffered read would erase it. Breaking out of the loop
+  // cancels the body for us.
+  for await (const chunk of res.body) {
     chunks += 1;
-    bytes += value.length;
-    text += Buffer.from(value).toString("utf8");
+    bytes += chunk.length;
+    text += Buffer.from(chunk).toString("utf8");
+    if (chunks >= maxChunks) break;
   }
-  await reader.cancel().catch(() => {});
   return { chunks, bytes, text };
 }
 
@@ -225,17 +228,17 @@ async function main() {
     });
     check("pro role /api/push → 200", pushPro.status === 200, `got ${pushPro.status}`);
 
-    const searchPro = await fetch(`${GATEWAY}/api/admin/search/ping`, {
+    const searchPro = await fetch(`${GATEWAY}/api/admin/search/health`, {
       headers: { authorization: `Bearer ${pro.token}` },
     });
     check("pro role /api/admin/search → 403", searchPro.status === 403, `got ${searchPro.status}`);
 
-    const searchAdmin = await fetch(`${GATEWAY}/api/admin/search/ping`, {
+    const searchAdmin = await fetch(`${GATEWAY}/api/admin/search/health`, {
       headers: { authorization: `Bearer ${adminUser.token}` },
     });
     check(
-      "admin role /api/admin/search → 503 (Phase 5 not deployed)",
-      searchAdmin.status === 503,
+      "admin role /api/admin/search → 200",
+      searchAdmin.status === 200,
       `got ${searchAdmin.status}`,
     );
 

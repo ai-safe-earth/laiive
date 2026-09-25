@@ -3,35 +3,31 @@ import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
 import { requireRole } from "./auth.js";
 
-/**
- * The services trust identity headers because they are unreachable except
- * through the gateway — and, when INTERNAL_API_KEY is set, because they check.
- * Client-sent copies of everything the gateway asserts are dropped first;
- * `x-internal-key` belongs in that strip-list precisely because it is what
- * protects the rest.
- */
-const replyOptionsFor = (
-  config: GatewayConfig,
-): NonNullable<FastifyHttpProxyOptions["replyOptions"]> => ({
-  rewriteRequestHeaders: (request, headers) => {
-    const out = { ...headers };
-    delete out["x-user-id"];
-    delete out["x-user-role"];
-    delete out["x-request-id"];
-    delete out["x-internal-key"];
-    delete out.authorization;
-    out["x-request-id"] = String(request.id);
-    if (config.internalApiKey) out["x-internal-key"] = config.internalApiKey;
-    if (request.user) {
-      out["x-user-id"] = request.user.id;
-      out["x-user-role"] = request.user.role;
-    }
-    return out;
-  },
-});
-
 export function registerProxies(app: FastifyInstance, config: GatewayConfig): void {
-  const replyOptions = replyOptionsFor(config);
+  /**
+   * The services trust identity headers because they are unreachable except
+   * through the gateway — and, when INTERNAL_API_KEY is set, because they check.
+   * Client-sent copies of everything the gateway asserts are dropped first;
+   * `x-internal-key` belongs in that strip-list precisely because it is what
+   * protects the rest.
+   */
+  const replyOptions: FastifyHttpProxyOptions["replyOptions"] = {
+    rewriteRequestHeaders: (request, headers) => {
+      const out = { ...headers };
+      delete out["x-user-id"];
+      delete out["x-user-role"];
+      delete out["x-request-id"];
+      delete out["x-internal-key"];
+      delete out.authorization;
+      out["x-request-id"] = String(request.id);
+      if (config.internalApiKey) out["x-internal-key"] = config.internalApiKey;
+      if (request.user) {
+        out["x-user-id"] = request.user.id;
+        out["x-user-role"] = request.user.role;
+      }
+      return out;
+    },
+  };
 
   // Chat proxies parse the JSON body (proxyPayloads: false) so conversation
   // logging can capture it; everything else streams bodies through untouched
@@ -131,20 +127,14 @@ export function registerProxies(app: FastifyInstance, config: GatewayConfig): vo
     });
   });
 
-  // /api/admin/search/* → search service — admin only; 503 until Phase 5 deploys it
+  // /api/admin/search/* → search service — admin only.
   app.register(async (scope) => {
     scope.addHook("preHandler", requireRole("admin"));
-    if (config.searchEnabled) {
-      scope.register(httpProxy, {
-        upstream: config.searchUrl,
-        prefix: "/api/admin/search",
-        rewritePrefix: "",
-        replyOptions,
-      });
-    } else {
-      scope.all("/api/admin/search/*", async (_request, reply) => {
-        return reply.code(503).send({ error: "SEARCH service not deployed (Phase 5)" });
-      });
-    }
+    scope.register(httpProxy, {
+      upstream: config.searchUrl,
+      prefix: "/api/admin/search",
+      rewritePrefix: "",
+      replyOptions,
+    });
   });
 }

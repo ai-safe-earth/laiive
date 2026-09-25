@@ -17,6 +17,9 @@ beforeAll(async () => {
       supabaseUrl: supabase.url,
       retrieverUrl: retriever.url,
       pusherUrl: pusher.url,
+      // The search service shares the pusher's echo stub: this suite only asks
+      // who gets through the admin gate and what path arrives there.
+      searchUrl: pusher.url,
     }),
   );
   await app.ready();
@@ -181,7 +184,10 @@ describe("auth", () => {
       headers: { authorization: `Bearer ${admin}` },
       payload: {},
     });
-    expect(adminRes.statusCode).toBe(503); // search service not deployed until Phase 5
+    expect(adminRes.statusCode).toBe(200);
+    // rewritePrefix: "" — the /api/admin/search prefix is the gateway's, the
+    // service sees its own route.
+    expect((JSON.parse(adminRes.body) as SeenRequest).url).toBe("/run");
   });
 });
 

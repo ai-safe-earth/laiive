@@ -11,6 +11,14 @@ export interface AuthUser {
    * people by `id` and should keep doing so.
    */
   email?: string;
+  /**
+   * The raw access token this identity was verified from.
+   *
+   * Carried rather than re-split out of the Authorization header downstream:
+   * one route hands it back to PostgREST so an RPC runs as the caller (see
+   * `rpcAsUser`), and the header was already parsed to get here.
+   */
+  token: string;
 }
 
 declare module "fastify" {

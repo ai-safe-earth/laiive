@@ -172,12 +172,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: verify
+        # One list, not two: the old step echoed the four results and then
+        # repeated them in a chain of tests, so adding a job meant editing both.
+        # Anything other than success fails — a skipped dependency included,
+        # since a skipped required check otherwise reads as green.
+        env:
+          RESULTS: >-
+            python=${{ needs.python.result }}
+            graph=${{ needs.graph.result }}
+            node=${{ needs.node.result }}
+            images=${{ needs.images.result }}
         run: |
-          echo "python: ${{ needs.python.result }}"
-          echo "graph:  ${{ needs.graph.result }}"
-          echo "node:   ${{ needs.node.result }}"
-          echo "images: ${{ needs.images.result }}"
-          [ "${{ needs.python.result }}" = "success" ] \
-            && [ "${{ needs.graph.result }}" = "success" ] \
-            && [ "${{ needs.node.result }}" = "success" ] \
-            && [ "${{ needs.images.result }}" = "success" ]
+          echo "$RESULTS"
+          for job in $RESULTS; do
+            [ "${job#*=}" = "success" ] || exit 1
+          done

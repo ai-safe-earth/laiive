@@ -4,9 +4,8 @@ import type { GatewayConfig } from "./config.js";
  * The service-role PostgREST client.
  *
  * `feedback.ts` and `logging.ts` each built the same four-header object and the
- * same `${supabaseUrl}/rest/v1/${table}` string inline. A third copy in
- * `orgs.ts` — which needs five verbs rather than one — is where that stops
- * being acceptable, so the shape moves here.
+ * same `${supabaseUrl}/rest/v1/${table}` string inline, and `orgs.ts` needed
+ * five verbs rather than one — so the shape lives here and all of them use it.
  *
  * The key goes in both `apikey` and `authorization`, which is what bypasses
  * RLS. Every policy in `20260819000011` is written for the *user's* JWT, so
@@ -42,9 +41,9 @@ export function createSupabaseAdmin(config: GatewayConfig) {
     authorization: `Bearer ${config.supabaseServiceRoleKey}`,
   };
 
-  // Awaited and throwing, unlike logging.ts's fire-and-forget hook: these sit
-  // on a request/response path, so the caller has to learn that the write
-  // failed rather than return 204 over a lost row.
+  // Throwing, always: a caller on a request/response path has to learn that
+  // the write failed rather than answer 204 over a lost row, and logging.ts's
+  // fire-and-forget hook turns the same rejection into one warn line.
   async function call(url: string, init: RequestInit): Promise<Response> {
     const response = await fetch(url, init);
     if (!response.ok) {
@@ -68,6 +67,22 @@ export function createSupabaseAdmin(config: GatewayConfig) {
       const rows = (await response.json()) as T[];
       // PostgREST answers an insert with an array even for one row.
       return rows[0] as T;
+    },
+
+    /**
+     * An insert whose row nobody reads back — `return=minimal`, no body parsed.
+     *
+     * Separate from `insert` rather than an option on it because the callers
+     * are the two write-and-forget ones (feedback, conversation logging) that
+     * fire on every chat turn: making them carry a representation back would
+     * put a response body on the hot path to save one method here.
+     */
+    async insertMinimal(table: string, row: unknown): Promise<void> {
+      await call(`${base}/${table}`, {
+        method: "POST",
+        headers: { ...headers, prefer: "return=minimal" },
+        body: JSON.stringify(row),
+      });
     },
 
     async patch<T>(table: string, query: string, changes: unknown): Promise<T[]> {

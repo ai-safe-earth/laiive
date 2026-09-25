@@ -45,7 +45,12 @@ export function registerAuth(app: FastifyInstance, config: GatewayConfig): void 
       // is what lets the invitation routes tell "the person this was sent to"
       // from "somebody holding the link".
       const email = typeof payload.email === "string" ? payload.email : undefined;
-      request.user = { id: payload.sub, role, ...(email ? { email } : {}) } satisfies AuthUser;
+      request.user = {
+        id: payload.sub,
+        role,
+        token,
+        ...(email ? { email } : {}),
+      } satisfies AuthUser;
     } catch {
       return reply.code(401).send({ error: "invalid or expired token" });
     }
