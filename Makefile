@@ -12,33 +12,17 @@
 export PYTHONIOENCODING := utf-8
 
 # ----------------- docker compose ---------------------------------------------------------------
-build:
-	docker compose build
-
 up-dev:
 	docker compose up --build
 
-up-prod:
-	docker compose -f docker-compose.yml up --build
-
 down:
 	docker compose down
-
-logs:
-	docker compose logs -f
 
 # The trace collector alone — the rest of the dev compose is idle shells, so
 # `up-dev` is the wrong tool when all you want is somewhere for spans to land.
 phoenix:
 	docker compose up -d phoenix
 	@echo "Phoenix UI: http://localhost:6006"
-
-# --------------- shells into service containers -------------------------------------------------
-shell-pusher:
-	docker exec -it laiive-pusher sh
-
-shell-retriever:
-	docker exec -it laiive-retriever sh
 
 # --------------- local service starters (gateway :8000 is the only public surface) ---------------
 # `uv run uvicorn` fails on some machines ("Failed to canonicalize script path");
@@ -102,12 +86,7 @@ test-graph-down:
 test-graph:
 	cd services/retriever && uv run --no-sync pytest -q -m "graph and not integration"
 
-test-all:
-	make test-shared
-	make test-retriever
-	make test-pusher
-	make test-search
-	make test-gateway
+test-all: test-shared test-retriever test-pusher test-search test-gateway
 
 # --------------- release (see README.md, Releasing) ----------------------------------------------------
 # Run on main, after the release PR from develop has merged: cz reads the
@@ -138,17 +117,9 @@ fly-secrets:
 # it look for services/services/retriever/Dockerfile and, before that, fail with
 # "the config for your app is missing an app name" -- so the deploy runs from
 # services/ and both paths are relative to it.
-fly-deploy-gateway:
-	cd services && flyctl deploy . --config ../deploy/fly/gateway.toml --dockerfile gateway/Dockerfile
-
-fly-deploy-retriever:
-	cd services && flyctl deploy . --config ../deploy/fly/retriever.toml --dockerfile retriever/Dockerfile
-
-fly-deploy-pusher:
-	cd services && flyctl deploy . --config ../deploy/fly/pusher.toml --dockerfile pusher/Dockerfile
-
-fly-deploy-search:
-	cd services && flyctl deploy . --config ../deploy/fly/search.toml --dockerfile search/Dockerfile
+# One rule for the four service apps: gateway, retriever, pusher, search.
+fly-deploy-%:
+	cd services && flyctl deploy . --config ../deploy/fly/$*.toml --dockerfile $*/Dockerfile
 
 fly-deploy-redis:
 	flyctl deploy . --config deploy/fly/redis.toml

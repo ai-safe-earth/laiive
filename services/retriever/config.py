@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     query_builder_model: str = Field("gpt-4o-2024-08-06", alias="QUERY_BUILDER_MODEL")
     composer_model: str = Field("gpt-4o-2024-08-06", alias="COMPOSER_MODEL")
     embeddings_model: str = Field("text-embedding-3-small", alias="EMBEDDINGS_MODEL")
-    embeddings_dimensions: int = 1536
     # Voice input is public (anonymous callers included), so the model choice
     # and the size cap in laiive_shared.speech are both cost decisions.
     whisper_model: str = Field("whisper-1", alias="WHISPER_MODEL")
@@ -51,9 +50,6 @@ class Settings(BaseSettings):
     )
     phoenix_api_key: str = Field("", alias="PHOENIX_API_KEY")
 
-    host: str = Field("0.0.0.0", alias="HOST")
-    port: int = Field(8002, alias="PORT")
-
     model_config = SettingsConfigDict(
         env_file="../../.env",
         env_file_encoding="utf-8",
@@ -71,7 +67,6 @@ class Settings(BaseSettings):
     llm_temperature_classifier: float = 0.0
 
     # Location settings
-    location_default_radius_km: float = 5.0
     location_max_radius_km: float = 30.0
     location_min_events: int = 5
     location_radius_steps: list[float] = [5.0, 10.0, 15.0, 20.0, 30.0]
@@ -82,8 +77,8 @@ class Settings(BaseSettings):
     location_centroid_penalty_km: float = 5.0
     # A named place that is not a City node ("Kreuzberg") is resolved to a
     # bounding box. Neighbourhoods measure 2.8 km across the diagonal at the
-    # median and 6.5 km at p90 (services/search/scripts/geocode_bakeoff.py, 22
-    # places, 100% resolved). This ceiling is not about them: it is where a
+    # median and 6.5 km at p90, measured over 22 places (the bake-off harness
+    # that produced the number is deleted; it is in git history). This ceiling is not about them: it is where a
     # "place" stops being one, so a region or a country cannot quietly become a
     # box containing the entire graph. Berlin's own municipality is ~50 km.
     named_place_max_diagonal_km: float = 60.0

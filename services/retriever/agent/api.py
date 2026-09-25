@@ -254,43 +254,6 @@ def get_schema():
 # ============== Events by uid ==============
 
 
-@app.get("/events", response_model=EventsResult)
-def events_by_uid(uids: str = Query(..., description="comma-separated event uids")):
-    """Fresh cards for a set of uids — the saved list's read path.
-
-    Deliberately off the pipeline: there is no question to classify, no plan
-    to route and nothing to compose, so this reaches the driver directly and
-    never calls get_pipeline(). That is also what keeps importing this module
-    free of an OpenAI client — the pipeline is still built by the first chat
-    turn, not by a saved list.
-
-    Unknown uids come back as nothing rather than an error: an event deleted
-    from the graph is a stale pointer in somebody's list, not a bad request.
-    """
-    wanted: list[str] = []
-    for raw in uids.split(","):
-        uid = raw.strip()
-        if uid and uid not in wanted:
-            wanted.append(uid)
-    if not wanted:
-        return EventsResult(events=[])
-    if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
-        # A truncated saved list is cards vanishing with no message, so the
-        # cap is refused rather than silently applied.
-        raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
-
-    cypher, params = build_uid_query(wanted)
-    try:
-        rows = neo4j_client.execute_read(cypher, params)
-    except Exception as e:
-        logger.error(f"uid lookup failed: {e}")
-        raise HTTPException(502, "Could not read the events.") from e
-
-    # Back in the order asked for, so the client's own ordering survives.
-    by_uid = {card.uid: card for card in rows_to_cards(rows)}
-    return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
-
-
 def _wanted_uids(raw: str) -> list[str]:
     """Comma-separated uids, de-duplicated, order preserved, capped.
 
@@ -306,6 +269,37 @@ def _wanted_uids(raw: str) -> list[str]:
     if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
         raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
     return wanted
+
+
+@app.get("/events", response_model=EventsResult)
+def events_by_uid(uids: str = Query(..., description="comma-separated event uids")):
+    """Fresh cards for a set of uids — the saved list's read path.
+
+    Deliberately off the pipeline: there is no question to classify, no plan
+    to route and nothing to compose, so this reaches the driver directly and
+    never calls get_pipeline(). That is also what keeps importing this module
+    free of an OpenAI client — the pipeline is still built by the first chat
+    turn, not by a saved list.
+
+    Unknown uids come back as nothing rather than an error: an event deleted
+    from the graph is a stale pointer in somebody's list, not a bad request.
+    """
+    # The cap is refused rather than silently applied: a truncated saved list
+    # is cards vanishing with no message.
+    wanted = _wanted_uids(uids)
+    if not wanted:
+        return EventsResult(events=[])
+
+    cypher, params = build_uid_query(wanted)
+    try:
+        rows = neo4j_client.execute_read(cypher, params)
+    except Exception as e:
+        logger.error(f"uid lookup failed: {e}")
+        raise HTTPException(502, "Could not read the events.") from e
+
+    # Back in the order asked for, so the client's own ordering survives.
+    by_uid = {card.uid: card for card in rows_to_cards(rows)}
+    return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
 # ============== Entity lookup (venues, artists) ==============

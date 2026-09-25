@@ -22,13 +22,6 @@ import { createSupabaseAdmin, PostgrestError } from "./supabaseAdmin.js";
 
 const ENTITY_TYPES = new Set(["venue", "artist", "event"]);
 
-/** The graph lookup a claim is checked against, per entity type. */
-const LOOKUP_PATH: Record<string, string> = {
-  venue: "venues",
-  artist: "artists",
-  event: "events",
-};
-
 interface OwnershipRow {
   id: string;
   org_id: string;
@@ -104,8 +97,9 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     uid: string,
     request: FastifyRequest,
   ): Promise<string | null> {
-    const path = LOOKUP_PATH[type];
-    if (!path) return null;
+    // ENTITY_TYPES validated `type` upstream, and every lookup route is the
+    // plural of it: venue -> /venues, artist -> /artists, event -> /events.
+    const path = `${type}s`;
     const url = `${config.retrieverUrl}/${path}?uids=${encodeURIComponent(uid)}`;
     const headers: Record<string, string> = {};
     if (config.internalApiKey) headers["x-internal-key"] = config.internalApiKey;
@@ -116,7 +110,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       throw new Error("entity lookup failed");
     }
     const body = (await response.json()) as Record<string, { name?: string }[]>;
-    const hits = body[path] ?? body["events"] ?? [];
+    const hits = body[path] ?? [];
     return hits[0]?.name ?? null;
   }
 

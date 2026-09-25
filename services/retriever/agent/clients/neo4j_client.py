@@ -81,25 +81,6 @@ class Neo4jClient:
             logger.error(f"Neo4j connectivity check failed: {e}")
             return False
 
-    def close(self):
-        self._driver.close()
-
-    def ensure_schema(self) -> None:
-        setup_queries = [
-            # uniqueness
-            "CREATE CONSTRAINT event_name_unique IF NOT EXISTS FOR (e:Event) REQUIRE e.name IS UNIQUE",
-            "CREATE CONSTRAINT artist_name_unique IF NOT EXISTS FOR (a:Artist) REQUIRE a.name IS UNIQUE",
-            "CREATE CONSTRAINT venue_name_unique IF NOT EXISTS FOR (v:Venue) REQUIRE v.name IS UNIQUE",
-            "CREATE CONSTRAINT city_name_unique IF NOT EXISTS FOR (c:City) REQUIRE c.name IS UNIQUE",
-            "CREATE CONSTRAINT genre_slug_unique IF NOT EXISTS FOR (g:Genre) REQUIRE g.slug IS UNIQUE",
-            # indexes
-            "CREATE INDEX event_start_at IF NOT EXISTS FOR (e:Event) ON (e.start_at)",
-            "CREATE INDEX event_status IF NOT EXISTS FOR (e:Event) ON (e.status)",
-        ]
-        with self._driver.session(database=settings.neo4j_database) as session:
-            for q in setup_queries:
-                session.run(q)
-
     def execute_read_once(self, cypher: str, params: dict | None = None) -> list[dict]:
         """One attempt, no retry ladder — for typeahead lookups, where the next
         keystroke IS the retry and three backoff attempts would pin a
@@ -240,9 +221,6 @@ class Neo4jClient:
             error_msg = f"Error retrieving schema: {str(e)}"
             logger.error(error_msg)
             return f"# Error: {error_msg}\n"
-
-    def refresh_schema(self) -> str:
-        return self.get_schema(force_refresh=True)
 
 
 logger.debug("Creating global neo4j_client instance...")

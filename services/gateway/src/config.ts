@@ -50,7 +50,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
   return {
     host: env.GATEWAY_HOST ?? "0.0.0.0",
     port: Number(env.GATEWAY_PORT ?? 8000),
-    logLevel: env.GATEWAY_LOG_LEVEL ?? "info",
+    logLevel: "info",
     retrieverUrl: env.RETRIEVER_URL ?? "http://localhost:8002",
     pusherUrl: env.PUSHER_URL ?? "http://localhost:8003",
     searchUrl: env.SEARCH_URL ?? "http://localhost:8004",
@@ -63,7 +63,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
     jwksUrl: env.SUPABASE_JWKS_URL ?? `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
     jwtIssuer: env.SUPABASE_JWT_ISSUER ?? `${supabaseUrl}/auth/v1`,
-    jwtAudience: env.SUPABASE_JWT_AUDIENCE ?? "authenticated",
+    jwtAudience: "authenticated",
     corsAllowOrigins: (env.CORS_ALLOW_ORIGINS ?? "http://localhost:8081")
       .split(",")
       .map((origin) => origin.trim())

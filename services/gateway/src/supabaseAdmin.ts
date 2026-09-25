@@ -28,35 +28,13 @@ export class PostgrestError extends Error {
   }
 }
 
-export interface SupabaseAdmin {
-  select<T>(table: string, query: string): Promise<T[]>;
-  insert<T>(table: string, row: unknown): Promise<T>;
-  patch<T>(table: string, query: string, changes: unknown): Promise<T[]>;
-  /**
-   * Deletes every row the query matches, and answers with them.
-   *
-   * The only caller is revoking a pending invitation, where a delete is the
-   * right verb and a status column would be the wrong one: the partial unique
-   * index on `organization_invitations` covers unaccepted rows, so a
-   * kept-but-revoked row would hold the one live slot for that address and
-   * block re-inviting it. `entity_ownership` reasons the other way and revokes
-   * in place — an ownership claim is a record worth keeping, an invitation
-   * nobody accepted is not.
-   */
-  del<T>(table: string, query: string): Promise<T[]>;
-  rpc<T>(fn: string, args: Record<string, unknown>): Promise<T>;
-  /**
-   * An RPC run as the signed-in user rather than as the service role.
-   *
-   * `create_organization` is SECURITY DEFINER and reads `auth.uid()` to decide
-   * the pro floor and who takes the owner seat. Under the service role that is
-   * NULL and the function refuses, correctly - so the gateway hands PostgREST
-   * the caller's own verified JWT and lets the database answer as them.
-   */
-  rpcAsUser<T>(fn: string, args: Record<string, unknown>, accessToken: string): Promise<T>;
-}
+/**
+ * The admin client's shape, read off the factory rather than declared beside
+ * it: one implementation never needed two lists of the same six methods.
+ */
+export type SupabaseAdmin = ReturnType<typeof createSupabaseAdmin>;
 
-export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
+export function createSupabaseAdmin(config: GatewayConfig) {
   const base = `${config.supabaseUrl}/rest/v1`;
   const headers = {
     "content-type": "application/json",
@@ -101,6 +79,17 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       return (await response.json()) as T[];
     },
 
+    /**
+     * Deletes every row the query matches, and answers with them.
+     *
+     * The only caller is revoking a pending invitation, where a delete is the
+     * right verb and a status column would be the wrong one: the partial
+     * unique index on `organization_invitations` covers unaccepted rows, so a
+     * kept-but-revoked row would hold the one live slot for that address and
+     * block re-inviting it. `entity_ownership` reasons the other way and
+     * revokes in place - an ownership claim is a record worth keeping, an
+     * invitation nobody accepted is not.
+     */
     async del<T>(table: string, query: string): Promise<T[]> {
       const response = await call(`${base}/${table}?${query}`, {
         method: "DELETE",
@@ -121,6 +110,15 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       return (await response.json()) as T;
     },
 
+    /**
+     * An RPC run as the signed-in user rather than as the service role.
+     *
+     * `create_organization` is SECURITY DEFINER and reads `auth.uid()` to
+     * decide the pro floor and who takes the owner seat. Under the service
+     * role that is NULL and the function refuses, correctly - so the gateway
+     * hands PostgREST the caller's own verified JWT and lets the database
+     * answer as them.
+     */
     async rpcAsUser<T>(
       fn: string,
       args: Record<string, unknown>,

@@ -14,7 +14,6 @@ repos:
     hooks:
       - id: check-toml
       - id: check-yaml
-        # k8s manifests are multi-document files
         args: ["--allow-multiple-documents"]
       - id: check-json
         # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON

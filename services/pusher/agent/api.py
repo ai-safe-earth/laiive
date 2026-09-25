@@ -133,6 +133,30 @@ def _record(request_id: str, *, start: float, **fields) -> None:
     ).start()
 
 
+STATUS_CODES = {"invalid": 422, "duplicate": 409, "not_found": 404}
+
+
+def _raise_for(result) -> None:
+    """The verdict-to-HTTP half both write helpers used to spell out in full.
+
+    `not_found` cannot come back from a create, and mapping it anyway costs a
+    dict entry rather than a second copy of this function.
+    """
+    code = STATUS_CODES.get(result.status)
+    if code:
+        raise HTTPException(code, result.message)
+    if result.status == "error":
+        # A waking Aura already survived one in-process retry by now; tell the
+        # promoter something they can act on rather than a bare 500.
+        if graph.is_transient_graph_error(result.message):
+            raise HTTPException(
+                503,
+                "The events database is briefly unavailable — "
+                "please try again in a moment.",
+            )
+        raise HTTPException(500, result.message)
+
+
 def _write_or_raise(
     draft: EventDraft,
     owner_id: str | None,
@@ -152,20 +176,7 @@ def _write_or_raise(
         user_id=owner_id,
         draft=draft.model_dump(mode="json"),
     )
-    if result.status == "invalid":
-        raise HTTPException(422, result.message)
-    if result.status == "duplicate":
-        raise HTTPException(409, result.message)
-    if result.status == "error":
-        # A waking Aura already survived one in-process retry by now; tell
-        # the promoter something they can act on rather than a bare 500.
-        if graph.is_transient_graph_error(result.message):
-            raise HTTPException(
-                503,
-                "The events database is briefly unavailable — "
-                "please try again in a moment.",
-            )
-        raise HTTPException(500, result.message)
+    _raise_for(result)
     return result
 
 
@@ -185,20 +196,7 @@ def _updated_or_raise(
         result=result,
         user_id=user_id,
     )
-    if result.status == "invalid":
-        raise HTTPException(422, result.message)
-    if result.status == "duplicate":
-        raise HTTPException(409, result.message)
-    if result.status == "not_found":
-        raise HTTPException(404, result.message)
-    if result.status == "error":
-        if graph.is_transient_graph_error(result.message):
-            raise HTTPException(
-                503,
-                "The events database is briefly unavailable — "
-                "please try again in a moment.",
-            )
-        raise HTTPException(500, result.message)
+    _raise_for(result)
     return result.model_dump()
 
 

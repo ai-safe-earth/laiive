@@ -1,9 +1,9 @@
 # base / production — the gateway is the only published surface;
 # retriever, pusher and search are reachable only on the compose network.
 #
-# This file is also the local stand-in for the cluster: same images, same
-# probes, same internal-only topology. It is not the deploy target — that is
-# k8s/overlays/prod (D19).
+# This file is also the local stand-in for production: same images, same probes,
+# same internal-only topology. It is not the deploy target — that is Fly.io,
+# per deploy/fly/*.toml and DEPLOY.md.
 services:
 
   gateway:

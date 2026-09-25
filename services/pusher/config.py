@@ -11,12 +11,6 @@ class Settings(BaseSettings):
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
     neo4j_max_pool_size: int = Field(5, alias="PUSHER_NEO4J_MAX_POOL_SIZE")
 
-    aura_instanceid: str | None = Field(None, alias="AURA_INSTANCEID")
-    aura_instancename: str | None = Field(None, alias="AURA_INSTANCENAME")
-
-    host: str = Field("0.0.0.0", alias="HOST")
-    port: int = Field(8003, alias="PORT")
-
     model_config = SettingsConfigDict(
         env_file="../../.env",
         env_file_encoding="utf-8",

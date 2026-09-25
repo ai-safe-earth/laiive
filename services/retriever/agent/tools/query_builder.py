@@ -6,6 +6,8 @@ return the executor's standard row shape so results still map to EventCards.
 
 import json
 
+from laiive_shared.drafts import strip_fences
+
 from config import settings
 
 from ..classifier import now_in
@@ -128,8 +130,4 @@ class QueryBuilderTool:
             ],
             temperature=0,
         )
-        cypher = response.choices[0].message.content.strip()
-        if cypher.startswith("```"):
-            lines = cypher.split("\n")
-            cypher = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-        return cypher.strip()
+        return strip_fences(response.choices[0].message.content.strip()).strip()

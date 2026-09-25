@@ -11,9 +11,6 @@ class Settings(BaseSettings):
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
     neo4j_max_pool_size: int = Field(5, alias="SEARCH_NEO4J_MAX_POOL_SIZE")
 
-    host: str = Field("0.0.0.0", alias="HOST")
-    port: int = Field(8004, alias="PORT")
-
     model_config = SettingsConfigDict(
         env_file="../../.env",
         env_file_encoding="utf-8",

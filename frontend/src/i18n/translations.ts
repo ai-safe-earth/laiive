@@ -102,7 +102,6 @@ export interface Translations {
     relationMember: string;
     /** Under website / phone / email: what they are for. */
     evidenceHint: string;
-    yourSeat: string;
     address: string;
     eventsAll: (total: number) => string;
     website: string;
@@ -131,7 +130,6 @@ export interface Translations {
     searchPlaceholder: string;
     searchNone: string;
     claim: string;
-    claimedAlready: string;
     claimDone: (name: string) => string;
     claimFailed: string;
     claimConflict: string;
@@ -361,7 +359,6 @@ export const translations: Record<Language, Translations> = {
       relationFreelance: 'freelance',
       relationMember: 'member',
       evidenceHint: 'Website and contacts are what a reviewer checks when a claim is reviewed.',
-      yourSeat: 'your seat',
       address: 'address',
       eventsAll: (total: number) => `all ${total}`,
       website: 'website',
@@ -389,7 +386,6 @@ export const translations: Record<Language, Translations> = {
       searchPlaceholder: 'search by name…',
       searchNone: 'nothing by that name.',
       claim: 'manage',
-      claimedAlready: 'already managed',
       claimDone: (name: string) => `now managing ${name}`,
       claimFailed: 'could not record that',
       claimConflict: 'you already manage that one',
@@ -628,7 +624,6 @@ export const translations: Record<Language, Translations> = {
       relationFreelance: 'freelance',
       relationMember: 'miembro',
       evidenceHint: 'La web y los contactos son lo que revisamos cuando verificamos una reclamación.',
-      yourSeat: 'tu puesto',
       address: 'dirección',
       eventsAll: (total: number) => `los ${total}`,
       website: 'web',
@@ -657,7 +652,6 @@ export const translations: Record<Language, Translations> = {
       searchPlaceholder: 'busca por nombre…',
       searchNone: 'nada con ese nombre.',
       claim: 'gestionar',
-      claimedAlready: 'ya lo gestionas',
       claimDone: (name: string) => `ahora gestionas ${name}`,
       claimFailed: 'no se pudo registrar',
       claimConflict: 'ya gestionas eso',
@@ -897,7 +891,6 @@ export const translations: Record<Language, Translations> = {
       relationFreelance: 'freelance',
       relationMember: 'membro',
       evidenceHint: 'Sito e contatti sono ciò che controlliamo quando verifichiamo una rivendicazione.',
-      yourSeat: 'il tuo posto',
       address: 'indirizzo',
       eventsAll: (total: number) => `tutti e ${total}`,
       website: 'sito',
@@ -926,7 +919,6 @@ export const translations: Record<Language, Translations> = {
       searchPlaceholder: 'cerca per nome…',
       searchNone: 'niente con quel nome.',
       claim: 'gestisci',
-      claimedAlready: 'lo gestisci già',
       claimDone: (name: string) => `ora gestisci ${name}`,
       claimFailed: 'non è stato possibile registrare',
       claimConflict: 'lo gestisci già',
@@ -1166,7 +1158,6 @@ export const translations: Record<Language, Translations> = {
       relationFreelance: 'freelance',
       relationMember: 'membre',
       evidenceHint: 'La web i els contactes són el que revisem quan verifiquem una reclamació.',
-      yourSeat: 'el teu lloc',
       address: 'adreça',
       eventsAll: (total: number) => `els ${total}`,
       website: 'web',
@@ -1195,7 +1186,6 @@ export const translations: Record<Language, Translations> = {
       searchPlaceholder: 'cerca per nom…',
       searchNone: 'res amb aquest nom.',
       claim: 'gestiona',
-      claimedAlready: 'ja ho gestiones',
       claimDone: (name: string) => `ara gestiones ${name}`,
       claimFailed: 'no s’ha pogut registrar',
       claimConflict: 'ja ho gestiones',

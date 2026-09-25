@@ -1,15 +1,13 @@
 ---
 name: verify-retriever
-description: Run the retriever test suite using the targets that actually exist, routing around the broken Makefile targets. Use after changing anything under services/retriever.
+description: Run the retriever test suite the way this machine needs it run. Use after changing anything under services/retriever.
 ---
 
 Run tests for `services/retriever`. Always `cd services/retriever` first — there is no root uv
 project, and every service resolves the root `.env` relative to its own directory.
 
-Two invocations are broken here and both fail *before* running anything real:
+One invocation is broken here and it fails *before* running anything real:
 
-- `make test-integration`, `make test-all`, `make dashboard` reference
-  `tests/test_pipeline_metrics.py` and `agent.utils.metrics`, neither of which exists.
 - Bare **`uv run pytest`** dies on this machine with `Failed to canonicalize script path`. Use
   `uv sync` as its own step, then `uv run --no-sync python -m pytest`.
 
