@@ -24,6 +24,7 @@ points `NEO4J_URI` at production Aura.
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -36,6 +37,9 @@ DATASET = Path(__file__).resolve().parents[1] / "evals" / "datasets" / "retrieva
 GRAPH = json.loads((DATASET / "graph.json").read_text(encoding="utf-8"))
 EMBEDDING_MODEL = "text-embedding-3-small"
 
+# The one thing in a fixture text that changes by itself — see text_key.
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
 TEST_URI = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7689")
 TEST_DATABASE = os.getenv("NEO4J_TEST_DATABASE", "neo4j")
 TEST_AUTH = (
@@ -45,8 +49,19 @@ TEST_AUTH = (
 
 
 def text_key(text: str) -> str:
-    """How a frozen vector is looked up: the sha1 of the text embedded."""
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+    """How a frozen vector is looked up: the sha1 of the text embedded, with
+    dates masked out first.
+
+    The mask is the whole reason this works. Fixture dates are offsets from the
+    seed moment, so the composite text carries a different date every day the
+    suite runs — and a key over the raw text missed every vector the day after
+    the freeze, taking the whole vector tier down with a loud KeyError. Masking
+    `YYYY-MM-DD` makes the key depend on the wording, which is what a re-freeze
+    is actually for. The stored vector was computed from the text as it read on
+    freeze day: the date it carries is a few characters of a sentence about a
+    gig, and the cases assert ranking between events that all shift together.
+    """
+    return hashlib.sha1(_DATE.sub("<date>", text).encode("utf-8")).hexdigest()[:16]
 
 
 def frozen_embeddings():

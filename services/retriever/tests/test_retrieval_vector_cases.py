@@ -44,6 +44,15 @@ def vector_executor(frozen_graph):
     )
 
 
+def test_the_vector_key_ignores_the_date():
+    """The bug this guards, found the day after the fixture was written: the
+    composite text carries the event's date, fixture dates move with `now`, so
+    a key over the raw text expired overnight and took the whole tier down."""
+    assert text_key("A gig at Druso. 2026-01-02. Rock.") == text_key(
+        "A gig at Druso. 2027-11-30. Rock."
+    )
+
+
 def test_every_question_has_a_frozen_vector():
     """Deterministic, and the failure worth catching early: a case whose text
     was edited without re-running the freeze script would otherwise fail deep
