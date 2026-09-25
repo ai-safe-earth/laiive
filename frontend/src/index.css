@@ -20,20 +20,15 @@
     --primary-foreground: 0 9% 4%;  /* dark ink on fuchsia — never white below 18px */
     --secondary: 42 100% 50%;       /* #FFB100  price, mic, tickets, card rail */
     --secondary-foreground: 0 9% 4%;
-    --accent: 42 100% 50%;
-    --accent-foreground: 0 9% 4%;
 
     --muted: 0 12% 20%;             /* #3A2E2E  user's own messages, borders */
     --muted-foreground: 0 9% 68%;   /* #B5A6A6  card meta: venue, time, distance */
     --ink-dim: 0 8% 62%;            /* #A79797  chrome icons, composer placeholder — floor */
 
     --destructive: 0 78% 53%;       /* #E72828  errors and delete only */
-    --destructive-foreground: 0 0% 100%;
 
     --border: 0 12% 20%;
-    --input: 0 14% 12%;
     --ring: 325 100% 57%;
-    --radius: 1.25rem;              /* cards 20px · pills 999px · sheets 26px */
 
     /* Surfaces the tokens above do not name, taken off reference-screens.html. */
     --hairline: 0 0% 100%;          /* used at 7% for the card edge */
@@ -79,7 +74,6 @@
     --status-published: 147 61% 47%;/* #2FBF71 */
     --status-attention: 42 100% 50%;/* #FFB100 */
     --status-rejected: 0 78% 53%;   /* #E72828 */
-    --status-draft: 13 7% 51%;      /* #8B7D79 */
   }
 }
 
@@ -87,7 +81,12 @@
    --gradient-vibrant, --gradient-subtle, --gradient-glow,
    --glow-primary, --glow-accent,
    Electric Yellow #FFD500, Sunset Orange #FF8C00.
-   Sky Cyan #00CFEA survives only as --pro-accent. */
+   Sky Cyan #00CFEA survives only as --pro-accent.
+
+   Declared by the shadcn scaffold and never once used, removed with their
+   tailwind entries: --radius (every corner here is a literal off the reference
+   screens), --input, --accent / --accent-foreground (a second name for the
+   amber), --destructive-foreground, --status-draft. */
 
 @layer base {
   * {
@@ -106,11 +105,27 @@
   }
 }
 
-/* Leaflet draws its zoom buttons 30px on touch devices; the card they sit on
-   promises 44. Specificity beats leaflet.css (0,3,1 vs 0,2,1), which is
-   imported after this file. */
-.leaflet-touch .leaflet-bar.leaflet-control-zoom a {
-  width: 44px;
-  height: 44px;
-  line-height: 44px;
+/* The composer's recording meter: nine bars travelling as a wave, staggered by
+   the caller's animation-delay. The compositor runs it, so the meter costs no
+   renders — it used to be a sine redrawn in state every 110ms. Sized in px
+   because these are a graphic, not type: nine 4px bars and eight 4.5px gaps is
+   the 72px the field reserves to their right. */
+@keyframes recording-bar {
+  0%, 100% { transform: scaleY(0.22); }
+  50% { transform: scaleY(1); }
+}
+
+.recording-bar {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  animation: recording-bar 0.9s ease-in-out infinite;
+}
+
+/* A reader who asked for less motion still gets the meter, just held still. */
+@media (prefers-reduced-motion: reduce) {
+  .recording-bar {
+    animation: none;
+    transform: scaleY(0.55);
+  }
 }

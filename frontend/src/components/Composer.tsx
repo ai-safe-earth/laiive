@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { MicButton } from "@/components/MicButton";
 import { Button } from "@/components/ui/Button";
@@ -180,54 +180,40 @@ export function Composer({
   );
 }
 
-/** The bar glyphs, quietest to loudest. */
-const BARS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇"];
 const BAR_COUNT = 9;
 
 /**
  * Proof the mic is live, inside the field where the words will land. A
- * travelling sine rather than sampled amplitude: the recorder hands back one
+ * travelling wave rather than sampled amplitude: the recorder hands back one
  * Blob at the end, so there is no level to read, and a meter that pretends to
  * follow a voice it cannot hear is a lie told sixty times a second.
+ *
+ * The wave is one CSS keyframe per bar, offset by animation-delay — nothing
+ * here is state, so nothing needs a render. `.recording-bar` in index.css
+ * carries the geometry: 72px wide in total, which is what the field reserves
+ * to its right and why the caller offsets it past the in-field controls.
  *
  * aria-hidden — the mic button already announces "stop and transcribe", which
  * is the same fact said once, in words.
  */
 function Waveform({ className }: { className?: string }) {
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => setFrame((n) => n + 1), 110);
-    return () => clearInterval(timer);
-  }, []);
-
-  const bars = Array.from({ length: BAR_COUNT }, (_, index) => {
-    const level = (Math.sin((frame + index) * 0.7) + 1) / 2;
-    return BARS[Math.round(level * (BARS.length - 1))];
-  });
-
   return (
     <span
       aria-hidden="true"
       data-testid="recording-waveform"
       className={cn(
-        "pointer-events-none absolute bottom-0 flex h-11 items-center",
+        "pointer-events-none absolute bottom-0 flex h-11 items-center gap-[4.5px]",
         className,
-        // The one place a literal size is right: these glyphs are a graphic,
-        // not type, and they have to stay inside the 8px cells below. `base`
-        // would drag them to 18px and burst the meter out of its reservation.
-        "font-mono text-[15px] leading-none text-secondary",
       )}
     >
-      {bars.map((bar, index) => (
-        // A fixed cell per bar. The block glyphs are not monospaced — ▇ is half
-        // again as wide as ▁, measured — so a plain string would jitter between
-        // 94 and 142px as the levels move. Nine 8px cells is 72px, which is why
-        // the caller offsets the meter past the in-field controls and the field
-        // reserves both.
-        <span key={index} className="inline-block w-2 text-center">
-          {bar}
-        </span>
+      {Array.from({ length: BAR_COUNT }, (_, index) => (
+        <span
+          key={index}
+          className="recording-bar bg-secondary"
+          // The stagger is the travelling part: a tenth of a second per bar
+          // over a 0.9s cycle walks the crest across the meter and wraps.
+          style={{ animationDelay: `${index * 0.1}s` }}
+        />
       ))}
     </span>
   );

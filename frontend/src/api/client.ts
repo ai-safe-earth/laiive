@@ -27,7 +27,10 @@ export async function apiFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json");
+  // A multipart upload must not carry one: only the browser knows the boundary
+  // it is about to write, and a content-type without it makes the body
+  // unparseable server-side.
+  if (!(init.body instanceof FormData)) headers.set("content-type", "application/json");
 
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;

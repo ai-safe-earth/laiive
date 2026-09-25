@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminStats } from "./AdminStats";
 import { A } from "./strings";
+import { renderWith } from "@/test/renderWith";
 
 // The error branch, with the hook mocked whole: driving a real rejected fetch
 // through react-query v5 trips vitest's unhandled-rejection detector before
@@ -14,7 +15,7 @@ vi.mock("@/api/admin", () => ({
 
 describe("the numbers above the queue, when they cannot load", () => {
   it("keeps the queue usable and says the numbers failed", () => {
-    render(<AdminStats />);
+    renderWith(<AdminStats />);
     expect(screen.getByText(A.stats.failed)).toBeInTheDocument();
   });
 });

@@ -1,13 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Auth from "./Auth";
 import { becomePromoter, PromoterRefreshError } from "@/auth/becomePromoter";
 import { takeDestination, takePendingPromoter, takePromoterOrg } from "@/auth/postAuth";
 import { translations } from "@/i18n/translations";
-import { LanguageProvider } from "@/i18n/useTranslation";
+import { renderWith } from "@/test/renderWith";
 
 const mocks = vi.hoisted(() => ({
   signIn: vi.fn(),
@@ -35,18 +35,15 @@ beforeEach(() => {
 });
 
 function renderAuthAt(path: string) {
-  return render(
-    <LanguageProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<p>chat</p>} />
-          <Route path="/pro" element={<p>pro area</p>} />
-          <Route path="/account" element={<p>account</p>} />
-          <Route path="/invite/:token" element={<p>the invite page</p>} />
-        </Routes>
-      </MemoryRouter>
-    </LanguageProvider>,
+  return renderWith(
+    <Routes>
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/" element={<p>chat</p>} />
+      <Route path="/pro" element={<p>pro area</p>} />
+      <Route path="/account" element={<p>account</p>} />
+      <Route path="/invite/:token" element={<p>the invite page</p>} />
+    </Routes>,
+    { route: path },
   );
 }
 

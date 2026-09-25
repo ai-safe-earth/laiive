@@ -2,24 +2,13 @@
  * The handful of primitives an admin surface needs and the app does not have.
  *
  * Built on the `status.*` and `pro.*` tokens, which brand-tokens.css already
- * declared and nothing used — review / published / attention / rejected /
- * draft is a moderation vocabulary, and this is the moderation surface.
+ * declared and nothing used — review / published / attention / rejected is a
+ * moderation vocabulary, and this is the moderation surface.
  */
 import { cn } from "@/lib/cn";
 
-/** Small-caps label voice, same recipe as Account.tsx's Label. */
-export function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "font-mono text-xs uppercase tracking-[0.11em] text-pro-dim",
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
+// The small-caps Label that used to live here is now the app's one label, in
+// components/ui/Label.tsx — this surface just happens to be its biggest caller.
 
 const TONES = {
   waiting: "border-status-review/45 bg-status-review/[0.12] text-status-review",

@@ -9,8 +9,9 @@ import {
   type WriteResult,
 } from "@/api/admin";
 import { A } from "@/admin/strings";
-import { AdminButton, Badge, Empty, Label, Panel, statusTone } from "@/admin/ui";
+import { AdminButton, Badge, Empty, Panel, statusTone } from "@/admin/ui";
 import { Icon } from "@/components/Icon";
+import { Label } from "@/components/ui/Label";
 
 function startsAt(iso: string | null | undefined): string {
   if (!iso) return "—";

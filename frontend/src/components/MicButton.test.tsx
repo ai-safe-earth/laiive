@@ -17,15 +17,12 @@ beforeEach(() => {
   recorder.state.isRecording = false;
 });
 
-function renderMic(
-  variant: "neutralOutline" | "proNeutralOutline",
-  disabled = false,
-  onRecordingChange = vi.fn(),
-) {
+/** `ghost` on both surfaces — it is the only variant the Composer passes. */
+function renderMic(disabled = false, onRecordingChange = vi.fn()) {
   render(
     <LanguageProvider>
       <MicButton
-        variant={variant}
+        variant="ghost"
         disabled={disabled}
         transcribe={vi.fn()}
         onTranscript={vi.fn()}
@@ -38,49 +35,35 @@ function renderMic(
   });
 }
 
-describe("the mic's outline variants", () => {
-  it("outlines warm-neutral for the consumer composer, no accent", () => {
-    const mic = renderMic("neutralOutline");
-    expect(mic.className).toContain("border-field-border");
-    expect(mic.className).toContain("bg-transparent");
-    expect(mic.className).not.toContain("border-primary");
-  });
-
-  it("outlines pro-neutral for the pro composer, no accent", () => {
-    // Filled on this surface, unlike the consumer mic: the promoter ground
-    // carries the watermark, and a transparent pill reads as a hole in it.
-    const mic = renderMic("proNeutralOutline");
-    expect(mic.className).toContain("border-pro-border");
-    expect(mic.className).toContain("bg-pro-control");
-    expect(mic.className).not.toContain("border-pro-accent");
+describe("the mic in the composer's field", () => {
+  it("sits unfilled and unaccented at rest", () => {
+    const mic = renderMic();
+    expect(mic.className).toContain("text-ink-dim");
+    expect(mic.className).not.toContain("bg-primary");
+    expect(mic.className).not.toContain("bg-pro-accent");
   });
 
   it("rests when the caller says so", () => {
-    expect(renderMic("neutralOutline", true)).toBeDisabled();
+    expect(renderMic(true)).toBeDisabled();
   });
 
-  // Both surfaces: the amber has to beat the pro variant's own fill, and only
-  // tailwind-merge decides that.
-  it.each(["neutralOutline", "proNeutralOutline"] as const)(
-    "fills amber and breathes while the mic is live (%s)",
-    (variant) => {
-      recorder.state.isRecording = true;
-      const mic = renderMic(variant);
-      expect(mic.className).toContain("bg-secondary");
-      expect(mic.className).toContain("text-secondary-foreground");
-      expect(mic.className).toContain("animate-pulse");
-      // The variant's own hover is a separate key to tailwind-merge, so it
-      // survives unless the recording state restates it — and cream on amber
-      // is the 3.45:1 pair the brand rules ban.
-      expect(mic.className).toContain("hover:text-secondary-foreground");
-      expect(mic.className).not.toMatch(/hover:text-(foreground|pro-fg)\b/);
-    },
-  );
+  it("fills amber and breathes while the mic is live", () => {
+    recorder.state.isRecording = true;
+    const mic = renderMic();
+    expect(mic.className).toContain("bg-secondary");
+    expect(mic.className).toContain("text-secondary-foreground");
+    expect(mic.className).toContain("animate-pulse");
+    // The variant's own hover is a separate key to tailwind-merge, so it
+    // survives unless the recording state restates it — and cream on amber
+    // is the 3.45:1 pair the brand rules ban.
+    expect(mic.className).toContain("hover:text-secondary-foreground");
+    expect(mic.className).not.toMatch(/hover:text-(foreground|pro-fg)\b/);
+  });
 
   it("tells the composer when the recording starts, so the field can show it", () => {
     const onRecordingChange = vi.fn();
     recorder.state.isRecording = true;
-    renderMic("neutralOutline", false, onRecordingChange);
+    renderMic(false, onRecordingChange);
     expect(onRecordingChange).toHaveBeenCalledWith(true);
   });
 
@@ -89,6 +72,6 @@ describe("the mic's outline variants", () => {
     // Now it stays mounted and disabled — but a disabled button over a live
     // recording is a trapped recording, so recording overrides disabled.
     recorder.state.isRecording = true;
-    expect(renderMic("neutralOutline", true)).toBeEnabled();
+    expect(renderMic(true)).toBeEnabled();
   });
 });

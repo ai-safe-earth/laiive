@@ -346,11 +346,10 @@ export interface IssuedInvitation extends Omit<PendingInvitation, "created_at"> 
   token: string;
 }
 
+/** Email only: every invitation is a member seat. The gateway defaults to
+ *  `member` and refuses `owner` outright, so the role was never worth sending. */
 export interface InviteInput {
   email: string;
-  /** Omitted by the roster control: every invitation is a member seat. The
-   *  gateway defaults to `member` and refuses `owner` outright. */
-  role?: OrgRole;
 }
 
 /**

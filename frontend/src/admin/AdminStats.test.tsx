@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminStats } from "./AdminStats";
 import { A } from "./strings";
 import type { SearchStats } from "@/api/admin";
+import { renderWith } from "@/test/renderWith";
 
 const api = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("@/api/client", () => ({
@@ -85,14 +85,7 @@ function payload(overrides: Partial<SearchStats> = {}): SearchStats {
 
 function renderStats(body: SearchStats) {
   api.fetch.mockResolvedValue({ json: async () => body } as Response);
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={client}>
-      <AdminStats />
-    </QueryClientProvider>,
-  );
+  renderWith(<AdminStats />);
 }
 
 beforeEach(() => api.fetch.mockReset());
