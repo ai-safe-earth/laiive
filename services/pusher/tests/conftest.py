@@ -16,6 +16,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from laiive_shared.testing import FakeSession
 
 # The root .env carries a real INTERNAL_API_KEY, and the middleware installs at
 # import time of agent.api — so it must be blanked *before* any test module
@@ -109,73 +110,11 @@ def mock_geocoder():
         yield geocoder
 
 
-class FakeNeo4jResult:
-    def __init__(self, single=None, rows=None):
-        self._single = single
-        self._rows = rows or []
-
-    def single(self):
-        return self._single
-
-    def __iter__(self):
-        return iter(self._rows)
-
-
-class FakeNeo4jSession:
-    """Understands the shared writer's query sequence: dedup probe → write →
-    embedding-backfill selects."""
-
-    def __init__(self, dedup_hit=None, venue_node=None):
-        self.queries = []
-        self.dedup_hit = dedup_hit
-        self.venue_node = venue_node
-        # What an owner edit's load-current-node query reads back (cur_*
-        # columns); tests set it via mock_neo4j.fake_session.update_node.
-        self.update_node = None
-
-    def run(self, query, **params):
-        self.queries.append((query, params))
-        # Update branches first: an update's venue load and SET both contain
-        # "MATCH (v:Venue {uid: $uid})", which the resolve branch would
-        # otherwise swallow.
-        if "AS cur_name" in query:
-            return FakeNeo4jResult(single=self.update_node)
-        if "AS updated_uid" in query:
-            return FakeNeo4jResult(single={"updated_uid": params["uid"]})
-        if "MATCH (v:Venue {uid: $uid})" in query:
-            return FakeNeo4jResult(single=self.venue_node)
-        # Matched on the columns, not the whole RETURN line: the writer grew
-        # one and these branches stopped matching without saying so.
-        if "e.owner_id AS owner_id" in query:  # the dedup probe
-            return FakeNeo4jResult(single=self.dedup_hit)
-        if "AS artist_uids" in query:  # the write, creating or adopting
-            return FakeNeo4jResult(
-                single={
-                    "uid": params["event_uid"],
-                    "name": params["name"],
-                    "venue": params["venue"],
-                    "city": params["city"],
-                    # Mirrors the real RETURN: a picked venue keeps its own
-                    # uid, an unpicked one carries the uuid this write proposed,
-                    # and the writer reads creation off that difference.
-                    "venue_uid": params["picked_uid"] or params["venue_uid"],
-                    "artist_uids": [a["uid"] for a in params["artists"]],
-                }
-            )
-        return FakeNeo4jResult(rows=[])
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return None
-
-
 @pytest.fixture
 def mock_neo4j():
     """Fake driver whose sessions replay the shared writer protocol."""
     driver = MagicMock()
-    session = FakeNeo4jSession()
+    session = FakeSession()
     driver.session.return_value = session
     driver.fake_session = session
     with patch("agent.graph._driver", driver):
