@@ -38,7 +38,7 @@ CHECKS='{
   ]
 }'
 
-# Merge only. CONTRIBUTING.md makes the commit bodies the reasoning and `cz bump`
+# Merge only. README.md (Contributing) makes the commit bodies the reasoning and `cz bump`
 # reads them to write CHANGELOG.md — squashing throws both away. The repo-level
 # settings already disable squash and rebase; this keeps the ruleset from
 # disagreeing with them.
