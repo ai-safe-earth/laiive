@@ -2,6 +2,7 @@ import type { EventCard } from "@shared/protocol";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "@/components/Icon";
+import { liveAccent } from "@/components/LiveAccent";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
 import { EventMap } from "./EventMap";
@@ -173,7 +174,7 @@ export function EventCardView({
             className={cn(
               "flex-none rounded-full px-[9px] py-[5px] text-sm font-bold leading-none text-primary-foreground",
               // Free is the one thing fuchsia says besides the brand itself.
-              isFree ? "bg-primary" : "bg-secondary",
+              isFree ? cn("bg-primary", liveAccent()) : "bg-secondary",
             )}
           >
             {isFree ? price.toUpperCase() : price}

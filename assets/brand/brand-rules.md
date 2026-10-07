@@ -9,7 +9,9 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 
 - **The mark outline.** Every mark file is the exact silhouette of the original
   `laiive1.png`, recoloured pixel-for-pixel. Never redraw, re-trace, rotate,
-  outline, gradient, or place it in a circle it wasn't supplied in.
+  outline, gradient, or place it in a circle it wasn't supplied in. The one
+  exception is the live mark: the same outline used as a stencil onto the
+  live-accent world (see "Accents are live").
 - **Fuchsia leads.** `#FF2AA0` is the brand colour.
 - **Dark-first.** There is no light mode. Ground is `#0C0A0A`.
 - **Lowercase `laiive`** in body copy; `LAIIVE` only as the wordmark.
@@ -63,6 +65,20 @@ can check work against. When this file and the PDF disagree, the PDF wins.
 - Body and UI text ≥ 4.5:1; icons and decorative shapes ≥ 3:1.
 - Composer placeholder floor is `#A79797`. Nothing dimmer anywhere.
 - No gradients, no glows, no yellow, no orange. Those tokens were deleted.
+  The live accents below are the one exception, for accents only; the app
+  ground stays flat `#0C0A0A`.
+
+### Accents are live (2026-10-07)
+
+- Accents are live: holes onto one shared world (`live-accents.css`). New
+  colours `--live-base #D4007F`, `--live-1 #FF4FB2`, `--live-2 #8A2BE2` exist
+  ONLY inside the world gradient — never as flat UI colours.
+- Live on the consumer side: the mark (not the `LAIIVE` wordmark), the header
+  saved icon, primary buttons and the send, the FREE chip, the account chip,
+  and fuchsia Bebas headline words at 28px or more.
+- Flat: body text and anything under 28px, focus rings, borders, amber, cyan,
+  everything on pro screens, and the send while it waits (flat fuchsia at 45%).
+- Reduced motion: every accent is flat `#FF2AA0`.
 
 ## Type
 

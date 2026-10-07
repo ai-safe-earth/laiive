@@ -1,172 +1,69 @@
 # CLAUDE.md
 
-Instructions for this repo, plus the machine gotchas that cost real time here. State of play:
-root `handoff.md` (read it first — this file is the stable rules, that one is the moving picture).
+## Project
+- What it is: laiive, a chat that answers "what can I do tonight?" for live music, over a Neo4j graph.
+- Stack: Python services (FastAPI, uv), Fastify + TS gateway, Vite + React SPA, Neo4j Aura, Supabase, Redis. Fly.io + Cloudflare Pages.
+- Main folders:
+  - `services/gateway` (port 8000, the only public surface: Supabase JWT auth, rate limits, injects `X-User-Id`/`X-User-Role`/`X-Internal-Key`).
+  - `services/retriever` (8002, reads the graph: classifier -> router -> executor -> composer, tied by `pipeline.py`).
+  - `services/pusher` (8003, writes events via `/validate-event`). `services/search` (8004, Tavily sweeps into dry-run reports).
+  - `services/shared`: the contract. SSE protocol + TS mirror `ts/protocol.ts` (never redeclare in the frontend) and `neo4j_writer.py`, the only graph write path.
+- Root `.env` only, loaded as `../../.env`, so run Python from inside `services/<svc>`. Deploy runbook: `DEPLOY.md`.
 
-## Working with me
+## Commands
+- Install: `cd services/<svc> && uv sync` / `cd frontend && npm install`
+- Run: `uv run --no-sync python -m uvicorn ...` (bare `uv run uvicorn` fails here). Vite: `npx vite --port 8081 --strictPort`.
+- Test: `uv run --no-sync python -m pytest -q` (retriever adds `-m "not integration"`; `--timeout=120` near an LLM). Gateway and frontend: `npm test`. `make test-all` mirrors CI.
+- Lint/format: pre-commit (ruff, ruff-format, commitizen). Frontend: `npm run typecheck`.
+- Machine gotchas (ports, uv, DNS, commits): `docs/dev-box.md`. Read it when a command fails strangely.
 
-Solo builder/founder; I wrote most of this code. Skip orientation and background explanation.
+## Rules
+- Run tests before saying a task is done.
+- Keep changes small and focused on the current plan step.
+- Ask before deleting files, adding dependencies, or changing the roadmap order.
+- Propose a plan before implementing. Explain tradeoffs when there is a real design choice.
+- Never `async def` around blocking work in anything that yields SSE frames.
+- A new module-level API client must be patched in `services/pusher/tests/conftest.py`.
+- Never read `.history/` or `docs/pm-log.jsonl`.
+- Supabase writes and tag deletion or force-push: hand me the command. Aura writes need my OK.
 
-- Be terse. No end-of-turn summaries.
-- Propose a plan before implementing.
-- Explain tradeoffs when there's a real design choice.
-- I clear often, at roughly 40% context. The flow is mine to trigger: I type `/handoff`, then
-  `/clear`. Don't propose it every turn. If I'm about to clear and something from this session
-  isn't in `handoff.md` yet, say so in one line.
+## Git
+- `develop` is the trunk; `main` is production. Branch `<type>/<kebab-desc>` from `develop`, PR to `develop`.
+- Conventional Commits, lowercase subject, body says why, `Refs: #123`. Merge commits, never squash.
+- Release: release PR -> `make release` -> deploy -> merge `main` back into `develop` locally, never as a PR (PR #66 deleted `main`).
+- PRs go to `origin` (`ai-safe-earth/laiive`). Never push to the `laiive` remote. Commit with explicit paths.
 
-## Environment
+## Roadmap and plans
+- `docs/ROADMAP.md` is the roadmap. I own the step order. Never change it without asking.
+- Plans live in `docs/plans/`. One file per feature or fix, starting with:
+  ```yaml
+  ---
+  status: todo | active | blocked | done
+  step: <roadmap step slug>
+  next: <one line>
+  ---
+  ```
+- Before working: read the plan for the task. If there is none, create one and ask me which roadmap step it belongs to.
+- After each finished step: tick it, update `status` and `next`, write down any decision taken.
+- When a plan is finished: set `status: done` and move it to `docs/plans/done/`.
+- `/roadmap` refreshes the status section of `docs/ROADMAP.md`.
 
-- No root `pyproject.toml` / `uv.lock`. Every Python command runs from inside a service dir:
-  `cd services/<svc>`, then `uv run …`. All services load the single **root `.env`** via
-  `SettingsConfigDict(env_file="../../.env")` — resolved against CWD, so launching from the
-  repo root silently loses all settings. Missing keys fail loudly. Template: `.example.env`.
-- Frontend uses **npm**, backend uses `uv` — both have machine-specific invocations that do
-  not work in their documented form here. See *Machine gotchas → Running things*.
-- Ports: gateway **8000** (the only published surface), retriever **8002**, pusher **8003**,
-  search **8004**. The frontend talks to the gateway only (`VITE_API_URL`).
-- Deploy targets: services on **Fly.io** (`deploy/fly/*.toml`, `make fly-deploy-*`), SPA on
-  **Cloudflare Pages**, Aura + Supabase managed. Runbook: root `DEPLOY.md`. Anything needing
-  `flyctl auth`, Cloudflare or Supabase credentials is yours to run — I prepare and verify.
+## Tracking files
+- The only tracking files are: this file, `docs/ROADMAP.md`, and `docs/plans/`.
+- Do not create handoff, status, summary, audit, or report files. Put that information in the plan or in "Decisions" below.
 
-## Architecture
+## Decisions
+- Budget $30-50/month all-in: Aura Free (auto-pauses), Supabase free, mini-first models.
+- Sweeps stay dry-run; a human approves. Ownership decides who may edit, never who may create.
+- Chat-only, no crawlable pages yet. UI in en/es/it/ca; every string through `translations.ts`.
+- Cloudflare Pages: `develop.laiive.pages.dev` is a preview alias; production is not built from `develop` (checked 2026-09-29).
+- Tag `legacy-main-2026-08-19` is wrong (six commits short of the old main); owner to delete it.
+- The pmctl project tracker is retired (2026-10-04). `docs/pm-log.jsonl` is history only.
+- Archive branches, never build on them: `legacy/pre-refactor`, `experiment/k3s`.
+- Earlier decisions (D1-D19): `docs/plans/done/foundation-refactor.md`.
 
-- **Gateway** (`services/gateway`, Fastify + TS) fronts everything: Supabase JWT auth (role in
-  the `user_role` claim), rate limits, `/api/chat/*`→retriever, `/api/push/*`→pusher (pro+),
-  `/api/admin/search/*`→search (admin). It injects verified `X-User-Id`/`X-User-Role` and
-  `X-Internal-Key`; the Python services verify the key (`laiive_shared/internal_auth.py`) —
-  direct curls to 8002–8004 get 403 when `INTERNAL_API_KEY` is set. Gateway health is
-  `/healthz`; Python services use `/livez` + `/readyz` (probes) and `/health` (deep, humans only).
-- **`services/shared`** is the contract: `laiive-shared` package (editable in every service) with
-  the typed SSE protocol + TS mirror `services/shared/ts/protocol.ts` (drift-guarded by
-  `test_ts_contract.py` — never redeclare protocol types in the frontend), and
-  **`neo4j_writer.py`, the only graph write path** (MERGE by identity, dedup → 409).
-- **Retriever** reads the graph. Per turn: `classifier.py` → `router.py` → `executor.py` →
-  `composer.py`, tied by `pipeline.py` (built lazily — importing `agent.api` needs no Neo4j).
-  `/chat/stream` streams real tokens as named-event SSE. Anything yielding SSE frames must not
-  `async def` around blocking work (sync generator, or `asyncio.to_thread`) — fake-streaming
-  has regressed twice.
-- **Pusher** writes via `/validate-event` → shared writer. Chat is stateless (client-carried
-  history); multi-event listings enter the "walk" (one event per turn, cursor echoed by the
-  client). No batch mode — a spreadsheet is a longer conversation.
-- **Search** (`services/search`) sweeps the web (Tavily) into dry-run reports; a human approve
-  writes them (`source='admin_search'`). Scheduling: `services/search/flows/serve.py` (Prefect
-  Cloud schedules, flows execute locally against the gateway). Root `prefect.yaml` is dormant
-  until a public gateway exists.
-- Relationship names: trust `services/shared/laiive_shared/neo4j_writer.py`.
-
-## Testing
-
-- Per service: `cd services/<svc>`, then `uv sync` and `uv run --no-sync python -m pytest -q`
-  (bare `uv run pytest` fails here — see *Machine gotchas*). Retriever adds `-m "not
-  integration"`; integration tests need live Aura + real keys. Single test:
-  `… python -m pytest -v tests/test_x.py::test_name`, `--timeout=120` for anything touching
-  an LLM. Or `/verify-retriever` after retriever changes; `make test-all` mirrors CI.
-- Gateway: `cd services/gateway && npm test` (vitest, fakes Supabase locally). Frontend:
-  `npm run typecheck` (runs both tsconfig projects — bare `tsc --noEmit` is a silent no-op) and
-  `npm test` (vitest + jsdom, `vitest.config.ts` fakes the `VITE_*` env; every spec mocks the
-  Supabase client, so no test ever dials out).
-- Pusher `tests/conftest.py` autouse-patches module-level clients (`agent.converters._client`,
-  `agent.conversation._client`, `agent.graph._openai/_driver/_geocoder`). A new module with its
-  own module-level client must be added there or tests hit the real API.
-- Commit-time hook traps (ruff eating imports, `ruff-format` aborting the commit): see
-  *Machine gotchas → Commits*.
-
-## Repo etiquette
-
-- Conventional Commits, lowercase subject, enforced by a commitizen `commit-msg` hook.
-  The README's *Contributing* section wants a body explaining *why* plus a `Refs: #123` trailer.
-- **`main` is production, `develop` is the trunk** — full model in `README.md` *Contributing*. Cut
-  `<type>/<kebab-desc>` branches from `develop` and PR into `develop`; `main` only ever receives
-  a release PR from `develop`, and is protected (PR required, every check green, no force-push).
-  Merge commits, never squash — the commit bodies are the reasoning.
-  Shipping: release PR → `make release` (`cz bump` tags and writes `CHANGELOG.md`) → deploy →
-  merge `main` back into `develop` so the tag is not stranded — **locally**, never as a PR with
-  `main` as the head branch: `git fetch origin && git checkout develop && git pull --ff-only
-  origin develop && git merge origin/main && git push origin develop`. The repo deletes head
-  branches on merge, and the owner's role bypasses the "main is production" ruleset, so merging
-  that PR deletes production's branch: PR #66 did exactly that on 2026-08-23 and it went
-  unnoticed for two days.
-  Two branches are archives, never build on them: `legacy/pre-refactor` (the pre-refactor tree,
-  also tag `pre-refactor-main`) and `experiment/k3s` (the withdrawn D19 detour).
-- Two GitHub remotes — `origin` → `ai-safe-earth/laiive` (canonical, PRs here), `laiive` →
-  `OscarArroyoVega/laiive` (personal fork — don't push there).
-- Never read or edit anything under `.history/` — VSCode local-history junk holding stale copies
-  of deleted modules.
-- Writes to Supabase (`db push`, MCP DDL) are refused by the permission classifier — hand me
-  the command to run. Writes to Aura need my approval.
-
-## Machine gotchas (this box)
-
-Windows. `bun` is NOT installed — npm/node. Port 8080 is EnterpriseDB's.
-
-**Running things**
-
-- `uv run uvicorn …` and `uv run pytest` both fail here with "Failed to canonicalize script
-  path". Use `uv sync` then `uv run --no-sync python -m uvicorn …` / `python -m pytest -q`.
-- `npm run dev -- --port 8081` silently loses the flag in PowerShell (Vite starts on 5173 and
-  treats `8081` as a directory). Use `npx vite --port 8081 --strictPort`.
-- `PYTHONPATH=.` is needed for ad-hoc `uv run python` scripts in the services (`agent` is not
-  an installed package). Piping their output through `grep` trips Windows binary detection on
-  accented text — redirect to a file and `grep -a` it.
-- Prefix Prefect (and any rich-using) commands with `PYTHONIOENCODING=utf-8`: `rich`'s cp1252
-  console writer raises `UnicodeEncodeError` *after* the command has already succeeded.
-- `cd` in one Bash call does not persist reliably — use absolute paths.
-- Docker Desktop's loopback: `127.0.0.1:<published>` sometimes refuses while `localhost` works.
-
-**Ports and stale processes**
-
-- Dev servers from an earlier session go stale and cost real time — one retriever reported
-  `openai: error` on `/health` while the key worked fine via curl, and a Vite from a previous
-  session served the *deleted* app on :8081. Before debugging anything you did not start:
-  `Get-NetTCPConnection -LocalPort 8000,8002,8003,8004,8081 -State Listen | %{ Get-Process -Id $_.OwningProcess | select Id,ProcessName,StartTime }`
-- Background dev servers survive their launcher; kill by PID.
-- Another project squats :8000 (an `A02_VaiVia` uvicorn). Everything is env-overridable, so
-  shift rather than kill: `GATEWAY_PORT`, `RETRIEVER_URL`, `PUSHER_URL`, `CORS_ALLOW_ORIGINS`,
-  and inline `VITE_API_URL` for Vite (inline `VITE_*` beats `.env` files).
-
-**Commits**
-
-- The ruff `--fix` pre-commit hook **deletes an import the moment it is momentarily unused**.
-  It has bitten six times. Write the import and its first use in the same edit.
-- `ruff-format` rewrites staged files and aborts the commit; re-`git add` and commit again.
-- `cz bump` without `--yes` dies under Git Bash with `NoConsoleScreenBufferError` —
-  prompt_toolkit wants a real Windows console. The `make release` target passes it.
-
-**Network and data**
-
-- **DNS here flaps.** `getaddrinfo` failed intermittently for the Aura host, `docs.claude.com`
-  and `operations.osmfoundation.org` in one session while a tight probe loop resolved 10/10. It
-  killed three `run_backfill` runs at driver construction. Pre-warm with
-  `socket.gethostbyname` and retry in process — the sweep is idempotent by uid.
-- The **Aura free instance auto-pauses**. Paused, its DNS record disappears; resuming, reads
-  route to a follower while writes fail with "No write service currently available".
-- **The `aura-neo4j` and `tavily` MCP servers are NOT available in this directory** — they are
-  registered under the repo's old path (`MAIN/DS_ML_AI/DIALOGOO/laiive`), so query through the
-  service, not the MCP. If they are re-added here: `aura-neo4j` points at `2099d44c`, and its
-  host `2099d44c.mcp-instances.neo4j.io` stopped resolving once while the database itself was
-  fine on `2099d44c.databases.neo4j.io`.
-- Re-checking one venue after a geocoder fix: the repair sweep only selects venues that are
-  unstamped, non-`venue`, or checked over 7 days ago — exactly not the one a fix would correct.
-  `cd services/search && uv run --no-sync python scripts/recheck_venue.py "<venue>"` clears the
-  stamp and re-runs it (an Aura write).
-- Maintenance scripts open a **read-only** session unless `--write` is passed.
-
-**Tooling limits**
-
-- `winget` is not on PATH and the classifier blocks downloading an `.exe`, so `cloudflared`
-  cannot be installed from here. Tag deletion and force-push are refused too — hand me those.
-- Browser automation: `computer`'s `type` action does not reach this app's inputs — use
-  `form_input` with a ref from `read_page`, and click by `ref` rather than coordinates.
-
-## State files (read by the project tracker)
-
-`handoff.md` is the moving picture; this file is the stable rules. Read `handoff.md` once, at
-the start of a session, before the first plan or code change. Do not re-read it later — the
-conversation is fresher. Re-read after a `/clear` or `/compact`. If it conflicts with the repo,
-trust the repo and say so.
-
-Never read `docs/pm-log.jsonl`. It is append-only history for the project tracker; reading it
-puts 50 KB of settled decisions into context for no benefit. If you need to know why something
-was decided, ask me or read the code.
-
-Writing any of this is the `/handoff` skill's job, on my command only.
+## How to write final responses
+- Plain English. Short sentences. Bullet points.
+- Clear structure: what changed, what is next, what I must decide.
+- Put in [brackets] what I should know or need to learn.
+- This applies to final responses only, not to code, commits, or plan files.

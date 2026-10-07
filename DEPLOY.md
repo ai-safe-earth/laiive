@@ -268,7 +268,7 @@ ships with the cutover, not before it.
    with a personal access token from the Supabase account page.
 3. Prefect: `serve.py` keeps running on the dev machine, now against the
    public gateway — set `GATEWAY_URL=https://laiive-gateway.fly.dev` in
-   the root `.env`. (Containerizing serve.py stays optional, see handoff.)
+   the root `.env`. (Containerizing serve.py stays optional, see the scheduler plan in `docs/plans/`.)
 
 ## 5b. Auth branding (the Google consent screen)
 
