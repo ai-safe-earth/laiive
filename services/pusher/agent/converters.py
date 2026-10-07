@@ -18,8 +18,6 @@ from config import settings
 
 _client = OpenAI(api_key=settings.openai_api_key)
 
-EXTRACTION_PROMPT_VERSION = "v4"
-
 EXTRACTION_PROMPT = """Extract live music events from this text. Today is {today}.
 
 The text may describe ONE event or MANY — a spreadsheet of gigs, a festival

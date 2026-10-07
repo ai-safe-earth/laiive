@@ -61,38 +61,79 @@ sessions of 2026-08-18, and the numbers any change here should be compared again
 - No date poisoning (the heaviest day is 5 events at 5 venues) and no non-music events in the
   corpus. There are no duplicate events; the duplication is in venues.
 
-**One turn, one trace.** Langfuse currently wraps only the retriever's OpenAI client
-(`services/retriever/agent/utils/llm_utils.py`); pusher and search use bare clients. All three
-get the same wrapper, and `pipeline.run_turn` opens a trace with spans for
-`classify → route → execute → compose`, tagged with prompt version, model per role, language,
-resolved constraints, plan kind, row count, latency and cost.
+**One turn, one trace.** Tracing moved from Langfuse to **Arize Phoenix**
+(`services/shared/laiive_shared/tracing.py`), which changes the shape of this item: Langfuse
+wrapped a *client*, so it reached only calls built by the retriever's factory and the "all three
+get the same wrapper" plan meant refactoring the pusher's and search's module-level clients.
+OpenInference instruments the `openai` *module*, so one `setup_tracing()` call per service
+covers every client it holds, untouched. **Done**, both halves: `pipeline.run_turn` now opens
+one `turn` span with `moderate → classify → route → execute → compose` beneath it, carrying the
+gateway's request id (the join to `eval_records`), prompt version and model per role, language,
+resolved constraints, plan kind, row count and the answer. Latency is the span's own; cost is
+not set here — OpenInference records token counts on each LLM span and Phoenix prices them.
+The constraint found while migrating turned out to be the whole design: `run_turn` is a sync
+generator and Starlette calls `next()` per frame on a thread with a *copy* of the context, so a
+span held across a `yield` neither parents the later stages nor detaches cleanly. Parenting is
+passed explicitly (`laiive_shared.tracing.stage` / `start_child`), and the composer's span —
+the one stage that outlives a `next()` — is made current per token instead of held open.
 
-**Capture responses, not just requests.** `services/gateway/src/logging.ts` logs the request
-side only. Response capture for `/api/chat/*` — final text, card uids, classification — is what
-turns production turns into eval candidates, and it is where the feedback signal lands.
+**Capture responses, not just requests.** **Done, elsewhere than planned.** This item predates
+`eval_records` and `push_records`, which is where response capture landed: the retriever writes
+final text, card uids, classification, cyphers, notes, row count, latency and errors per turn,
+and the pusher writes its write verdict. `services/gateway/src/logging.ts` still logs the
+request side only, and should stay that way — capturing the same answer a second time at the
+edge would be two copies to keep in step, with the gateway the one that cannot see the
+classification. The gateway's contribution is the request id both services now adopt.
 
 **The harness** at `services/retriever/evals/`, rebuilt rather than resurrected. A
 `python -m evals.run --suite <name> [--models a,b] [--baseline <report>]` CLI writing a JSON
 report and a markdown diff, over six suites:
 
-| suite | what it asserts | cost |
-|---|---|---|
-| routing | `route()` output vs expected `PlanKind` per sub-query | free |
-| classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case |
-| cypher | generated Cypher passes the guard, `EXPLAIN`s cleanly, returns the standard shape | one call per case |
-| retrieval | recall@k over a frozen graph fixture; an integration tier against live Aura | graph only |
-| answer quality | judge rubric: grounded, no listing leakage, right language, 1–3 sentences, tone | two calls per case |
-| safety | injection, moderation, write-gate cases | mixed |
+| suite | what it asserts | cost | state |
+|---|---|---|---|
+| routing | `route()` output vs expected `PlanKind` per sub-query | free | **dropped** — `route()` is a pure function and `tests/test_router.py` covers all twelve branches; a dataset would restate it in JSON |
+| classifier | `query_type`, `moment` and each constraint field against a golden set | one cheap call per case | **done** — 20 cases, `evals/datasets/classifier/`, run by `tests/test_classifier_cases.py`, weekly |
+| cypher | the generated query is run and the uids it returns are compared to the events the case says it should find | one call per case + the graph | **done** — corpus v3.0, regex replaced by execute-and-compare; found two prompt bugs on its first run |
+| retrieval | recall@k over a frozen graph fixture | graph only, no key | **done** — 14 cases over template, nearby and vector legs, against a throwaway Neo4j seeded through the real writer (`docker-compose.test.yml`, `make test-graph-up`), in CI on every push |
+| answer quality | rules over the live reply: sentence budget, no listing leakage, one question, right language, invents nothing | one call per case, plus one for language | **done** — 10 cases, `evals/datasets/answer_quality/`, run by `tests/test_composer_cases.py`, weekly. The judge is deferred to tone, which is the only part of the rubric no rule reads |
+| safety | injection, moderation, write-gate cases | mixed | 7 cases, wired |
 
-The deterministic tier runs in CI on every push; the LLM suites run nightly or on demand,
-because they cost money. `make eval-*` targets mirror the per-service test targets.
+The deterministic tier runs in CI on every push; the LLM suites run weekly
+(`.github/workflows/evals-weekly.yml`) or on demand, because they cost money.
+
+The `python -m evals.run` CLI is **deferred, not dropped**: what every suite so far needs is
+a loader and assertions, and pytest is both. The CLI earns its keep at `--models a,b` — a
+sweep of the same suite across providers — which is phase 4's question, not this phase's.
+
+**What the classifier set found on its first run** is the point of building it: six gaps,
+listed in `services/retriever/evals/README.md`, each xfailed with its own sentence so a
+weekly red run means a regression. Two cost a user an answer outright — "gigs near me"
+without a shared location returns no plan and answers "nothing found" instead of asking
+where they are, and "find me something" does the same. Both are the prompt's own
+`ambiguous` rule going unused. Fixing them is a prompt change measured by this suite,
+which is what the suite was for.
+
+The answer-quality set found one, and the probe mattered more than the finding: with a
+**single** result the composer names the event and the act in its text, which the prompt
+forbids outright — 3/3 in Italian, 1 in 2 in English, while three results held. The
+obvious reading was "Italian leaks"; it is the one-result case, which the prompt has no
+rule for.
+
+**And the cypher suite found two on its first run**, both of which a regex over the
+generated query passed happily. The prompt's mandated RETURN aggregates, so the
+`ORDER BY e.start_at` the model appends is a syntax error Neo4j refuses — three of five
+cases died on it, which in production is the long-tail leg failing whenever it sorts by
+date. And `(v:Venue)-[:HOSTED_AT]->(e:Event)`, the relationship backwards, which raises
+nothing and returns zero rows: "there is nothing on". Both are fixed in the prompt (now v3)
+and the suite re-run to prove it. This is the argument for phase 3 in one paragraph: both
+were live, and a green test suite sat next to them the whole time.
 
 ## 4. Multi-provider model routing
 
 A new `services/shared/laiive_shared/llm.py`: one call surface over OpenAI, Anthropic and
 OpenRouter, resolving **roles** (`classifier`, `cypher`, `composer`, `extraction`,
 `language_detect`, `judge`, `embeddings`) to provider-prefixed model ids, with retries, a
-fallback chain on provider outage, per-call cost accounting and Langfuse tracing. It must
+fallback chain on provider outage, per-call cost accounting and Phoenix tracing. It must
 preserve **token streaming** — `composer.compose_stream` is the one path where fake-streaming
 has regressed twice.
 

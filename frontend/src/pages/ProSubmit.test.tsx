@@ -1,9 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProSubmit from "./ProSubmit";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -32,13 +31,7 @@ vi.mock("@/auth/becomePromoter", () => ({ becomePromoter: vi.fn() }));
 Element.prototype.scrollIntoView = vi.fn();
 
 function renderPage() {
-  return render(
-    <MemoryRouter initialEntries={["/pro"]}>
-      <LanguageProvider>
-        <ProSubmit />
-      </LanguageProvider>
-    </MemoryRouter>,
-  );
+  return renderWith(<ProSubmit />, { route: "/pro" });
 }
 
 beforeEach(() => {

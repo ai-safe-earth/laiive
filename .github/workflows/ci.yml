@@ -17,8 +17,9 @@ concurrency:
 jobs:
   python:
     runs-on: ubuntu-latest
-    # Match the python:3.13-slim images. Without a pin uv grabs the newest
-    # interpreter (3.14 today), where langfuse's pydantic-v1 shim breaks.
+    # Match the python:3.13-slim images. The old reason for pinning (langfuse's
+    # pydantic-v1 shim broke on 3.14) died with the Phoenix migration; matching
+    # the runtime images is reason enough on its own, so the pin stays.
     env:
       UV_PYTHON: "3.13"
     strategy:
@@ -53,6 +54,56 @@ jobs:
           SUPABASE_URL: https://ci-dummy.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ci-dummy # pragma: allowlist secret
         run: uv run pytest -q -m "not integration"
+
+  # The retrieval and cypher eval suites, against a real Neo4j.
+  #
+  # Its own job rather than a service on the matrix above: only the retriever
+  # needs a database, and hanging one off all four services would pay for it
+  # four times. No OpenAI key here — the fixture's vectors are frozen in the
+  # dataset, so the whole tier is free and deterministic. The half of the
+  # cypher corpus that also needs a live generation is `integration` as well,
+  # so it is deselected here and runs in evals-weekly.yml.
+  graph:
+    runs-on: ubuntu-latest
+    env:
+      UV_PYTHON: "3.13"
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        ports:
+          - 7689:7687
+        env:
+          NEO4J_AUTH: neo4j/laiive-test-graph # pragma: allowlist secret
+          NEO4J_server_memory_heap_max__size: 512m
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p laiive-test-graph 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/retriever/uv.lock
+      - name: sync
+        working-directory: services/retriever
+        run: uv sync --locked
+      - name: pytest (graph tier)
+        working-directory: services/retriever
+        env:
+          # config.py fails loudly on missing keys; nothing here calls OpenAI.
+          NEO4J_URI: bolt://localhost:7689
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: ci-dummy # pragma: allowlist secret
+          OPENAI_API_KEY: sk-ci-dummy # pragma: allowlist secret
+          SUPABASE_URL: https://ci-dummy.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-dummy # pragma: allowlist secret
+        # A skip here would be silent and permanent, so the container being
+        # reachable is asserted before the suites that would skip without it.
+        run: |
+          uv run --no-sync python -c "from tests import graph_fixture; assert graph_fixture.reachable(), 'no test graph'"
+          uv run --no-sync pytest -q -m "graph and not integration"
 
   node:
     runs-on: ubuntu-latest
@@ -117,14 +168,22 @@ jobs:
   # job is skipped, and a skipped required check reads as success.
   ci-ok:
     if: always()
-    needs: [python, node, images]
+    needs: [python, graph, node, images]
     runs-on: ubuntu-latest
     steps:
       - name: verify
+        # One list, not two: the old step echoed the four results and then
+        # repeated them in a chain of tests, so adding a job meant editing both.
+        # Anything other than success fails — a skipped dependency included,
+        # since a skipped required check otherwise reads as green.
+        env:
+          RESULTS: >-
+            python=${{ needs.python.result }}
+            graph=${{ needs.graph.result }}
+            node=${{ needs.node.result }}
+            images=${{ needs.images.result }}
         run: |
-          echo "python: ${{ needs.python.result }}"
-          echo "node:   ${{ needs.node.result }}"
-          echo "images: ${{ needs.images.result }}"
-          [ "${{ needs.python.result }}" = "success" ] \
-            && [ "${{ needs.node.result }}" = "success" ] \
-            && [ "${{ needs.images.result }}" = "success" ]
+          echo "$RESULTS"
+          for job in $RESULTS; do
+            [ "${job#*=}" = "success" ] || exit 1
+          done

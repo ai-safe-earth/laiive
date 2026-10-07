@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TurnFeedback } from "./Chat";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -11,11 +11,7 @@ vi.mock("@/api/chat", () => ({ sendFeedback: api.sendFeedback }));
 
 describe("TurnFeedback", () => {
   it("posts the down on click — before any reason — then the reason as a second post", async () => {
-    render(
-      <LanguageProvider>
-        <TurnFeedback requestId="req-9" />
-      </LanguageProvider>,
-    );
+    renderWith(<TurnFeedback requestId="req-9" />);
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackDown }));
     expect(api.sendFeedback).toHaveBeenCalledWith("req-9", "down");
@@ -29,11 +25,7 @@ describe("TurnFeedback", () => {
   });
 
   it("does not post an abandoned empty reason", () => {
-    render(
-      <LanguageProvider>
-        <TurnFeedback requestId="req-10" />
-      </LanguageProvider>,
-    );
+    renderWith(<TurnFeedback requestId="req-10" />);
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackDown }));
     const input = screen.getByPlaceholderText(en.chat.feedbackReasonPlaceholder);
@@ -44,11 +36,7 @@ describe("TurnFeedback", () => {
   });
 
   it("posts the up once and thanks — no reason box", () => {
-    render(
-      <LanguageProvider>
-        <TurnFeedback requestId="req-11" />
-      </LanguageProvider>,
-    );
+    renderWith(<TurnFeedback requestId="req-11" />);
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackUp }));
     expect(api.sendFeedback).toHaveBeenCalledWith("req-11", "up");
@@ -60,11 +48,7 @@ describe("TurnFeedback", () => {
 
   it("reverts to idle when the up post fails", async () => {
     api.sendFeedback.mockRejectedValueOnce(new Error("boom"));
-    render(
-      <LanguageProvider>
-        <TurnFeedback requestId="req-12" />
-      </LanguageProvider>,
-    );
+    renderWith(<TurnFeedback requestId="req-12" />);
 
     fireEvent.click(screen.getByRole("button", { name: en.chat.feedbackUp }));
     expect(

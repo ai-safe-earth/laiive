@@ -83,7 +83,7 @@ def _merged(previous: dict | None, observed: dict, keys: tuple[str, ...]) -> dic
 
 # ── Sources ──────────────────────────────────────────────────────────────────
 
-SOURCE_COUNTERS = ("pages", "pages_with_events", "drafts", "candidates_new")
+SOURCE_COUNTERS = ("pages", "pages_with_events", "candidates_new")
 
 # A domain has to have been seen enough times before its rate means anything;
 # one lucky page is not evidence. Both thresholds are deliberately arithmetic
@@ -256,7 +256,6 @@ def record_sources(by_domain: dict[str, dict]) -> None:
     for domain in domains:
         before = previous.get(domain)
         row = {"domain": domain, **_merged(before, by_domain[domain], SOURCE_COUNTERS)}
-        row["mean_score"] = round(float(by_domain[domain].get("mean_score") or 0.0), 4)
         row["last_seen_at"] = datetime.now(timezone.utc).isoformat()
         # Blocked is sticky against the owner's hand: a domain the owner sets
         # to blocked is not un-blocked by a good week. Only the store decides
@@ -269,8 +268,6 @@ def record_sources(by_domain: dict[str, dict]) -> None:
             row["status"] = "trusted"
         else:
             row["status"] = _source_status(row)
-        # Carried through the upsert, which replaces the whole row.
-        row["extraction_hints"] = (before or {}).get("extraction_hints") or ""
         row["events_written"] = float((before or {}).get("events_written") or 0.0)
         if before and before["status"] != row["status"]:
             logger.info(
@@ -362,24 +359,9 @@ def domain_filters(city: str, limit: int = 50) -> tuple[list[str], list[str]]:
     return include, exclude
 
 
-def extraction_hints() -> dict[str, str]:
-    """domain -> per-site instructions, for the extraction prompt."""
-    try:
-        rows = _get(
-            "search_sources",
-            {"extraction_hints": "neq.", "select": "domain,extraction_hints"},
-        )
-    except Exception as e:
-        logger.warning(f"Could not read extraction hints: {e}")
-        return {}
-    return {
-        r["domain"]: r["extraction_hints"] for r in rows if r.get("extraction_hints")
-    }
-
-
 # ── Queries ──────────────────────────────────────────────────────────────────
 
-QUERY_COUNTERS = ("pages", "pages_with_events", "candidates_new")
+QUERY_COUNTERS = ("pages_with_events", "candidates_new")
 
 # A trial phrasing gets this many runs before it is judged, so one quiet week
 # in one town cannot retire a good one.
@@ -403,9 +385,6 @@ def record_queries(by_query: dict[str, dict]) -> None:
             "template": template,
             **_merged(before, by_query[template], QUERY_COUNTERS),
             "runs": int((before or {}).get("runs") or 0) + 1,
-            "local_domain_share": round(
-                float(by_query[template].get("local_domain_share") or 0.0), 4
-            ),
             "status": (before or {}).get("status") or "trial",
             "last_used_at": datetime.now(timezone.utc).isoformat(),
         }

@@ -93,7 +93,33 @@ services:
           ignore:
             - .venv/
 
+  # Trace collector for the Python services, replacing Langfuse. Published on
+  # purpose, against this project's "only the gateway is published" rule: it is
+  # the one service here with a UI a human opens, and in dev the Python services
+  # run natively on the host (the containers above are sleep-infinity shells),
+  # so http://localhost:6006 is the address they actually send to.
+  #
+  # Not in docker-compose.yml: production traces go to a collector outside this
+  # compose project, named by PHOENIX_COLLECTOR_ENDPOINT.
+  #
+  # ponytail: :latest and the bundled SQLite, which is right for a local scratch
+  # collector - traces are disposable and re-runnable. Pin the tag and move to
+  # PHOENIX_SQL_DATABASE_URL (Postgres >= 14) if this ever holds a history
+  # anyone reasons from.
+  phoenix:
+    container_name: laiive-phoenix
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"   # UI + OTLP/HTTP collector — the one the services use
+      - "4317:4317"   # OTLP/gRPC collector
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    volumes:
+      - phoenix-data:/mnt/data
+    restart: unless-stopped
+
 volumes:
   pusher-venv:
   retriever-venv:
   search-venv:
+  phoenix-data:

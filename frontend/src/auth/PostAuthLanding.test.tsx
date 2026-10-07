@@ -1,5 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { act, screen } from "@testing-library/react";
+import { Route, Routes } from "react-router-dom";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { becomePromoter, PromoterRefreshError } from "./becomePromoter";
@@ -11,7 +11,7 @@ import {
   rememberPromoterOrg,
 } from "./postAuth";
 import { translations } from "@/i18n/translations";
-import { LanguageProvider } from "@/i18n/useTranslation";
+import { renderWith } from "@/test/renderWith";
 
 const mocks = vi.hoisted(() => ({
   auth: {
@@ -37,18 +37,17 @@ beforeEach(() => {
 });
 
 function renderLandingAt(path: string) {
-  return render(
-    <LanguageProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <PostAuthLanding />
-        <Routes>
-          <Route path={CALLBACK_PATH} element={<p>waiting room</p>} />
-          <Route path="/" element={<p>chat</p>} />
-          <Route path="/pro" element={<p>pro area</p>} />
-          <Route path="/account" element={<p>account</p>} />
-        </Routes>
-      </MemoryRouter>
-    </LanguageProvider>,
+  return renderWith(
+    <>
+      <PostAuthLanding />
+      <Routes>
+        <Route path={CALLBACK_PATH} element={<p>waiting room</p>} />
+        <Route path="/" element={<p>chat</p>} />
+        <Route path="/pro" element={<p>pro area</p>} />
+        <Route path="/account" element={<p>account</p>} />
+      </Routes>
+    </>,
+    { route: path },
   );
 }
 

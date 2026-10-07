@@ -4,9 +4,8 @@ import type { GatewayConfig } from "./config.js";
  * The service-role PostgREST client.
  *
  * `feedback.ts` and `logging.ts` each built the same four-header object and the
- * same `${supabaseUrl}/rest/v1/${table}` string inline. A third copy in
- * `orgs.ts` — which needs five verbs rather than one — is where that stops
- * being acceptable, so the shape moves here.
+ * same `${supabaseUrl}/rest/v1/${table}` string inline, and `orgs.ts` needed
+ * five verbs rather than one — so the shape lives here and all of them use it.
  *
  * The key goes in both `apikey` and `authorization`, which is what bypasses
  * RLS. Every policy in `20260819000011` is written for the *user's* JWT, so
@@ -28,35 +27,13 @@ export class PostgrestError extends Error {
   }
 }
 
-export interface SupabaseAdmin {
-  select<T>(table: string, query: string): Promise<T[]>;
-  insert<T>(table: string, row: unknown): Promise<T>;
-  patch<T>(table: string, query: string, changes: unknown): Promise<T[]>;
-  /**
-   * Deletes every row the query matches, and answers with them.
-   *
-   * The only caller is revoking a pending invitation, where a delete is the
-   * right verb and a status column would be the wrong one: the partial unique
-   * index on `organization_invitations` covers unaccepted rows, so a
-   * kept-but-revoked row would hold the one live slot for that address and
-   * block re-inviting it. `entity_ownership` reasons the other way and revokes
-   * in place — an ownership claim is a record worth keeping, an invitation
-   * nobody accepted is not.
-   */
-  del<T>(table: string, query: string): Promise<T[]>;
-  rpc<T>(fn: string, args: Record<string, unknown>): Promise<T>;
-  /**
-   * An RPC run as the signed-in user rather than as the service role.
-   *
-   * `create_organization` is SECURITY DEFINER and reads `auth.uid()` to decide
-   * the pro floor and who takes the owner seat. Under the service role that is
-   * NULL and the function refuses, correctly - so the gateway hands PostgREST
-   * the caller's own verified JWT and lets the database answer as them.
-   */
-  rpcAsUser<T>(fn: string, args: Record<string, unknown>, accessToken: string): Promise<T>;
-}
+/**
+ * The admin client's shape, read off the factory rather than declared beside
+ * it: one implementation never needed two lists of the same six methods.
+ */
+export type SupabaseAdmin = ReturnType<typeof createSupabaseAdmin>;
 
-export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
+export function createSupabaseAdmin(config: GatewayConfig) {
   const base = `${config.supabaseUrl}/rest/v1`;
   const headers = {
     "content-type": "application/json",
@@ -64,9 +41,9 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
     authorization: `Bearer ${config.supabaseServiceRoleKey}`,
   };
 
-  // Awaited and throwing, unlike logging.ts's fire-and-forget hook: these sit
-  // on a request/response path, so the caller has to learn that the write
-  // failed rather than return 204 over a lost row.
+  // Throwing, always: a caller on a request/response path has to learn that
+  // the write failed rather than answer 204 over a lost row, and logging.ts's
+  // fire-and-forget hook turns the same rejection into one warn line.
   async function call(url: string, init: RequestInit): Promise<Response> {
     const response = await fetch(url, init);
     if (!response.ok) {
@@ -92,6 +69,22 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       return rows[0] as T;
     },
 
+    /**
+     * An insert whose row nobody reads back — `return=minimal`, no body parsed.
+     *
+     * Separate from `insert` rather than an option on it because the callers
+     * are the two write-and-forget ones (feedback, conversation logging) that
+     * fire on every chat turn: making them carry a representation back would
+     * put a response body on the hot path to save one method here.
+     */
+    async insertMinimal(table: string, row: unknown): Promise<void> {
+      await call(`${base}/${table}`, {
+        method: "POST",
+        headers: { ...headers, prefer: "return=minimal" },
+        body: JSON.stringify(row),
+      });
+    },
+
     async patch<T>(table: string, query: string, changes: unknown): Promise<T[]> {
       const response = await call(`${base}/${table}?${query}`, {
         method: "PATCH",
@@ -101,6 +94,17 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       return (await response.json()) as T[];
     },
 
+    /**
+     * Deletes every row the query matches, and answers with them.
+     *
+     * The only caller is revoking a pending invitation, where a delete is the
+     * right verb and a status column would be the wrong one: the partial
+     * unique index on `organization_invitations` covers unaccepted rows, so a
+     * kept-but-revoked row would hold the one live slot for that address and
+     * block re-inviting it. `entity_ownership` reasons the other way and
+     * revokes in place - an ownership claim is a record worth keeping, an
+     * invitation nobody accepted is not.
+     */
     async del<T>(table: string, query: string): Promise<T[]> {
       const response = await call(`${base}/${table}?${query}`, {
         method: "DELETE",
@@ -121,6 +125,15 @@ export function createSupabaseAdmin(config: GatewayConfig): SupabaseAdmin {
       return (await response.json()) as T;
     },
 
+    /**
+     * An RPC run as the signed-in user rather than as the service role.
+     *
+     * `create_organization` is SECURITY DEFINER and reads `auth.uid()` to
+     * decide the pro floor and who takes the owner seat. Under the service
+     * role that is NULL and the function refuses, correctly - so the gateway
+     * hands PostgREST the caller's own verified JWT and lets the database
+     * answer as them.
+     */
     async rpcAsUser<T>(
       fn: string,
       args: Record<string, unknown>,

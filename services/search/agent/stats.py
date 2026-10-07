@@ -12,6 +12,7 @@ turns its section into an error note, never a 502 for the queue counts the
 screen is mostly there to show.
 """
 
+import calendar
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -45,7 +46,7 @@ def _parse_ts(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(value)  # 3.11+ parses the Z itself
     except ValueError:
         return None
 
@@ -112,10 +113,7 @@ def credits_summary(rows: list[dict], now: datetime) -> dict:
             key = f"{year}-W{week:02d}"
             by_week[key] = by_week.get(key, 0) + credits
     elapsed_days = max((now - month_start).days + 1, 1)
-    # Days in this month, without reaching for calendar: the 28th + 4 days is
-    # always next month, whose day-1 minus one day is this month's last.
-    next_month = (month_start + timedelta(days=32)).replace(day=1)
-    days_in_month = (next_month - month_start).days
+    days_in_month = calendar.monthrange(now.year, now.month)[1]
     return {
         "month_to_date": month_to_date,
         "budget": TAVILY_MONTHLY_BUDGET,

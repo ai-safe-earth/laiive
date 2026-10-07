@@ -162,7 +162,7 @@ report endpoint → approved batch write with `source: 'admin_search'`; CLI entr
 reuse pusher's writer module (extracted into a small shared package or duplicated with
 contract test — decision Q6).
 
-Endpoints, all behind the gateway's existing admin route (flip `SEARCH_ENABLED=true`):
+Endpoints, all behind the gateway's existing admin route:
 `POST /sweep` (dry-run, persists a report, writes nothing), `GET /reports/{id}`,
 `POST /reports/{id}/approve` (batch write through the shared writer),
 `POST /backfill` (missing embeddings / venue `location`, bounded and idempotent).

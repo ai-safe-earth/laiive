@@ -11,11 +11,12 @@ import { cn } from "@/lib/cn";
  * transcript means: in consumer chat it becomes the message, in the pro flow it
  * becomes another line of the conversation the extractor reads.
  *
- * At rest the mic wears its surface's neutral outline — the send keeps the
- * fuchsia and the cyan, and the variant is the caller's (the Composer's) call.
- * Recording, it fills amber and breathes: amber is the mic's colour in the
- * token file, and the one thing a live microphone must not look like is the
- * same button it was a second ago.
+ * At rest the mic is unfilled — it sits inside the composer's field, where a
+ * bordered pill inside a bordered pill is two frames saying the same thing, so
+ * the caller (the Composer) hands it `ghost`. The send keeps the fuchsia and
+ * the cyan. Recording, it fills amber and breathes: amber is the mic's colour
+ * in the token file, and the one thing a live microphone must not look like is
+ * the same button it was a second ago.
  */
 export function MicButton({
   onTranscript,

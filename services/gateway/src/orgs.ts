@@ -22,13 +22,6 @@ import { createSupabaseAdmin, PostgrestError } from "./supabaseAdmin.js";
 
 const ENTITY_TYPES = new Set(["venue", "artist", "event"]);
 
-/** The graph lookup a claim is checked against, per entity type. */
-const LOOKUP_PATH: Record<string, string> = {
-  venue: "venues",
-  artist: "artists",
-  event: "events",
-};
-
 interface OwnershipRow {
   id: string;
   org_id: string;
@@ -93,6 +86,16 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
   }
 
   /**
+   * Does this user speak for that organization? The one line every route that
+   * changes an org's standing repeats — a `member` seat may publish, it may not
+   * claim, invite or revoke.
+   */
+  async function administers(userId: string, orgId: string): Promise<boolean> {
+    const seat = (await seatsOf(userId)).find((row) => row.org_id === orgId);
+    return seat?.role === "owner" || seat?.role === "admin";
+  }
+
+  /**
    * The entity's name as the graph spells it, or null when no such uid exists.
    *
    * Both questions in one call: existence, and the display name that gets
@@ -104,8 +107,9 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     uid: string,
     request: FastifyRequest,
   ): Promise<string | null> {
-    const path = LOOKUP_PATH[type];
-    if (!path) return null;
+    // ENTITY_TYPES validated `type` upstream, and every lookup route is the
+    // plural of it: venue -> /venues, artist -> /artists, event -> /events.
+    const path = `${type}s`;
     const url = `${config.retrieverUrl}/${path}?uids=${encodeURIComponent(uid)}`;
     const headers: Record<string, string> = {};
     if (config.internalApiKey) headers["x-internal-key"] = config.internalApiKey;
@@ -116,15 +120,14 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       throw new Error("entity lookup failed");
     }
     const body = (await response.json()) as Record<string, { name?: string }[]>;
-    const hits = body[path] ?? body["events"] ?? [];
+    const hits = body[path] ?? [];
     return hits[0]?.name ?? null;
   }
 
   // ── POST /api/claims ──────────────────────────────────────────────────────
 
   app.post("/api/claims", pro, async (request, reply) => {
-    const user = request.user;
-    if (!user) return reply.code(401).send({ error: "authentication required" });
+    const user = request.user!;
 
     const body = request.body as {
       org_id?: unknown;
@@ -147,9 +150,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
 
     // A pro may only claim for an organization they administer. Membership
     // alone is not enough: a `member` seat can publish, not speak for the org.
-    const seats = await seatsOf(user.id);
-    const seat = seats.find((row) => row.org_id === orgId);
-    if (!seat || (seat.role !== "owner" && seat.role !== "admin")) {
+    if (!(await administers(user.id, orgId))) {
       return reply.code(403).send({ error: "you do not administer that organization" });
     }
 
@@ -192,9 +193,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     "/api/claims/:id",
     pro,
     async (request, reply) => {
-      const user = request.user;
-      if (!user) return reply.code(401).send({ error: "authentication required" });
-
+      const user = request.user!;
       const { id } = request.params;
       let claims: OwnershipRow[];
       try {
@@ -210,9 +209,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       const claim = claims[0];
       // 404 rather than 403 for a claim they cannot administer: whether a given
       // uuid names somebody else's claim is not theirs to learn.
-      const seats = await seatsOf(user.id);
-      const seat = claim ? seats.find((row) => row.org_id === claim.org_id) : undefined;
-      if (!claim || !seat || (seat.role !== "owner" && seat.role !== "admin")) {
+      if (!claim || !(await administers(user.id, claim.org_id))) {
         return reply.code(404).send({ error: "no such claim" });
       }
       if (claim.status !== "active") {
@@ -240,9 +237,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
   // ── GET /api/claims ───────────────────────────────────────────────────────
 
   app.get("/api/claims", pro, async (request, reply) => {
-    const user = request.user;
-    if (!user) return reply.code(401).send({ error: "authentication required" });
-
+    const user = request.user!;
     const query = request.query as { entity_type?: unknown; entity_uid?: unknown };
     const entityType = query.entity_type;
     const entityUid = query.entity_uid;
@@ -297,23 +292,13 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
    */
   const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
-  /** The caller's seat in an org, or undefined — the admin check every route repeats. */
-  async function adminSeat(userId: string, orgId: string): Promise<MemberRow | undefined> {
-    const seats = await seatsOf(userId);
-    const seat = seats.find((row) => row.org_id === orgId);
-    if (!seat || (seat.role !== "owner" && seat.role !== "admin")) return undefined;
-    return seat;
-  }
-
   // ── POST /api/orgs/:orgId/invitations ─────────────────────────────────────
 
   app.post<{ Params: { orgId: string } }>(
     "/api/orgs/:orgId/invitations",
     pro,
     async (request, reply) => {
-      const user = request.user;
-      if (!user) return reply.code(401).send({ error: "authentication required" });
-
+      const user = request.user!;
       const { orgId } = request.params;
       const body = request.body as { email?: unknown; role?: unknown } | null;
       const rawEmail = body?.email;
@@ -337,7 +322,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
 
       // A member seat may publish, not speak for the org — the same line
       // POST /api/claims draws, for the same reason.
-      if (!(await adminSeat(user.id, orgId))) {
+      if (!(await administers(user.id, orgId))) {
         return reply.code(403).send({ error: "you do not administer that organization" });
       }
 
@@ -381,9 +366,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     "/api/invitations/:id",
     pro,
     async (request, reply) => {
-      const user = request.user;
-      if (!user) return reply.code(401).send({ error: "authentication required" });
-
+      const user = request.user!;
       const { id } = request.params;
       let rows: InvitationRow[];
       try {
@@ -400,7 +383,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
       // uuid names somebody else's invitation is not theirs to learn. Same
       // reasoning as DELETE /api/claims/:id.
       const invitation = rows[0];
-      if (!invitation || !(await adminSeat(user.id, invitation.org_id))) {
+      if (!invitation || !(await administers(user.id, invitation.org_id))) {
         return reply.code(404).send({ error: "no such invitation" });
       }
       if (invitation.accepted_at) {
@@ -427,9 +410,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
    * the trigger from 20260908000026 grants the role when the seat lands.
    */
   app.post("/api/invitations/accept", { preHandler: requireRole("user") }, async (request, reply) => {
-    const user = request.user;
-    if (!user) return reply.code(401).send({ error: "authentication required" });
-
+    const user = request.user!;
     const body = request.body as { token?: unknown } | null;
     const token = body?.token;
     if (typeof token !== "string" || token.length === 0 || token.length > 256) {
@@ -523,7 +504,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
    */
   async function orgForPublish(
     userId: string,
-    accessToken: string | undefined,
+    accessToken: string,
     request: FastifyRequest,
     /** The organization the publisher named, already checked against their seats. */
     chosen?: string,
@@ -531,7 +512,6 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     if (chosen) return chosen;
     const seats = await seatsOf(userId);
     if (seats[0]) return seats[0].org_id;
-    if (!accessToken) return null;
 
     const profiles = await db.select<{ org_name: string | null }>(
       "promoter_profiles",
@@ -565,8 +545,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
   }
 
   app.post("/api/publish", pro, async (request, reply) => {
-    const user = request.user;
-    if (!user) return reply.code(401).send({ error: "authentication required" });
+    const user = request.user!;
 
     // Which organization this is being published for. Checked here, before the
     // graph write, because it is the only point where refusing is still free —
@@ -624,7 +603,7 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
     // here leaves the event published and says so, rather than 500ing over a
     // write the promoter already succeeded at.
     try {
-      const orgId = await orgForPublish(user.id, bearer(request), request, chosenOrg);
+      const orgId = await orgForPublish(user.id, user.token, request, chosenOrg);
       if (!orgId) {
         warnings.push("Published, but not recorded against an organisation yet.");
       } else {
@@ -661,12 +640,4 @@ export function registerOrgs(app: FastifyInstance, config: GatewayConfig): void 
 
     return reply.code(upstream.status).send({ ...result, warnings });
   });
-}
-
-/** The caller's raw access token, which the RPC bootstrap runs as. */
-function bearer(request: FastifyRequest): string | undefined {
-  const header = request.headers.authorization;
-  if (!header) return undefined;
-  const [scheme, token] = header.split(" ");
-  return scheme?.toLowerCase() === "bearer" && token ? token : undefined;
 }

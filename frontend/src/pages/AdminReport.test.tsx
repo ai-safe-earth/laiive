@@ -1,9 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminReport from "./AdminReport";
+import { renderWith } from "@/test/renderWith";
 
 const api = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("@/api/client", () => ({
@@ -46,17 +46,11 @@ const REPORT = {
 };
 
 function renderReport() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/admin/reports/r1"]}>
-        <Routes>
-          <Route path="/admin/reports/:id" element={<AdminReport />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderWith(
+    <Routes>
+      <Route path="/admin/reports/:id" element={<AdminReport />} />
+    </Routes>,
+    { route: "/admin/reports/r1" },
   );
 }
 

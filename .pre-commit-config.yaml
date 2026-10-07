@@ -14,7 +14,6 @@ repos:
     hooks:
       - id: check-toml
       - id: check-yaml
-        # k8s manifests are multi-document files
         args: ["--allow-multiple-documents"]
       - id: check-json
         # tsconfig files are JSONC (comments allowed) — not parseable as strict JSON
@@ -107,6 +106,11 @@ repos:
       # it rescans the whole tree on every push for no extra coverage.
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
+        # The frozen embedding vectors are keyed by a hash of the text they
+        # embed, and a file of short hex keys reads to the entropy detector as
+        # eighteen leaked secrets. It is generated (evals/freeze_embeddings.py),
+        # holds nothing but floats and those keys, and is never hand-edited.
+        exclude: ^services/retriever/evals/datasets/retrieval/embeddings\.json$
 
   #######################################################################
   # 5. SQL linting for Postgres migrations & seed scripts

@@ -5,7 +5,8 @@ import { usePromoterProfile } from "@/api/profile";
 import { useAuth } from "@/auth/AuthProvider";
 import { becomePromoter } from "@/auth/becomePromoter";
 // Pro-palette primitives that happen to live under admin/ — see ProOrg.tsx.
-import { Label, Panel } from "@/admin/ui";
+import { Panel } from "@/admin/ui";
+import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Input, PRO_FIELD } from "@/components/ui/Input";
 import { useTranslation } from "@/i18n/useTranslation";

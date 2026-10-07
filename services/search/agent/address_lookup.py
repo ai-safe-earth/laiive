@@ -1,7 +1,7 @@
 """Find a venue's street address on the open web, for geocoding (D12 follow-up).
 
 Nominatim answers a street address far more reliably than a venue name. The
-bake-off (scripts/geocode_bakeoff.py) left 10 venues that no query form of the
+bake-off (harness deleted, in git history) left 10 venues that no query form of the
 name could resolve — all small independent rooms that OSM simply has no named
 POI for — while only 26% of swept drafts carried an address at all. Rather than
 adding a second geocoding provider, this recovers the missing *address* using

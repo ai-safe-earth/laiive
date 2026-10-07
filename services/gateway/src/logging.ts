@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
+import { createSupabaseAdmin } from "./supabaseAdmin.js";
 
 const LOGGED_ROUTES = [
   /^\/api\/chat(\/|$)/,
@@ -26,13 +27,9 @@ const EXCLUDED_ROUTE = /^\/api\/chat\/feedback([/?]|$)/;
 export function registerConversationLogging(app: FastifyInstance, config: GatewayConfig): void {
   if (!config.conversationLogging) return;
 
-  const endpoint = `${config.supabaseUrl}/rest/v1/conversation_logs`;
-  const headers = {
-    "content-type": "application/json",
-    apikey: config.supabaseServiceRoleKey,
-    authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-    prefer: "return=minimal",
-  };
+  // insertMinimal, not insert: this fires on every chat turn and nothing reads
+  // the row back, so it must not pull a representation home behind each one.
+  const db = createSupabaseAdmin(config);
 
   app.addHook("onResponse", (request, reply, done) => {
     done();
@@ -46,18 +43,14 @@ export function registerConversationLogging(app: FastifyInstance, config: Gatewa
         ? body
         : null;
 
-    fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        request_id: request.id,
-        user_id: request.user?.id ?? null,
-        user_role: request.user?.role ?? "anon",
-        route: request.url.split("?")[0],
-        status: reply.statusCode,
-        duration_ms: Math.round(reply.elapsedTime),
-        payload,
-      }),
+    db.insertMinimal("conversation_logs", {
+      request_id: request.id,
+      user_id: request.user?.id ?? null,
+      user_role: request.user?.role ?? "anon",
+      route: request.url.split("?")[0],
+      status: reply.statusCode,
+      duration_ms: Math.round(reply.elapsedTime),
+      payload,
     }).catch((error: unknown) => {
       request.log.warn({ err: error }, "conversation log insert failed");
     });

@@ -21,6 +21,7 @@ from .language import (
     normalize_language,
     reply_language_instruction,
 )
+from .request_id import request_id_from
 from .speech import (
     ALLOWED_AUDIO_SUFFIXES,
     MAX_AUDIO_BYTES,
@@ -29,6 +30,7 @@ from .speech import (
     transcribe,
     validate_audio,
 )
+from .tracing import get_tracer, setup_tracing, stage, start_child
 from .protocol import (
     Done,
     Error,
@@ -54,6 +56,11 @@ __all__ = [
     "check_draft",
     "register_health",
     "install_internal_auth",
+    "get_tracer",
+    "setup_tracing",
+    "stage",
+    "start_child",
+    "request_id_from",
     "LIVENESS_PATH",
     "READINESS_PATH",
     "MessageDelta",

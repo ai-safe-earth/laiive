@@ -16,8 +16,7 @@ import { UserMenu } from "@/components/UserMenu";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/cn";
 import { claimTarget } from "@/auth/claimTarget";
-import { detectLanguageFromText } from "@/i18n/detectLanguage";
-import { useTranslation, type Language } from "@/i18n/useTranslation";
+import { useTranslation } from "@/i18n/useTranslation";
 
 /**
  * The opening film, and the three reasons it does not play.
@@ -43,7 +42,7 @@ export function introAt(state: unknown): IntroStage {
 export type IntroStage = "playing" | "leaving" | "done";
 
 export default function Chat() {
-  const { t, language, setLanguage } = useTranslation();
+  const { t, language } = useTranslation();
 
   // Pipeline states the retriever emits, worded for humans.
   const statusLabel: Record<string, string> = {
@@ -117,9 +116,9 @@ export default function Chat() {
     // Asking a question is the strongest possible skip.
     setIntro((stage) => (stage === "playing" ? "leaving" : stage));
 
-    const detected = detectLanguageFromText(text);
-    if (detected && detected !== language) setLanguage(detected as Language);
-
+    // No guessing the language from the words typed: the picker on /account is
+    // persisted and is the one answer. A word-list guesser overrode a reader's
+    // own choice on the overlap between four Romance languages.
     const history: ChatMessage[] = [...messages, { role: "user", content: text }];
     setMessages(history);
     setInput("");

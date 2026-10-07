@@ -98,30 +98,3 @@ export function usePromoterProfile(userId: string | undefined) {
     },
   });
 }
-
-export type PromoterProfileInput = Omit<PromoterProfile, "user_id">;
-
-export function useSavePromoterProfile(userId: string | undefined) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: PromoterProfileInput) => {
-      if (!userId) throw new Error("not signed in");
-      // Upsert: a pro who never filled this in has no row yet, and the RLS
-      // policies allow both the insert and the update of their own row.
-      const { error } = await supabase.from("promoter_profiles").upsert(
-        {
-          user_id: userId,
-          ...input,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => {
-      if (userId) {
-        void queryClient.invalidateQueries({ queryKey: profileKeys.promoter(userId) });
-      }
-    },
-  });
-}

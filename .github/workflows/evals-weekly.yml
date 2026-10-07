@@ -1,0 +1,100 @@
+# The integration tier of the eval cases, on a schedule.
+#
+# ci.yml runs `-m "not integration"` and is right to: CI should not need an
+# OpenAI key on every push. But nothing ran the other tier either, so eleven
+# live assertions only executed when somebody typed the command — which is
+# exactly how the corpus they belong to went stale for five months before
+# anyone noticed (docs/explain/eval-phase-2.html §6.2).
+#
+# Weekly, not nightly: traffic here is hand-triggered and a nightly run on a
+# project this size is noise that gets muted, which is the same failure in a
+# new costume.
+#
+# continue-on-error on purpose. These assertions are about what a model emits,
+# so a red run is a prompt to go and read, not a broken build — and a job that
+# can block nothing is a job nobody is tempted to delete. The summary below is
+# what gets read.
+
+name: evals (weekly)
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 06:00 UTC, before the weekly corpus read
+  workflow_dispatch:       # and on demand, which is how it will mostly run
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # A Neo4j, but never Aura. The cypher corpus moved from regex over the
+    # generated query to running it and comparing the uids it returns, so it
+    # needs a database — the same throwaway fixture CI's `graph` job uses,
+    # eighteen events seeded per run. Aura stays out of this on purpose: it
+    # auto-pauses, and a paused database would turn every weekly run red for a
+    # reason that has nothing to do with the model.
+    env:
+      UV_PYTHON: "3.13"
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      # config.py requires these; the classifier and composer tiers touch neither.
+      NEO4J_URI: bolt://localhost:7689
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: unused  # pragma: allowlist secret
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        ports:
+          - 7689:7687
+        env:
+          NEO4J_AUTH: neo4j/laiive-test-graph # pragma: allowlist secret
+          NEO4J_server_memory_heap_max__size: 512m
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p laiive-test-graph 'RETURN 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Fail loudly if the key is missing
+        # Without this the suite "passes" by collecting nothing, and a silently
+        # empty eval run is worse than no eval run.
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY repo secret is not set — the integration tier cannot run"
+            exit 1
+          fi
+
+      - name: Run the integration tier
+        id: evals
+        continue-on-error: true
+        working-directory: services/retriever
+        run: |
+          uv sync
+          uv run --no-sync python -m pytest -v -m integration \
+            --timeout=180 tests/test_eval_cases.py \
+            tests/test_classifier_cases.py tests/test_composer_cases.py \
+            | tee eval-run.txt
+
+      - name: Summarise
+        if: always()
+        working-directory: services/retriever
+        run: |
+          {
+            echo "## Retriever eval cases — integration tier"
+            echo
+            echo "Outcome: \`${{ steps.evals.outcome }}\`"
+            echo
+            echo '```'
+            tail -n 25 eval-run.txt 2>/dev/null || echo "no output captured"
+            echo '```'
+            echo
+            echo "XPASS is information, not a failure. Two tiers are"
+            echo "xfail(strict=False): \`expected_patterns\`, until phase 4"
+            echo "replaces regex over generated Cypher with execute-and-compare,"
+            echo "and the seven \`known_gap\` cases across the classifier and"
+            echo "answer-quality sets — an XPASS there means the prompt grew"
+            echo "the behaviour the label asked for."
+          } >> "$GITHUB_STEP_SUMMARY"

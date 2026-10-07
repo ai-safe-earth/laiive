@@ -1,7 +1,8 @@
 import { A } from "@/admin/strings";
-import { Badge, Empty, Label, Panel, type Tone } from "@/admin/ui";
+import { Badge, Empty, Panel, type Tone } from "@/admin/ui";
 import { useStats, type SchedulerDeployment, type SearchStats } from "@/api/admin";
 import { Icon } from "@/components/Icon";
+import { Label } from "@/components/ui/Label";
 import { cn } from "@/lib/cn";
 
 /**

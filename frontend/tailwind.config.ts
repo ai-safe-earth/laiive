@@ -35,7 +35,6 @@ export default {
     extend: {
       colors: {
         border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -47,17 +46,12 @@ export default {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
         },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
+        // Errors and delete are drawn in the red itself; nothing ever needed
+        // ink on top of it, so there is no destructive.foreground.
+        destructive: "hsl(var(--destructive))",
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -98,7 +92,6 @@ export default {
           published: "hsl(var(--status-published))",
           attention: "hsl(var(--status-attention))",
           rejected: "hsl(var(--status-rejected))",
-          draft: "hsl(var(--status-draft))",
         },
       },
       fontFamily: {
@@ -106,11 +99,9 @@ export default {
         sans: ["DM Sans", "system-ui", "sans-serif"],
         mono: ["IBM Plex Mono", "monospace"],
       },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
+      // No borderRadius scale: nothing is square and nothing is "lg" either —
+      // every corner in this app is a literal (rounded-[20px], rounded-full)
+      // off the reference screens, so an lg/md/sm ladder only sat there unused.
     },
   },
   plugins: [],

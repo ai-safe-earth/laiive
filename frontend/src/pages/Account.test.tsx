@@ -1,9 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Account from "./Account";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -23,13 +22,9 @@ vi.mock("@/api/profile", () => ({
 }));
 
 function renderFrom(from?: string) {
-  return render(
-    <MemoryRouter initialEntries={[{ pathname: "/account", state: from ? { from } : null }]}>
-      <LanguageProvider>
-        <Account />
-      </LanguageProvider>
-    </MemoryRouter>,
-  );
+  return renderWith(<Account />, {
+    route: { pathname: "/account", state: from ? { from } : null },
+  });
 }
 
 beforeEach(() => {

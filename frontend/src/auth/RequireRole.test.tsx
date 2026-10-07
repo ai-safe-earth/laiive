@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { screen } from "@testing-library/react";
+import { Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { RequireRole } from "./RequireRole";
+import { renderWith } from "@/test/renderWith";
 
 const auth = vi.hoisted(() => ({
   state: { user: null as unknown, role: "user", isLoading: false },
@@ -10,21 +11,20 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/auth/AuthProvider", () => ({ useAuth: () => auth.state }));
 
 function renderGuard(minimum: "pro" | "admin" = "admin") {
-  return render(
-    <MemoryRouter initialEntries={["/admin"]}>
-      <Routes>
-        <Route
-          path="/admin"
-          element={
-            <RequireRole minimum={minimum}>
-              <p>the admin screen</p>
-            </RequireRole>
-          }
-        />
-        <Route path="/" element={<p>the chat</p>} />
-        <Route path="/auth" element={<p>the sign-in form</p>} />
-      </Routes>
-    </MemoryRouter>,
+  return renderWith(
+    <Routes>
+      <Route
+        path="/admin"
+        element={
+          <RequireRole minimum={minimum}>
+            <p>the admin screen</p>
+          </RequireRole>
+        }
+      />
+      <Route path="/" element={<p>the chat</p>} />
+      <Route path="/auth" element={<p>the sign-in form</p>} />
+    </Routes>,
+    { route: "/admin" },
   );
 }
 

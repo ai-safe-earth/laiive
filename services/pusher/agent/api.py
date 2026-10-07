@@ -1,10 +1,11 @@
 """Pusher API — multimodal event submission via chat, voice and image."""
 
 import asyncio
-import uuid
+import threading
+import time
 from typing import List, Literal, Optional
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from laiive_shared import (
     ALLOWED_AUDIO_SUFFIXES,
@@ -19,6 +20,8 @@ from laiive_shared import (
     WalkState,
     install_internal_auth,
     register_health,
+    request_id_from,
+    setup_tracing,
     sse_frame,
 )
 from loguru import logger
@@ -27,7 +30,7 @@ from starlette.concurrency import run_in_threadpool
 
 from config import settings
 
-from . import graph
+from . import graph, push_records
 from .conversation import WalkInput, process_turn
 from .converters import (
     UnreadableDocument,
@@ -53,6 +56,18 @@ register_health(
 # Defence in depth behind the NetworkPolicy — matters most here, since this is
 # the service that writes. Unset key = no-op (local runs, compose, tests).
 install_internal_auth(app, expected=settings.internal_api_key)
+
+# This service had no tracing at all: its OpenAI clients are module-level in
+# conversation.py, converters.py and graph.py, and the old Langfuse wrapper only
+# ever reached clients built by the retriever's factory. The instrumentor patches
+# the openai module, so all three are covered without being touched — but only if
+# this runs before they issue their first call, which module scope guarantees.
+tracing_on = setup_tracing(
+    "pusher",
+    enabled=settings.phoenix_enabled,
+    endpoint=settings.phoenix_collector_endpoint,
+    api_key=settings.phoenix_api_key,
+)
 
 
 # ============== Pydantic Models ==============
@@ -97,17 +112,42 @@ class ValidateEventRequest(BaseModel):
 # ============== Helpers ==============
 
 
-def _write_or_raise(
-    draft: EventDraft, owner_id: str | None, venue_uid: str | None = None
-):
-    result = graph.write_event(draft, owner_id=owner_id, venue_uid=venue_uid)
-    if result.status == "invalid":
-        raise HTTPException(422, result.message)
-    if result.status == "duplicate":
-        raise HTTPException(409, result.message)
+def _record(request_id: str, *, start: float, **fields) -> None:
+    """Fire-and-forget the write verdict, off the caller's latency.
+
+    A daemon thread for the same reason the retriever's eval_records write uses
+    one, and with the same ceiling: unbounded at high write rates, and a thread
+    caught mid-POST at shutdown loses its record. Writes are hand-triggered
+    today, so that is a long way off — but see _write_eval_record in the
+    retriever for the upgrade path when it is not.
+
+    ponytail: duplicated rather than shared with the retriever's copy. Five
+    lines, and the two are likely to diverge (this one should grow a bounded
+    queue first, since a scheduled sweep will burst).
+    """
+    threading.Thread(
+        target=push_records.write,
+        args=(request_id,),
+        kwargs={**fields, "latency_ms": int((time.perf_counter() - start) * 1000)},
+        daemon=True,
+    ).start()
+
+
+STATUS_CODES = {"invalid": 422, "duplicate": 409, "not_found": 404}
+
+
+def _raise_for(result) -> None:
+    """The verdict-to-HTTP half both write helpers used to spell out in full.
+
+    `not_found` cannot come back from a create, and mapping it anyway costs a
+    dict entry rather than a second copy of this function.
+    """
+    code = STATUS_CODES.get(result.status)
+    if code:
+        raise HTTPException(code, result.message)
     if result.status == "error":
-        # A waking Aura already survived one in-process retry by now; tell
-        # the promoter something they can act on rather than a bare 500.
+        # A waking Aura already survived one in-process retry by now; tell the
+        # promoter something they can act on rather than a bare 500.
         if graph.is_transient_graph_error(result.message):
             raise HTTPException(
                 503,
@@ -115,44 +155,52 @@ def _write_or_raise(
                 "please try again in a moment.",
             )
         raise HTTPException(500, result.message)
+
+
+def _write_or_raise(
+    draft: EventDraft,
+    owner_id: str | None,
+    venue_uid: str | None = None,
+    request_id: str = "",
+):
+    start = time.perf_counter()
+    result = graph.write_event(draft, owner_id=owner_id, venue_uid=venue_uid)
+    # Before the raises, not after: duplicate, invalid and error all leave this
+    # function as HTTPExceptions, and those are the verdicts worth having.
+    _record(
+        request_id,
+        start=start,
+        kind="create",
+        entity_type="event",
+        result=result,
+        user_id=owner_id,
+        draft=draft.model_dump(mode="json"),
+    )
+    _raise_for(result)
     return result
 
 
-def _updated_or_raise(result):
+def _updated_or_raise(
+    result,
+    request_id: str = "",
+    entity_type: str = "event",
+    user_id: str | None = None,
+    start: float | None = None,
+):
     """Map an UpdateResult onto HTTP, mirroring _write_or_raise."""
-    if result.status == "invalid":
-        raise HTTPException(422, result.message)
-    if result.status == "duplicate":
-        raise HTTPException(409, result.message)
-    if result.status == "not_found":
-        raise HTTPException(404, result.message)
-    if result.status == "error":
-        if graph.is_transient_graph_error(result.message):
-            raise HTTPException(
-                503,
-                "The events database is briefly unavailable — "
-                "please try again in a moment.",
-            )
-        raise HTTPException(500, result.message)
+    _record(
+        request_id,
+        start=start if start is not None else time.perf_counter(),
+        kind="edit",
+        entity_type=entity_type,
+        result=result,
+        user_id=user_id,
+    )
+    _raise_for(result)
     return result.model_dump()
 
 
 # ============== Health ==============
-
-
-@app.get("/")
-def root():
-    return {
-        "service": "laiive pusher API",
-        "version": "0.3.0",
-        "endpoints": {
-            "health": "/health",
-            "chat_stream": "/chat/stream (POST) - SSE streaming",
-            "ingest": "/ingest (POST, multipart) - audio/image/document/url → text",
-            "validate": "/validate-event (POST)",
-            "edit": "/events|venues|artists/{uid} (PATCH) - owner edits",
-        },
-    }
 
 
 @app.get("/health")
@@ -165,18 +213,32 @@ def health():
         logger.warning(f"Neo4j health check failed: {e}")
         checks["neo4j"] = "error"
     all_ok = all(v == "ok" for v in checks.values())
-    return {"status": "ok" if all_ok else "degraded", "checks": checks}
+    return {
+        "status": "ok" if all_ok else "degraded",
+        "checks": checks,
+        # Not a check: a failed verdict record never degrades a write, by
+        # design. Reported so a rotated service-role key cannot quietly empty
+        # push_records while this endpoint keeps saying ok. Process-local.
+        "telemetry": {
+            "push_records_writes_failed": push_records.writes_failed,
+            "tracing": tracing_on,
+        },
+    }
 
 
 # ============== SSE Chat ==============
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatStreamRequest):
+async def chat_stream(request: ChatStreamRequest, raw: Request):
     """Submission chat. One clarification round, then the form — always."""
     if not request.messages:
         raise HTTPException(400, "No messages provided")
-    request_id = str(uuid.uuid4())
+    # This was a locally minted uuid4, which meant the service's logs and its
+    # done frame carried an id that appeared in no table: the gateway had
+    # already written conversation_logs under its own. Same contract as the
+    # retriever now.
+    request_id = request_id_from(raw)
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     walk = (
         WalkInput(drafts=request.walk.drafts, cursor=request.walk.cursor)
@@ -302,6 +364,7 @@ async def ingest(
 @app.post("/validate-event")
 async def validate_event(
     request: ValidateEventRequest,
+    raw: Request,
     x_user_id: Optional[str] = Header(None),
 ):
     """Publish a form-approved event — the only write trigger."""
@@ -311,7 +374,7 @@ async def validate_event(
     # and the MERGE — off the event loop, or one submission stalls the whole
     # process. Same shape as `/chat/stream` above.
     result = await asyncio.to_thread(
-        _write_or_raise, draft, x_user_id, request.venue_uid
+        _write_or_raise, draft, x_user_id, request.venue_uid, request_id_from(raw)
     )
     return {
         "success": True,
@@ -345,18 +408,36 @@ class EditRequest(BaseModel):
 
 
 @app.patch("/events/{uid}")
-async def edit_event(uid: str, request: EditRequest):
+async def edit_event(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_event, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "event", x_user_id, start)
 
 
 @app.patch("/venues/{uid}")
-async def edit_venue(uid: str, request: EditRequest):
+async def edit_venue(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_venue, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "venue", x_user_id, start)
 
 
 @app.patch("/artists/{uid}")
-async def edit_artist(uid: str, request: EditRequest):
+async def edit_artist(
+    uid: str,
+    request: EditRequest,
+    raw: Request,
+    x_user_id: Optional[str] = Header(None),
+):
+    start = time.perf_counter()
     result = await asyncio.to_thread(graph.update_artist, uid, request.fields)
-    return _updated_or_raise(result)
+    return _updated_or_raise(result, request_id_from(raw), "artist", x_user_id, start)

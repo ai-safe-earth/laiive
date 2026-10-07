@@ -74,8 +74,8 @@ Solo builder/founder; I wrote most of this code. Skip orientation and background
 ## Repo etiquette
 
 - Conventional Commits, lowercase subject, enforced by a commitizen `commit-msg` hook.
-  `CONTRIBUTING.md` wants a body explaining *why* plus a `Refs: #123` trailer.
-- **`main` is production, `develop` is the trunk** — full model in `CONTRIBUTING.md`. Cut
+  The README's *Contributing* section wants a body explaining *why* plus a `Refs: #123` trailer.
+- **`main` is production, `develop` is the trunk** — full model in `README.md` *Contributing*. Cut
   `<type>/<kebab-desc>` branches from `develop` and PR into `develop`; `main` only ever receives
   a release PR from `develop`, and is protected (PR required, every check green, no force-push).
   Merge commits, never squash — the commit bodies are the reasoning.

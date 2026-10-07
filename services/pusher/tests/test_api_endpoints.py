@@ -26,14 +26,12 @@ def _frames(body: str) -> list[tuple[str, str]]:
 
 
 class TestHealthEndpoints:
-    def test_root_endpoint(self, client):
-        data = client.get("/").json()
-        assert data["version"] == "0.3.0"
-        assert "validate" in data["endpoints"]
-
     def test_health(self, client, mock_neo4j):
         data = client.get("/health").json()
-        assert data == {"status": "ok", "checks": {"api": "ok", "neo4j": "ok"}}
+        assert data["status"] == "ok"
+        assert data["checks"] == {"api": "ok", "neo4j": "ok"}
+        # telemetry is reported beside the checks, never as one of them
+        assert data["telemetry"]["push_records_writes_failed"] == 0
 
     def test_health_neo4j_down(self, client, mock_neo4j):
         mock_neo4j.verify_connectivity.side_effect = Exception("down")
@@ -50,6 +48,39 @@ class TestChatStreamRequests:
             "/chat/stream", json={"messages": [{"role": "bad", "content": "x"}]}
         )
         assert response.status_code == 422
+
+
+class TestRequestIdIsTheGateways:
+    """The id this service reports must be the one the gateway logged under.
+
+    It used to mint its own uuid4 per turn, so `conversation_logs` held the
+    gateway's id while the pusher's stdout and its done frame held a different
+    one, and no query could join them. Nothing failed when that was true, which
+    is why it stayed true — hence these two.
+    """
+
+    def test_gateway_header_is_adopted(self, client, mock_openai):
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "full event info"}]},
+            headers={"x-request-id": "gateway-minted-id"},
+        )
+        assert response.headers["x-request-id"] == "gateway-minted-id"
+        done = [
+            line
+            for line in response.text.splitlines()
+            if line.startswith("data: ") and "gateway-minted-id" in line
+        ]
+        assert done, "the done frame must carry the gateway's id, not a local one"
+
+    def test_direct_call_still_gets_an_id(self, client, mock_openai):
+        """No gateway, no header — a curl at 8003 must not 500."""
+        response = client.post(
+            "/chat/stream",
+            json={"messages": [{"role": "user", "content": "full event info"}]},
+        )
+        assert response.status_code == 200
+        assert response.headers["x-request-id"]
 
 
 class TestChatStreamV2:
@@ -467,10 +498,10 @@ class TestValidateEventDraft:
         original = pusher_api._write_or_raise
         started = threading.Event()
 
-        def slow_write(draft, owner_id, venue_uid=None):
+        def slow_write(draft, owner_id, venue_uid=None, request_id=""):
             started.set()
             time.sleep(0.3)
-            return original(draft, owner_id, venue_uid)
+            return original(draft, owner_id, venue_uid, request_id)
 
         async def exercise():
             # Watch how long the loop goes without getting a turn. A handler that

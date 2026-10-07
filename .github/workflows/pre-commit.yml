@@ -34,7 +34,7 @@ jobs:
 
   # The commit-msg hook only fires on `git commit`, so nothing on the server
   # ever saw a message until now. `cz check` re-reads the PR's own commits.
-  # CONTRIBUTING.md makes the bodies the reasoning — this keeps them parseable
+  # README.md (Contributing) makes the bodies the reasoning — this keeps them parseable
   # by `cz bump`, which is what writes CHANGELOG.md at release.
   commit-lint:
     if: github.event_name == 'pull_request'

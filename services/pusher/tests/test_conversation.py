@@ -7,7 +7,6 @@ from agent.conversation import (
     MAX_EVENTS_PER_TURN,
     WalkInput,
     clarification_rounds,
-    default_currency,
     process_turn,
 )
 from agent.converters import (
@@ -312,12 +311,14 @@ class TestWalk:
         assert turn.drafts[0].venue == "Test Venue"
 
     def test_walk_turn_defaults_currency_on_the_cursor(self, mock_openai):
-        set_extraction(mock_openai, {**COMPLETE, "city": "London"})
+        """A draft that named no currency gets the default, not nothing — the
+        card would otherwise print a bare number."""
+        set_extraction(mock_openai, {**COMPLETE, "city": "Madrid"})
         turn = process_turn(
-            [{"role": "user", "content": "it's in London"}],
+            [{"role": "user", "content": "it's in Madrid"}],
             walk=WalkInput(drafts=[EventDraft(artists=["A"])], cursor=0),
         )
-        assert turn.drafts[0].price_currency == "GBP"
+        assert turn.drafts[0].price_currency == "EUR"
 
     def test_beyond_the_cap_is_truncated_and_flagged(self, mock_openai):
         set_extraction(mock_openai, {"events": [COMPLETE] * (MAX_EVENTS_PER_TURN + 3)})
@@ -351,16 +352,6 @@ class TestRefineDraft:
         ]
         assert "Sala X" in prompt
         assert "18 euros" in prompt
-
-
-class TestCurrency:
-    def test_known_cities(self):
-        assert default_currency("London") == "GBP"
-        assert default_currency("new york") == "USD"
-
-    def test_default_eur(self):
-        assert default_currency("Berlin") == "EUR"
-        assert default_currency(None) == "EUR"
 
 
 class TestConverters:

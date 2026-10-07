@@ -85,22 +85,6 @@ def mock_address_lookup():
         yield client
 
 
-@pytest.fixture(autouse=True)
-def mock_genre_lookup():
-    """Autouse: genre_lookup holds a module-level OpenAI client of its own.
-
-    Recognises nothing by default, so a test that does not care about genres
-    never depends on what a model would have said.
-    """
-    client = MagicMock()
-    reply = MagicMock()
-    reply.choices = [MagicMock()]
-    reply.choices[0].message.content = '{"artists": []}'
-    client.chat.completions.create.return_value = reply
-    with patch("agent.genre_lookup._client", client):
-        yield client
-
-
 # What /extract answers with. A distinct URL from TAVILY_PAYLOAD's, because the
 # two endpoints reaching the same page would hide a dedup bug rather than
 # exercise one.

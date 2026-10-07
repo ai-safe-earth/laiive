@@ -9,7 +9,6 @@ Every path returns the same standard row shape and is mapped to EventCards
 here — the frontend never parses prose.
 """
 
-import json
 import math
 from dataclasses import dataclass, field
 
@@ -601,13 +600,7 @@ class Executor:
     def _execute_llm_cypher(
         self, c: Constraints, timezone: str | None = None
     ) -> Outcome:
-        raw = self.query_builder.run(c.query_text or "", timezone)
-        data = json.loads(raw)
-        if data.get("status") != "success":
-            return Outcome(
-                error=data.get("error", "query generation failed"),
-                cypher=data.get("cypher"),
-            )
-        return Outcome(
-            flexible_rows_to_cards(data.get("results", [])), data.get("cypher")
-        )
+        generated = self.query_builder.run(c.query_text or "", timezone)
+        if generated.error:
+            return Outcome(error=generated.error, cypher=generated.cypher or None)
+        return Outcome(flexible_rows_to_cards(generated.rows), generated.cypher)
