@@ -1,6 +1,6 @@
 import type { EventCard } from "@shared/protocol";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import { sendFeedback, streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
@@ -9,37 +9,13 @@ import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { Composer } from "@/components/Composer";
 import { Button } from "@/components/ui/Button";
 import { EventCardView } from "@/components/EventCardView";
-import { Icon } from "@/components/Icon";
+import { LiveAccent } from "@/components/LiveAccent";
 import { Mark } from "@/components/Mark";
 import { Markdown } from "@/components/Markdown";
 import { UserMenu } from "@/components/UserMenu";
 import { useAuth } from "@/auth/AuthProvider";
-import { cn } from "@/lib/cn";
 import { claimTarget } from "@/auth/claimTarget";
 import { useTranslation } from "@/i18n/useTranslation";
-
-/**
- * The opening film, and the three reasons it does not play.
- *
- * It is for somebody arriving at laiive, so a promoter crossing back from
- * /pro has already seen the product and gets nothing — the menu's crossing
- * hands us where it came from. It also stands down for a reader who has asked
- * their system for less motion, and for one whose browser cannot tell us
- * either way, because an unskippable film over the one thing on the screen is
- * worse than no film.
- */
-export function introAt(state: unknown): IntroStage {
-  const from = (state as { from?: string } | null)?.from;
-  if (from?.startsWith("/pro") || from?.startsWith("/admin")) return "done";
-  try {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "done";
-  } catch {
-    return "done";
-  }
-  return "playing";
-}
-
-export type IntroStage = "playing" | "leaving" | "done";
 
 export default function Chat() {
   const { t, language } = useTranslation();
@@ -51,11 +27,6 @@ export default function Chat() {
     composing: t.chat.statusWriting,
   };
   const { user, role } = useAuth();
-
-  // Lazy initialiser, not an effect: an effect would show one frame of the
-  // film to the promoter it is meant to spare.
-  const { state: navigatedFrom } = useLocation();
-  const [intro, setIntro] = useState<IntroStage>(() => introAt(navigatedFrom));
 
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -74,18 +45,6 @@ export default function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
-
-  // The film hides the example chips and holds the composer bar transparent
-  // while it runs, so anything that stops it from ending strands the chat
-  // under a picture that may not even be on screen: a 404, a slow fetch of
-  // three megabytes, a refused autoplay, a tab backgrounded before it starts.
-  // The cut is seven seconds; past fifteen it is not coming, and the second,
-  // shorter guard covers a fade whose transitionend never arrives.
-  useEffect(() => {
-    if (intro === "done") return;
-    const giveUp = setTimeout(() => setIntro("done"), intro === "playing" ? 15000 : 1500);
-    return () => clearTimeout(giveUp);
-  }, [intro]);
 
   // Location is optional: "near me" queries need it, everything else does not,
   // so a denied permission is not worth a toast.
@@ -113,8 +72,6 @@ export default function Chat() {
   const send = async (preset?: string) => {
     const text = (preset ?? input).trim();
     if (!text || isStreaming) return;
-    // Asking a question is the strongest possible skip.
-    setIntro((stage) => (stage === "playing" ? "leaving" : stage));
 
     // No guessing the language from the words typed: the picker on /account is
     // persisted and is the one answer. A word-list guesser overrode a reader's
@@ -217,7 +174,7 @@ export default function Chat() {
       {/* The whole chrome inventory: mark + wordmark, saved, account. */}
       <header className="flex-shrink-0 border-b border-rule bg-chrome px-4 pb-2 pt-3 sm:px-5">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <Mark size={30} />
+          <Mark size={30} live />
           <div className="flex items-center">
             {/* Visible signed out too: the route sends you to /auth and
                 back, and a header control that appears on sign-in makes
@@ -225,9 +182,9 @@ export default function Chat() {
             <Link
               to="/saved"
               aria-label={t.menu.saved}
-              className="flex h-11 w-11 items-center justify-center text-ink-dim transition-colors hover:text-foreground"
+              className="flex h-11 w-11 items-center justify-center"
             >
-              <Icon name="saved" />
+              <LiveAccent variant="mask" mask="saved" aria-hidden="true" className="h-5 w-5" />
             </Link>
             <UserMenu />
           </div>
@@ -236,11 +193,9 @@ export default function Chat() {
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         {isEmpty && (
-          /* The grey the film lands on.
-             Same 1080x1080 viewBox and the same `meet` fit as the cut, so the
-             two are laid out by identical rules and the letters coincide at
-             every screen size instead of at one. The numbers are measured off
-             the film's own last frame: ink from x 192 to 876, baseline at
+          /* The grey wordmark behind the empty chat.
+             Its geometry was measured off the last frame of the opening film
+             (since removed), in a 1080x1080 viewBox with a `meet` fit: ink from x 192 to 876, baseline at
              y 441, cap height 232, stable between luminance thresholds 40 and
              60 so that is the letters and not their glow.
 
@@ -268,34 +223,6 @@ export default function Chat() {
             </text>
           </svg>
         )}
-        {intro !== "done" && (
-          /* Under the header and behind everything below it, with only the
-             composer floating over the top. aria-hidden and silent: it is
-             atmosphere, it says nothing the page does not, and a tap anywhere
-             on it skips.
-
-             `contain`, not `cover`: the chat area is tall and portrait and the
-             cut is not, so covering it would scale the film until it filled
-             the height and throw away most of its width. Fitted to the width
-             and centred in what is left, which is the whole frame, uncropped —
-             the same reason the promoter walkthrough lost its aspect box. */
-          <video
-            aria-hidden="true"
-            src="/laiive-intro.mp4"
-            autoPlay
-            muted
-            playsInline
-            onEnded={() => setIntro("leaving")}
-            onClick={() => setIntro("leaving")}
-            // Straight to done, no fade: there is nothing to fade out.
-            onError={() => setIntro("done")}
-            onTransitionEnd={() => setIntro("done")}
-            className={cn(
-              "absolute inset-0 z-10 h-full w-full object-contain transition-opacity duration-500",
-              intro === "leaving" ? "opacity-0" : "opacity-100",
-            )}
-          />
-        )}
 
       <div className="relative z-0 min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
         {isEmpty ? (
@@ -303,16 +230,7 @@ export default function Chat() {
             {/* Three real queries, sent verbatim. An empty chat gives no
                 clue what it will understand, and a promoter's event is
                 only found if somebody asks in a shape that reaches it. */}
-            {/* Held back until the film is gone: rendered under it they are
-                invisible and still reachable by Tab, which is a worse bug than
-                a late entrance. The wordmark above stays — it is the grey the
-                film fades into, and it is decorative, not focusable. */}
-            <div
-              className={cn(
-                "flex max-w-md flex-wrap justify-center gap-2 transition-opacity duration-500",
-                intro === "done" ? "opacity-100" : "pointer-events-none opacity-0",
-              )}
-            >
+            <div className="flex max-w-md flex-wrap justify-center gap-2">
               {t.chat.examples.map((example) => (
                 <button
                   key={example}
@@ -379,15 +297,7 @@ export default function Chat() {
 
       </div>
 
-      {/* Over the film, and the only thing that is: while it runs the bar drops
-          its fill and its rule so the picture carries under it, and the field
-          and send read as floating on the picture rather than on a shelf. */}
-      <div
-        className={cn(
-          "relative z-20 flex-shrink-0 px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 transition-colors duration-500 sm:px-5",
-          intro === "done" ? "border-t border-rule bg-chrome" : "border-t border-transparent",
-        )}
-      >
+      <div className="relative z-20 flex-shrink-0 border-t border-rule bg-chrome px-4 pb-[max(env(safe-area-inset-bottom),14px)] pt-3 sm:px-5">
         <Composer
           value={input}
           onChange={setInput}

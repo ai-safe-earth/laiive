@@ -1,3 +1,7 @@
+/* Live accents: tokens, the shared world and its classes. @import has to lead
+   the file; its :root block does not collide with the tokens below. */
+@import "./styles/live-accents.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

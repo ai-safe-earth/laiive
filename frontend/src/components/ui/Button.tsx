@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { liveAccent } from "@/components/LiveAccent";
 import { cn } from "@/lib/cn";
 
 /**
@@ -10,7 +11,9 @@ type Variant = "primary" | "cream" | "neutral" | "ghost" | "cyan" | "proNeutral"
 type Size = "default" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+  // Live, and only ever on the consumer side: every pro caller picks cream or
+  // cyan. Hover brightens, because the world paints over any colour change.
+  primary: cn("bg-primary text-primary-foreground hover:brightness-110", liveAccent()),
   cream: "bg-foreground text-background hover:bg-foreground/90",
   neutral: "border border-field-border bg-control text-muted-foreground hover:text-foreground",
   ghost: "text-ink-dim hover:text-foreground",
@@ -52,7 +55,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         // disabled button sitting on a card (the auth form, the pro form) has
         // no edge and no contrast, and simply is not there.
         "disabled:pointer-events-none disabled:border disabled:border-border",
-        "disabled:bg-card disabled:text-pro-dim",
+        // bg-none drops a live accent's world, which would paint over the fill.
+        "disabled:bg-card disabled:bg-none disabled:text-pro-dim",
         VARIANTS[variant],
         SIZES[size],
         className,
