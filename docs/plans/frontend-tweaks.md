@@ -13,8 +13,11 @@ A batch of small frontend changes the owner asked for on 2026-10-07, ahead of st
   live mark / saved icon / primary fill / FREE chip / account chip, brand docs.
 
 ## Decisions
-- Live accents: the missing `mask-mark.png` is replaced by the existing
-  `mark-mono-fuchsia-knockout.png` (same outline, mouth transparent, checked by pixel).
+- Live accents: the mark stencil is the supplied `mask-mark.png` (owner's call, 2026-10-07), copied
+  to `frontend/public/brand/`. An earlier commit used the knockout favicon because a PNG-blind
+  file search hid `mask-mark.png`.
+- `*.tsbuildinfo` is ignored in `frontend/.gitignore`; typecheck runs write them.
+- Committed as 89b1eb8 on `feat/remove-intro-video` (branched from `cleanup`).
 - No empty-state lips and no live headline text: neither exists in the app yet (owner: keep the
   grey LAIIVE). The `text` variant is ready for when one does.
 - The header saved icon goes live (owner's call), so it is fuchsia now, not grey.

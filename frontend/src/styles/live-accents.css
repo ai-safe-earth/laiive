@@ -60,9 +60,7 @@
   -webkit-mask: var(--live-mask) center / contain no-repeat;
   mask: var(--live-mask) center / contain no-repeat;
 }
-/* The knockout mark already ships as the favicon: the exact outline with the
-   mouth transparent, which is what the missing mask-mark.png was to be. */
-.live-mark  { --live-mask: url(/brand/mark-mono-fuchsia-knockout.png); }
+.live-mark  { --live-mask: url(/brand/mask-mark.png); }   /* mouth is cut out — keeps the exact mark */
 .live-saved { --live-mask: url(/brand/mask-saved.svg); }
 
 @media (prefers-reduced-motion: reduce) {
