@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: PR the local branch chore/one-fake-neo4j-session, now on top of develop
+next: fix the 6 classifier gaps xfailed in services/retriever/evals/README.md
 ---
 # Evals and monitoring (program phase 3)
 
@@ -23,7 +23,9 @@ can tell whether a change helped.
       `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` Fly secrets. Merge PR #128.
       Done 2026-10-08: migration pushed, secrets set (digests match the retriever's),
       all four services deployed, shipped in v0.7.0.
-- [ ] PR the local branch `chore/one-fake-neo4j-session` (`88d8fad`), stacked on #128.
+- [x] PR the local branch `chore/one-fake-neo4j-session` (`88d8fad`), stacked on #128.
+      Rebased onto develop 2026-10-08 (now `9193382`, clean); shared 224, pusher 91,
+      search 142 pass.
 - [ ] Fix the 6 classifier gaps xfailed in `services/retriever/evals/README.md`. Worst two:
       "gigs near me" with no location, and "find me something". Both should ask, not
       answer "nothing found".
