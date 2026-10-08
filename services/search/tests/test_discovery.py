@@ -47,6 +47,57 @@ def test_sweep_dedups_same_event_across_pages(mock_tavily):
     assert len(result.candidates) == 1
 
 
+def test_a_language_twin_page_is_read_once(mock_tavily):
+    """visitbergamo.net: /eventi and /en/eventi are one agenda, two languages."""
+    page = dict(mock_tavily.post.return_value.json.return_value["results"][0])
+    italian = dict(page, url="https://www.visitbergamo.net/eventi")
+    english = dict(page, url="https://www.visitbergamo.net/en/eventi")
+    mock_tavily.post.return_value = http_response(
+        payload={"results": [italian, english]}
+    )
+    # Berlin: no vouched agenda pages of its own to add to the count.
+    result = discovery.sweep_city("Berlin")
+    assert result.stats["pages_searched"] == 1
+
+
+def test_page_identity_only_drops_a_language_segment():
+    same = discovery.page_identity
+    assert same("https://www.x.net/en/eventi") == same("https://x.net/eventi/")
+    assert same("https://x.net/entertainment") != same("https://x.net/tainment")
+    assert same("https://x.net/eventi?page=2") != same("https://x.net/eventi?page=3")
+
+
+def test_the_same_night_with_two_venue_spellings_is_one_candidate(mock_openai):
+    """The first direct sweep wrote "Niklas Jahn" twice: venue "Bergamo" on one
+    page, the hall on the other. Same name, day and city is one event, and the
+    copy with a real venue is the one kept."""
+    twins = json.dumps(
+        {
+            "events": [
+                {
+                    "name": "Niklas Jahn",
+                    "artists": ["Niklas Jahn"],
+                    "start_at": "2027-04-01T21:00:00",
+                    "venue": "Bergamo",
+                    "city": "Bergamo",
+                    "price_min": 5,
+                },
+                {
+                    "name": "Niklas Jahn",
+                    "artists": ["Niklas Jahn"],
+                    "start_at": "2027-04-01T21:00:00",
+                    "venue": "Teatro Donizetti",
+                    "city": "Bergamo",
+                    "price_min": 5,
+                },
+            ]
+        }
+    )
+    mock_openai.chat.completions.create.return_value.choices[0].message.content = twins
+    result = discovery.sweep_city("Bergamo")
+    assert [c.draft.venue for c in result.candidates] == ["Teatro Donizetti"]
+
+
 def test_sweep_fills_missing_city(mock_openai):
     no_city = json.dumps(
         {
