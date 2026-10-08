@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # five kinds of site is pointless if only the first one's results survive.
     sweep_max_pages: int = Field(25, alias="SEARCH_SWEEP_MAX_PAGES")
     sweep_results_per_query: int = Field(10, alias="SEARCH_RESULTS_PER_QUERY")
+    # Write a sweep's "new" candidates straight to the graph when it finishes
+    # (owner's call, 2026-10-08), instead of waiting for a human approve. The
+    # dedup marks and the writer's own probe stand between a sweep and a
+    # duplicate. False puts sweeps back to dry-run: a Fly secret, no deploy.
+    sweep_auto_write: bool = Field(True, alias="SEARCH_SWEEP_AUTO_WRITE")
 
     # Cosine score above which a vector neighbour is flagged as a likely
     # duplicate in the dry-run report (advisory — the writer's own probe is

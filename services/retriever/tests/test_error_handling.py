@@ -4,6 +4,8 @@ Error handling across the pipeline components — everything mocked.
 
 from unittest.mock import Mock, patch
 
+from neo4j.exceptions import ServiceUnavailable
+
 from agent.classifier import Classification, Classifier, Constraints
 from agent.executor import Executor, Outcome
 from agent.pipeline import Pipeline, TurnResult
@@ -96,6 +98,31 @@ class TestPipelineErrors:
         list(pipeline.run_turn("jazz in berlin", result=result))
         assert result.errors == ["db down"]
         assert result.text == "still here"  # the composer ALWAYS runs
+
+    def test_unreachable_graph_is_an_error_frame_not_a_quiet_city(self):
+        pipeline = self._pipeline()
+        pipeline.classifier = Mock()
+        pipeline.classifier.classify.return_value = Classification(
+            query_type="event_search",
+            moment="first_query",
+            sub_queries=[Constraints(city="Barcelona")],
+        )
+        pipeline.executor = Mock()
+        pipeline.executor.execute.return_value = Outcome(error="dns", unavailable=True)
+        pipeline.composer = Mock()
+
+        frames = list(pipeline.run_turn("concerts in barcelona", result=TurnResult()))
+        assert frames[-1].code == "graph_unavailable"
+        pipeline.composer.compose_stream.assert_not_called()
+
+    def test_driver_outage_marks_the_outcome_unavailable(self):
+        neo4j = Mock()
+        neo4j.execute_read.side_effect = ServiceUnavailable("Failed to DNS resolve")
+        executor = Executor(neo4j, embed_fn=Mock(), query_builder=Mock())
+        outcome = executor.execute(
+            ExecutionPlan(PlanKind.TEMPLATE, Constraints(city="Berlin"))
+        )
+        assert outcome.unavailable is True
 
     def test_unsafe_input_skips_search_but_composes(self):
         pipeline = self._pipeline()

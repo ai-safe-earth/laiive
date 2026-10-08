@@ -123,7 +123,18 @@ export default function Chat() {
             }
             upsert();
           },
-          onError: (message) => toast.error(message),
+          onError: (message, code) => {
+            // An outage is said in the chat, in the reader's language: a toast
+            // vanishes, and the server's English message is not theirs.
+            if (code === "graph_unavailable") {
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: t.chat.graphUnavailable },
+              ]);
+              return;
+            }
+            toast.error(message);
+          },
         },
       });
       // Stamped after the stream ends: the id's presence is also what tells

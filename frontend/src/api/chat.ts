@@ -22,7 +22,7 @@ export interface StreamHandlers {
   onStatus?: (state: string) => void;
   onEvents?: (events: EventCard[]) => void;
   onDelta?: (text: string) => void;
-  onError?: (message: string) => void;
+  onError?: (message: string, code: string) => void;
 }
 
 /** The reader's IANA zone, or null where Intl cannot name one. */
@@ -99,7 +99,7 @@ function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {
       handlers.onDelta?.(frame.data.text);
       break;
     case "error":
-      handlers.onError?.(frame.data.message);
+      handlers.onError?.(frame.data.message, frame.data.code);
       break;
     default:
       // form.extracted belongs to the pusher flow; done needs no handling —

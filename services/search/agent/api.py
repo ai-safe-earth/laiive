@@ -1,8 +1,10 @@
 """SEARCH service API (Phase 5) — internal, reached via the gateway's
 `/api/admin/search/*` (admin only).
 
-Sweeps are dry-run and persist a report; approve replays from the stored
-report through the shared writer with source='admin_search'. Endpoints are
+A sweep persists a report and, with SEARCH_SWEEP_AUTO_WRITE on (the default),
+writes its "new" candidates through the shared writer with
+source='admin_search' as soon as it finishes. Off, sweeps stay dry-run and
+approve replays from the stored report. Endpoints are
 plain `def` — Starlette runs them in a threadpool, so blocking work never
 starves the event loop (the Phase-3 SSE lesson, applied here).
 
@@ -82,6 +84,23 @@ def _run_sweep(report_id: str, city: str, max_pages: int | None) -> None:
     except Exception as e:  # noqa: BLE001 — a running report must never stay running
         logger.exception(f"Sweep of {city} failed")
         _mark_failed(report_id, e)
+        return
+
+    if not settings.sweep_auto_write:
+        return
+    # The same path a human approve takes with no indices: only candidates the
+    # dry run marked "new", claimed first so a racing approve cannot double-write.
+    candidates = [c.model_dump() for c in result.candidates]
+    selected = [
+        (i, c) for i, c in enumerate(candidates) if c.get("dedup_status") == "new"
+    ]
+    try:
+        written = _write_candidates(report_id, selected, approved_by=None)
+    except Exception:  # noqa: BLE001 — the report stays as the record either way
+        logger.exception(f"Auto-write of report {report_id} failed")
+        return
+    if written is None:
+        logger.warning(f"Report {report_id} was approved before the auto-write")
 
 
 def _mark_failed(report_id: str, exc: Exception) -> None:
@@ -163,11 +182,8 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
             raise HTTPException(status_code=422, detail=f"No such candidates: {bad}")
         selected = [(i, candidates[i]) for i in body.indices]
 
-    # Claim before writing. A read-then-check let two concurrent approves both
-    # pass and write the same candidates twice; the writer's dedup probe would
-    # have caught most of it, but not the wasted geocodes and embeddings.
-    approved_at = datetime.now(UTC).isoformat()
-    if not reports.claim_report(report_id, _as_uuid(x_user_id), approved_at):
+    written = _write_candidates(report_id, selected, _as_uuid(x_user_id))
+    if written is None:
         # The CAS matches only dry_run, so say what state actually blocked it.
         current = reports.get_report(report_id)
         status = (current or {}).get("status") or "unknown"
@@ -175,6 +191,24 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
             status_code=409,
             detail=f"Report is not approvable (status: {status})",
         )
+    return written
+
+
+def _write_candidates(
+    report_id: str, selected: list[tuple[int, dict]], approved_by: str | None
+) -> dict | None:
+    """Claim the report, write the selected candidates, record what happened.
+
+    None when the claim is lost (the report is no longer dry_run). Shared by a
+    human approve and the sweep's own auto-write; approved_by is None for the
+    latter.
+    """
+    # Claim before writing. A read-then-check let two concurrent approves both
+    # pass and write the same candidates twice; the writer's dedup probe would
+    # have caught most of it, but not the wasted geocodes and embeddings.
+    approved_at = datetime.now(UTC).isoformat()
+    if not reports.claim_report(report_id, approved_by, approved_at):
+        return None
 
     results = []
     written_domains: list[str] = []
@@ -213,7 +247,7 @@ def approve(report_id: str, body: ApproveRequest, x_user_id: str = Header("")):
         logger.error(f"Report {report_id} written but results not recorded: {e}")
         warnings.append(f"Events written, but the report update failed: {e}")
     logger.info(
-        f"Report {report_id} approved by {x_user_id or 'unknown'}: "
+        f"Report {report_id} approved by {approved_by or 'the sweep'}: "
         f"{created}/{len(results)} created"
     )
     return {
