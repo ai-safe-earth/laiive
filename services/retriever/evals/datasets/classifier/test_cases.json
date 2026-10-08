@@ -1,6 +1,6 @@
 {
   "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
-  "prompt_version": "v2",
+  "prompt_version": "v3",
   "test_cases": [
     {
       "id": "tonight-in-madrid",
@@ -38,9 +38,9 @@
       "id": "near-me",
       "message": "gigs near me this week",
       "has_location": true,
-      "known_gap": "returns query_type event_search with near_me true. Nothing defines when \"nearby\" is the type and route() keys off near_me alone, so the value is unreachable vocabulary - either the prompt names it or the Literal loses it.",
+      "label_note": "event_search, not nearby: prompt v3 removed the nearby type, since route() reads near_me alone.",
       "expect": {
-        "query_type": "nearby",
+        "query_type": "event_search",
         "moment": "first_query",
         "sub_query_count": 1,
         "constraints": {"near_me": true, "date_from": "any"}
@@ -50,7 +50,6 @@
       "id": "near-me-without-a-location",
       "message": "gigs near me this week",
       "has_location": false,
-      "known_gap": "returns first_query with near_me true and no clarification. route() then drops the only plan, so the turn answers \"nothing found\" instead of asking where the user is - and router.py's own comment claims the classifier marks these ambiguous.",
       "expect": {
         "moment": "ambiguous",
         "clarification": "any"
@@ -68,7 +67,6 @@
     {
       "id": "two-cities-one-message",
       "message": "techno in Berlin or Madrid this weekend",
-      "known_gap": "splits the two cities correctly but calls the moment \"refinement\" on a message with no history at all.",
       "expect": {
         "query_type": "event_search",
         "moment": "first_query",
@@ -97,7 +95,6 @@
     {
       "id": "free-gigs",
       "message": "free concerts in Bilbao",
-      "known_gap": "leaves price_max unset. The prompt never says that \"free\" is price_max 0, so the word is dropped and the answer includes paid gigs.",
       "expect": {
         "query_type": "event_search",
         "sub_query_count": 1,
@@ -177,7 +174,6 @@
     {
       "id": "bare-city-is-answerable",
       "message": "Granada",
-      "known_gap": "returns no sub_queries for a bare city name, so nothing is searched. Arguable - a one-word message could also be read as needing a clarification - but silence is the one answer that helps nobody.",
       "expect": {
         "query_type": "event_search",
         "sub_query_count": 1,
@@ -187,7 +183,6 @@
     {
       "id": "empty-ask-needs-more",
       "message": "find me something",
-      "known_gap": "returns moment new_topic with no sub_queries and no clarification, which is the prompt's own ambiguous rule going unused: no place, no location, nothing to search.",
       "expect": {"moment": "ambiguous", "clarification": "any"}
     }
   ]

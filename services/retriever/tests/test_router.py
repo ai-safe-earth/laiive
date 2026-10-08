@@ -29,12 +29,12 @@ def test_structured_constraints_route_to_template():
 
 
 def test_near_me_with_location_routes_to_nearby():
-    c = classify(query_type="nearby", sub_queries=[Constraints(near_me=True)])
+    c = classify(sub_queries=[Constraints(near_me=True)])
     assert [p.kind for p in route(c, has_location=True)] == [PlanKind.NEARBY]
 
 
 def test_near_me_without_location_is_dropped():
-    c = classify(query_type="nearby", sub_queries=[Constraints(near_me=True)])
+    c = classify(sub_queries=[Constraints(near_me=True)])
     assert route(c, has_location=False) == []
 
 

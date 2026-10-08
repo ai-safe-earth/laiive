@@ -75,10 +75,10 @@ def test_every_case_asserts_something():
 
 
 def test_the_known_gaps_are_counted_and_explained():
-    """Six holes, each with a sentence. Pinned so that xfailing a seventh case
+    """None open since prompt v3 (all six closed). Pinned so that xfailing a case
     is a decision somebody makes here rather than a quiet way to go green."""
     gaps = [case["id"] for case in CASES if case.get("known_gap")]
-    assert len(gaps) == 6, gaps
+    assert len(gaps) == 0, gaps
     for case in CASES:
         if "known_gap" in case:
             assert len(case["known_gap"]) > 40, case["id"]
