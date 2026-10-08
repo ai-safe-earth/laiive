@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: composer names the event and act when there is one result
+next: the evals CLI is deferred to model-routing; nothing open here until then
 ---
 # Evals and monitoring (program phase 3)
 
@@ -31,7 +31,8 @@ can tell whether a change helped.
       Decision: rules that must always hold (no history means first_query; near me with no
       location asks where) live in `classifier.enforce()`, not the prompt. `nearby` left the
       query_type list, since the router reads `near_me` alone.
-- [ ] Composer names the event and act when there is one result (the prompt has no rule for it).
+- [x] Composer names the event and act when there is one result. Prompt v3, 2026-10-08:
+      one rule; live answer-quality suite 10 of 10, twice.
 - [ ] `python -m evals.run --models a,b` CLI: deferred to model-routing.
 
 ## Baselines (live graph, 2026-08-18)

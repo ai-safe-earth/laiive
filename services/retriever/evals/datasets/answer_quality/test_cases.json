@@ -1,6 +1,6 @@
 {
   "notes": "Golden set for agent/composer.py. Every assertion is a rule, not a judge: the composer's prompt makes checkable promises (1-3 short sentences, never list events/dates/venues/prices, the conversation's language, one question when asking for the missing detail, never fabricate). A judge is deferred until something in the rubric is genuinely unjudgeable by rule. Cards are fixtures - no graph is read.",
-  "prompt_version": "v2",
+  "prompt_version": "v3",
   "cards": {
     "madrid_jazz": [
       {"uid": "e-1", "name": "Trio Nocturno at Café Central", "artists": ["Trio Nocturno"], "venue": "Café Central", "city": "Madrid", "start_at": "2026-10-03T21:30:00", "price_min": 18.0, "price_currency": "EUR"},
@@ -73,7 +73,6 @@
     {
       "id": "italian-question-italian-answer",
       "message": "c'è qualcosa di rock a Bergamo venerdì?",
-      "known_gap": "names the event and the act in the text (\"I Lupi suonano al Druso\"), which the prompt forbids outright - the cards say that. Probed: it is the single result, not the language. With one card it leaked 3/3 in Italian and 1 in 2 in English; with three cards English and Spanish held 2/2. The prompt has no rule for the one-result case.",
       "cards": "bergamo_rock",
       "classification": {"query_type": "event_search", "moment": "first_query", "language": "it"},
       "expect": {"max_sentences": 3, "language": "it", "no_leakage": true}
