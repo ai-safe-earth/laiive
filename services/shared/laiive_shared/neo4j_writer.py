@@ -710,6 +710,75 @@ def _same_text(new: str | None, old: str | None) -> bool:
     return (new or "") == (old or "")
 
 
+def _apply_scalars(
+    fields: dict,
+    current,
+    scalars: dict[str, tuple[str, Callable]],
+    var: str,
+    changed: dict[str, dict],
+    sets: list[str],
+    params: dict,
+) -> str | None:
+    """Fold the plain per-field edits into changed/sets/params.
+
+    Returns the name of the first field whose value would not parse, for the
+    caller to answer `invalid` with — and None when everything applied. Event
+    and venue spelled this loop out identically, `e.` against `v.`, which is
+    what `var` is for; artist does not use it, having one editable scalar and
+    a genre list.
+    """
+    for field, (cur_key, parse) in scalars.items():
+        if field not in fields:
+            continue
+        try:
+            new = parse(fields[field])
+        except (TypeError, ValueError):
+            return field
+        same = (
+            _same_text(new, current[cur_key])
+            if isinstance(new, str) or new is None
+            else new == current[cur_key]
+        )
+        if not same:
+            changed[field] = {"old": current[cur_key], "new": new}
+            sets.append(f"{var}.{field} = ${field}")
+            params[field] = new
+    return None
+
+
+def _commit(
+    session,
+    label: str,
+    var: str,
+    uid: str,
+    sets: list[str],
+    params: dict,
+    extra_clause: str = "",
+) -> UpdateResult | None:
+    """Write the SET. None means it landed; anything else is the answer.
+
+    `extra_clause` is spliced between the SET and the RETURN, which is how the
+    event's genre re-link rides the same transaction: one query, so a
+    mid-sequence Aura flap can never land half an edit.
+    """
+    try:
+        record = session.run(
+            f"MATCH ({var}:{label} {{uid: $uid}}) "
+            f"SET {', '.join([*sets, f'{var}.updated_at = datetime()'])}"
+            f"{extra_clause}"
+            f" RETURN {var}.uid AS updated_uid",
+            **params,
+        ).single()
+    except Exception as e:
+        logger.error("%s update failed: %s", label, e)
+        return UpdateResult(status="error", uid=uid, message=str(e))
+    if record is None:
+        return UpdateResult(
+            status="not_found", uid=uid, message=f"No such {label.lower()}."
+        )
+    return None
+
+
 def update_event(
     session,
     uid: str,
@@ -831,23 +900,10 @@ def update_event(
         "description": ("cur_description", _parse_str),
         "ticket_url": ("cur_ticket_url", _parse_str),
     }
-    for field, (cur_key, parse) in scalars.items():
-        if field in fields:
-            try:
-                new = parse(fields[field])
-            except (TypeError, ValueError):
-                return UpdateResult(
-                    status="invalid", uid=uid, message=f"Invalid value for {field}."
-                )
-            same = (
-                _same_text(new, current[cur_key])
-                if isinstance(new, str) or new is None
-                else new == current[cur_key]
-            )
-            if not same:
-                changed[field] = {"old": current[cur_key], "new": new}
-                sets.append(f"e.{field} = ${field}")
-                params[field] = new
+    if bad := _apply_scalars(fields, current, scalars, "e", changed, sets, params):
+        return UpdateResult(
+            status="invalid", uid=uid, message=f"Invalid value for {bad}."
+        )
 
     if "status" in fields:
         status = fields["status"]
@@ -934,19 +990,8 @@ def update_event(
     if "genre" in changed:
         params["genre"] = new_genre
         params["genre_name"] = (fields.get("genre") or "").strip().title()
-    try:
-        record = session.run(
-            f"MATCH (e:Event {{uid: $uid}}) "
-            f"SET {', '.join([*sets, 'e.updated_at = datetime()'])}"
-            f"{genre_clause}"
-            " RETURN e.uid AS updated_uid",
-            **params,
-        ).single()
-        if record is None:
-            return UpdateResult(status="not_found", uid=uid, message="No such event.")
-    except Exception as e:
-        logger.error("Event update failed: %s", e)
-        return UpdateResult(status="error", uid=uid, message=str(e))
+    if failed := _commit(session, "Event", "e", uid, sets, params, genre_clause):
+        return failed
 
     if _EVENT_TEXT_FIELDS & set(changed):
         warnings += _refresh_embedding(
@@ -1023,23 +1068,10 @@ def update_venue(
         "capacity": ("cur_capacity", _parse_capacity),
         "address": ("cur_address", lambda v: _parse_str(v, clear_to=None)),
     }
-    for field, (cur_key, parse) in scalars.items():
-        if field in fields:
-            try:
-                new = parse(fields[field])
-            except (TypeError, ValueError):
-                return UpdateResult(
-                    status="invalid", uid=uid, message=f"Invalid value for {field}."
-                )
-            same = (
-                _same_text(new, current[cur_key])
-                if isinstance(new, str) or new is None
-                else new == current[cur_key]
-            )
-            if not same:
-                changed[field] = {"old": current[cur_key], "new": new}
-                sets.append(f"v.{field} = ${field}")
-                params[field] = new
+    if bad := _apply_scalars(fields, current, scalars, "v", changed, sets, params):
+        return UpdateResult(
+            status="invalid", uid=uid, message=f"Invalid value for {bad}."
+        )
 
     if "address" in changed:
         repinned = False
@@ -1098,18 +1130,8 @@ def update_venue(
             status="updated", uid=uid, warnings=warnings, message="Nothing changed."
         )
 
-    try:
-        record = session.run(
-            f"MATCH (v:Venue {{uid: $uid}}) "
-            f"SET {', '.join([*sets, 'v.updated_at = datetime()'])} "
-            "RETURN v.uid AS updated_uid",
-            **params,
-        ).single()
-        if record is None:
-            return UpdateResult(status="not_found", uid=uid, message="No such venue.")
-    except Exception as e:
-        logger.error("Venue update failed: %s", e)
-        return UpdateResult(status="error", uid=uid, message=str(e))
+    if failed := _commit(session, "Venue", "v", uid, sets, params):
+        return failed
 
     if _VENUE_TEXT_FIELDS & set(changed):
         warnings += _refresh_embedding(
@@ -1135,9 +1157,9 @@ def update_artist(
     """Edit an artist in place, PATCH-style.
 
     Editable: description, and genres — which REPLACE the artist's HAS_GENRE
-    edges. That is deliberately stronger than tag_artist_genres (which only
-    ever adds): this is the owner speaking about their own act, and their word
-    replaces the machine's. No rename: name_norm is the MERGE identity.
+    edges: this is the owner speaking about their own act, and their word
+    replaces whatever a sweep guessed. No rename: name_norm is the MERGE
+    identity.
     """
     unknown = set(fields) - _ARTIST_EDITABLE
     if unknown:
@@ -1263,43 +1285,6 @@ def update_artist(
         warnings=warnings,
         message="Artist updated.",
     )
-
-
-def tag_artist_genres(session, tags: dict[str, str]) -> int:
-    """Attach a genre to artists that have none. Returns how many were tagged.
-
-    Lives here rather than in a script because this module is the only path
-    that writes to the graph, and because the Genre MERGE has to agree with the
-    one in write_event -- same slug key, same title-cased name on create, or a
-    second node appears for the genre that already exists.
-
-    Only ever adds: an artist that already carries a genre is left alone, so a
-    re-run is a no-op and a human correction is never overwritten by a model.
-    """
-    if not tags:
-        return 0
-    rows = [
-        {
-            "name_norm": norm(name),
-            "genre": genre_slug(genre),
-            "name": genre.strip().title(),
-        }
-        for name, genre in tags.items()
-        if name and genre
-    ]
-    record = session.run(
-        """
-        UNWIND $rows AS row
-        MATCH (a:Artist {name_norm: row.name_norm})
-        WHERE NOT EXISTS { (a)-[:HAS_GENRE]->(:Genre) }
-        MERGE (g:Genre {slug: row.genre})
-          ON CREATE SET g.name = row.name
-        MERGE (a)-[:HAS_GENRE]->(g)
-        RETURN count(DISTINCT a) AS tagged
-        """,
-        rows=rows,
-    ).single()
-    return record["tagged"] if record else 0
 
 
 def backfill_embeddings(

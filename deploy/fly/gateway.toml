@@ -13,7 +13,6 @@ kill_timeout = 30
   PUSHER_URL = "http://laiive-pusher.internal:8003"
   SEARCH_URL = "http://laiive-search.internal:8004"
   REDIS_URL = "redis://laiive-redis.internal:6379/0"
-  SEARCH_ENABLED = "true"
 
 [http_service]
   internal_port = 8000

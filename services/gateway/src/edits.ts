@@ -63,8 +63,7 @@ export function registerEdits(app: FastifyInstance, config: GatewayConfig): void
 
   for (const [plural, entityType] of Object.entries(ENTITIES)) {
     app.patch(`/api/${plural}/:uid`, pro, async (request, reply) => {
-      const user = request.user;
-      if (!user) return reply.code(401).send({ error: "authentication required" });
+      const user = request.user!;
       const { uid } = request.params as { uid: string };
       const body = (request.body ?? {}) as { fields?: unknown };
       const fields = body.fields;

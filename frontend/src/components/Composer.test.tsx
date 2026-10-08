@@ -1,9 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "./Composer";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -26,16 +26,14 @@ function renderComposer(props: Partial<Parameters<typeof Composer>[0]> = {}) {
     transcribe: vi.fn(),
     onTranscript: vi.fn(),
   };
-  const { container } = render(
-    <LanguageProvider>
-      <Composer
-        value=""
-        accent="consumer"
-        placeholder={en.chat.placeholder}
-        {...handlers}
-        {...props}
-      />
-    </LanguageProvider>,
+  const { container } = renderWith(
+    <Composer
+      value=""
+      accent="consumer"
+      placeholder={en.chat.placeholder}
+      {...handlers}
+      {...props}
+    />,
   );
   return { ...handlers, container };
 }
@@ -169,8 +167,11 @@ describe("the shared composer", () => {
     const { container } = renderComposer();
     const meter = container.querySelector("[data-testid=recording-waveform]");
     expect(meter).not.toBeNull();
-    // Bars, not letters — and the same amber the live mic wears.
-    expect(meter?.textContent).toMatch(/^[▁▂▃▄▅▆▇]+$/u);
-    expect(meter?.className).toContain("text-secondary");
+    // Nine bars in the same amber the live mic wears, each one started a beat
+    // after the last — the stagger is the whole wave.
+    const bars = [...(meter?.querySelectorAll<HTMLElement>(".recording-bar") ?? [])];
+    expect(bars).toHaveLength(9);
+    expect(bars[0]?.className).toContain("bg-secondary");
+    expect(bars[1]?.style.animationDelay).toBe("0.1s");
   });
 });

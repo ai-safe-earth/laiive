@@ -120,8 +120,8 @@ export function UserMenu() {
                 icon={onPromoterSurface ? "back" : "flyer"}
                 pro={pro}
                 accent={onPromoterSurface ? "consumer" : "pro"}
-                // The chat reads this to know it is being returned to rather
-                // than opened, and holds the intro back.
+                // Where the crossing came from; the Account page's back link
+                // reads it.
                 state={{ from: pathname }}
                 onNavigate={() => setOpen(false)}
               >

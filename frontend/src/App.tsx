@@ -6,6 +6,7 @@ import { RequireRole } from "@/auth/RequireRole";
 import { PostAuthLanding } from "@/auth/PostAuthLanding";
 import { CALLBACK_PATH } from "@/auth/postAuth";
 import { IconSprite } from "@/components/IconSprite";
+import { useLiveAccents } from "@/hooks/useLiveAccents";
 import { LanguageProvider } from "@/i18n/useTranslation";
 import Account from "@/pages/Account";
 import AdminQueue from "@/pages/AdminQueue";
@@ -24,6 +25,7 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  useLiveAccents();
   return (
     <QueryClientProvider client={queryClient}>
       {/* Mounted above everything and never unmounted: every <Icon> is a

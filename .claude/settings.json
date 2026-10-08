@@ -35,5 +35,10 @@
   },
   "enabledPlugins": {
     "ponytail@ponytail": true
+  },
+  "plansDirectory": "./docs/plans",
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/roadmap-status.sh" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/plan-check.sh" }] }]
   }
 }

@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrgIdentity } from "./OrgIdentity";
 import { becomePromoter } from "@/auth/becomePromoter";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -28,11 +28,7 @@ beforeEach(() => {
 });
 
 async function fillAndSubmit() {
-  render(
-    <LanguageProvider>
-      <OrgIdentity />
-    </LanguageProvider>,
-  );
+  renderWith(<OrgIdentity />);
   await userEvent.type(screen.getByPlaceholderText(en.org.namePlaceholder), "Razzmatazz");
   await userEvent.selectOptions(screen.getByLabelText(en.org.relation), "owner");
   await userEvent.click(screen.getByRole("button", { name: en.org.create }));

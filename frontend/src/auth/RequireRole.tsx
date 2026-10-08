@@ -18,12 +18,9 @@ const ROLES: readonly UserRole[] = ["user", "pro", "admin"];
 export function RequireRole({
   minimum,
   children,
-  fallback,
 }: {
   minimum: UserRole;
   children: React.ReactNode;
-  /** Where an authenticated-but-underprivileged user goes. */
-  fallback?: string;
 }) {
   const { user, role, isLoading } = useAuth();
   const location = useLocation();
@@ -35,8 +32,10 @@ export function RequireRole({
     return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
   }
 
+  // Home, always: every gated route in the app sends a signed-in user who
+  // lacks the role to the same place, so there is nothing for a caller to pick.
   if (ROLES.indexOf(role) < ROLES.indexOf(minimum)) {
-    return <Navigate to={fallback ?? "/"} replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

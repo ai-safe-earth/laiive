@@ -1,6 +1,4 @@
-import { env } from "@/env";
-import { supabase } from "@/auth/supabase";
-import { ApiError } from "./client";
+import { apiFetch } from "./client";
 
 export type IngestKind = "audio" | "image" | "document";
 
@@ -8,29 +6,6 @@ export interface Ingested {
   kind: IngestKind;
   source: string;
   text: string;
-}
-
-/** Multipart POST — no content-type header, the browser sets the boundary. */
-async function upload(path: string, body: FormData): Promise<Response> {
-  const headers = new Headers();
-  const { data } = await supabase.auth.getSession();
-  if (data.session) headers.set("authorization", `Bearer ${data.session.access_token}`);
-
-  const response = await fetch(`${env.apiUrl}${path}`, { method: "POST", headers, body });
-  if (!response.ok) {
-    const message = await response
-      .json()
-      .then((body: { detail?: string; error?: string; message?: string }) =>
-        body.detail ?? body.error ?? body.message ?? `upload failed (${response.status})`,
-      )
-      .catch(() => `upload failed (${response.status})`);
-    throw new ApiError(
-      response.status,
-      message,
-      response.headers.get("x-login-upsell") !== null,
-    );
-  }
-  return response;
 }
 
 /**
@@ -41,7 +16,7 @@ async function upload(path: string, body: FormData): Promise<Response> {
 export async function transcribe(recording: Blob): Promise<string> {
   const form = new FormData();
   form.append("file", recording, "recording.webm");
-  const response = await upload("/api/transcribe", form);
+  const response = await apiFetch("/api/transcribe", { method: "POST", body: form });
   const { text } = (await response.json()) as { text: string };
   return text;
 }
@@ -54,6 +29,6 @@ export async function transcribe(recording: Blob): Promise<string> {
 export async function ingestFile(file: File): Promise<Ingested> {
   const form = new FormData();
   form.append("file", file, file.name);
-  const response = await upload("/api/push/ingest", form);
+  const response = await apiFetch("/api/push/ingest", { method: "POST", body: form });
   return (await response.json()) as Ingested;
 }

@@ -1,0 +1,83 @@
+{
+  "notes": "Recall cases over the frozen graph. Each names the leg it exercises, the constraints the router would have produced, and the events that must come back - by uid_hint, never by uid, because the writer mints uids at seed time. `expect` is exact for the template and nearby legs: those are filters, and a filter that returns a fourth event when three match is as wrong as one that misses one. The vector leg is scored as recall@k instead, since ranking by cosine similarity is not a set membership question. `forbidden` names events that must never appear in that case's answer.",
+  "test_cases": [
+    {
+      "id": "jazz-in-madrid",
+      "leg": "template",
+      "constraints": {"city": "Madrid", "genre": "jazz"},
+      "expect": ["mad-jazz-1", "mad-jazz-2", "mad-jazz-3", "mad-free-1"],
+      "why": "the free jam is jazz too; the past jazz night at the same venue is not upcoming"
+    },
+    {
+      "id": "everything-in-madrid",
+      "leg": "template",
+      "constraints": {"city": "Madrid"},
+      "expect": ["mad-late-1", "mad-jazz-1", "mad-rock-1", "mad-jazz-2", "mad-classical-1", "mad-free-1", "mad-jazz-3", "mad-rock-2"],
+      "forbidden": ["mad-cancelled-1", "mad-past-1"],
+      "why": "a city with no other constraint: everything upcoming and scheduled, and nothing else"
+    },
+    {
+      "id": "techno-in-barcelona",
+      "leg": "template",
+      "constraints": {"city": "Barcelona", "genre": "techno"},
+      "expect": ["bcn-techno-1", "bcn-techno-2"],
+      "forbidden": ["bcn-indie-1", "bcn-jazz-1"],
+      "why": "genre narrows inside the right city"
+    },
+    {
+      "id": "one-artist-anywhere",
+      "leg": "template",
+      "constraints": {"artist": "I Lupi"},
+      "expect": ["bgm-rock-1"],
+      "why": "an identity ask crosses cities and needs no place"
+    },
+    {
+      "id": "venue-prefix-catches-both-rooms",
+      "leg": "template",
+      "constraints": {"venue": "Apolo"},
+      "expect": ["bcn-techno-1", "bcn-jazz-1", "bcn-acoustic-1"],
+      "forbidden": ["bcn-techno-2"],
+      "why": "venue matching is CONTAINS on the normalised name, so Sala Apolo and Sala Apolo 2 both answer - and Razzmatazz, 3 km away, does not"
+    },
+    {
+      "id": "price-ceiling",
+      "leg": "template",
+      "constraints": {"price_max": 12},
+      "expect": ["mad-late-1", "bgm-rock-1", "mad-jazz-2", "bcn-acoustic-1", "mad-free-1"],
+      "why": "the filter is price_min <= ceiling, so a 12-euro door passes and the free jam does too"
+    },
+    {
+      "id": "a-whole-country",
+      "leg": "template",
+      "constraints": {"country_code": "IT"},
+      "expect": ["bgm-rock-1", "bgm-jazz-1", "bgm-metal-1"],
+      "why": "country is a filter of its own, not a city spelled differently"
+    },
+    {
+      "id": "the-next-three-days",
+      "leg": "template",
+      "constraints": {"date_window_days": [0, 3]},
+      "expect": ["mad-late-1", "bcn-techno-1", "mad-jazz-1", "mad-rock-1", "bgm-rock-1"],
+      "forbidden": ["mad-jazz-2", "mad-past-1"],
+      "why": "date_to is exclusive, so the gig on day three is out; the window is written in days because the fixture's dates are seeded relative to now"
+    },
+    {
+      "id": "near-the-centre-of-madrid",
+      "leg": "nearby",
+      "constraints": {},
+      "location": {"latitude": 40.4168, "longitude": -3.7038},
+      "expect": ["mad-late-1", "mad-jazz-1", "mad-rock-1", "mad-jazz-2", "mad-classical-1", "mad-free-1", "mad-jazz-3", "mad-rock-2"],
+      "forbidden": ["bcn-jazz-1", "bgm-rock-1"],
+      "why": "the first rung of the radius ladder is 5 km, which covers every Madrid venue and no other city"
+    },
+    {
+      "id": "a-tight-radius-around-apolo",
+      "leg": "nearby",
+      "constraints": {"radius_km": 1.5},
+      "location": {"latitude": 41.3745, "longitude": 2.1691},
+      "expect": ["bcn-techno-1", "bcn-jazz-1", "bcn-acoustic-1"],
+      "forbidden": ["bcn-techno-2", "bcn-indie-1"],
+      "why": "an explicit radius pins the ladder to one rung: Razzmatazz is 3 km out and must not be pulled in"
+    }
+  ]
+}

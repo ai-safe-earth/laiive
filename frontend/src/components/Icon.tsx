@@ -22,7 +22,6 @@ export type IconName =
   | "done"
   | "error"
   | "flyer"
-  | "language"
   | "sign-out"
   | "attach"
   | "send"

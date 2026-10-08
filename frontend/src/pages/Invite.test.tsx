@@ -1,11 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { screen, waitFor } from "@testing-library/react";
+import { Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Invite from "./Invite";
 import { ApiError } from "@/api/client";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -34,16 +33,11 @@ const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
 function renderAt(token = "tok-123") {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <LanguageProvider>
-        <MemoryRouter initialEntries={[`/invite/${token}`]}>
-          <Routes>
-            <Route path="/invite/:token" element={<Invite />} />
-          </Routes>
-        </MemoryRouter>
-      </LanguageProvider>
-    </QueryClientProvider>,
+  return renderWith(
+    <Routes>
+      <Route path="/invite/:token" element={<Invite />} />
+    </Routes>,
+    { route: `/invite/${token}` },
   );
 }
 

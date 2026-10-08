@@ -83,7 +83,7 @@ def _merged(previous: dict | None, observed: dict, keys: tuple[str, ...]) -> dic
 
 # ── Sources ──────────────────────────────────────────────────────────────────
 
-SOURCE_COUNTERS = ("pages", "pages_with_events", "drafts", "candidates_new")
+SOURCE_COUNTERS = ("pages", "pages_with_events", "candidates_new")
 
 # A domain has to have been seen enough times before its rate means anything;
 # one lucky page is not evidence. Both thresholds are deliberately arithmetic
@@ -113,30 +113,113 @@ BLOCK_MAX_YIELD = 0.05
 # cultural centre in the old Daste e Spalenga power station; Eppen is L'Eco di
 # Bergamo's events agenda, which is the paper's own domain rather than a
 # separate one — it covers the whole province, so it is the broadest of them.
+# Dieci10 is a live-music restaurant with a second room in Grassobbio. The
+# clubs are here because Eppen does not carry them: none of them appeared
+# among its 85 music events on 2026-09-19.
+#
+# `depth` is the extract depth, 'basic' unless a source needs otherwise. It is
+# per source because neither setting is safe for all of them: advanced failed
+# outright on Druso where basic worked, and basic strips Eppen's listing down
+# to titles (see its entry). `tail_chars` is for a page that keeps its
+# programme at the end, behind an archive (see Daste's). `date_first` says
+# the page's entries open with their date, which is what lets a long one be
+# read in chunks of whole entries (extraction._entry_chunks); it is said
+# here and never guessed, because on a page that puts the title first a cut
+# at a date line parts every title from its date.
+#
+# `weekday_calendar` is for a page that prints a month heading and then only
+# "GIO 2", "VEN 3"..., running on into the next month with no new heading and
+# never a year. The model cannot date that (see Ink Club's entry), so the
+# dates are resolved in code before it reads the page: agent/preparse.py.
 SEED_SOURCES: dict[str, dict] = {
-    "drusobg.it": {
+    "drusobg.com": {
         "cities": ["Bergamo"],
-        # The home page carries dates and ticket links; /livedruso/ is the
-        # upcoming list but only as titles, and /eventi/ is mostly footer.
-        "agenda": ["https://drusobg.it/", "https://drusobg.it/livedruso/"],
+        # Moved here from drusobg.it, which stopped resolving (NXDOMAIN on
+        # 2026-09-19) and had been failing every sweep in silence since.
+        # /event-list is the whole upcoming programme as "name, sab 19 set,
+        # Druso": 17 of its 18 nights came back, rightly dated, and the one
+        # left out was a flea market. The home page is its first three.
+        "agenda": ["https://www.drusobg.com/event-list"],
     },
     "dastebergamo.com": {
         "cities": ["Bergamo"],
-        # /spazio-eventi/ is the venue-hire pitch, not a listing.
+        # /spazio-eventi/ is the venue-hire pitch, not a listing. This page is
+        # every event since 2021, oldest first, and what is coming up is the
+        # LAST 1,800 of its 104,000 characters — so the head cut that every
+        # page used to get read a vouched source and found nothing, each
+        # sweep. Only the end is read, and not for the cost: the 2021 entries
+        # give a day and no year ("Il 16 novembre"), and read whole the model
+        # turned three of them into next November's gigs. The recent past that
+        # 4,000 characters still reaches carries its year, and is dropped; it
+        # is one call's worth, so the upcoming nights are never skimmed over.
+        "tail_chars": 4000,
         "agenda": ["https://www.dastebergamo.com/eventi/"],
     },
     "ecodibergamo.it": {
         "cities": ["Bergamo"],
-        "agenda": ["https://www.ecodibergamo.it/eventi/eppen/"],
+        # The music listing rather than /eventi/eppen/, which mixes every
+        # category. Advanced, at twice the price, because basic keeps each
+        # event's title and blurb and DROPS its date, hour, venue and town:
+        # the model then dated every one of them "tomorrow". Measured on this
+        # URL, 2026-09-19: basic has "Settembre" 0 times, advanced 44.
+        # ponytail: two pages is the whole listing today ("Pagina 1 di 2", 85
+        # events) and a third is not followed. Read the page count off the
+        # first page when the listing outgrows this.
+        "depth": "advanced",
+        # "19 Sab Settembre h.11:00 / 13:00", then the venue, then the title.
+        "date_first": True,
+        "agenda": [
+            "https://www.ecodibergamo.it/eventi/eppen/ricerca/?q=&start_date=&end_date=&category=musica&city=",
+            "https://www.ecodibergamo.it/eventi/eppen/ricerca/?q=&page=2&start_date=&end_date=&category=musica&city=",
+        ],
+    },
+    "livemusicdieci10.it": {
+        "cities": ["Bergamo"],
+        # One page for both rooms; the programme is its #tour-eventi section,
+        # dated DD.MM.YY, and every live is free entry.
+        "agenda": ["https://livemusicdieci10.it/"],
+    },
+    "inkclub.bergamo.it": {
+        "cities": ["Bergamo"],
+        # The ARCI circle in via Carducci, and its other rooms (Crotta, Ninfea).
+        # Shown this calendar as it is — on 2026-09-19 still July's programme,
+        # "Luglio" running on into August unannounced — gpt-4o-mini and gpt-4o,
+        # with and without a hint, moved the nights to September and October,
+        # "2026-09-31" among them. With the dates resolved first: 25 of 25
+        # right, and nothing shown as upcoming from the stale page.
+        "weekday_calendar": True,
+        # After resolving, each entry opens with its ISO date.
+        "date_first": True,
+        # Basic kept the day lines on the live page and dropped them on both
+        # archived versions, which would leave nothing to resolve.
+        "depth": "advanced",
+        "agenda": ["https://www.inkclub.bergamo.it/calendario"],
     },
 }
 
 
-def agenda_urls(city: str) -> list[str]:
-    """Pages to fetch outright while sweeping this city."""
+def programme_of(domain: str, text: str) -> str:
+    """The part of a vouched page that is its programme: all of it, unless the
+    source says its programme is at the end (`tail_chars`)."""
+    tail = SEED_SOURCES.get(domain, {}).get("tail_chars")
+    return text[-tail:] if tail else text
+
+
+def date_first(domain: str) -> bool:
+    """Whether this vouched source says its entries open with their date."""
+    return bool(SEED_SOURCES.get(domain, {}).get("date_first"))
+
+
+def weekday_calendar(domain: str) -> bool:
+    """Whether this vouched source's dates must be resolved in code first."""
+    return bool(SEED_SOURCES.get(domain, {}).get("weekday_calendar"))
+
+
+def agenda_urls(city: str, depth: str = "basic") -> list[str]:
+    """Pages to fetch outright while sweeping this city, at one extract depth."""
     urls = []
     for seed in SEED_SOURCES.values():
-        if city in seed.get("cities", []):
+        if city in seed.get("cities", []) and seed.get("depth", "basic") == depth:
             urls.extend(seed.get("agenda", []))
     return urls
 
@@ -173,7 +256,6 @@ def record_sources(by_domain: dict[str, dict]) -> None:
     for domain in domains:
         before = previous.get(domain)
         row = {"domain": domain, **_merged(before, by_domain[domain], SOURCE_COUNTERS)}
-        row["mean_score"] = round(float(by_domain[domain].get("mean_score") or 0.0), 4)
         row["last_seen_at"] = datetime.now(timezone.utc).isoformat()
         # Blocked is sticky against the owner's hand: a domain the owner sets
         # to blocked is not un-blocked by a good week. Only the store decides
@@ -186,8 +268,6 @@ def record_sources(by_domain: dict[str, dict]) -> None:
             row["status"] = "trusted"
         else:
             row["status"] = _source_status(row)
-        # Carried through the upsert, which replaces the whole row.
-        row["extraction_hints"] = (before or {}).get("extraction_hints") or ""
         row["events_written"] = float((before or {}).get("events_written") or 0.0)
         if before and before["status"] != row["status"]:
             logger.info(
@@ -279,24 +359,9 @@ def domain_filters(city: str, limit: int = 50) -> tuple[list[str], list[str]]:
     return include, exclude
 
 
-def extraction_hints() -> dict[str, str]:
-    """domain -> per-site instructions, for the extraction prompt."""
-    try:
-        rows = _get(
-            "search_sources",
-            {"extraction_hints": "neq.", "select": "domain,extraction_hints"},
-        )
-    except Exception as e:
-        logger.warning(f"Could not read extraction hints: {e}")
-        return {}
-    return {
-        r["domain"]: r["extraction_hints"] for r in rows if r.get("extraction_hints")
-    }
-
-
 # ── Queries ──────────────────────────────────────────────────────────────────
 
-QUERY_COUNTERS = ("pages", "pages_with_events", "candidates_new")
+QUERY_COUNTERS = ("pages_with_events", "candidates_new")
 
 # A trial phrasing gets this many runs before it is judged, so one quiet week
 # in one town cannot retire a good one.
@@ -320,9 +385,6 @@ def record_queries(by_query: dict[str, dict]) -> None:
             "template": template,
             **_merged(before, by_query[template], QUERY_COUNTERS),
             "runs": int((before or {}).get("runs") or 0) + 1,
-            "local_domain_share": round(
-                float(by_query[template].get("local_domain_share") or 0.0), 4
-            ),
             "status": (before or {}).get("status") or "trial",
             "last_used_at": datetime.now(timezone.utc).isoformat(),
         }

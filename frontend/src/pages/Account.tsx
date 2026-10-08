@@ -8,6 +8,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
 import { useLanguagePreference } from "@/i18n/useLanguagePreference";
 import { LANGUAGES, useTranslation, type Language } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
@@ -18,29 +19,6 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   it: "italiano",
   ca: "català",
 };
-
-/** Mono, small caps — the label voice for every setting on this page. */
-function Label({
-  htmlFor,
-  pro,
-  children,
-}: {
-  htmlFor?: string;
-  pro: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className={cn(
-        "font-mono text-xs uppercase tracking-[0.11em]",
-        pro ? "text-pro-dim" : "text-muted-foreground",
-      )}
-    >
-      {children}
-    </label>
-  );
-}
 
 /**
  * Where you belong and as what — every organisation, not just the first.

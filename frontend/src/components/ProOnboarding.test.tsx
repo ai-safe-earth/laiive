@@ -1,18 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ProOnboarding } from "./ProOnboarding";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
 function renderPanel() {
-  return render(
-    <LanguageProvider>
-      <ProOnboarding />
-    </LanguageProvider>,
-  );
+  return renderWith(<ProOnboarding />);
 }
 
 describe("the promoter walkthrough", () => {

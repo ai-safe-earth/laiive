@@ -38,9 +38,16 @@ class FakePipeline:
         self.moment = moment
 
     def run_turn(
-        self, user_message, history=None, location=None, result=None, timezone=None
+        self,
+        user_message,
+        history=None,
+        location=None,
+        result=None,
+        timezone=None,
+        request_id="",
     ):
         self.seen_timezone = timezone
+        self.seen_request_id = request_id
         result.classification = Classification(
             query_type="event_search", moment=self.moment
         )
@@ -56,19 +63,6 @@ class FakePipeline:
             result.text += delta
             yield MessageDelta(text=delta)
 
-    def run_turn_collected(
-        self, user_message, history=None, location=None, timezone=None, result=None
-    ):
-        from agent.pipeline import TurnResult
-
-        if result is None:
-            result = TurnResult()
-        for _ in self.run_turn(
-            user_message, history, location, result=result, timezone=timezone
-        ):
-            pass
-        return result
-
 
 @pytest.fixture
 def client():
@@ -79,11 +73,6 @@ def client():
 
 
 class TestHealthEndpoints:
-    def test_root_endpoint(self, client):
-        data = client.get("/").json()
-        assert data["version"] == "0.3.0"
-        assert "chat/stream" in data["endpoints"]
-
     def test_health_all_ok(self, client):
         with (
             patch.object(api_module, "neo4j_client") as neo4j,
@@ -121,71 +110,6 @@ class TestHealthEndpoints:
         assert response.status_code == 503
         assert response.json()["checks"]["openai"] == "error"
 
-    def test_schema_endpoint(self, client):
-        with patch.object(api_module, "neo4j_client") as neo4j:
-            neo4j.get_schema.return_value = "Test Schema"
-            data = client.get("/schema").json()
-        assert data == {"schema": "Test Schema", "status": "ok"}
-
-    def test_schema_endpoint_error(self, client):
-        with patch.object(api_module, "neo4j_client") as neo4j:
-            neo4j.get_schema.side_effect = Exception("boom")
-            data = client.get("/schema").json()
-        assert data["status"] == "error"
-        assert data["schema"] is None
-
-
-class TestChatEndpoint:
-    def test_the_askers_timezone_reaches_the_pipeline(self, client):
-        """It decides what "today" means, so a silent drop is an off-by-one-day
-        bug that only shows up for users east or west of the server."""
-        pipeline = FakePipeline()
-        api_module._pipeline = pipeline
-        client.post("/chat", json={"message": "tonight", "timezone": "Europe/Rome"})
-        assert pipeline.seen_timezone == "Europe/Rome"
-
-    def test_a_request_without_a_timezone_still_answers(self, client):
-        """Every client sent none before this existed, and the JSON endpoint is
-        callable by things that are not the browser."""
-        pipeline = FakePipeline()
-        api_module._pipeline = pipeline
-        data = client.post("/chat", json={"message": "jazz"}).json()
-        assert pipeline.seen_timezone is None
-        assert "request_id" in data
-
-    def test_chat_returns_cards_and_prose(self, client):
-        data = client.post("/chat", json={"message": "jazz in madrid"}).json()
-        assert "request_id" in data
-        assert data["used_query"] is True
-        assert data["results"][0]["uid"] == "e1"
-        # prose and structured results, never prose *containing* the results
-        assert data["response"].strip() == "Jazz on the way."
-        assert data["cypher"] == "MATCH (e:Event) RETURN e"
-
-    def test_chat_needs_more_info(self, client):
-        api_module._pipeline = FakePipeline(
-            cards=[],
-            cyphers=[],
-            text="Which city are we talking about?",
-            moment="ambiguous",
-        )
-        data = client.post("/chat", json={"message": "find concerts"}).json()
-        assert data["needs_more_info"] is True
-        assert data["used_query"] is False
-        assert data["results"] is None
-
-    def test_chat_error_returns_500(self, client):
-        broken = MagicMock()
-        broken.run_turn_collected.side_effect = Exception("pipeline died")
-        api_module._pipeline = broken
-        with patch.object(api_module, "_write_eval_record") as write:
-            response = client.post("/chat", json={"message": "x"})
-        assert response.status_code == 500
-        write.assert_called_once()
-
-    def test_chat_invalid_request(self, client):
-        assert client.post("/chat", json={}).status_code == 422
-
 
 class TestRequestId:
     """The gateway's x-request-id is the join key with conversation_logs —
@@ -200,28 +124,15 @@ class TestRequestId:
         assert response.headers["x-request-id"] == "gw-123"
         assert '"request_id":"gw-123"' in response.text  # the done frame
 
-    def test_chat_adopts_the_gateway_id(self, client):
-        data = client.post(
-            "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-123"}
-        ).json()
-        assert data["request_id"] == "gw-123"
-
-    def test_direct_calls_still_get_an_id(self, client):
-        data = client.post("/chat", json={"message": "jazz"}).json()
-        assert data["request_id"]
-
-    def test_both_paths_write_an_eval_record(self, client):
+    def test_the_stream_writes_an_eval_record(self, client):
         with patch.object(api_module, "_write_eval_record") as write:
             client.post(
                 "/chat/stream",
                 json={"messages": [{"role": "user", "content": "jazz"}]},
                 headers={"x-request-id": "gw-123"},
             )
-            client.post(
-                "/chat", json={"message": "jazz"}, headers={"x-request-id": "gw-456"}
-            )
         ids = [call.args[0] for call in write.call_args_list]
-        assert ids == ["gw-123", "gw-456"]
+        assert ids == ["gw-123"]
 
 
 class TestChatStreamRequests:

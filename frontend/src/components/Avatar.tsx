@@ -1,4 +1,5 @@
 import { Icon } from "@/components/Icon";
+import { liveAccent } from "@/components/LiveAccent";
 import { cn } from "@/lib/cn";
 
 /**
@@ -49,12 +50,10 @@ export function Avatar({
   displayName,
   email,
   pro,
-  className,
 }: {
   displayName: string | null | undefined;
   email: string | null | undefined;
   pro: boolean;
-  className?: string;
 }) {
   const label = initials(displayName, email);
   if (!label) return <Icon name="account" />;
@@ -67,8 +66,7 @@ export function Avatar({
         // circle. The chip carries its surface's accent — and dark ink on it,
         // never cream: white on fuchsia is 3.45:1. The circle is 36px, not the
         // original 32: two characters at 17px no longer sit comfortably in it.
-        pro ? "bg-pro-accent text-background" : "bg-primary text-primary-foreground",
-        className,
+        pro ? "bg-pro-accent text-background" : cn("bg-primary text-primary-foreground", liveAccent()),
       )}
     >
       {label}

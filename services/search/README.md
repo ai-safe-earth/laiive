@@ -1,7 +1,7 @@
 # search
 
 Admin-triggered internet event discovery (Phase 5). Internal on :8004, reached
-only via the gateway's `/api/admin/search/*` (admin JWT, `SEARCH_ENABLED=true`).
+only via the gateway's `/api/admin/search/*` (admin JWT).
 
 Pipeline: Tavily search per city → LLM extraction (`gpt-4o-mini`, `gpt-4o`
 fallback) → dedup against the graph (identity probe + vector similarity) →
@@ -47,7 +47,7 @@ Setup, in order:
    (`supabase-admin-email`, `supabase-admin-password`) — env wins when both are
    present.
 3. `uv run --group flows python flows/serve.py`, with the gateway
-   (`SEARCH_ENABLED=true`) and this service running. Long-lived process; run it
+   and this service running. Long-lived process; run it
    under whatever keeps a process alive on your box (systemd, a compose
    `restart: unless-stopped` service, `pm2`, ...).
 

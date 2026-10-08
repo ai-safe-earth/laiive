@@ -2,7 +2,6 @@
 Tests for SafetyGuardTool - Cypher query validation and content moderation.
 """
 
-import json
 import pytest
 from unittest.mock import Mock
 import sys
@@ -31,19 +30,17 @@ class TestCypherValidation:
         ]
 
         for query in safe_queries:
-            result_json = self.tool.run(query)
-            result = json.loads(result_json)
-            assert result["is_safe"] is True, f"Query should be safe: {query}"
-            assert result["violations"] == []
+            is_safe, violations = self.tool.validate_read_only(query)
+            assert is_safe is True, f"Query should be safe: {query}"
+            assert violations == []
 
     def test_unsafe_create_query(self):
         """Test that CREATE queries are blocked."""
         unsafe_query = "CREATE (n:Event {name: 'Test'}) RETURN n"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "CREATE" in result["violations"]
+        assert is_safe is False
+        assert "CREATE" in violations
 
     def test_unsafe_delete_query(self):
         """Test that DELETE queries are blocked."""
@@ -53,46 +50,41 @@ class TestCypherValidation:
         ]
 
         for query in unsafe_queries:
-            result_json = self.tool.run(query)
-            result = json.loads(result_json)
-            assert result["is_safe"] is False
-            assert any(v in ["DELETE", "DETACH DELETE"] for v in result["violations"])
+            is_safe, violations = self.tool.validate_read_only(query)
+            assert is_safe is False
+            assert any(v in ["DELETE", "DETACH DELETE"] for v in violations)
 
     def test_unsafe_merge_query(self):
         """Test that MERGE queries are blocked."""
         unsafe_query = "MERGE (n:Event {id: 1}) RETURN n"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "MERGE" in result["violations"]
+        assert is_safe is False
+        assert "MERGE" in violations
 
     def test_unsafe_set_query(self):
         """Test that SET queries are blocked."""
         unsafe_query = "MATCH (n:Event) SET n.name = 'Updated' RETURN n"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "SET" in result["violations"]
+        assert is_safe is False
+        assert "SET" in violations
 
     def test_unsafe_remove_query(self):
         """Test that REMOVE queries are blocked."""
         unsafe_query = "MATCH (n:Event) REMOVE n.property RETURN n"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "REMOVE" in result["violations"]
+        assert is_safe is False
+        assert "REMOVE" in violations
 
     def test_unsafe_drop_query(self):
         """Test that DROP queries are blocked."""
         unsafe_query = "DROP INDEX event_name_index"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "DROP" in result["violations"]
+        assert is_safe is False
+        assert "DROP" in violations
 
     def test_query_with_comments(self):
         """Test that comments don't cause false positives."""
@@ -102,11 +94,10 @@ class TestCypherValidation:
         WHERE n.name = 'CREATE EVENT' // Comment with DELETE
         RETURN n
         """
-        result_json = self.tool.run(query_with_comment)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(query_with_comment)
 
         # Should be safe since CREATE and DELETE are in comments
-        assert result["is_safe"] is True
+        assert is_safe is True
 
     def test_query_with_strings(self):
         """Test that keywords in strings don't cause false positives."""
@@ -115,11 +106,10 @@ class TestCypherValidation:
         WHERE n.description = 'This will CREATE great memories'
         RETURN n
         """
-        result_json = self.tool.run(query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(query)
 
         # Should be safe since CREATE is in a string
-        assert result["is_safe"] is True
+        assert is_safe is True
 
     def test_dangerous_apoc_procedures(self):
         """Test that dangerous APOC procedures are blocked."""
@@ -130,10 +120,9 @@ class TestCypherValidation:
         ]
 
         for query in dangerous_queries:
-            result_json = self.tool.run(query)
-            result = json.loads(result_json)
-            assert result["is_safe"] is False
-            assert any("APOC" in str(v) for v in result["violations"])
+            is_safe, violations = self.tool.validate_read_only(query)
+            assert is_safe is False
+            assert any("APOC" in str(v) for v in violations)
 
     def test_safe_apoc_procedures(self):
         """Test that safe APOC procedures are allowed."""
@@ -144,20 +133,18 @@ class TestCypherValidation:
         ]
 
         for query in safe_queries:
-            result_json = self.tool.run(query)
-            result = json.loads(result_json)
-            assert result["is_safe"] is True
+            is_safe, violations = self.tool.validate_read_only(query)
+            assert is_safe is True
 
     def test_multiple_violations(self):
         """Test query with multiple violations."""
         unsafe_query = "CREATE (n:Event) SET n.name = 'Test' DELETE n"
-        result_json = self.tool.run(unsafe_query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(unsafe_query)
 
-        assert result["is_safe"] is False
-        assert "CREATE" in result["violations"]
-        assert "SET" in result["violations"]
-        assert "DELETE" in result["violations"]
+        assert is_safe is False
+        assert "CREATE" in violations
+        assert "SET" in violations
+        assert "DELETE" in violations
 
 
 class TestModerationAndInjection:
@@ -211,17 +198,15 @@ class TestEdgeCases:
 
     def test_empty_query(self):
         """Test empty query handling."""
-        result_json = self.tool.run("")
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only("")
 
-        assert result["is_safe"] is True
+        assert is_safe is True
 
     def test_whitespace_only_query(self):
         """Test whitespace-only query."""
-        result_json = self.tool.run("   \n\t   ")
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only("   \n\t   ")
 
-        assert result["is_safe"] is True
+        assert is_safe is True
 
     def test_case_insensitive_validation(self):
         """Test that validation is case-insensitive."""
@@ -232,10 +217,9 @@ class TestEdgeCases:
         ]
 
         for query in queries:
-            result_json = self.tool.run(query)
-            result = json.loads(result_json)
-            assert result["is_safe"] is False
-            assert "CREATE" in result["violations"]
+            is_safe, violations = self.tool.validate_read_only(query)
+            assert is_safe is False
+            assert "CREATE" in violations
 
     def test_multiline_query(self):
         """Test multiline query validation."""
@@ -246,19 +230,17 @@ class TestEdgeCases:
         ORDER BY e.start_at
         LIMIT 10
         """
-        result_json = self.tool.run(query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(query)
 
-        assert result["is_safe"] is True
+        assert is_safe is True
 
     def test_query_with_nested_keywords(self):
         """Test that nested keywords in property names don't trigger false positives."""
         query = "MATCH (n:Event) WHERE n.created_at > datetime() RETURN n"
-        result_json = self.tool.run(query)
-        result = json.loads(result_json)
+        is_safe, violations = self.tool.validate_read_only(query)
 
         # 'created_at' contains 'CREATE' but should be safe
-        assert result["is_safe"] is True
+        assert is_safe is True
 
 
 if __name__ == "__main__":

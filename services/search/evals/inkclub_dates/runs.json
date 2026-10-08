@@ -1,0 +1,1430 @@
+[
+ {
+  "page": "2026-03",
+  "scenario": "fresh",
+  "today": "2026-03-03",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-03-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "fresh",
+  "today": "2026-03-03",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-03-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "fresh",
+  "today": "2026-03-03",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Open Consolle",
+    "start_at": "2026-03-05T21:30:00"
+   },
+   {
+    "name": "DJ Lola",
+    "start_at": "2026-03-06T21:30:00"
+   },
+   {
+    "name": "This is ska!",
+    "start_at": "2026-03-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-03-26T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2026-03-27T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "mid",
+  "today": "2026-03-15",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "mid",
+  "today": "2026-03-15",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-03-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "mid",
+  "today": "2026-03-15",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-03-26T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2026-03-27T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-03-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "stale",
+  "today": "2026-05-15",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-05-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-05-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-05-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-05-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-05-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-05-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-05-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "stale",
+  "today": "2026-05-15",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-05-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-05-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-05-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-05-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-05-21T22:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-05-28T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2026-05-29T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-03",
+  "scenario": "stale",
+  "today": "2026-05-15",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-03-07T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-03-14T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-03-20T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-03-21T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-03-26T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2026-03-27T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2026-03-28T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "fresh",
+  "today": "2026-06-07",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-21"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-26"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-27"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-28"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "fresh",
+  "today": "2026-06-07",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "fresh",
+  "today": "2026-06-07",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "mid",
+  "today": "2026-06-18",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "mid",
+  "today": "2026-06-18",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "mid",
+  "today": "2026-06-18",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Space Jam",
+    "start_at": "2026-06-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "stale",
+  "today": "2026-08-15",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-08-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-08-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-08-19T21:00:00"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-08-20"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-08-21"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-08-22"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-08-23"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "stale",
+  "today": "2026-08-15",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-08-13T21:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2026-08-18T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-08-19T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-06",
+  "scenario": "stale",
+  "today": "2026-08-15",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Sonido Markes DJ Set",
+    "start_at": "2026-06-13T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Matteo2 // Cool Cuts Dj Set",
+    "start_at": "2026-06-19T21:00:00"
+   },
+   {
+    "name": "Dungeon Yard",
+    "start_at": "2026-06-20T21:00:00"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-21"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-26"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-27"
+   },
+   {
+    "name": "Clamore",
+    "start_at": "2026-06-28"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "fresh",
+  "today": "2026-06-30",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-07-01T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-07-02T18:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-04T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-06T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-07T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-08T20:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-07-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "fresh",
+  "today": "2026-06-30",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-07-24T21:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-07-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-07-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-07-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "fresh",
+  "today": "2026-06-30",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "TELA LIBERA",
+    "start_at": "2026-07-03T21:00:00"
+   },
+   {
+    "name": "DRESS THE CHANGE",
+    "start_at": "2026-07-09T21:00:00"
+   },
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "Bucolic Party at Ninfea social club",
+    "start_at": "2026-07-25T17:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-07-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-07-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-08-01T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-08-02T18:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-08-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "mid",
+  "today": "2026-07-20",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-07-24T21:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-07-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-07-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-07-01T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-07-02T18:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-04T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-06T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-07T20:00:00"
+   },
+   {
+    "name": "ULTIMO GIRO",
+    "start_at": "2026-07-08T20:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-07-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "mid",
+  "today": "2026-07-20",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "mid",
+  "today": "2026-07-20",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-07-24T21:00:00"
+   },
+   {
+    "name": "Bucolic Party at Ninfea social club",
+    "start_at": "2026-07-25T17:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-07-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-07-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-08-01T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-08-02T18:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-08-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "stale",
+  "today": "2026-09-19",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-09-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-09-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-09-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-09-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-09-24T21:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-09-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-09-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-09-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-09-30T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-10-02T18:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "stale",
+  "today": "2026-09-19",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-09-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-09-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-09-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-09-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-09-24T21:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-09-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-09-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-09-31T18:00:00"
+   }
+  ]
+ },
+ {
+  "page": "2026-07",
+  "scenario": "stale",
+  "today": "2026-09-19",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "PUNK ROCK RADUNO",
+    "start_at": "2026-07-17T15:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-07-18T22:00:00"
+   },
+   {
+    "name": "Open consolle",
+    "start_at": "2026-07-21T21:30:00"
+   },
+   {
+    "name": "Sofa Sessions",
+    "start_at": "2026-07-23T21:00:00"
+   },
+   {
+    "name": "SWAP PARTY + Marlon dj set",
+    "start_at": "2026-07-24T21:00:00"
+   },
+   {
+    "name": "Ninfea",
+    "start_at": "2026-07-25T17:00:00"
+   },
+   {
+    "name": "Paesaggi sonori",
+    "start_at": "2026-07-26T18:00:00"
+   },
+   {
+    "name": "MERCOLEDI DA BEONI: LAPIS & CANTI INTORNO AL TAVOLO",
+    "start_at": "2026-07-29T21:00:00"
+   },
+   {
+    "name": "KENDÁ PARTY",
+    "start_at": "2026-07-31T18:00:00"
+   },
+   {
+    "name": "NOSEDIVE + SAIRA",
+    "start_at": "2026-08-01T21:00:00"
+   },
+   {
+    "name": "Garden.exe + Rivalas",
+    "start_at": "2026-08-02T18:00:00"
+   },
+   {
+    "name": "TSM + GRANDPARENTS",
+    "start_at": "2026-08-30T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "fresh",
+  "today": "2026-11-30",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "fresh",
+  "today": "2026-11-30",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "fresh",
+  "today": "2026-11-30",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Open Consolle",
+    "start_at": "2026-12-03T21:30:00"
+   },
+   {
+    "name": "DJ Lola",
+    "start_at": "2026-12-04T21:30:00"
+   },
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "mid",
+  "today": "2026-12-20",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "mid",
+  "today": "2026-12-20",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "mid",
+  "today": "2026-12-20",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-01-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-01-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "stale",
+  "today": "2027-02-20",
+  "approach": "llm",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2027-02-25T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2027-03-02T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2027-03-04T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2027-03-11T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2027-03-16T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-03-17T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-03-23T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-03-24T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "stale",
+  "today": "2027-02-20",
+  "approach": "llm_hint",
+  "drafts": [
+   {
+    "name": "This is ska!",
+    "start_at": "2027-03-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2027-03-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2027-03-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2027-03-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2027-03-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-04-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-04-02T21:00:00"
+   },
+   {
+    "name": "Svegliaginevra + THNX live",
+    "start_at": "2027-04-07T21:00:00"
+   },
+   {
+    "name": "Filippo Sala Maree w/ Enrico Terragnoli & Danilo Gallo",
+    "start_at": "2027-04-08T21:00:00"
+   }
+  ]
+ },
+ {
+  "page": "synthetic-2026-12",
+  "scenario": "stale",
+  "today": "2027-02-20",
+  "approach": "preparse_llm",
+  "drafts": [
+   {
+    "name": "Open Consolle",
+    "start_at": "2026-12-03T21:30:00"
+   },
+   {
+    "name": "DJ Lola",
+    "start_at": "2026-12-04T21:30:00"
+   },
+   {
+    "name": "This is ska!",
+    "start_at": "2026-12-05T21:00:00"
+   },
+   {
+    "name": "Gotto Esplosivo live",
+    "start_at": "2026-12-17T21:30:00"
+   },
+   {
+    "name": "Tela Libera Live",
+    "start_at": "2026-12-19T21:00:00"
+   },
+   {
+    "name": "SPACA ZO TOT Magnitudo (release party)",
+    "start_at": "2026-12-26T21:00:00"
+   },
+   {
+    "name": "UBOA",
+    "start_at": "2026-12-31T22:00:00"
+   },
+   {
+    "name": "Space Jam",
+    "start_at": "2027-01-01T21:00:00"
+   },
+   {
+    "name": "SYNTH CAFE': Grandparents",
+    "start_at": "2027-01-02T21:00:00"
+   }
+  ]
+ }
+]

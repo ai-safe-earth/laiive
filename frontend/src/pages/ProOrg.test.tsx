@@ -1,10 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProOrg from "./ProOrg";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -72,13 +71,7 @@ const OWNED = {
 };
 
 function renderPage() {
-  return render(
-    <MemoryRouter>
-      <LanguageProvider>
-        <ProOrg />
-      </LanguageProvider>
-    </MemoryRouter>,
-  );
+  return renderWith(<ProOrg />);
 }
 
 beforeEach(() => {

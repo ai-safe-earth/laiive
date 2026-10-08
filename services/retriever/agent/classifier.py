@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 from config import settings
 
-from .utils.llm_utils import chat_completion_with_retry, get_openai_client
+from .utils.llm_utils import get_openai_client
 
 CLASSIFIER_PROMPT_VERSION = "v2"
 
@@ -189,8 +189,7 @@ class Classifier:
         messages.append({"role": "user", "content": user_message})
 
         for attempt in range(2):
-            response = chat_completion_with_retry(
-                self.client,
+            response = self.client.chat.completions.create(
                 model=settings.classifier_model,
                 messages=messages,
                 temperature=settings.llm_temperature_classifier,

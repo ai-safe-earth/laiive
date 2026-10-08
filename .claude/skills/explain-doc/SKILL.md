@@ -14,7 +14,7 @@ calibrates depth and diagram idiom — skim one of its sections, don't study the
 1. **Scope.** `ls docs/explain/` first: a topic continuing earlier work gets a NEW doc that
    links its predecessor instead of re-explaining it — and while there, flip any prior-doc
    recommendation this work resolved (`warntag` → `goodtag`, past tense; never delete one).
-   Then read the relevant `docs/roadmap/` section and the commits involved
+   Then read the relevant plan in `docs/plans/` and the commits involved
    (`git show --stat`).
 2. **Read the real code.** Every snippet quoted must come from the working tree, trimmed but
    faithful. Verify every `file:line` with `grep -n` in the working tree; the footer names
@@ -62,4 +62,4 @@ section beats an invented one.
   actual edges, never checklist boilerplate.
 - Self-contained: no external scripts, styles, fonts, or images. Wide content scrolls in
   its own container. English.
-- Don't restate what `handoff.md` or the roadmap already holds — cite it.
+- Don't restate what `docs/ROADMAP.md` or a plan already holds — cite it.

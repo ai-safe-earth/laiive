@@ -4,6 +4,7 @@ import { foldName, useVenueLookup } from "@/api/lookup";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
 import type { DraftFieldKey } from "@/i18n/translations";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
@@ -80,25 +81,6 @@ export function normalizeTicketUrl(raw: string | null | undefined): string | nul
   } catch {
     return INVALID_URL;
   }
-}
-
-/** Mono label; amber marks a field that still needs you, red one that is empty. */
-function FieldLabel({ children, required, missing }: {
-  children: React.ReactNode;
-  required?: boolean;
-  missing?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "font-mono text-xs leading-none",
-        missing ? "text-destructive" : "text-muted-foreground",
-      )}
-    >
-      {children}
-      {required && <span className={cn("ml-1", missing ? "text-destructive" : "text-secondary")}>*</span>}
-    </span>
-  );
 }
 
 /**
@@ -260,11 +242,14 @@ export function EventForm({
             // focuses the input on every press.
             <div key={key} className="flex flex-col gap-[7px]">
               <span className="flex items-center gap-1.5">
-                <label htmlFor={`field-${key}`}>
-                  <FieldLabel required={required} missing={isMissing}>
-                    {t.form.labels[key]}
-                  </FieldLabel>
-                </label>
+                <Label
+                  pro={false}
+                  htmlFor={`field-${key}`}
+                  required={required}
+                  missing={isMissing}
+                >
+                  {t.form.labels[key]}
+                </Label>
                 {isDoubted && (
                   // The question itself was asked in the chat, in their own
                   // language; this only says which field it was about.
@@ -374,9 +359,9 @@ export function EventForm({
           the moment it was typed and a comma vanished with it. One row per
           artist, and the list grows on demand. */}
       <div className="flex flex-col gap-[7px]">
-        <FieldLabel required missing={stillMissing.includes("artists")}>
+        <Label pro={false} required missing={stillMissing.includes("artists")}>
           {t.form.labels.artists}
-        </FieldLabel>
+        </Label>
         <div className="flex flex-col gap-2">
           {artists.map((name, index) => (
             <div key={index} className="flex items-center gap-2">
@@ -422,11 +407,9 @@ export function EventForm({
             its identity (and its address below); typing past a pick clears it,
             because the text no longer names what was picked. */}
         <div className="relative flex flex-col gap-[7px]">
-          <label htmlFor="field-venue">
-            <FieldLabel required missing={stillMissing.includes("venue")}>
-              {t.form.labels.venue}
-            </FieldLabel>
-          </label>
+          <Label pro={false} htmlFor="field-venue" required missing={stillMissing.includes("venue")}>
+            {t.form.labels.venue}
+          </Label>
           <Input
             id="field-venue"
             autoComplete="off"
@@ -507,7 +490,7 @@ export function EventForm({
 
         {pick?.address ? (
           <div className="flex flex-col gap-[7px]">
-            <FieldLabel>{t.form.labels.address}</FieldLabel>
+            <Label pro={false}>{t.form.labels.address}</Label>
             {/* The graph already knows this venue's street — show it, never
                 re-ask. Correcting a stated address is an owner's edit, not a
                 submission field. */}

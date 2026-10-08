@@ -3,9 +3,9 @@ from datetime import date
 
 import pytest
 from laiive_shared.cards import EventDraft
+from laiive_shared.normalize import canonical_city_name
 from laiive_shared.checks import (
     check_draft,
-    city_name_of,
     claimed_weekday,
     past_date_doubt,
     tidy_case,
@@ -127,8 +127,12 @@ def test_tidy_case_leaves_a_single_lowercase_word_alone():
 # ── the city, verified against a gazetteer ───────────────────────────────────
 
 
-def test_city_name_of_takes_the_place_not_the_whole_label():
-    assert city_name_of("Barcelona, Barcelonès, Catalunya, España") == "Barcelona"
+def test_the_city_is_taken_off_the_label_not_the_whole_of_it():
+    """checks used to carry its own copy of this; normalize's is the one, and it
+    also refuses a leading house number."""
+    assert (
+        canonical_city_name("Barcelona, Barcelonès, Catalunya, España") == "Barcelona"
+    )
 
 
 def test_misspelled_case_city_is_corrected_from_the_map():

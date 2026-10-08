@@ -1,0 +1,194 @@
+{
+  "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
+  "prompt_version": "v2",
+  "test_cases": [
+    {
+      "id": "tonight-in-madrid",
+      "message": "what's on tonight in Madrid?",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "language": "en",
+        "sub_query_count": 1,
+        "constraints": {"city": "Madrid", "date_from": "today", "near_me": false}
+      }
+    },
+    {
+      "id": "jazz-tomorrow-barcelona",
+      "message": "any jazz in Barcelona tomorrow?",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "language": "en",
+        "sub_query_count": 1,
+        "constraints": {"city": "Barcelona", "genre": "jazz", "date_from": "tomorrow"}
+      }
+    },
+    {
+      "id": "named-artist-anywhere",
+      "message": "when does Vetusta Morla play next?",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "sub_query_count": 1,
+        "constraints": {"artist": "Vetusta Morla", "city": null, "near_me": false}
+      }
+    },
+    {
+      "id": "near-me",
+      "message": "gigs near me this week",
+      "has_location": true,
+      "known_gap": "returns query_type event_search with near_me true. Nothing defines when \"nearby\" is the type and route() keys off near_me alone, so the value is unreachable vocabulary - either the prompt names it or the Literal loses it.",
+      "expect": {
+        "query_type": "nearby",
+        "moment": "first_query",
+        "sub_query_count": 1,
+        "constraints": {"near_me": true, "date_from": "any"}
+      }
+    },
+    {
+      "id": "near-me-without-a-location",
+      "message": "gigs near me this week",
+      "has_location": false,
+      "known_gap": "returns first_query with near_me true and no clarification. route() then drops the only plan, so the turn answers \"nothing found\" instead of asking where the user is - and router.py's own comment claims the classifier marks these ambiguous.",
+      "expect": {
+        "moment": "ambiguous",
+        "clarification": "any"
+      }
+    },
+    {
+      "id": "a-vibe-not-a-filter",
+      "message": "somewhere small and intimate for acoustic stuff",
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"free_text": "any"}
+      }
+    },
+    {
+      "id": "two-cities-one-message",
+      "message": "techno in Berlin or Madrid this weekend",
+      "known_gap": "splits the two cities correctly but calls the moment \"refinement\" on a message with no history at all.",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "sub_query_count": 2,
+        "constraints": {"genre": "techno", "date_from": "any"}
+      }
+    },
+    {
+      "id": "venue-named",
+      "message": "what's coming up at Sala Apolo?",
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"venue": "Sala Apolo"}
+      }
+    },
+    {
+      "id": "price-ceiling",
+      "message": "anything under 15 euros in Valencia on friday",
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"city": "Valencia", "price_max": 15, "date_from": "any"}
+      }
+    },
+    {
+      "id": "free-gigs",
+      "message": "free concerts in Bilbao",
+      "known_gap": "leaves price_max unset. The prompt never says that \"free\" is price_max 0, so the word is dropped and the answer includes paid gigs.",
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bilbao", "price_max": 0}
+      }
+    },
+    {
+      "id": "spanish-stays-spanish",
+      "message": "¿qué conciertos hay en Sevilla este sábado?",
+      "expect": {
+        "query_type": "event_search",
+        "language": "es",
+        "sub_query_count": 1,
+        "constraints": {"city": "Sevilla", "date_from": "any"}
+      }
+    },
+    {
+      "id": "italian-stays-italian",
+      "message": "c'è qualcosa di rock a Bergamo stasera?",
+      "expect": {
+        "query_type": "event_search",
+        "language": "it",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo", "genre": "rock", "date_from": "today"}
+      }
+    },
+    {
+      "id": "refinement-keeps-the-city",
+      "message": "and jazz instead?",
+      "history": [
+        {"role": "user", "content": "what's on in Madrid this weekend?"},
+        {"role": "assistant", "content": "Here are three gigs in Madrid this weekend."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "moment": "refinement",
+        "sub_query_count": 1,
+        "constraints": {"city": "Madrid", "genre": "jazz"}
+      }
+    },
+    {
+      "id": "new-topic-drops-the-old-city",
+      "message": "actually, what about Lisbon next month?",
+      "label_note": "moment is refinement, not new_topic: the prompt says \"what about Berlin?\" replaces the city and keeps the rest. Corrected after the first live run.",
+      "history": [
+        {"role": "user", "content": "what's on in Madrid this weekend?"},
+        {"role": "assistant", "content": "Here are three gigs in Madrid this weekend."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "moment": "refinement",
+        "sub_query_count": 1,
+        "constraints": {"city": "Lisbon", "genre": null}
+      }
+    },
+    {
+      "id": "greeting-is-smalltalk",
+      "message": "hey there",
+      "expect": {"query_type": "smalltalk", "sub_query_count": 0}
+    },
+    {
+      "id": "what-can-you-do",
+      "message": "what can you do?",
+      "label_note": "out_of_scope, not smalltalk: the prompt scopes smalltalk to greetings, thanks and goodbyes. Worth the owner's verdict - a capability question is the one out_of_scope turn the assistant should answer for itself.",
+      "expect": {"query_type": "out_of_scope", "sub_query_count": 0}
+    },
+    {
+      "id": "football-is-out-of-scope",
+      "message": "who won the match last night?",
+      "expect": {"query_type": "out_of_scope", "sub_query_count": 0}
+    },
+    {
+      "id": "restaurants-are-out-of-scope",
+      "message": "book me a table for two at 9pm",
+      "expect": {"query_type": "out_of_scope", "sub_query_count": 0}
+    },
+    {
+      "id": "bare-city-is-answerable",
+      "message": "Granada",
+      "known_gap": "returns no sub_queries for a bare city name, so nothing is searched. Arguable - a one-word message could also be read as needing a clarification - but silence is the one answer that helps nobody.",
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"city": "Granada"}
+      }
+    },
+    {
+      "id": "empty-ask-needs-more",
+      "message": "find me something",
+      "known_gap": "returns moment new_topic with no sub_queries and no clarification, which is the prompt's own ambiguous rule going unused: no place, no location, nothing to search.",
+      "expect": {"moment": "ambiguous", "clarification": "any"}
+    }
+  ]
+}

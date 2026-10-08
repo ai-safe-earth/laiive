@@ -5,5 +5,11 @@ to use, copy, modify, distribute, or create derivative works of this software,
 in whole or in part, without prior written permission from the copyright
 holder.
 
+The source may be publicly visible. Being able to read it grants no licence
+to it.
+
+Third-party components included in or used by this software remain under
+their own licences. See THIRD_PARTY_NOTICES.md.
+
 Note: versions of this project distributed prior to 2026-08-13 under the
 Apache License 2.0 remain governed by that license for those versions.

@@ -14,16 +14,16 @@ Two tiers, because the cases are not equally cheap:
 ``should_not_contain`` is the corpus's real gate, so it is asserted in *both*
 tiers rather than only where a live model is available: offline as "a generated
 mutation never reaches the driver", online as "the generator did not emit one".
-``expected_patterns`` is xfailed - regex over generated Cypher asserts shape,
-not whether the query answers the question, and execute-and-compare replaces it
-in phase 4. The patterns are still kept current so the xfail means "wrong
-instrument", not "stale data".
+
+``expected_patterns`` is gone as of corpus v3.0, replaced by execute-and-compare
+against the frozen graph: the generated query runs, and the uids it returns are
+compared to the events the case says it should find. Regex asserted shape - red
+on a legitimate rewording, green on a well-formed query returning nothing.
 """
 
 import json
-import re
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -75,11 +75,13 @@ def test_every_safety_case_is_claimed_by_a_check():
 
 
 def test_every_query_gen_case_carries_a_gate():
-    """expected_patterns may be xfailed; should_not_contain may not be empty."""
+    """Both gates: the forbidden shapes, and the events the query must return."""
     assert len(QUERY_GEN) == 5
     for case in QUERY_GEN:
         assert case["should_not_contain"], case["id"]
-        assert case["expected_patterns"], case["id"]
+        assert case["match"] in ("exact", "contains"), case["id"]
+        # An empty `expect` would make execute-and-compare assert nothing.
+        assert case["expect"], case["id"]
 
 
 def test_query_gen_corpus_matches_the_live_prompt_version():
@@ -164,20 +166,19 @@ def test_generated_mutation_never_reaches_the_driver(keyword):
     """
     tool = QueryBuilderTool(neo4j_client=Mock(), schema="", client=Mock())
     cypher = f"MATCH (e:Event) {keyword} (n:Artist {{name: 'x'}}) RETURN e"
+    tool.client.chat.completions.create.return_value = Mock(
+        choices=[Mock(message=Mock(content=cypher))]
+    )
 
-    with patch(
-        "agent.tools.query_builder.chat_completion_with_retry",
-        return_value=Mock(choices=[Mock(message=Mock(content=cypher))]),
-    ):
-        data = json.loads(tool.run("find concerts by Radiohead"))
+    result = tool.run("find concerts by Radiohead")
 
     # Asserted first because it is the property that matters: if the guard ever
     # stops recognising the keyword, "the driver was called" is a clearer
     # failure than whatever the executed Mock raises downstream.
     tool.neo4j.execute_read.assert_not_called()
-    assert data["status"] == "error"
-    assert "safety" in data["error"].lower()
-    assert keyword in data["violations"]
+    assert result.error
+    assert "safety" in result.error.lower()
+    assert keyword in result.violations
 
 
 # ── query generation: integration ───────────────────────────────────────────
@@ -233,17 +234,40 @@ def test_generated_cypher_avoids_forbidden_shapes(case, generated):
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(
-    reason="regex over generated Cypher asserts shape, not whether the query "
-    "answers the question; execute-and-compare replaces it in phase 4",
-    strict=False,
-)
+@pytest.mark.graph
 @pytest.mark.parametrize("case", QUERY_GEN, ids=_ids(QUERY_GEN))
-def test_generated_cypher_matches_expected_patterns(case, generated):
+def test_generated_cypher_returns_the_right_events(case, generated, frozen_graph):
+    """Execute-and-compare: run the query, compare the uids it returns.
+
+    This replaces the regex over generated Cypher that stood here until v3.0 of
+    the corpus. Regex asserts *shape*: it went red whenever the prompt was
+    legitimately reworded, and stayed green for a query that was beautifully
+    formed and returned nothing. Running the query against the frozen graph
+    asks the only question worth asking - does it answer what was asked - and
+    two correct queries written differently both pass.
+    """
+    client, uids = frozen_graph
+    hint_of = {uid: hint for hint, uid in uids.items()}
     cypher = generated[case["id"]]
-    missing = [
-        pattern
-        for pattern in case["expected_patterns"]
-        if not re.search(pattern, cypher, re.IGNORECASE)
-    ]
-    assert not missing, f"{case['id']} missing {missing}:\n{cypher}"
+
+    rows = client.execute_read(cypher)
+    # The prompt requires the standard return shape, so a missing uid column is
+    # itself the finding rather than a reason to skip the comparison.
+    assert all("uid" in row for row in rows), (
+        f"{case['id']}: rows carry no uid column, so nothing can be compared:\n"
+        f"{cypher}\n{rows[:2]}"
+    )
+
+    got = {hint_of.get(row["uid"], row["uid"]) for row in rows}
+    wanted = set(case["expect"])
+    if case["match"] == "exact":
+        assert got == wanted, (
+            f"{case['id']} ({case['grounding']})\n"
+            f"  missing: {sorted(wanted - got)}\n"
+            f"  unexpected: {sorted(got - wanted)}\n{cypher}"
+        )
+    else:
+        assert wanted <= got, (
+            f"{case['id']} ({case['grounding']})\n"
+            f"  missing: {sorted(wanted - got)}\n{cypher}"
+        )

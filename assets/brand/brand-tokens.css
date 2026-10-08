@@ -16,6 +16,14 @@
   --primary-foreground: 0 9% 4%;  /* dark ink on fuchsia — never white below 18px */
   --secondary: 42 100% 50%;       /* #FFB100  price, mic, tickets, card rail */
   --secondary-foreground: 0 9% 4%;
+
+  /* Live accents (live-accents/live-accents.css). These three exist ONLY
+     inside the live-accent world gradient — never as flat UI colours.
+     Hex, not HSL: the gradient uses them directly. */
+  --live-base: #D4007F;           /* ground of the world */
+  --live-1: #FF4FB2;              /* travelling spot */
+  --live-2: #8A2BE2;              /* counter-light, opposite the spot */
+
   --accent: 42 100% 50%;
   --accent-foreground: 0 9% 4%;
 

@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { useReports, type ReportSummary } from "@/api/admin";
 import { AdminStats } from "@/admin/AdminStats";
 import { A } from "@/admin/strings";
-import { AdminButton, Badge, Empty, Label, Panel, statusTone } from "@/admin/ui";
+import { AdminButton, Badge, Empty, Panel, statusTone } from "@/admin/ui";
 import { Icon } from "@/components/Icon";
+import { Label } from "@/components/ui/Label";
 
 /** Sweeps only: a backfill report has no candidates to review. */
 const WAITING = "dry_run";

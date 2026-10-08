@@ -1,6 +1,5 @@
 import threading
 import time
-import uuid
 from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -17,6 +16,8 @@ from laiive_shared import (
     VenueLookupResult,
     install_internal_auth,
     register_health,
+    request_id_from,
+    setup_tracing,
     sse_frame,
     transcribe,
 )
@@ -63,11 +64,9 @@ def log_turn(
     ).info("turn: {}", user_message)
 
 
-def _request_id(raw: Request) -> str:
-    """The gateway's id, so the record joins conversation_logs; the gateway
-    strips client-sent copies, so the header is trustworthy. Minted locally
-    only for direct calls (tests, curl against 8002)."""
-    return raw.headers.get("x-request-id") or str(uuid.uuid4())
+# _request_id used to live here; it is laiive_shared.request_id_from now, so the
+# pusher can hold the same contract instead of minting its own id. That module
+# says why the header is trustworthy.
 
 
 def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
@@ -106,6 +105,15 @@ register_health(
 # probes are exempt, and an unset key is a no-op (local runs, compose, tests).
 install_internal_auth(app, expected=settings.internal_api_key)
 
+# Before the first OpenAI call: the instrumentor patches the openai module, so
+# this has to run while `Pipeline` is still unbuilt (it is — lazily, below).
+tracing_on = setup_tracing(
+    "retriever",
+    enabled=settings.phoenix_enabled,
+    endpoint=settings.phoenix_collector_endpoint,
+    api_key=settings.phoenix_api_key,
+)
+
 _pipeline: Pipeline | None = None
 
 
@@ -142,57 +150,19 @@ class ChatRequestSSE(BaseModel):
     timezone: Optional[str] = None
 
 
-class ChatRequest(BaseModel):
-    """JSON request format."""
-
-    message: str
-    conversation_history: Optional[List[Message]] = None
-    location: Optional[UserLocation] = None
-    timezone: Optional[str] = None
-
-
-class ChatResponse(BaseModel):
-    request_id: str
-    response: str
-    cypher: Optional[str] = None
-    results: Optional[list[dict]] = None
-    used_query: bool = False
-    needs_more_info: bool = False
-
-
 def _history_dicts(messages: Optional[List[Message]]) -> list[dict] | None:
     if not messages:
         return None
-    return [{"role": m.role, "content": m.content} for m in messages]
+    return [m.model_dump() for m in messages]
 
 
 def _location_dict(location: Optional[UserLocation]) -> dict | None:
     if location is None:
         return None
-    return {
-        "latitude": location.latitude,
-        "longitude": location.longitude,
-        "city": location.city,
-    }
+    return location.model_dump()
 
 
 # ============== Health & Info Endpoints ==============
-
-
-@app.get("/")
-def root():
-    return {
-        "service": "Live Music Events Search Assistant",
-        "version": "0.3.0",
-        "endpoints": {
-            "health": "/health",
-            "schema": "/schema",
-            "events": "/events?uids=… (GET) - cards by uid",
-            "chat": "/chat (POST) - JSON response",
-            "chat/stream": "/chat/stream (POST) - SSE streaming",
-            "docs": "/docs",
-        },
-    }
 
 
 @app.get("/health")
@@ -217,59 +187,23 @@ def health():
 
     all_ok = all(v == "ok" for v in checks.values())
     return JSONResponse(
-        content={"status": "ok" if all_ok else "degraded", "checks": checks},
+        content={
+            "status": "ok" if all_ok else "degraded",
+            "checks": checks,
+            # Not a check: a failing telemetry write never degrades the service,
+            # by design. It is reported here because the alternative is that a
+            # rotated service-role key quietly empties the eval corpus while
+            # this endpoint keeps saying "ok". Process-local, resets on deploy.
+            "telemetry": {
+                "eval_records_writes_failed": eval_records.writes_failed,
+                "tracing": tracing_on,
+            },
+        },
         status_code=200 if all_ok else 503,
     )
 
 
-@app.get("/schema")
-def get_schema():
-    try:
-        schema_text = neo4j_client.get_schema(force_refresh=True)
-        return {"schema": schema_text, "status": "ok"}
-    except Exception as e:
-        logger.error(f"Schema fetch failed: {e}")
-        return {"schema": None, "status": "error", "error": str(e)}
-
-
 # ============== Events by uid ==============
-
-
-@app.get("/events", response_model=EventsResult)
-def events_by_uid(uids: str = Query(..., description="comma-separated event uids")):
-    """Fresh cards for a set of uids — the saved list's read path.
-
-    Deliberately off the pipeline: there is no question to classify, no plan
-    to route and nothing to compose, so this reaches the driver directly and
-    never calls get_pipeline(). That is also what keeps importing this module
-    free of an OpenAI client — the pipeline is still built by the first chat
-    turn, not by a saved list.
-
-    Unknown uids come back as nothing rather than an error: an event deleted
-    from the graph is a stale pointer in somebody's list, not a bad request.
-    """
-    wanted: list[str] = []
-    for raw in uids.split(","):
-        uid = raw.strip()
-        if uid and uid not in wanted:
-            wanted.append(uid)
-    if not wanted:
-        return EventsResult(events=[])
-    if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
-        # A truncated saved list is cards vanishing with no message, so the
-        # cap is refused rather than silently applied.
-        raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
-
-    cypher, params = build_uid_query(wanted)
-    try:
-        rows = neo4j_client.execute_read(cypher, params)
-    except Exception as e:
-        logger.error(f"uid lookup failed: {e}")
-        raise HTTPException(502, "Could not read the events.") from e
-
-    # Back in the order asked for, so the client's own ordering survives.
-    by_uid = {card.uid: card for card in rows_to_cards(rows)}
-    return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
 def _wanted_uids(raw: str) -> list[str]:
@@ -287,6 +221,37 @@ def _wanted_uids(raw: str) -> list[str]:
     if len(wanted) > EVENT_LOOKUP_MAX_UIDS:
         raise HTTPException(400, f"at most {EVENT_LOOKUP_MAX_UIDS} uids per request")
     return wanted
+
+
+@app.get("/events", response_model=EventsResult)
+def events_by_uid(uids: str = Query(..., description="comma-separated event uids")):
+    """Fresh cards for a set of uids — the saved list's read path.
+
+    Deliberately off the pipeline: there is no question to classify, no plan
+    to route and nothing to compose, so this reaches the driver directly and
+    never calls get_pipeline(). That is also what keeps importing this module
+    free of an OpenAI client — the pipeline is still built by the first chat
+    turn, not by a saved list.
+
+    Unknown uids come back as nothing rather than an error: an event deleted
+    from the graph is a stale pointer in somebody's list, not a bad request.
+    """
+    # The cap is refused rather than silently applied: a truncated saved list
+    # is cards vanishing with no message.
+    wanted = _wanted_uids(uids)
+    if not wanted:
+        return EventsResult(events=[])
+
+    cypher, params = build_uid_query(wanted)
+    try:
+        rows = neo4j_client.execute_read(cypher, params)
+    except Exception as e:
+        logger.error(f"uid lookup failed: {e}")
+        raise HTTPException(502, "Could not read the events.") from e
+
+    # Back in the order asked for, so the client's own ordering survives.
+    by_uid = {card.uid: card for card in rows_to_cards(rows)}
+    return EventsResult(events=[by_uid[uid] for uid in wanted if uid in by_uid])
 
 
 # ============== Entity lookup (venues, artists) ==============
@@ -396,46 +361,16 @@ async def transcribe_audio(file: UploadFile = File(...)):
 # ============== Chat Endpoints ==============
 
 
-@app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest, raw: Request):
-    """JSON response endpoint."""
-    request_id = _request_id(raw)
-    result = TurnResult()
-    start = time.perf_counter()
-    try:
-        get_pipeline().run_turn_collected(
-            request.message,
-            _history_dicts(request.conversation_history),
-            _location_dict(request.location),
-            timezone=request.timezone,
-            result=result,
-        )
-        return ChatResponse(
-            request_id=request_id,
-            response=result.text,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            results=[c.model_dump() for c in result.cards] or None,
-            used_query=result.used_query,
-            needs_more_info=result.needs_more_info,
-        )
-    except Exception as e:
-        logger.opt(exception=True).error("[{}] Chat error: {}", request_id, e)
-        raise HTTPException(500, "An internal error occurred. Please try again.")
-    finally:
-        log_turn(
-            request_id,
-            request.message,
-            cypher=result.cyphers[0] if result.cyphers else None,
-            card_count=len(result.cards),
-            error="; ".join(result.errors) or None,
-        )
-        _write_eval_record(request_id, result, start)
+# /chat, the non-streaming JSON twin of /chat/stream, used to sit here. Nothing
+# called it: the SPA has only ever used the stream, and the gateway's /api/chat
+# prefix reaches both. It is in git history if a non-streaming client ever needs
+# one; `run_turn_collected` went with it.
 
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequestSSE, raw: Request):
     """SSE streaming endpoint — real streaming from the composer."""
-    request_id = _request_id(raw)
+    request_id = request_id_from(raw)
     if not request.messages:
         raise HTTPException(400, "No messages provided")
 
@@ -474,7 +409,12 @@ def _generate(
     start = time.perf_counter()
     try:
         for payload in get_pipeline().run_turn(
-            user_message, history, location, result=result, timezone=timezone
+            user_message,
+            history,
+            location,
+            result=result,
+            timezone=timezone,
+            request_id=request_id,
         ):
             yield sse_frame(payload)
     except Exception as e:
@@ -492,14 +432,8 @@ def _generate(
     yield sse_frame(Done(request_id=request_id))
 
 
-# ============== Metrics and Observability ==============
-
-
-@app.get("/metrics")
-def get_metrics():
-    """Simple metrics endpoint. For detailed observability, use Langfuse."""
-    return {
-        "status": "operational",
-        "langfuse_enabled": settings.langfuse_enabled,
-        "note": "Detailed metrics and traces available in Langfuse dashboard",
-    }
+# `GET /metrics` used to live here and returned a constant: a hardcoded
+# "operational", the tracing flag, and a note pointing at a dashboard that was
+# off by default. Nothing called it and the gateway never proxied it, so it was
+# unreachable as well as empty. Real per-turn numbers are in Supabase
+# `eval_records` (evals/queries.sql); traces are in Phoenix.

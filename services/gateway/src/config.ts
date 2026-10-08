@@ -1,5 +1,4 @@
 import path from "node:path";
-import dotenv from "dotenv";
 
 export interface GatewayConfig {
   host: string;
@@ -8,7 +7,6 @@ export interface GatewayConfig {
   retrieverUrl: string;
   pusherUrl: string;
   searchUrl: string;
-  searchEnabled: boolean;
   writesDisabled: boolean;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
@@ -35,7 +33,15 @@ const REQUIRED = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] as const;
  * (Docker injects env directly); missing keys are not.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
-  dotenv.config({ path: process.env.ENV_FILE ?? path.resolve(process.cwd(), "../../.env") });
+  // Node's own loader, which throws on a missing file where the REQUIRED check
+  // below is the error worth showing — so swallow it and let that speak. Values
+  // already in the real environment win over the file's, which is what keeps
+  // `GATEWAY_PORT=… npm run dev` overriding the root .env.
+  try {
+    process.loadEnvFile(process.env.ENV_FILE ?? path.resolve(process.cwd(), "../../.env"));
+  } catch {
+    /* no .env — Docker injects the environment directly */
+  }
 
   const missing = REQUIRED.filter((key) => !env[key]);
   if (missing.length > 0) {
@@ -50,11 +56,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
   return {
     host: env.GATEWAY_HOST ?? "0.0.0.0",
     port: Number(env.GATEWAY_PORT ?? 8000),
-    logLevel: env.GATEWAY_LOG_LEVEL ?? "info",
+    logLevel: "info",
     retrieverUrl: env.RETRIEVER_URL ?? "http://localhost:8002",
     pusherUrl: env.PUSHER_URL ?? "http://localhost:8003",
     searchUrl: env.SEARCH_URL ?? "http://localhost:8004",
-    searchEnabled: env.SEARCH_ENABLED === "true",
     // The write kill switch. Default OFF: an unset or mistyped value must never
     // silently stop publishing. Exactly "true" pauses every route that mutates
     // the graph; chat, transcribe and every read keep serving.
@@ -63,7 +68,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
     jwksUrl: env.SUPABASE_JWKS_URL ?? `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
     jwtIssuer: env.SUPABASE_JWT_ISSUER ?? `${supabaseUrl}/auth/v1`,
-    jwtAudience: env.SUPABASE_JWT_AUDIENCE ?? "authenticated",
+    jwtAudience: "authenticated",
     corsAllowOrigins: (env.CORS_ALLOW_ORIGINS ?? "http://localhost:8081")
       .split(",")
       .map((origin) => origin.trim())

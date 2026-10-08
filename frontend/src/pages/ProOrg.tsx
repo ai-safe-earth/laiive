@@ -17,7 +17,6 @@ import {
   useSetRelation,
   useUpdateOrg,
   useWithdrawClaim,
-  type Claim,
   type IssuedInvitation,
   type MemberRelation,
   type OrgKind,
@@ -26,10 +25,10 @@ import {
 } from "@/api/organizations";
 import { LOOKUP_CHUNK } from "@/api/savedEvents";
 import { useAuth } from "@/auth/AuthProvider";
-// Label, Badge and Panel are pro-palette primitives that happen to live under
-// admin/: they are built on pro.* and status.* tokens, not on anything
-// admin-specific. Reused rather than copied.
-import { Badge, Label, Panel } from "@/admin/ui";
+// Badge and Panel are pro-palette primitives that happen to live under admin/:
+// they are built on pro.* and status.* tokens, not on anything admin-specific.
+// Reused rather than copied.
+import { Badge, Panel } from "@/admin/ui";
 import { formatWhen } from "@/components/EventCardView";
 import { EventForm } from "@/components/EventForm";
 import { Icon } from "@/components/Icon";
@@ -37,18 +36,9 @@ import { Mark } from "@/components/Mark";
 import { OrgIdentity, RelationSelect } from "@/components/OrgIdentity";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
 import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/cn";
-
-/** A claim's two review states. `created` rows are verified by construction. */
-function ClaimBadge({ claim }: { claim: Claim }) {
-  const { t } = useTranslation();
-  return claim.verified ? (
-    <Badge tone="good">{t.org.verified}</Badge>
-  ) : (
-    <Badge tone="waiting">{t.org.pending}</Badge>
-  );
-}
 
 export default function ProOrg() {
   const { user, role, isLoading } = useAuth();
@@ -511,7 +501,7 @@ function ManagedEntities({ org, mayEdit }: { org: OrgMembership; mayEdit: boolea
       {mayEdit && (
         <>
           <div className="h-px bg-pro-border" />
-          <ClaimSearch org={org} mayEdit={mayEdit} />
+          <ClaimSearch org={org} />
         </>
       )}
     </Panel>
@@ -541,7 +531,11 @@ function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
                 {claim.entity_name ?? claim.entity_uid}
               </span>
               <Badge>{claim.entity_type}</Badge>
-              <ClaimBadge claim={claim} />
+              {/* A claim's two review states. `created` rows are verified by
+                  construction. */}
+              <Badge tone={claim.verified ? "good" : "waiting"}>
+                {claim.verified ? t.org.verified : t.org.pending}
+              </Badge>
               {mayEdit && (
                 <Button
                   variant="proNeutral"
@@ -563,7 +557,8 @@ function Claims({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
   );
 }
 
-function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean }) {
+/** Only ever mounted behind the caller's own `mayEdit` guard. */
+function ClaimSearch({ org }: { org: OrgMembership }) {
   const { t } = useTranslation();
   const [type, setType] = useState<"venue" | "artist">("venue");
   const [draft, setDraft] = useState("");
@@ -573,8 +568,6 @@ function ClaimSearch({ org, mayEdit }: { org: OrgMembership; mayEdit: boolean })
   const [query, setQuery] = useState("");
   const { data: hits, isFetching } = useEntitySearch(type, query);
   const claim = useCreateClaim(org.id);
-
-  if (!mayEdit) return null;
 
   const submitClaim = (uid: string, name: string) => {
     claim.mutate(

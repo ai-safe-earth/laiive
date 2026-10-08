@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UserMenu } from "./UserMenu";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 // The chip reads the profile for its initials; every spec here mocks the
 // Supabase client, so this keeps the menu from reaching for one.
@@ -33,15 +33,12 @@ function AccountStub() {
 }
 
 function renderMenuAt(path: string) {
-  return render(
-    <LanguageProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path={path} element={<UserMenu />} />
-          <Route path="/account" element={<AccountStub />} />
-        </Routes>
-      </MemoryRouter>
-    </LanguageProvider>,
+  return renderWith(
+    <Routes>
+      <Route path={path} element={<UserMenu />} />
+      <Route path="/account" element={<AccountStub />} />
+    </Routes>,
+    { route: path },
   );
 }
 

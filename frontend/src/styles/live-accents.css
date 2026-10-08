@@ -1,0 +1,69 @@
+/* laiive · live accents v1 — locked from "laiive Living Accents" option 2a
+   Settings at lock: intensity 0.7 · palette night-violet · 3 colours · speed 1.8 (5s loop)
+
+   Concept: the screen is a black window. Every fuchsia accent is a HOLE in it,
+   showing one shared moving world fixed to the viewport. Each .live-accent paints
+   the same viewport-sized gradient, offset by its own screen position (--hx/--hy,
+   written by useLiveAccents). Light therefore travels from hole to hole. */
+
+@property --lx { syntax: '<percentage>'; inherits: true; initial-value: 9%; }
+@property --ly { syntax: '<percentage>'; inherits: true; initial-value: 6%; }
+
+:root {
+  --live-base: #D4007F;   /* ground of the world */
+  --live-1:    #FF4FB2;   /* travelling spot colour */
+  --live-2:    #8A2BE2;   /* counter-light, moves opposite the spot */
+  --live-core: rgba(255, 244, 250, .66);  /* white-hot centre of the spot (intensity .7) */
+  --live-duration: 5s;
+  --live-flat: #FF2AA0;   /* reduced-motion / no-support fallback = --primary */
+
+  --live-world:
+    radial-gradient(47% 32% at var(--lx) var(--ly), var(--live-core) 0%, rgba(255,244,250,0) 45%),
+    radial-gradient(47% 32% at var(--lx) var(--ly), color-mix(in srgb, var(--live-1) 70%, transparent) 0%, color-mix(in srgb, var(--live-1) 0%, transparent) 72%),
+    radial-gradient(74% 52% at calc(100% - var(--lx)) calc(100% - var(--ly)), color-mix(in srgb, var(--live-2) 70%, transparent) 0%, color-mix(in srgb, var(--live-2) 0%, transparent) 72%),
+    linear-gradient(160deg, var(--live-base), color-mix(in oklch, var(--live-base) 78%, black));
+
+  animation: live-tour var(--live-duration) ease-in-out infinite;
+}
+
+/* Spot itinerary in viewport %, tuned to the mobile chat layout:
+   mark → big lips → saved → headline word → FREE chip → send → back.
+   Retune the stops if real accent positions differ a lot. */
+@keyframes live-tour {
+  0%, 100% { --lx: 9%;  --ly: 6%;  }
+  16%      { --lx: 50%; --ly: 27%; }
+  30%      { --lx: 92%; --ly: 6%;  }
+  48%      { --lx: 30%; --ly: 55%; }
+  66%      { --lx: 85%; --ly: 77%; }
+  82%      { --lx: 87%; --ly: 93%; }
+}
+
+/* Base hole: fills (buttons, chips, send, pills) */
+.live-accent {
+  background-color: var(--live-flat);
+  background-image: var(--live-world);
+  background-size: 100vw 100vh;
+  background-size: 100vw 100dvh;
+  background-position: calc(var(--hx, 0px) * -1) calc(var(--hy, 0px) * -1);
+  background-repeat: no-repeat;
+}
+
+/* Text hole: headline accent words ("TONIGHT") — Bebas ≥ 28px only */
+.live-accent--text {
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Shape hole: mark and icons. Set --live-mask to a black-on-transparent asset. */
+.live-accent--mask {
+  -webkit-mask: var(--live-mask) center / contain no-repeat;
+  mask: var(--live-mask) center / contain no-repeat;
+}
+.live-mark  { --live-mask: url(/brand/mask-mark.png); }   /* mouth is cut out — keeps the exact mark */
+.live-saved { --live-mask: url(/brand/mask-saved.svg); }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { animation: none; }
+  .live-accent { background-image: none; }
+}

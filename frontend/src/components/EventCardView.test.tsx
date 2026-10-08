@@ -1,12 +1,11 @@
 import type { EventCard } from "@shared/protocol";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { EventCardView } from "./EventCardView";
 import { claimTarget } from "@/auth/claimTarget";
 import { translations } from "@/i18n/translations";
-import { LanguageProvider } from "@/i18n/useTranslation";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -23,14 +22,18 @@ const BERGAMO: EventCard = {
   source: "pro_submission",
 };
 
-function renderCard(card: EventCard, claimTo = "/auth?kind=pro") {
-  // The claim invitation is a router link, so every render needs a router.
-  return render(
-    <MemoryRouter>
-      <LanguageProvider>
-        <EventCardView card={card} language="en" claimTo={claimTo} />
-      </LanguageProvider>
-    </MemoryRouter>,
+/**
+ * The claim invitation is a router link, so every render needs a router —
+ * `renderWith` brings one. `extra` is for the two save specs, which are about
+ * props the default card deliberately omits.
+ */
+function renderCard(
+  card: EventCard,
+  claimTo = "/auth?kind=pro",
+  extra: { saved?: boolean; onToggleSave?: (uid: string, next: boolean) => void } = {},
+) {
+  return renderWith(
+    <EventCardView card={card} language="en" claimTo={claimTo} {...extra} />,
   );
 }
 
@@ -169,18 +172,7 @@ describe("saving a card", () => {
   it("asks the page to save, and says which card and which direction", async () => {
     const user = userEvent.setup();
     const onToggleSave = vi.fn();
-    render(
-      <MemoryRouter>
-        <LanguageProvider>
-          <EventCardView
-            card={BERGAMO}
-            language="en"
-            claimTo="/auth?kind=pro"
-            onToggleSave={onToggleSave}
-          />
-        </LanguageProvider>
-      </MemoryRouter>,
-    );
+    renderCard(BERGAMO, undefined, { onToggleSave });
 
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     expect(onToggleSave).toHaveBeenCalledWith("e1", true);
@@ -189,19 +181,7 @@ describe("saving a card", () => {
   it("carries the saved state in the label, not only in the colour", async () => {
     const user = userEvent.setup();
     const onToggleSave = vi.fn();
-    render(
-      <MemoryRouter>
-        <LanguageProvider>
-          <EventCardView
-            card={BERGAMO}
-            language="en"
-            claimTo="/auth?kind=pro"
-            saved
-            onToggleSave={onToggleSave}
-          />
-        </LanguageProvider>
-      </MemoryRouter>,
-    );
+    renderCard(BERGAMO, undefined, { saved: true, onToggleSave });
 
     const pill = screen.getByRole("button", { name: /^saved$/i, pressed: true });
     await user.click(pill);

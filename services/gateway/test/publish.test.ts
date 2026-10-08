@@ -259,7 +259,6 @@ describe("WRITES_DISABLED", () => {
         pusherUrl: pusher.url,
         retrieverUrl: pusher.url,
         searchUrl: pusher.url,
-        searchEnabled: true,
         writesDisabled: true,
       }),
     );

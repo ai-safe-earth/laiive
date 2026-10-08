@@ -11,12 +11,6 @@ class Settings(BaseSettings):
     neo4j_database: str = Field("neo4j", alias="NEO4J_DATABASE")
     neo4j_max_pool_size: int = Field(5, alias="PUSHER_NEO4J_MAX_POOL_SIZE")
 
-    aura_instanceid: str | None = Field(None, alias="AURA_INSTANCEID")
-    aura_instancename: str | None = Field(None, alias="AURA_INSTANCENAME")
-
-    host: str = Field("0.0.0.0", alias="HOST")
-    port: int = Field(8003, alias="PORT")
-
     model_config = SettingsConfigDict(
         env_file="../../.env",
         env_file_encoding="utf-8",
@@ -42,6 +36,24 @@ class Settings(BaseSettings):
     redis_url: str = Field("", alias="REDIS_URL")
     # Shared with the gateway; empty disables the check (see internal_auth.py).
     internal_api_key: str = Field("", alias="INTERNAL_API_KEY")
+
+    # push_records: the write verdict, joined to the gateway's conversation_logs
+    # on request_id. Empty URL disables the write — local runs and tests. This
+    # makes the pusher the fourth holder of the full-RLS-bypass service key; the
+    # standing mitigation is a scoped insert-only Postgres role for all four,
+    # which is tracked and not done.
+    supabase_url: str = Field("", alias="SUPABASE_URL")
+    supabase_service_role_key: str = Field("", alias="SUPABASE_SERVICE_ROLE_KEY")
+
+    # Tracing into Arize Phoenix (laiive_shared.tracing). This service never had
+    # tracing: its three module-level OpenAI clients were outside the Langfuse
+    # wrapper. The instrumentor patches the openai module, so they are covered
+    # here without being touched.
+    phoenix_enabled: bool = Field(False, alias="PHOENIX_ENABLED")
+    phoenix_collector_endpoint: str = Field(
+        "http://localhost:6006", alias="PHOENIX_COLLECTOR_ENDPOINT"
+    )
+    phoenix_api_key: str = Field("", alias="PHOENIX_API_KEY")
 
 
 try:

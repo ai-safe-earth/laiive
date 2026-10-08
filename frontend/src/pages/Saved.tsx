@@ -5,6 +5,7 @@ import { claimTarget } from "@/auth/claimTarget";
 import { useSavedCards, useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { EventCardView } from "@/components/EventCardView";
 import { Icon } from "@/components/Icon";
+import { Label } from "@/components/ui/Label";
 import { useTranslation } from "@/i18n/useTranslation";
 
 /**
@@ -31,13 +32,6 @@ export function splitByTime(
   return { upcoming, past };
 }
 
-/** Mono small-caps section rule, the voice used for every other label here. */
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="font-mono text-xs uppercase tracking-[0.11em] text-ink-dim">{children}</p>
-  );
-}
-
 export default function Saved() {
   const { user, role } = useAuth();
   const { language, t } = useTranslation();
@@ -57,7 +51,7 @@ export default function Saved() {
   const group = (heading: string, group: EventCard[]) =>
     group.length > 0 && (
       <section className="flex flex-col gap-2">
-        <SectionLabel>{heading}</SectionLabel>
+        <Label pro={false}>{heading}</Label>
         {group.map((card) => (
           <EventCardView
             key={card.uid}

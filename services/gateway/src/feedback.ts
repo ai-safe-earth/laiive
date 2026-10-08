@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { GatewayConfig } from "./config.js";
+import { createSupabaseAdmin } from "./supabaseAdmin.js";
 
 /**
  * Thumbs on an assistant turn (eval phase 1): the down is the informative
@@ -9,13 +10,9 @@ import type { GatewayConfig } from "./config.js";
  * history) and eval_records (the answer).
  */
 export function registerFeedback(app: FastifyInstance, config: GatewayConfig): void {
-  const endpoint = `${config.supabaseUrl}/rest/v1/turn_feedback`;
-  const headers = {
-    "content-type": "application/json",
-    apikey: config.supabaseServiceRoleKey,
-    authorization: `Bearer ${config.supabaseServiceRoleKey}`,
-    prefer: "return=minimal",
-  };
+  // Minimal insert: the row is never read back, and the client's plain
+  // `insert` would carry a representation home on every thumb.
+  const db = createSupabaseAdmin(config);
 
   app.post("/api/chat/feedback", async (request, reply) => {
     const body = request.body as {
@@ -37,18 +34,15 @@ export function registerFeedback(app: FastifyInstance, config: GatewayConfig): v
       return reply.code(400).send({ error: "rating must be 'up' or 'down'" });
     }
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
+    try {
+      await db.insertMinimal("turn_feedback", {
         request_id: requestId,
         user_id: request.user?.id ?? null,
         reason,
         rating,
-      }),
-    });
-    if (!response.ok) {
-      request.log.error({ status: response.status }, "turn_feedback insert failed");
+      });
+    } catch (error) {
+      request.log.error({ err: error }, "turn_feedback insert failed");
       return reply.code(502).send({ error: "feedback not recorded" });
     }
     return reply.code(204).send();

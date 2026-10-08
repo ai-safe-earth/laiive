@@ -66,13 +66,6 @@ export interface RosterSeat {
   display_name: string | null;
 }
 
-/** What `GET /api/claims` answers for one entity — booleans, never rows. */
-export interface ClaimState {
-  claimed: boolean;
-  verified: boolean;
-  yours: { id: string; org_id: string; verified: boolean } | null;
-}
-
 export const orgKeys = {
   mine: (userId: string) => ["organizations", userId] as const,
   claims: (orgId: string) => ["org-claims", orgId] as const,
@@ -353,11 +346,10 @@ export interface IssuedInvitation extends Omit<PendingInvitation, "created_at"> 
   token: string;
 }
 
+/** Email only: every invitation is a member seat. The gateway defaults to
+ *  `member` and refuses `owner` outright, so the role was never worth sending. */
 export interface InviteInput {
   email: string;
-  /** Omitted by the roster control: every invitation is a member seat. The
-   *  gateway defaults to `member` and refuses `owner` outright. */
-  role?: OrgRole;
 }
 
 /**
@@ -442,15 +434,4 @@ export async function acceptInvitation(token: string): Promise<AcceptedInvitatio
     body: JSON.stringify({ token }),
   });
   return (await response.json()) as AcceptedInvitation;
-}
-
-/** Whether an entity is already spoken for — the per-hit state in the picker. */
-export async function fetchClaimState(
-  entityType: EntityType,
-  entityUid: string,
-): Promise<ClaimState> {
-  const response = await apiFetch(
-    `/api/claims?entity_type=${encodeURIComponent(entityType)}&entity_uid=${encodeURIComponent(entityUid)}`,
-  );
-  return (await response.json()) as ClaimState;
 }

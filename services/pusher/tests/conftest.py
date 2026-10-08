@@ -7,6 +7,7 @@ module-level client gets added to this list or tests hit the real API):
   agent.graph._openai         — embeddings on write
   agent.graph._driver         — Neo4j driver
   agent.graph._geocoder       — Nominatim
+  agent.push_records._http    — the Supabase PostgREST client
 """
 
 import json
@@ -22,6 +23,15 @@ import pytest
 # pydantic-settings. Enforcement itself is covered in shared's
 # test_internal_auth.py.
 os.environ["INTERNAL_API_KEY"] = ""
+# Likewise: PHOENIX_ENABLED=true in the root .env would instrument the openai
+# module for the whole suite and ship test spans to the dev collector, mixed in
+# with real turns. Tests never trace.
+os.environ["PHOENIX_ENABLED"] = "false"
+# A real SUPABASE_URL in the root .env would make every write test fire a
+# live push_records insert. Empty URL no-ops the write, same as the
+# retriever does for eval_records.
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_SERVICE_ROLE_KEY"] = ""
 
 # Relative, not a literal. A hard-coded date silently rots into the past, and
 # the correction layer then reads every fixture as "did you mean a later date?"
@@ -65,6 +75,20 @@ def mock_openai():
         patch("agent.graph._openai", mock_client),
     ):
         yield mock_client
+
+
+@pytest.fixture(autouse=True)
+def mock_push_records():
+    """No live PostgREST inserts from tests.
+
+    The empty SUPABASE_URL above already short-circuits `write()`, so this is
+    the second line of defence — and the one that keeps holding if a test ever
+    sets a URL to exercise the write path itself.
+    """
+    http = MagicMock()
+    http.post.return_value = MagicMock(status_code=201, text="")
+    with patch("agent.push_records._http", http):
+        yield http
 
 
 @pytest.fixture(autouse=True)

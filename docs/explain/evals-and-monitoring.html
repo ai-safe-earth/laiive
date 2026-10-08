@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evals and monitoring: retriever vs pusher — laiive</title>
+<style>
+  /* --p0/--p1 are per-unit accent pairs; add --p2 (and .b2/.d2) the same way
+     for a third unit. A one-unit doc uses --p0 only and drops the legend. */
+  :root{
+    --bg:#faf9f7; --panel:#ffffff; --fg:#1c1c22; --muted:#6b6b76; --rule:#e3e1dc;
+    --code-bg:#f2f0ec; --code-fg:#2a2a30; --comment:#8b8b95;
+    --p0:#0e7490; --p0-bg:#e3f3f7; --p0-line:#0e7490;
+    --p1:#bd2a80; --p1-bg:#fbe6f2; --p1-line:#bd2a80;
+    --infra:#8f8c96; --good:#177245; --warn:#9a6a06;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101014; --panel:#17171c; --fg:#e8e6e3; --muted:#9a97a0; --rule:#2b2b33;
+      --code-bg:#1c1c23; --code-fg:#d8d6d3; --comment:#7e7e8a;
+      --p0:#53c9dd; --p0-bg:#0d3540; --p0-line:#53c9dd;
+      --p1:#ff5cb8; --p1-bg:#3e1130; --p1-line:#ff5cb8;
+      --infra:#77747e; --good:#5fce8d; --warn:#e3b341;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  main{max-width:980px; margin:0 auto; padding:0 28px 90px}
+  header.doc{max-width:980px; margin:0 auto; padding:56px 28px 8px}
+  h1{font-size:30px; line-height:1.2; margin:0 0 6px}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 4px}
+  h2{font-size:22px; margin:60px 0 12px; padding-top:18px; border-top:1px solid var(--rule)}
+  h3{font-size:16.5px; margin:30px 0 8px}
+  p{margin:10px 0}
+  a{color:var(--p0); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    font:12.8px/1.55 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-fg); border:1px solid var(--rule);
+    border-radius:0 0 8px 8px; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  }
+  pre code{background:none; padding:0; font-size:12.8px}
+  .file{
+    display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+    background:var(--panel); border:1px solid var(--rule); border-bottom:none;
+    border-radius:8px 8px 0 0; padding:7px 16px; margin-top:16px;
+    font:12px ui-monospace,Consolas,monospace; color:var(--muted);
+  }
+  .file b{color:var(--fg); font-weight:600}
+  .cm{color:var(--comment)}
+  .badge{
+    display:inline-block; font:700 10.5px/1 ui-monospace,Consolas,monospace;
+    padding:4px 7px; border-radius:99px; vertical-align:2px; letter-spacing:.05em;
+  }
+  .b0{background:var(--p0-bg); color:var(--p0)}
+  .b1{background:var(--p1-bg); color:var(--p1)}
+  .fig{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:18px 14px 8px; margin:20px 0 8px; overflow-x:auto;
+  }
+  .fig svg{display:block; margin:0 auto; min-width:720px}
+  .figcap{color:var(--muted); font-size:13px; margin:6px 4px 22px; text-align:center}
+  table{border-collapse:collapse; width:100%; margin:14px 0 20px; font-size:13.5px}
+  th,td{border:1px solid var(--rule); padding:7px 10px; text-align:left; vertical-align:top}
+  th{background:var(--code-bg); font-weight:600}
+  td code{font-size:12px}
+  ul,ol{padding-left:24px; margin:10px 0}
+  li{margin:5px 0}
+  .take{
+    background:var(--panel); border:1px solid var(--rule); border-left:4px solid var(--p0);
+    border-radius:8px; padding:12px 18px; margin:22px 0;
+  }
+  .take.t1{border-left-color:var(--p1)}
+  .take h4{margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+  .take ul{margin:6px 0 2px}
+  .dec b.num{
+    display:inline-block; min-width:20px; text-align:center; border-radius:99px;
+    font:700 11px/20px ui-monospace,Consolas,monospace; margin-right:6px;
+  }
+  .dec.d0 b.num{background:var(--p0-bg); color:var(--p0)}
+  .dec.d1 b.num{background:var(--p1-bg); color:var(--p1)}
+  nav.toc{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:14px 22px; margin:22px 0 0; font-size:14px;
+  }
+  nav.toc ol{margin:6px 0; columns:2; column-gap:40px}
+  .warntag{color:var(--warn); font-weight:600}
+  .goodtag{color:var(--good); font-weight:600}
+  .svgt{font:12px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--fg)}
+  .svgs{font:10.5px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--muted)}
+  .svgm{font:11px ui-monospace,Consolas,monospace; fill:var(--fg)}
+  .svgmd{font:10.5px ui-monospace,Consolas,monospace; fill:var(--muted)}
+</style>
+</head>
+<body>
+<header class="doc">
+  <h1>Evals and monitoring — what the retriever measures, and what the pusher cannot</h1>
+  <p class="sub">laiive · branch <code>feat/search-bergamo-agendas</code> · commit <code>7492a33</code> · written 2026-09-21</p>
+  <p class="sub">Legend used throughout: <span class="badge b0">RET</span> retriever &nbsp;·&nbsp; <span class="badge b1">PUSH</span> pusher &nbsp;·&nbsp; grey = shared infrastructure</p>
+  <nav class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#context">Why this exists</a></li>
+      <li><a href="#system">The system, and where the instruments sit</a></li>
+      <li><a href="#runtime">Retriever at runtime — capture, label, prune</a></li>
+      <li><a href="#corpus">Retriever offline — twelve cases with a tripwire</a></li>
+      <li><a href="#pusher">Pusher — fifty-two cases and no instruments</a></li>
+      <li><a href="#join">The join: one key, three tables, and where it stops</a></li>
+      <li><a href="#next">Status and recommendations</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+
+<h2 id="context">1 · Why this exists</h2>
+
+<p>The programme file opens its evals section with one sentence: <em>“Nothing after this is a
+claim without it.”</em> (<code>docs/roadmap/01-program.md</code> §3). Two earlier documents —
+<a href="eval-phases-0-1.html">eval phases 0–1</a> and <a href="eval-phase-2.html">eval phase 2</a>
+— each described one build step for the retriever. Neither answered the question this one does:
+<strong>across the two conversational services, what can actually be measured today, and what
+happens silently?</strong></p>
+
+<p>The answer is lopsided in a way that is invisible from any single file. The retriever has a
+complete loop: every turn writes an answer-side record, a thumbs-down attaches a label to it, a
+nightly job prunes everything unlabelled after 90 days, and twelve hand-labelled cases run in
+pytest with a tripwire that fires when the prompt they describe changes. The pusher — the service
+that <em>writes to the graph</em>, the only one whose mistakes are durable — has none of it. Its
+52-case dedup corpus has never been reviewed, so nothing is wired to it; its chat turns produce
+no answer-side row; its three OpenAI clients are untraced; and it throws away the correlation id
+the gateway hands it, which means even the request-side rows the gateway <em>does</em> write for
+it cannot be joined to anything the pusher logged.</p>
+
+<p>Before this document, the honest summary of “how are we doing on evals?” was a shrug per
+service. What was impossible was the comparison: knowing that a bad answer is recoverable from
+production data within a week, and a bad <em>write</em> is not recoverable at all.</p>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>The retriever is instrumented end to end; the pusher is dark.</li>
+    <li>The asymmetry is backwards from risk: the dark service is the one that writes.</li>
+    <li>This doc is a state-of-play reading of the working tree at <code>7492a33</code>, not a build step — nothing here was implemented for it.</li>
+  </ul>
+</div>
+
+<h2 id="system">2 · The system, and where the instruments sit</h2>
+
+<p>Fig. 1 shows only the telemetry paths. Neo4j, OpenAI, Redis and the search service are omitted:
+they are on every request but none of them is part of the measurement story, and drawing them
+would hide the one thing worth seeing — that three arrows land in Supabase and the fourth does
+not exist.</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 610" role="img" aria-label="Telemetry paths from the SPA through the gateway into the retriever, the pusher and the Supabase telemetry tables">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+    <marker id="ar1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <!-- SPA -->
+  <rect x="16" y="70" width="190" height="160" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="30" y="96" class="svgt" font-weight="600">Frontend SPA</text>
+  <text x="30" y="113" class="svgs">React · Cloudflare Pages</text>
+  <rect x="26" y="126" width="170" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="34" y="142" class="svgmd">Chat.tsx · streamChat()</text>
+  <rect x="26" y="156" width="170" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="34" y="172" class="svgm" fill="var(--p0)">thumbs up / down</text>
+  <text x="30" y="204" class="svgs">stateless: the client</text>
+  <text x="30" y="219" class="svgs">resends the whole history</text>
+
+  <!-- Gateway -->
+  <rect x="286" y="40" width="244" height="290" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="300" y="66" class="svgt" font-weight="600">Gateway :8000 · Fastify</text>
+  <text x="300" y="83" class="svgs">the only published surface</text>
+  <rect x="298" y="94" width="220" height="38" rx="6" fill="var(--code-bg)"/>
+  <text x="306" y="109" class="svgmd">genReqId() = randomUUID()</text>
+  <text x="306" y="123" class="svgmd">strips client x-request-id  ①</text>
+  <rect x="298" y="138" width="220" height="38" rx="6" fill="var(--code-bg)"/>
+  <text x="306" y="153" class="svgmd">onResponse hook → log  ②</text>
+  <text x="306" y="167" class="svgmd">LOGGED_ROUTES, feedback excl.</text>
+  <rect x="298" y="182" width="220" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="306" y="198" class="svgm" fill="var(--p0)">POST /api/chat/feedback</text>
+  <rect x="298" y="212" width="220" height="38" rx="6" fill="var(--code-bg)"/>
+  <text x="306" y="227" class="svgmd">proxy /api/chat/* → :8002</text>
+  <text x="306" y="241" class="svgmd">proxy /api/push/*  → :8003</text>
+  <text x="300" y="276" class="svgs">logging.ts · feedback.ts · proxy.ts</text>
+  <text x="300" y="296" class="svgs">holds the service-role key</text>
+  <text x="300" y="313" class="svgs">(one of three services that do)</text>
+
+  <!-- Retriever -->
+  <rect x="610" y="40" width="334" height="188" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="624" y="66" class="svgt" font-weight="600">Retriever :8002 <tspan class="svgm" fill="var(--p0)">[RET]</tspan></text>
+  <text x="624" y="83" class="svgs">reads the graph, streams SSE</text>
+  <rect x="622" y="94" width="310" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="630" y="110" class="svgmd">classify → route → execute → compose</text>
+  <rect x="622" y="124" width="310" height="38" rx="6" fill="var(--p0-bg)"/>
+  <text x="630" y="139" class="svgm" fill="var(--p0)">adopts the gateway's x-request-id</text>
+  <text x="630" y="153" class="svgm" fill="var(--p0)">finally: → daemon thread → write  ③</text>
+  <rect x="622" y="168" width="310" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="630" y="184" class="svgmd">llm_utils: Langfuse wrap (off by default)</text>
+  <text x="624" y="214" class="svgs">api.py · eval_records.py · utils/llm_utils.py</text>
+
+  <!-- Pusher -->
+  <rect x="610" y="258" width="334" height="150" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="624" y="284" class="svgt" font-weight="600">Pusher :8003 <tspan class="svgm" fill="var(--p1)">[PUSH]</tspan></text>
+  <text x="624" y="301" class="svgs">the only service that writes the graph</text>
+  <rect x="622" y="312" width="310" height="24" rx="6" fill="var(--p1-bg)"/>
+  <text x="630" y="328" class="svgm" fill="var(--p1)">request_id = uuid4() — header dropped  ⑥</text>
+  <rect x="622" y="342" width="310" height="24" rx="6" fill="var(--p1-bg)"/>
+  <text x="630" y="358" class="svgm" fill="var(--p1)">no answer-side record at all  ⑦</text>
+  <rect x="622" y="372" width="310" height="24" rx="6" fill="var(--p1-bg)"/>
+  <text x="630" y="388" class="svgm" fill="var(--p1)">3 bare OpenAI clients — untraced  ⑧</text>
+
+  <!-- Supabase -->
+  <rect x="150" y="440" width="430" height="152" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="164" y="466" class="svgt" font-weight="600">Supabase Postgres · telemetry</text>
+  <text x="164" y="483" class="svgs">RLS on, zero policies = service-role only</text>
+  <rect x="162" y="494" width="406" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="170" y="510" class="svgmd">conversation_logs — request side, written by the gateway</text>
+  <rect x="162" y="524" width="406" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="170" y="540" class="svgm" fill="var(--p0)">eval_records — answer side, written by the retriever</text>
+  <rect x="162" y="554" width="406" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="170" y="570" class="svgm" fill="var(--p0)">turn_feedback — the label · pg_cron prunes the rest at 90 d</text>
+
+  <!-- arrows -->
+  <path d="M206 130 L286 130" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="196" y="122" class="svgs">POST /api/chat/stream · /api/push/chat</text>
+  <path d="M206 168 L286 194" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="200" y="186" class="svgs">{request_id, rating}</text>
+
+  <path d="M530 130 L610 130" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="524" y="122" class="svgs">x-request-id injected ①</text>
+  <path d="M530 240 L570 240 L570 300 L610 300" stroke="var(--p1-line)" stroke-width="2" fill="none" marker-end="url(#ar1)"/>
+  <text x="482" y="262" class="svgs">same header ①, ignored ⑥</text>
+
+  <path d="M400 330 L400 440" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="408" y="386" class="svgs">conversation_logs + turn_feedback rows ②</text>
+
+  <path d="M610 190 L592 190 L592 424 L520 424 L520 440" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="540" y="416" class="svgs">eval_records ③</text>
+
+  <path d="M660 408 L660 430 L616 430" stroke="var(--p1-line)" stroke-width="2" stroke-dasharray="5 4" fill="none"/>
+  <text x="596" y="434" class="svgt" fill="var(--p1)" font-weight="700">✕</text>
+  <text x="666" y="424" class="svgs" fill="var(--p1)">nothing ⑦</text>
+</svg>
+</div>
+<p class="figcap">Fig. 1 — Telemetry only. Neo4j, OpenAI, Redis and the search service are on every one of these requests and are deliberately omitted; so is <code>/api/publish</code>, which is logged exactly like <code>/api/push/chat</code>. The dashed ✕ is the whole point of the document.</p>
+
+<div class="take">
+  <h4>Key takeaways — the shape</h4>
+  <ul>
+    <li>Three writers into Supabase, all with the same service-role key: gateway (request side + label), retriever (answer side), and — for the search service — reports.</li>
+    <li>The pusher is on the diagram only as a consumer of a header it discards.</li>
+    <li>Every table is service-role only, so no client can read any of it back.</li>
+  </ul>
+</div>
+
+<h2 id="runtime">3 · Retriever at runtime — capture, label, prune <span class="badge b0">RET</span></h2>
+
+<h3>3.1 · Goal</h3>
+
+<p>Make every production turn recoverable later, at a cost that can never break the turn itself.
+That splits into three obligations that pull against each other: the record must contain enough to
+judge the answer (the question, the generated Cypher, the cards, the final text, the errors and the
+latency); it must be written on a path where a failure is invisible to the user; and it must not
+accumulate personal text forever. The shape below is what satisfies all three — a fire-and-forget
+write from two services that share a key, plus a nightly prune that spares anything a human
+complained about.</p>
+
+<h3>3.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 540" role="img" aria-label="Sequence diagram of one retriever chat turn and the three telemetry rows it produces">
+  <defs>
+    <marker id="s-ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="s-ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+  </defs>
+
+  <!-- lifeline headers -->
+  <rect x="30" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="46" y="42" class="svgt">Browser</text>
+  <rect x="280" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="296" y="42" class="svgt">Gateway</text>
+  <rect x="560" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="576" y="42" class="svgt">Retriever</text>
+  <rect x="810" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="826" y="42" class="svgt">Supabase</text>
+
+  <path d="M95 54 L95 520" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M345 54 L345 520" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M625 54 L625 520" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M875 54 L875 520" stroke="var(--rule)" stroke-width="1.5"/>
+
+  <path d="M95 92 L345 92" stroke="var(--infra)" stroke-width="2" marker-end="url(#s-ar)"/>
+  <text x="104" y="86" class="svgs">POST /api/chat/stream — full client-carried history</text>
+
+  <rect x="262" y="104" width="180" height="36" rx="6" fill="var(--code-bg)"/>
+  <text x="272" y="119" class="svgmd">id = randomUUID()</text>
+  <text x="272" y="133" class="svgmd">client copy deleted  ①</text>
+
+  <path d="M345 166 L625 166" stroke="var(--p0-line)" stroke-width="2" marker-end="url(#s-ar0)"/>
+  <text x="354" y="160" class="svgs">x-request-id: A · x-user-id · x-internal-key</text>
+
+  <rect x="542" y="178" width="200" height="36" rx="6" fill="var(--p0-bg)"/>
+  <text x="552" y="193" class="svgm" fill="var(--p0)">_request_id(raw) → A</text>
+  <text x="552" y="207" class="svgm" fill="var(--p0)">start = perf_counter()</text>
+
+  <path d="M625 240 L95 240" stroke="var(--infra)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#s-ar)"/>
+  <text x="240" y="234" class="svgs">SSE: status · events.result · message.delta ×N (real tokens)</text>
+
+  <rect x="542" y="256" width="216" height="50" rx="6" fill="var(--p0-bg)"/>
+  <text x="552" y="271" class="svgm" fill="var(--p0)">finally: log_turn(stdout)</text>
+  <text x="552" y="285" class="svgm" fill="var(--p0)">_write_eval_record(...)  ③</text>
+  <text x="552" y="299" class="svgmd">runs BEFORE the done frame</text>
+
+  <path d="M625 328 L875 328" stroke="var(--p0-line)" stroke-width="2" marker-end="url(#s-ar0)"/>
+  <text x="634" y="322" class="svgs">daemon thread → POST /rest/v1/eval_records  ④</text>
+
+  <path d="M625 362 L95 362" stroke="var(--infra)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#s-ar)"/>
+  <text x="240" y="356" class="svgs">SSE: done {request_id: A} — the client stores A</text>
+
+  <path d="M345 396 L875 396" stroke="var(--infra)" stroke-width="2" marker-end="url(#s-ar)"/>
+  <text x="354" y="390" class="svgs">onResponse (stream finished) → conversation_logs {A, payload, status, duration_ms}  ②</text>
+
+  <path d="M95 434 L345 434" stroke="var(--p0-line)" stroke-width="2" marker-end="url(#s-ar0)"/>
+  <text x="104" y="428" class="svgs">POST /api/chat/feedback {request_id: A, rating}</text>
+
+  <path d="M345 468 L875 468" stroke="var(--p0-line)" stroke-width="2" marker-end="url(#s-ar0)"/>
+  <text x="354" y="462" class="svgs">turn_feedback {A, user_id, rating, reason}  ⑤</text>
+
+  <rect x="740" y="488" width="200" height="30" rx="6" fill="var(--code-bg)"/>
+  <text x="750" y="507" class="svgmd">pg_cron 04:45 / 04:50 · prune</text>
+</svg>
+</div>
+<p class="figcap">Fig. 2 — One turn, and the three rows it can produce. The feedback exchange is optional and arrives seconds to minutes later; everything above it is unconditional. The retry/failure branches inside the pipeline are omitted — they surface here only as the <code>errors</code> array on the record.</p>
+
+<h3>3.3 · How the data moves and transforms</h3>
+
+<p>The id is minted and sanitised at the boundary. Every proxied request has the client's own
+<code>x-request-id</code> deleted before a trusted one is written in its place — the same list that
+protects <code>x-user-id</code> and <code>x-internal-key</code>.</p>
+
+<div class="file"><span><b>services/gateway/src/proxy.ts</b>:16–30 — strip then inject, so the id is the gateway's word</span><span class="badge b0">RET</span></div>
+<pre><code>rewriteRequestHeaders: (request, headers) =&gt; {
+  const out = { ...headers };
+  delete out["x-user-id"];
+  delete out["x-user-role"];
+  delete out["x-request-id"];        <span class="cm">// ① a client cannot choose its own id</span>
+  delete out["x-internal-key"];
+  delete out.authorization;
+  out["x-request-id"] = String(request.id);   <span class="cm">// genReqId() = randomUUID(), server.ts:22</span>
+  if (config.internalApiKey) out["x-internal-key"] = config.internalApiKey;</code></pre>
+
+<p>The retriever adopts it rather than minting its own. This one line is what makes the join exist
+at all, and it is exactly the line the pusher does not have (§5).</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:66–70 — adopt the gateway's id; mint only for direct calls</span><span class="badge b0">RET</span></div>
+<pre><code>def _request_id(raw: Request) -&gt; str:
+    """The gateway's id, so the record joins conversation_logs; the gateway
+    strips client-sent copies, so the header is trustworthy. Minted locally
+    only for direct calls (tests, curl against 8002)."""
+    return raw.headers.get("x-request-id") or str(uuid.uuid4())</code></pre>
+
+<p>The write leaves the request path entirely. In the SSE generator the <code>finally:</code> block
+runs <em>before</em> the <code>done</code> frame is yielded, so anything blocking there delays the
+last frame the user waits for.</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:73–87 — off the hot path, with its ceiling written down</span><span class="badge b0">RET</span></div>
+<pre><code>def _write_eval_record(request_id: str, result: TurnResult, start: float) -&gt; None:
+    """Fire-and-forget on a daemon thread: in the SSE path the finally: runs
+    before the done frame is yielded, so a blocking POST there would delay it.
+
+    ponytail: one unbounded thread per turn, fine at current volume and wrong
+    under load - a burst spawns a thread each, and a daemon thread mid-POST
+    dies silently on shutdown, losing that record. Upgrade path when turns/sec
+    justifies it: a bounded queue plus a single writer thread, dropping oldest
+    on overflow so the corpus degrades instead of the turn.       <span class="cm">// ③</span>
+    """
+    threading.Thread(
+        target=eval_records.write,
+        args=(request_id, result, int((time.perf_counter() - start) * 1000)),
+        daemon=True,
+    ).start()</code></pre>
+
+<p>The writer itself is plain PostgREST over <code>httpx</code> — no Supabase SDK — and it swallows
+every failure by design. An empty <code>SUPABASE_URL</code> turns the whole thing off, which is how
+local runs and tests stay silent.</p>
+
+<div class="file"><span><b>services/retriever/agent/eval_records.py</b>:29–56 — the answer side of the turn</span><span class="badge b0">RET</span></div>
+<pre><code>def write(request_id: str, result: TurnResult, latency_ms: int) -&gt; None:
+    if not settings.supabase_url:
+        return                                   <span class="cm"># ④ no key, no telemetry, no noise</span>
+    c = result.classification
+    try:
+        response = _http.post(
+            _url(), headers=_headers(),
+            json={
+                "request_id": request_id,
+                "final_text": result.text,
+                "card_uids": [card.uid for card in result.cards],
+                "cyphers": result.cyphers,
+                "query_type": c.query_type if c else None,
+                "moment": c.moment if c else None,
+                "retrieval_notes": result.notes,
+                "row_count": len(result.cards),
+                "latency_ms": latency_ms,
+                "errors": result.errors,
+            },
+        )
+        if response.status_code != 201:
+            logger.error(...)
+    except Exception as e:
+        logger.error(f"eval_records insert failed: {e}")   <span class="cm"># never raises into the turn</span></code></pre>
+
+<p>The label comes back on a separate, anonymous route. Note what the handler does <em>not</em> do:
+it never spreads the request body into the PostgREST payload, so a client cannot name a column.</p>
+
+<div class="file"><span><b>services/gateway/src/feedback.ts</b>:20–49 — three validated values, assembled server-side</span><span class="badge b0">RET</span></div>
+<pre><code>app.post("/api/chat/feedback", async (request, reply) =&gt; {
+  const requestId = body?.request_id;
+  const reason    = body?.reason ?? null;
+  const rating    = body?.rating ?? "down";   <span class="cm">// ⑤ old clients predate the column</span>
+  if (typeof requestId !== "string" || requestId.length === 0 || requestId.length &gt; 128)
+    return reply.code(400).send({ error: "request_id required" });
+  if (reason !== null &amp;&amp; (typeof reason !== "string" || reason.length &gt; 2000))
+    return reply.code(400).send({ error: "reason must be a string of at most 2000 chars" });
+  if (rating !== "up" &amp;&amp; rating !== "down")
+    return reply.code(400).send({ error: "rating must be 'up' or 'down'" });
+
+  const response = await fetch(endpoint, { method: "POST", headers,
+    body: JSON.stringify({ request_id: requestId, user_id: request.user?.id ?? null,
+                           reason, rating }) });</code></pre>
+
+<p>And the route that carries free text is explicitly excluded from conversation logging, so a
+typed reason is stored once rather than twice under two different ids.</p>
+
+<div class="file"><span><b>services/gateway/src/logging.ts</b>:4–16 — what is logged, and the one carve-out</span><span class="badge b0">RET</span></div>
+<pre><code>const LOGGED_ROUTES = [
+  /^\/api\/chat(\/|$)/,
+  /^\/api\/push\/(chat|validate-event)(\/|$)/,
+  <span class="cm">// The publish wrapper replaced /api/push/validate-event as the frontend's
+  // write path; without this the submissions that actually happen stopped
+  // being logged the day the retarget landed.</span>
+  /^\/api\/publish(\/|$)/,
+];
+<span class="cm">// /api/chat/feedback sits under the chat prefix but is not a conversation:
+// its reason already lands in turn_feedback ...</span>
+const EXCLUDED_ROUTE = /^\/api\/chat\/feedback([/?]|$)/;</code></pre>
+
+<p>Retention is the last stage and it lives in the database, not in a service — because
+<code>flows/serve.py</code> is not running and neither web service should carry a janitor.</p>
+
+<div class="file"><span><b>supabase/migrations/20260827000020_telemetry_retention.sql</b>:20–31 — prune at 90 days, keep the labelled</span><span class="badge b0">RET</span></div>
+<pre><code>select cron.schedule(
+    'retention-conversation-logs', '45 4 * * *',
+    $$
+  delete from public.conversation_logs c
+   where c.created_at &lt; now() - interval '90 days'
+     and not exists (
+       select 1 from public.turn_feedback f
+        where f.request_id = c.request_id and f.rating = 'down'
+     )
+    $$
+);   <span class="cm">-- and the same for eval_records at 04:50</span></code></pre>
+
+<h3>3.4 · Decisions, and why</h3>
+
+<ul class="dec d0">
+  <li><b class="num">①</b><strong>The gateway owns the id, and deletes the client's.</strong> The
+  alternative — trusting a client-supplied correlation id — is cheaper and would let a caller write
+  telemetry rows that impersonate somebody else's turn. Cost: a direct call to <code>:8002</code>
+  (tests, curl) gets a locally minted id that joins to nothing, which is the correct degradation.</li>
+
+  <li><b class="num">②</b><strong>Request side and answer side are written by different services,
+  into different tables.</strong> The obvious design is one row written once. It was rejected
+  because the response streams: the gateway proxies bytes it never buffers, so it cannot see the
+  final text, and the retriever cannot see the client-sent history that the gateway parsed. Cost:
+  a turn can produce a half-pair — an <code>eval_records</code> row with no
+  <code>conversation_logs</code> partner if the gateway's fire-and-forget POST fails. Every query in
+  <code>queries.sql</code> uses <code>left join</code> for exactly that reason.</li>
+
+  <li><b class="num">③</b><strong>A daemon thread per turn, not an await and not a queue.</strong>
+  Awaiting the POST inside <code>finally:</code> would add a Supabase round trip before the
+  <code>done</code> frame — directly visible latency on the one frame the user is waiting for. A
+  bounded queue with a single writer is the right shape and is written down as the upgrade path;
+  it was not built because at current volume it is machinery with no symptom. The known ceiling is
+  real and named in the code: a burst spawns a thread each, and a thread mid-POST at shutdown loses
+  its record silently.</li>
+
+  <li><b class="num">④</b><strong>Telemetry failures are swallowed, loudly in the log and
+  invisibly to the user.</strong> The rule is that a turn must never break because a record write
+  did. Cost: a broken <code>SUPABASE_SERVICE_ROLE_KEY</code> degrades the corpus to nothing while
+  every turn stays green, and the only evidence is <code>logger.error</code> lines nobody is
+  watching. There is no counter and no alert on this path.</li>
+
+  <li><b class="num">⑤</b><strong>The down is the event; the up is an inert label.</strong> A
+  thumbs-down posts immediately with a null reason, because the click itself is the information and
+  asking for a reason first loses most of them. An optional typed reason arrives as a
+  <em>second row</em> for the same <code>request_id</code>, which is why query 1 groups and takes
+  <code>max(reason)</code>. Ups are stored but pin nothing in retention — engagement-scale
+  exemptions would hollow out the TTL.</li>
+</ul>
+
+<h3>3.5 · For a scalable system</h3>
+
+<p>The ceilings here are all volume-linear and all known:</p>
+
+<ul>
+  <li><strong>Thread per turn</strong> (③). Fine at hand-triggered volume. At sustained traffic the
+  first symptom is thread-count pressure in the retriever pod, not lost data; lost data comes second,
+  at shutdown. Upgrade path is in the docstring.</li>
+  <li><strong>Table growth is append-only and bounded by the 90-day prune</strong>, with
+  <code>eval_records_created_idx</code> and <code>conversation_logs_created_idx</code> existing
+  precisely so the age scan is cheap. What is <em>not</em> bounded is the labelled subset: every
+  down-rated turn is kept indefinitely, by design, and that set grows monotonically forever. At
+  human-complaint scale this is nothing; it is worth revisiting only if downs ever become automated.</li>
+  <li><strong><code>payload jsonb</code> holds the entire client-carried history</strong>, so a row's
+  size grows with conversation length. A long conversation writes its whole prefix again on every
+  turn — quadratic in storage per conversation. Acceptable because conversations are short and the
+  prune is aggressive; it would not survive a product change to long-lived threads.</li>
+  <li><strong>The weekly read is a human</strong>. Phase 3 is deliberately manual, and its ceiling is
+  attention, not compute. Query 4 exists so that ten minutes can be spent deciding whether to spend
+  the other ten.</li>
+</ul>
+
+<h3>3.6 · Security</h3>
+
+<ul>
+  <li><strong>Three services hold the master service-role key</strong> (gateway, retriever, search).
+  Each needs INSERT on one or two tables and SELECT on none. Compromise of any one is compromise of
+  the whole database — the mitigation is a scoped insert-only Postgres role, and it has not been
+  done.</li>
+  <li><strong>The telemetry tables are RLS-on with zero policies</strong>, so a leaked anon key reads
+  nothing. There is no client read path to any of the three.</li>
+  <li><strong>The corpus is attacker-influenceable by construction.</strong>
+  <code>final_text</code> derives from user-shaped conversations, <code>payload</code> <em>is</em> the
+  user's text, and <code>reason</code> is hostile free text stored raw — correct at write time, but
+  every future reader is a target. When the phase-4 judges interpolate these columns into prompts,
+  they must be fenced as data from the first prompt, not after an incident.</li>
+  <li><strong>An anonymous unauthenticated endpoint writes with the service role</strong>
+  (<code>/api/chat/feedback</code>). It is safe only because the handler constructs the row from
+  three validated values; any column added to that insert must preserve the property that the client
+  cannot name a column.</li>
+  <li><strong>Personal data lives in two of the three tables</strong> and is joined by
+  <code>request_id</code>. Any deletion request has to sweep <code>conversation_logs</code>,
+  <code>eval_records</code> and <code>turn_feedback</code> together; there is no such procedure
+  today.</li>
+</ul>
+
+<div class="take">
+  <h4>Key takeaways — runtime</h4>
+  <ul>
+    <li>One id, minted at the gateway, carried by the retriever, joins three tables.</li>
+    <li>Every telemetry write is fire-and-forget and cannot fail a turn — which also means a broken key is silent.</li>
+    <li>Retention is in the database (pg_cron), spares thumbed-down turns, and needs no running service.</li>
+  </ul>
+</div>
+
+<h2 id="corpus">4 · Retriever offline — twelve cases with a tripwire <span class="badge b0">RET</span></h2>
+
+<h3>4.1 · Goal</h3>
+
+<p>There is still no eval harness: <code>python -m evals.run</code> is phase 4 and does not exist.
+What exists is twelve hand-labelled cases that <em>run</em>, loaded by pytest, split into a tier CI
+can hold and a tier that needs an OpenAI key. The point of phase 2 was not to move a quality number
+— it moved none — but to stop the corpus drifting silently away from the code it describes, which
+is what had already happened to it for five months.</p>
+
+<h3>4.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 330" role="img" aria-label="How the twelve labelled cases are loaded and split into a deterministic and an integration tier">
+  <defs>
+    <marker id="e-ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="e-ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+  </defs>
+
+  <rect x="20" y="60" width="210" height="130" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="34" y="86" class="svgt" font-weight="600">evals/datasets/</text>
+  <rect x="30" y="98" width="190" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="38" y="114" class="svgmd">safety/ — 7 cases</text>
+  <rect x="30" y="128" width="190" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="38" y="144" class="svgmd">query_generation/ — 5 cases</text>
+  <text x="34" y="174" class="svgs">JSON, version 2.0, no code</text>
+
+  <rect x="310" y="40" width="230" height="170" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="324" y="66" class="svgt" font-weight="600">tests/test_eval_cases.py</text>
+  <text x="324" y="83" class="svgs">the loader — there is no runner</text>
+  <rect x="322" y="94" width="206" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="330" y="110" class="svgm" fill="var(--p0)">corpus self-checks  ⓐ</text>
+  <rect x="322" y="124" width="206" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="330" y="140" class="svgm" fill="var(--p0)">prompt_version pin  ⓑ</text>
+  <rect x="322" y="154" width="206" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="330" y="170" class="svgmd">parametrize by case["check"]</text>
+
+  <rect x="630" y="30" width="310" height="110" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="644" y="56" class="svgt" font-weight="600">deterministic tier</text>
+  <text x="644" y="73" class="svgs">no network · 6 safety + the mutation gate  ⓒ</text>
+  <rect x="642" y="84" width="286" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="650" y="100" class="svgm" fill="var(--p0)">ci.yml:55 — -m "not integration"</text>
+  <text x="644" y="128" class="svgs">runs on every push</text>
+
+  <rect x="630" y="170" width="310" height="120" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="644" y="196" class="svgt" font-weight="600">integration tier</text>
+  <text x="644" y="213" class="svgs">needs OPENAI_API_KEY · not Neo4j  ⓓ</text>
+  <rect x="642" y="224" width="286" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="650" y="240" class="svgmd">1 moderation + 5 cypher (+5 xfail)</text>
+  <rect x="642" y="254" width="286" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="650" y="270" class="svgmd" fill="var(--warn)">scheduled nowhere — typed by hand</text>
+
+  <path d="M230 125 L310 125" stroke="var(--infra)" stroke-width="2" marker-end="url(#e-ar)"/>
+  <text x="236" y="118" class="svgs">json.loads</text>
+  <path d="M540 105 L630 85" stroke="var(--p0-line)" stroke-width="2" marker-end="url(#e-ar0)"/>
+  <path d="M540 150 L630 215" stroke="var(--infra)" stroke-width="2" marker-end="url(#e-ar)"/>
+  <text x="548" y="196" class="svgs">@pytest.mark.integration</text>
+</svg>
+</div>
+<p class="figcap">Fig. 4 — The whole offline eval apparatus. <code>evals/</code> contains two JSON files and an <code>__init__.py</code>; the code that reads them lives in <code>tests/</code>. The six phase-4 suites (routing, classifier, cypher, retrieval, answer-quality, safety) are not drawn because none of them exists.</p>
+
+<h3>4.3 · How the data moves and transforms</h3>
+
+<p>The tripwire first, because it is the reason phase 2 was worth its budget. The corpus stamps the
+prompt version it was labelled against, and a test asserts that stamp against the constant the
+prompt actually carries.</p>
+
+<div class="file"><span><b>services/retriever/tests/test_eval_cases.py</b>:85–97 — the machine link between corpus and prompt</span><span class="badge b0">RET</span></div>
+<pre><code>def test_query_gen_corpus_matches_the_live_prompt_version():
+    """A prompt bump must not be able to invalidate these cases quietly.
+
+    Every expected_patterns list in v1 was stale against v2 and nobody found
+    out for five months, because the corpus described the prompt only in prose.
+    This is the machine link: bump QUERY_BUILDER_PROMPT_VERSION and this fails
+    until someone re-reads the five cases and restamps the dataset.        <span class="cm"># ⓑ</span>
+    """
+    assert QUERY_GEN_FILE["prompt_version"] == QUERY_BUILDER_PROMPT_VERSION, (
+        f"corpus describes prompt {QUERY_GEN_FILE['prompt_version']}, "
+        f"query_builder.py is on {QUERY_BUILDER_PROMPT_VERSION} - re-check the "
+        f"5 cases against the new prompt, then restamp prompt_version"
+    )</code></pre>
+
+<p>The second structural test catches the failure mode that quarantined the set in the first place —
+a case whose <code>check</code> nobody parametrizes over is a silent skip, not a failure.</p>
+
+<div class="file"><span><b>services/retriever/tests/test_eval_cases.py</b>:66–81 — no case may go unclaimed</span><span class="badge b0">RET</span></div>
+<pre><code>def test_every_safety_case_is_claimed_by_a_check():
+    claimed = len(CYPHER_GUARD) + len(INJECTION) + len(MODERATION)
+    assert claimed == len(SAFETY) == 7, [c["id"] for c in SAFETY]   <span class="cm"># ⓐ</span>
+
+def test_every_query_gen_case_carries_a_gate():
+    """expected_patterns may be xfailed; should_not_contain may not be empty."""
+    assert len(QUERY_GEN) == 5
+    for case in QUERY_GEN:
+        assert case["should_not_contain"], case["id"]</code></pre>
+
+<p>The interesting assertion is the one that turned a model-dependent label into a property CI can
+hold: rather than testing “this prompt happened not to emit DELETE today”, it forces a mutation into
+the generator's mouth and asserts it never reaches the driver.</p>
+
+<div class="file"><span><b>services/retriever/tests/test_eval_cases.py</b>:145–180 — <code>should_not_contain</code> as an offline gate</span><span class="badge b0">RET</span></div>
+<pre><code>MUTATION_KEYWORDS = sorted({ token.upper()
+    for case in QUERY_GEN for token in case["should_not_contain"] if token.isalpha() })
+
+@pytest.mark.parametrize("keyword", MUTATION_KEYWORDS)
+def test_generated_mutation_never_reaches_the_driver(keyword):
+    tool = QueryBuilderTool(neo4j_client=Mock(), schema="", client=Mock())
+    cypher = f"MATCH (e:Event) {keyword} (n:Artist {{name: 'x'}}) RETURN e"
+
+    with patch("agent.tools.query_builder.chat_completion_with_retry",
+               return_value=Mock(choices=[Mock(message=Mock(content=cypher))])):
+        data = json.loads(tool.run("find concerts by Radiohead"))
+
+    tool.neo4j.execute_read.assert_not_called()     <span class="cm"># ⓒ the property that matters</span>
+    assert data["status"] == "error"
+    assert keyword in data["violations"]</code></pre>
+
+<p>And the honest admission, kept in the tree rather than papered over: regex over generated Cypher
+measures shape, not correctness, so it is marked non-strict-xfail with the reason and its
+replacement named.</p>
+
+<div class="file"><span><b>services/retriever/tests/test_eval_cases.py</b>:235–240 — an instrument declared wrong, not deleted</span><span class="badge b0">RET</span></div>
+<pre><code>@pytest.mark.integration
+@pytest.mark.xfail(
+    reason="regex over generated Cypher asserts shape, not whether the query "
+    "answers the question; execute-and-compare replaces it in phase 4",
+    strict=False,
+)</code></pre>
+
+<h3>4.4 · Decisions, and why</h3>
+
+<ul class="dec d0">
+  <li><b class="num">ⓐ</b><strong>The corpus tests itself before it tests the code.</strong> Two
+  tests assert case counts and claimed checks. This looks like tautology and is not: the set spent
+  months quarantined precisely because its labels named a taxonomy no function produced, and pytest
+  reports an unclaimed parametrization as nothing at all. Cost: the counts (7 and 5) are hard-coded,
+  so adding a case means editing a test — deliberate friction.</li>
+
+  <li><b class="num">ⓑ</b><strong>Version pin over prose.</strong> The rejected alternative was a
+  sentence in the README saying which prompt the cases describe, which is what existed and what
+  failed. Cost: a legitimate prompt reword now goes red until someone re-reads five cases. That is
+  the feature.</li>
+
+  <li><b class="num">ⓒ</b><strong><code>should_not_contain</code> is asserted in both tiers, in two
+  different readings.</strong> Offline it is the durable property (a generated mutation is refused
+  before execution, true of every prompt revision, costs no tokens); online it is the literal one
+  (the generator did not emit one). The alternative — asserting it only where a model is available —
+  would put the corpus's real gate behind an API key.</li>
+
+  <li><b class="num">ⓓ</b><strong>The integration tier depends on OpenAI but deliberately not on
+  Neo4j.</strong> The Cypher cases assert on what the model emits against a static schema string, so
+  the Aura free instance auto-pausing cannot turn a model regression into a red build. Cost: the
+  static schema drifts from the real one, and nothing checks that it hasn't.</li>
+</ul>
+
+<h3>4.5 · Security</h3>
+
+<p>One thing here is a live safety edge rather than a test concern. <code>detect_injection</code>'s
+DROP rule is <code>\bDROP\s+(CONSTRAINT|INDEX|DATABASE)\b</code>
+(<code>safety_guard.py</code>:98), and the corpus's own <code>sf_004</code> —
+<code>1' OR '1'='1; DROP TABLE events--</code> — slips it; the bare <code>DROP</code> rule in
+<code>validate_read_only</code> (<code>safety_guard.py</code>:65) is what actually stops it. That is
+fine while <code>detect_injection</code> is only ever a signal, and stops being fine the moment it
+is used as a pre-flight gate on user text. Separately, <code>moderate()</code> fails open on any
+exception with nothing louder than a <code>logger.warning</code> (<code>safety_guard.py</code>:116–126),
+so a bad key degrades the moderation layer to a no-op silently — the availability trade is right for
+a consumer chat, the silence is not.</p>
+
+<div class="take">
+  <h4>Key takeaways — offline</h4>
+  <ul>
+    <li>Twelve cases run; there is still no harness, and <code>evals/</code> holds no code.</li>
+    <li>The corpus is pinned to the prompt version, so the drift that quarantined it cannot recur silently.</li>
+    <li>The integration tier — 11 live assertions — is scheduled nowhere and runs only when typed.</li>
+  </ul>
+</div>
+
+<h2 id="pusher">5 · Pusher — fifty-two cases and no instruments <span class="badge b1">PUSH</span></h2>
+
+<h3>5.1 · Goal</h3>
+
+<p>Everything above describes a service whose mistakes are ephemeral: a bad answer is a bad answer,
+the user asks again. The pusher's mistakes are durable — they are rows in the graph that every
+future retriever turn will read. The measurement story for it should therefore be <em>stronger</em>
+than the retriever's. It is instead empty, and the emptiness has three distinct causes, which is
+why it has never been fixed by accident.</p>
+
+<h3>5.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 400" role="img" aria-label="Sequence diagram of a pusher chat turn showing the correlation id being discarded and no answer-side row written">
+  <defs>
+    <marker id="p-ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="p-ar1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <rect x="30" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="46" y="42" class="svgt">Browser</text>
+  <rect x="280" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="296" y="42" class="svgt">Gateway</text>
+  <rect x="560" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="576" y="42" class="svgt">Pusher</text>
+  <rect x="810" y="20" width="130" height="34" rx="8" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="826" y="42" class="svgt">Supabase</text>
+
+  <path d="M95 54 L95 380" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M345 54 L345 380" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M625 54 L625 380" stroke="var(--rule)" stroke-width="1.5"/>
+  <path d="M875 54 L875 380" stroke="var(--rule)" stroke-width="1.5"/>
+
+  <path d="M95 90 L345 90" stroke="var(--infra)" stroke-width="2" marker-end="url(#p-ar)"/>
+  <text x="104" y="84" class="svgs">POST /api/push/chat (or /api/publish)</text>
+
+  <path d="M345 128 L625 128" stroke="var(--infra)" stroke-width="2" marker-end="url(#p-ar)"/>
+  <text x="354" y="122" class="svgs">x-request-id: A — same injection as the retriever gets</text>
+
+  <rect x="540" y="142" width="222" height="36" rx="6" fill="var(--p1-bg)"/>
+  <text x="550" y="157" class="svgm" fill="var(--p1)">request_id = str(uuid4()) → B</text>
+  <text x="550" y="171" class="svgm" fill="var(--p1)">header A never read  ⑥</text>
+
+  <path d="M625 206 L95 206" stroke="var(--infra)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#p-ar)"/>
+  <text x="230" y="200" class="svgs">SSE frames · done {request_id: B} — but onSend rewrites the header back to A</text>
+
+  <path d="M345 244 L875 244" stroke="var(--infra)" stroke-width="2" marker-end="url(#p-ar)"/>
+  <text x="354" y="238" class="svgs">conversation_logs {request_id: A, payload, status} — request side only</text>
+
+  <path d="M625 286 L760 286" stroke="var(--p1-line)" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="768" y="291" class="svgt" fill="var(--p1)" font-weight="700">✕</text>
+  <text x="634" y="280" class="svgs" fill="var(--p1)">no answer-side row: no draft, no writer verdict, no dedup outcome  ⑦</text>
+
+  <rect x="470" y="316" width="440" height="54" rx="8" fill="var(--code-bg)"/>
+  <text x="482" y="336" class="svgmd">B appears in the pusher's stdout logs and in the done frame,</text>
+  <text x="482" y="352" class="svgmd">A appears in Supabase. Nothing joins them.</text>
+</svg>
+</div>
+<p class="figcap">Fig. 3 — The same turn shape as Fig. 2, with the two breaks marked. The graph write itself (<code>/validate-event</code> → <code>neo4j_writer</code>) is omitted: it is the step whose outcome nobody records, which is exactly why it cannot be drawn as an arrow into any table.</p>
+
+<h3>5.3 · How the data moves and transforms</h3>
+
+<p>The break is one line. The pusher takes no <code>Request</code> object at all, so the header is
+not merely ignored — it is unreachable from where the id is made.</p>
+
+<div class="file"><span><b>services/pusher/agent/api.py</b>:174–195 — the id is minted locally, unconditionally</span><span class="badge b1">PUSH</span></div>
+<pre><code>@app.post("/chat/stream")
+async def chat_stream(request: ChatStreamRequest):
+    """Submission chat. One clarification round, then the form — always."""
+    if not request.messages:
+        raise HTTPException(400, "No messages provided")
+    request_id = str(uuid.uuid4())          <span class="cm"># ⑥ cf. retriever api.py:66-70</span>
+    ...
+    return StreamingResponse(
+        _generate(request_id, messages, walk),
+        media_type="text/event-stream",
+        headers={..., "X-Request-ID": request_id},   <span class="cm"># and the gateway overwrites this</span>
+    )</code></pre>
+
+<p>Compare the retriever's signature, which takes the raw request precisely so it can read the
+header: <code>_request_id(raw: Request)</code> at <code>services/retriever/agent/api.py</code>:66.
+The gateway then rewrites the response header on the way out, so the client sees <code>A</code>
+while the pusher's own logs and its <code>done</code> frame say <code>B</code>:</p>
+
+<div class="file"><span><b>services/gateway/src/server.ts</b>:141–146 — the response header is the gateway's id, always</span><span class="badge b1">PUSH</span></div>
+<pre><code>app.addHook("onSend", async (request, reply) =&gt; {
+  reply.header("x-request-id", request.id);      <span class="cm">// overwrites the pusher's B with A</span>
+  ...
+});</code></pre>
+
+<p>There is no pusher equivalent of <code>eval_records.py</code> — no module, no table, no call
+site. What the pusher <em>does</em> have is health probes and one deep check, which is monitoring of
+the process, not of the work:</p>
+
+<div class="file"><span><b>services/pusher/agent/api.py</b>:46–50 — liveness and readiness, shared with every Python service</span><span class="badge b1">PUSH</span></div>
+<pre><code><span class="cm"># /livez and /readyz for the kubelet — the deep `/health` below stays for humans.</span>
+register_health(
+    app,
+    service="pusher",
+    ready_check=graph.verify_connectivity,
+)</code></pre>
+
+<p>And three module-level OpenAI clients, none of which passes through the one factory that knows
+how to wrap a client in Langfuse:</p>
+
+<div class="file"><span><b>services/pusher/agent/{conversation,converters,graph}.py</b>:37, 19, 22 — three bare clients</span><span class="badge b1">PUSH</span></div>
+<pre><code>_client  = OpenAI(api_key=settings.openai_api_key)   <span class="cm"># conversation.py:37</span>
+_client  = OpenAI(api_key=settings.openai_api_key)   <span class="cm"># converters.py:19</span>
+_openai  = OpenAI(api_key=settings.openai_api_key)   <span class="cm"># graph.py:22       ⑧</span></code></pre>
+
+<div class="file"><span><b>services/retriever/agent/utils/llm_utils.py</b>:12–25 — the factory the pusher does not use</span><span class="badge b0">RET</span></div>
+<pre><code>def get_openai_client() -&gt; OpenAI:
+    """The one OpenAI client factory (Langfuse-wrapped when tracing is on)."""
+    if settings.langfuse_enabled:
+        from langfuse import Langfuse
+        Langfuse(public_key=..., secret_key=..., host=...)
+        from langfuse.openai import OpenAI as LangfuseOpenAI
+        return LangfuseOpenAI(api_key=settings.openai_api_key)
+    return OpenAI(api_key=settings.openai_api_key)</code></pre>
+
+<p>On the offline side, the pusher's corpus exists and is larger and more product-shaped than the
+retriever's — 52 conversations, each with a graph pre-state, the turns, the expected tool sequence,
+the verified current outcome and the intended one. It is also, per its own README, not to be wired
+to anything yet:</p>
+
+<div class="file"><span><b>services/pusher/evals/README.md</b> — the corpus that gates phase 4</span><span class="badge b1">PUSH</span></div>
+<pre><code>Born from the live test of 2026-09-12: three publish attempts against one swept
+listing produced two silent duplicates and zero adoptions, because today's dedup
+key is exact `name_norm` + venue + calendar day. Under these 52 realistic cases,
+today's code silently duplicates in 21 of them.
+...
+Until then this CSV is the source of truth; do not wire tests to it directly.</code></pre>
+
+<p>So the number that matters most in this document — <strong>21 of 52 cases silently duplicate</strong>
+— is a hand-derivation, not a measurement, and no test in the repo would notice if it got worse.
+The pusher's actual safety net is 82 ordinary test functions across three files
+(<code>test_api_endpoints.py</code>, <code>test_conversation.py</code>, <code>test_graph_retry.py</code>),
+all with OpenAI, Neo4j and Nominatim mocked. Those pin wiring. None of them pins behaviour against a
+labelled case.</p>
+
+<h3>5.4 · Decisions, and why</h3>
+
+<ul class="dec d1">
+  <li><b class="num">⑥</b><strong>Minting locally was never decided — it is the original code, and
+  the retriever moved.</strong> Phase 0 changed the retriever to adopt the gateway's id
+  <em>specifically</em> so the two halves would share a key; the pusher simply was not in that
+  change's scope. Cost today: <code>conversation_logs</code> rows for <code>/api/push/chat</code>
+  and <code>/api/publish</code> exist and are unjoinable to any pusher-side log line, so the one
+  table that does hold pusher data is half-useful. The fix is the same five lines the retriever has,
+  plus threading <code>Request</code> into the handler.</li>
+
+  <li><b class="num">⑦</b><strong>No answer-side record, because nobody specified what the answer
+  is.</strong> For the retriever the unit is obvious (final text, cards, Cypher). For the pusher the
+  interesting unit is not the assistant's sentence — it is the <em>write verdict</em>: what draft was
+  extracted, did the writer MERGE or 409, was a near-duplicate created, did the walk advance. That
+  needs a schema decision, which is why it has not happened by default. Cost: the failure mode the
+  dedup corpus was born from — <em>silent</em> duplicates — is by construction invisible in
+  production. We know it happens because someone watched it happen once.</li>
+
+  <li><b class="num">⑧</b><strong>Three bare clients instead of the shared factory.</strong> The
+  roadmap already books this: phase 4 (multi-provider routing) moves every module-level client onto
+  <code>laiive_shared/llm.py</code>, and the pusher's three are named in that plan along with the
+  conftest patch list that must move with them. Until then, tracing the pusher means enabling nothing
+  — the flag has no effect there. Cost of waiting: a pusher extraction regression has no trace to
+  read, only a mocked test suite that will keep passing.</li>
+</ul>
+
+<h3>5.5 · For a scalable system</h3>
+
+<p>The pusher's ceiling is not throughput, it is <em>auditability of writes</em>. Every sweep,
+every publish and every walk step mutates a shared graph that the retriever reads and that has no
+undo. At current volume a human can eyeball a dry-run report; the moment writes are scheduled
+(<code>flows/serve.py</code> is not running, so nothing fires today) the number of unreviewed writes
+per week stops being eyeball-sized, and there is no table to read instead. The order that matters:
+the write-outcome record must exist <em>before</em> the scheduler does, not after.</p>
+
+<h3>5.6 · Security</h3>
+
+<p>The pusher is the only service here that does <strong>not</strong> hold the Supabase service-role
+key — a direct consequence of writing no telemetry, and a genuine (if accidental) reduction in blast
+radius. It holds the Neo4j credentials instead, and is protected from direct traffic by
+<code>INTERNAL_API_KEY</code> (<code>install_internal_auth</code>, <code>api.py</code>:55), which
+makes 8003 return 403 to anything not carrying the gateway's key. The security cost of ⑦ is not
+exposure but forensics: if a bad actor or a bad prompt writes junk into the graph, the only record of
+how it got there is the request-side payload in <code>conversation_logs</code> under an id that
+matches nothing in the pusher's own logs.</p>
+
+<div class="take t1">
+  <h4>Key takeaways — pusher</h4>
+  <ul>
+    <li>Three independent gaps: the discarded id, the missing answer-side record, the untraced clients.</li>
+    <li>“21 of 52 silently duplicate” is a hand-verification, not a measurement — nothing would catch a regression.</li>
+    <li>The service with irreversible side effects is the one with no write-outcome telemetry.</li>
+  </ul>
+</div>
+
+<h2 id="join">6 · The join: one key, three tables, and where it stops</h2>
+
+<p>The unifying mechanism is <code>request_id</code>, and the thing built to be enabled by it is not
+a dashboard — it is a five-minute habit. <code>evals/queries.sql</code> is a file of five queries to
+paste into the Supabase SQL editor, written so that error analysis (phase 3) starts as a Monday
+reading rather than a project. The argument for it is in the phase-2 doc: a corpus nobody reads is
+just storage cost.</p>
+
+<div class="file"><span><b>services/retriever/evals/queries.sql</b>:33–52 — query 1, the complaint queue</span><span class="badge b0">RET</span></div>
+<pre><code>select f.created_at,
+       max(f.reason)                        as reason,       <span class="cm">-- a reason arrives as a 2nd row</span>
+       c.payload -&gt; 'messages'              as conversation,
+       e.query_type, e.moment, e.final_text, e.row_count,
+       e.cyphers, e.errors, e.latency_ms,
+       c.duration_ms - e.latency_ms         as edge_overhead_ms
+from turn_feedback f
+join eval_records e using (request_id)
+left join conversation_logs c on c.request_id = f.request_id
+where f.rating = 'down'
+group by f.request_id, ...
+order by f.created_at desc limit 100;</code></pre>
+
+<p>Two of the five are the ones worth knowing about, because they need no labels at all. Query 2 is
+“failures nobody complained about” — <code>array_length(e.errors, 1) &gt; 0</code> with no feedback
+row — on the reasoning that thumbs are a biased sample of failure and the unbiased half is the users
+who simply left. Query 3 is “empty-handed turns”: no error, no cards, which for a discovery product
+is usually a <em>supply</em> problem and reads as a shopping list for the next sweep. Query 4 is one
+row per week and exists so that ten minutes can decide whether to spend the other ten:</p>
+
+<div class="file"><span><b>services/retriever/evals/queries.sql</b>:99–110 — query 4, the weekly pulse</span><span class="badge b0">RET</span></div>
+<pre><code>select date_trunc('week', e.created_at)                             as week,
+       count(*)                                                     as turns,
+       count(*) filter (where array_length(e.errors, 1) &gt; 0)        as error_turns,
+       count(*) filter (where coalesce(e.row_count, 0) = 0)         as empty_turns,
+       count(distinct f.request_id) filter (where f.rating = 'down') as downs,
+       count(distinct f.request_id) filter (where f.rating = 'up')   as ups,
+       percentile_disc(0.5)  within group (order by e.latency_ms)    as p50_ms,
+       percentile_disc(0.95) within group (order by e.latency_ms)    as p95_ms
+from eval_records e
+left join turn_feedback f on f.request_id = e.request_id
+group by 1 order by 1 desc;</code></pre>
+
+<p>Now the boundary. Every one of these five queries starts from <code>eval_records</code> or
+<code>turn_feedback</code>. Both are retriever-only tables. Run any of them and the pusher does not
+appear — not as a zero, not as a gap, simply not at all. The equivalent pusher questions have no
+query, because they have no table:</p>
+
+<table>
+  <tr><th>question</th><th>retriever</th><th>pusher</th></tr>
+  <tr><td>How many turns last week?</td><td>query 4</td><td class="warntag">count <code>conversation_logs</code> by route — request side only</td></tr>
+  <tr><td>Which turns errored?</td><td>query 2, from <code>errors[]</code></td><td class="warntag">not recorded; <code>status</code> in <code>conversation_logs</code> is the HTTP code, and the SSE path returns 200 with an error frame</td></tr>
+  <tr><td>Which turns produced nothing useful?</td><td>query 3, from <code>row_count</code></td><td class="warntag">no equivalent — “extracted a draft” is not recorded</td></tr>
+  <tr><td>Which turns did a human complain about?</td><td>query 1, from <code>turn_feedback</code></td><td class="warntag">no feedback control on the publish chat</td></tr>
+  <tr><td>p50 / p95 latency</td><td>query 4, from <code>latency_ms</code></td><td>partial — <code>conversation_logs.duration_ms</code> exists</td></tr>
+  <tr><td>Did this write duplicate an existing event?</td><td>n/a</td><td class="warntag">the central question, recorded nowhere</td></tr>
+</table>
+
+<p>One more instrument is worth naming because it is misleading: the retriever exposes
+<code>/metrics</code>, and it returns a constant.</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:498–504 — an endpoint named for something it does not do</span><span class="badge b0">RET</span></div>
+<pre><code>@app.get("/metrics")
+def get_metrics():
+    """Simple metrics endpoint. For detailed observability, use Langfuse."""
+    return {
+        "status": "operational",
+        "langfuse_enabled": settings.langfuse_enabled,
+        "note": "Detailed metrics and traces available in Langfuse dashboard",
+    }</code></pre>
+
+<p>It is not proxied by the gateway, so nothing can reach it from outside; and with
+<code>LANGFUSE_ENABLED</code> defaulting to false the note points at an empty dashboard. Real
+monitoring of the process lives elsewhere and is genuinely well-built — the shared
+<code>/livez</code>+<code>/readyz</code> split with a readiness cache that keeps successes for 20
+seconds but never caches a failure, so a recovered dependency is picked up on the next probe
+(<code>services/shared/laiive_shared/health.py</code>:33–59).</p>
+
+<div class="take">
+  <h4>Key takeaways — the join</h4>
+  <ul>
+    <li><code>request_id</code> is the whole mechanism, and it stops at the retriever.</li>
+    <li>Five queries make phase 3 a habit; all five are blind to the pusher.</li>
+    <li>Process health (livez/readyz) is solid across both services; <em>work</em> health is not.</li>
+  </ul>
+</div>
+
+<h2 id="next">7 · Status and recommendations</h2>
+
+<h3>7.1 · Where the eval phases stand</h3>
+
+<table>
+  <tr><th>phase</th><th>what it is</th><th>retriever</th><th>pusher</th></tr>
+  <tr><td><b>0 — capture</b></td><td>answer-side record + shared request id</td><td class="goodtag">built, in production</td><td class="warntag">absent — no table, and the id is discarded</td></tr>
+  <tr><td><b>1 — cheap label</b></td><td>thumbs down/up → <code>turn_feedback</code></td><td class="goodtag">built, in production</td><td class="warntag">no feedback control on the publish chat</td></tr>
+  <tr><td><b>2 — wire existing cases</b></td><td>the labelled sets run in pytest</td><td class="goodtag">built — 12 cases, two tiers</td><td class="warntag">52 cases, unreviewed, wired to nothing</td></tr>
+  <tr><td><b>3 — error analysis</b></td><td>a human reads the corpus and names failure modes</td><td>unblocked — <code>evals/queries.sql</code> exists, corpus accumulating</td><td class="warntag">impossible — nothing to read</td></tr>
+  <tr><td><b>4 — harness + judges</b></td><td><code>python -m evals.run --suite &lt;name&gt;</code>, six suites, judges from phase 3's labels</td><td>planned</td><td>gated on the dedup review (<code>handoff.md</code>)</td></tr>
+  <tr><td><b>— tracing</b></td><td>“one turn, one trace”: Langfuse spans over classify→route→execute→compose</td><td class="warntag">wrapper exists, flag defaults false, no spans</td><td class="warntag">three bare clients; the flag does nothing</td></tr>
+  <tr><td><b>— retention</b></td><td>90-day prune, labelled turns kept</td><td class="goodtag">pg_cron, in the database</td><td>n/a — nothing stored</td></tr>
+</table>
+
+<h3>7.2 · Recommendations</h3>
+
+<p>Discovered while writing this, in the order I would do them. Items 1–3 are all small; item 4 is
+the one that changes what can be known.</p>
+
+<ol>
+  <li><strong>Make the pusher adopt the gateway's <code>x-request-id</code>.</strong> Five lines,
+  copied from <code>services/retriever/agent/api.py</code>:66–70, plus taking <code>raw: Request</code>
+  in <code>chat_stream</code>. It costs nothing, it is independent of every other item here, and until
+  it lands the <code>conversation_logs</code> rows already being written for <code>/api/push/chat</code>
+  and <code>/api/publish</code> cannot be correlated with a single pusher log line. Do this first
+  because everything else on the pusher side assumes it.</li>
+
+  <li><strong>Delete <code>GET /metrics</code> from the retriever</strong>
+  (<code>api.py</code>:498–504). It returns a constant, it is unreachable through the gateway, and its
+  docstring points readers at a Langfuse dashboard that is off by default. An endpoint that lies about
+  having metrics is worse than no endpoint — when real metrics arrive, this name will be wanted and
+  will be occupied. One-line-ish deletion, no caller anywhere in the tree.</li>
+
+  <li><strong>Fix the <code>evals/__init__.py</code> docstring</strong> — it still says “Evaluation
+  framework for the retriever agent” over a package holding two JSON files. Carried over unresolved
+  from the phase-2 doc's recommendation 5; noting it again because it is still true and still one
+  line.</li>
+
+  <li><strong>Decide what the pusher's answer-side record <em>is</em>, before building it.</strong>
+  This is the real gap (⑦) and it is a schema question, not a coding one. My proposal:
+  <code>push_records(request_id, draft_json, writer_verdict, event_uid, dedup_key, near_matches,
+  walk_cursor, latency_ms, errors)</code> — where <code>writer_verdict</code> is the one field that
+  makes the dedup corpus measurable in production (<code>created</code> / <code>adopted</code> /
+  <code>duplicate_409</code> / <code>invalid_422</code>), written fire-and-forget from
+  <code>/validate-event</code> exactly like <code>eval_records</code>. Note the cost honestly: it puts
+  the Supabase service-role key into the pusher, which is currently the one service without it
+  (§5.6). A scoped insert-only Postgres role would avoid that, and is the same mitigation already
+  wanted for the other three.</li>
+
+  <li><strong>Give the integration tier a scheduled home.</strong> Still open from the phase-2 doc:
+  <code>ci.yml</code>:55 runs <code>-m "not integration"</code> correctly, and nothing runs the other
+  11 assertions, so they will rot the way the corpus did. Cheapest version that is not a lie: a
+  weekly GitHub Actions cron with the OpenAI key, allowed to fail without blocking. Not a nightly —
+  nightly on a project with hand-triggered traffic is noise.</li>
+
+  <li><strong>Put a counter on the telemetry-failure branch.</strong> Both
+  <code>eval_records.write</code> (④) and the gateway's <code>.catch()</code> swallow failures into a
+  log line. That is the right availability trade and the wrong observability one: a rotated key
+  silently empties the corpus while every dashboard stays green. The lazy version is a module-level
+  integer exposed on the deep <code>/health</code>, not a metrics stack.</li>
+
+  <li><strong>Accepted, because — the 90-day prune keeps labelled turns forever.</strong> The
+  down-rated subset grows monotonically with no ceiling. At human-complaint volume this is a handful
+  of rows a month and adding a second TTL for it would be machinery with no symptom. Worth revisiting
+  only if downs are ever generated by anything other than a person clicking.</li>
+
+  <li><strong>Accepted, because — the pusher's 82 tests mock everything.</strong> They pin wiring,
+  which is what they are for, and the behavioural gap they leave is exactly what the 52-case corpus
+  exists to fill. Adding un-mocked pusher tests before that corpus is reviewed would be building the
+  second instrument before reading the first.</li>
+</ol>
+
+<div class="take">
+  <h4>Key takeaways — what to do next</h4>
+  <ul>
+    <li>Item 1 (adopt the gateway id in the pusher) is five lines and unblocks every pusher-side measurement that follows.</li>
+    <li>Item 4 is the decision, not the code: name the pusher's write verdict, and the dedup corpus becomes measurable in production instead of by hand.</li>
+    <li>Items 2 and 3 are deletions and a docstring — do them the next time either file is open.</li>
+    <li>Nothing here blocks on the dedup review; the review blocks phase 4, not the instruments.</li>
+  </ul>
+</div>
+
+<p class="sub" style="margin-top:48px">Sources: <code>services/retriever/agent/{api,eval_records}.py</code>, <code>services/retriever/agent/utils/llm_utils.py</code>, <code>services/retriever/agent/tools/safety_guard.py</code>, <code>services/retriever/tests/test_eval_cases.py</code>, <code>services/retriever/evals/{README.md,queries.sql,__init__.py}</code>, <code>services/pusher/agent/{api,conversation,converters,graph}.py</code>, <code>services/pusher/evals/README.md</code>, <code>services/gateway/src/{logging,feedback,proxy,server}.ts</code>, <code>services/shared/laiive_shared/health.py</code>, <code>supabase/migrations/2026082{6000018,6000019,7000020,7000021}_*.sql</code>, <code>.github/workflows/ci.yml</code>. Predecessors: <a href="eval-phases-0-1.html">eval-phases-0-1.html</a>, <a href="eval-phase-2.html">eval-phase-2.html</a>. Plan and state: <code>docs/roadmap/01-program.md</code> §3, <code>handoff.md</code>. Line numbers as of <code>feat/search-bergamo-agendas</code> @ <code>7492a33</code>; every quoted file is committed at that revision with no uncommitted changes.</p>
+
+</main>
+</body>
+</html>

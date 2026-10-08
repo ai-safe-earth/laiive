@@ -1,11 +1,10 @@
 import type { EventDraft } from "@shared/protocol";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventForm } from "./EventForm";
-import { LanguageProvider } from "@/i18n/useTranslation";
 import { translations } from "@/i18n/translations";
+import { renderWith } from "@/test/renderWith";
 
 const en = translations.en;
 
@@ -44,18 +43,11 @@ const DRAFT: EventDraft = {
 };
 
 function renderForm(onSave = vi.fn()) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  const wrap = (draft: EventDraft) => (
-    <QueryClientProvider client={client}>
-      <LanguageProvider>
-        <EventForm draft={draft} missing={[]} onSave={onSave} saving={false} />
-      </LanguageProvider>
-    </QueryClientProvider>
+  const form = (draft: EventDraft) => (
+    <EventForm draft={draft} missing={[]} onSave={onSave} saving={false} />
   );
-  const { rerender } = render(wrap(DRAFT));
-  return { onSave, refresh: (draft: EventDraft) => rerender(wrap(draft)) };
+  const { rerender } = renderWith(form(DRAFT));
+  return { onSave, refresh: (draft: EventDraft) => rerender(form(draft)) };
 }
 
 /** The correction receipt and the doubt marker, rendered on their own. */
@@ -63,22 +55,15 @@ function renderWithChecks(
   corrections: { field: string; before: string; after: string; why: string }[],
   doubted: string[] = [],
 ) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={client}>
-      <LanguageProvider>
-        <EventForm
-          draft={DRAFT}
-          missing={[]}
-          corrections={corrections}
-          doubted={doubted}
-          onSave={vi.fn()}
-          saving={false}
-        />
-      </LanguageProvider>
-    </QueryClientProvider>,
+  renderWith(
+    <EventForm
+      draft={DRAFT}
+      missing={[]}
+      corrections={corrections}
+      doubted={doubted}
+      onSave={vi.fn()}
+      saving={false}
+    />,
   );
 }
 
@@ -258,21 +243,8 @@ describe("edit mode", () => {
   };
 
   function renderEdit(onSave = vi.fn()) {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={client}>
-        <LanguageProvider>
-          <EventForm
-            draft={EDIT_DRAFT}
-            missing={[]}
-            onSave={onSave}
-            saving={false}
-            mode="edit"
-          />
-        </LanguageProvider>
-      </QueryClientProvider>,
+    renderWith(
+      <EventForm draft={EDIT_DRAFT} missing={[]} onSave={onSave} saving={false} mode="edit" />,
     );
     return { onSave };
   }
