@@ -5,8 +5,10 @@ the reviewer sees exactly what an approve would add; the writer's own probe
 still guards the actual write.
 """
 
+import re
 from datetime import datetime
 from itertools import zip_longest
+from urllib.parse import urlsplit
 
 from laiive_shared import EventDraft, missing_required
 from laiive_shared.neo4j_writer import parse_start_at
@@ -117,6 +119,24 @@ _ITALIAN_MONTHS = (
 
 def italian_month_year(when: datetime) -> str:
     return f"{_ITALIAN_MONTHS[when.month - 1]} {when.year}"
+
+
+_LANGUAGE_SEGMENT = re.compile(r"^/(?:en|it|es|ca|fr|de)(?=/|$)", re.IGNORECASE)
+
+
+def page_identity(url: str) -> str:
+    """A page's URL with any leading language segment dropped.
+
+    visitbergamo.net serves the same agenda at /eventi and /en/eventi, and the
+    model translates as it reads, so both copies came out "new" with different
+    names ("…Quartetti" and "…Quartets") and no name-based dedup can join them.
+    One page per identity is read; the other is never extracted.
+    """
+    parts = urlsplit(url)
+    path = _LANGUAGE_SEGMENT.sub("", parts.path) or "/"
+    return (
+        f"{parts.netloc.lower().removeprefix('www.')}{path.rstrip('/')}?{parts.query}"
+    )
 
 
 def _is_past(start_at: datetime) -> bool:
@@ -235,9 +255,19 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     # one's results — the later, narrower phrasings are what reach the circuit,
     # so they must not be the ones that fall off the end.
     pages = agenda + [hit for row in zip_longest(*per_template) for hit in row if hit]
+    # Language twins of a page already in the list are dropped before they cost
+    # an extraction (page_identity). First one wins, so a vouched page beats
+    # its searched twin.
+    identities: set[str] = set()
+    distinct = []
+    for hit in pages:
+        identity = page_identity(hit.url)
+        if identity not in identities:
+            identities.add(identity)
+            distinct.append(hit)
     # Bounds the LLM extraction below, never the Tavily spend above: the calls
     # have already been made and paid for by the time this runs.
-    pages = pages[:max_pages]
+    pages = distinct[:max_pages]
 
     drafts: list[tuple[EventDraft, str]] = []
     pages_with_events = 0
@@ -282,13 +312,18 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
                 events_per_query[template] = events_per_query.get(template, 0) + 1
         drafts.extend((draft, hit.url) for draft in found)
 
+    for draft, _ in drafts:
+        if not draft.city:
+            draft.city = city  # the page was found searching this city
+    # A draft whose venue is a real place goes before one whose "venue" is only
+    # the city or nothing, so when two pages list the same night (the key
+    # below) the copy that kept is the one that can be put on a map.
+    drafts.sort(key=lambda d: norm(d[0].venue or "") in ("", norm(d[0].city or "")))
+
     candidates: list[Candidate] = []
     skipped_past = 0
     seen_keys: set[tuple[str, str, str]] = set()
     for draft, url in drafts:
-        if not draft.city:
-            draft.city = city  # the page was found searching this city
-
         # One malformed draft is one lost candidate, never a lost sweep: the
         # nearest handler above this loop marks the whole report failed, which
         # once cost every page's candidates to a single odd start_at.
@@ -302,10 +337,14 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
             continue
 
         # Intra-sweep dedup: two pages listing the same gig collapse to one.
+        # City, not venue: the same night is often "Bergamo" on one page and
+        # the hall on another (graph.probe_duplicate, same reasoning).
+        # ponytail: two different shows with one generic name ("TRIBUTO") on
+        # the same day in one city collapse too; add the start time if it bites.
         key = (
             norm(draft.name or (draft.artists[0] if draft.artists else "")),
             (start_at.date().isoformat() if start_at else ""),
-            norm(draft.venue or ""),
+            norm(draft.city or ""),
         )
         if key in seen_keys:
             continue

@@ -71,9 +71,17 @@ class GraphMatch(BaseModel):
 
 
 def probe_duplicate(draft: EventDraft) -> GraphMatch | None:
-    """Read-only version of the writer's dedup probe (name+day+venue)."""
+    """The writer's dedup probe (name + day + venue), widened to the city.
+
+    Sweeps write without a human look, and the same night read off two pages
+    often names its venue twice over: "Bergamo" on one, the hall on the other.
+    Keyed on the venue alone, the first direct sweep wrote ~20 such twins. So a
+    sweep also treats the same name on the same day anywhere in the same city as
+    the same event. The shared writer stays strict: a promoter is never refused
+    because a listing elsewhere in town shares their event's name.
+    """
     start_at = parse_start_at(draft.start_at or "")
-    if start_at is None or not draft.venue:
+    if start_at is None or not (draft.venue or draft.city):
         return None
     name = draft.name or (
         f"{draft.artists[0]} live at {draft.venue}" if draft.artists else ""
@@ -83,12 +91,15 @@ def probe_duplicate(draft: EventDraft) -> GraphMatch | None:
     with _driver.session(database=settings.neo4j_database) as session:
         record = session.run(
             """
-            MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue {name_norm: $venue_norm})
+            MATCH (e:Event {name_norm: $name_norm})-[:HOSTED_AT]->(v:Venue)
             WHERE date(e.start_at) = date(datetime($start_at))
+              AND (v.name_norm = $venue_norm
+                   OR EXISTS { (v)-[:LOCATED_IN]->(:City {name_norm: $city_norm}) })
             RETURN e.uid AS uid, e.name AS name LIMIT 1
             """,
             name_norm=norm(name),
-            venue_norm=norm(draft.venue),
+            venue_norm=norm(draft.venue or ""),
+            city_norm=norm(draft.city or ""),
             start_at=start_at.isoformat(),
         ).single()
     if record is None:
