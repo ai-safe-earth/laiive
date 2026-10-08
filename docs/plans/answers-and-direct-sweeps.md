@@ -1,7 +1,7 @@
 ---
 status: active
 step: supply
-next: merge the sweep-dedup PR, deploy search, watch the next sweep's exists count
+next: merge the language-rule PR, deploy search, check the next sweep writes no English twins
 ---
 # Answers when the graph is thin or down, and sweeps that write directly
 
@@ -32,7 +32,15 @@ gone), and the composer turned "graph unreachable" into "a quiet spell in Barcel
   real venue is kept; against the graph, `probe_duplicate` also matches same name + day
   anywhere in the city. Checked read-only on the live graph: Niklas Jahn and Harlem Gospel
   Choir now read "exists" from another venue, the same name in Torino stays "new".
-- [ ] Deploy search; next sweep should show "exists" for today's events.
+- [x] Deploy search; next sweep should show "exists" for today's events.
+  Report `ab5c9325`: 107 candidates, 83 exists, 12 similar, 12 new; 11 written. Events
+  321 -> 332, Bergamo upcoming 106 -> 113. But 4 of the 11 were English twins: search found
+  only visitbergamo's `/en/eventi`, so no twin page was in the sweep, and the English names
+  scored under 0.92 against the Italian copies.
+- [x] 7. Language rule: a page with a foreign language segment (`/en/…`) is swapped for the
+  site's own (`/…`) through Tavily extract, after the max_pages cut; a failed fetch keeps the
+  original. Checked live: `/en/eventi` -> `/eventi`, 12,210 chars, Italian names.
+- [ ] Deploy search; next sweep should write no English twins.
 
 ## Findings from the first direct sweep
 - ARCI portal events are national, but the writer geocoded them to their real cities (Padova,

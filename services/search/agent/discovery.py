@@ -8,7 +8,7 @@ still guards the actual write.
 import re
 from datetime import datetime
 from itertools import zip_longest
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from laiive_shared import EventDraft, missing_required
 from laiive_shared.neo4j_writer import parse_start_at
@@ -137,6 +137,27 @@ def page_identity(url: str) -> str:
     return (
         f"{parts.netloc.lower().removeprefix('www.')}{path.rstrip('/')}?{parts.query}"
     )
+
+
+# The swept provinces are Italian (see SWEEP_COUNTRY), so Italian is the
+# language a listing's own names are in.
+SWEEP_LANGUAGE = "it"
+
+
+def local_page(url: str) -> str | None:
+    """The same page in the sweep's language, when `url` is a translation.
+
+    One sweep can find only visitbergamo.net/en/eventi. Read in English, its
+    events get English names ("Extravagant 17th Century") that the graph's
+    Italian copies ("Seicento Stravagante") do not match, so they were written
+    again. The version without the language segment is the site's own.
+    None when the URL has no foreign language segment.
+    """
+    parts = urlsplit(url)
+    segment = _LANGUAGE_SEGMENT.match(parts.path)
+    if segment is None or segment.group(0)[1:].lower() == SWEEP_LANGUAGE:
+        return None
+    return urlunsplit(parts._replace(path=parts.path[segment.end() :] or "/"))
 
 
 def _is_past(start_at: datetime) -> bool:
@@ -268,6 +289,24 @@ def sweep_city(city: str, max_pages: int | None = None) -> SweepResult:
     # Bounds the LLM extraction below, never the Tavily spend above: the calls
     # have already been made and paid for by the time this runs.
     pages = distinct[:max_pages]
+
+    # A translated page is swapped for the site's own (local_page), fetched
+    # after the cut so only pages that will be read are paid for. One that
+    # cannot be fetched is read as found rather than lost.
+    swaps = {hit.url: local for hit in pages if (local := local_page(hit.url))}
+    if swaps:
+        fetched = tavily.extract(sorted(set(swaps.values())))
+        tavily_calls += tavily.extract_credits(len(fetched))
+        by_identity = {page_identity(hit.url): hit for hit in fetched}
+        swapped = []
+        for hit in pages:
+            local_hit = (
+                by_identity.get(page_identity(hit.url)) if hit.url in swaps else None
+            )
+            if local_hit is not None and hit.url in url_query:
+                url_query[local_hit.url] = url_query[hit.url]
+            swapped.append(local_hit or hit)
+        pages = swapped
 
     drafts: list[tuple[EventDraft, str]] = []
     pages_with_events = 0
