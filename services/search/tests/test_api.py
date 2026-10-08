@@ -51,12 +51,17 @@ def test_health():
     assert response.json()["neo4j"] == "ok"
 
 
-def test_sweep_202_then_results_land_on_the_report(mock_reports_http, mock_neo4j):
+def test_sweep_202_then_results_land_on_the_report(
+    mock_reports_http, mock_neo4j, monkeypatch
+):
     """202 immediately; the background worker patches the report to dry_run.
 
     TestClient runs BackgroundTasks before returning, so the terminal patch
-    is assertable in the same call.
+    is assertable in the same call. Auto-write off: the dry-run shape.
     """
+    from config import settings
+
+    monkeypatch.setattr(settings, "sweep_auto_write", False)
     response = client.post("/sweep", json={"city": "Berlin"})
     assert response.status_code == 202
     body = response.json()
@@ -70,6 +75,19 @@ def test_sweep_202_then_results_land_on_the_report(mock_reports_http, mock_neo4j
     assert len(terminal["candidates"]) == 1
     writes = [q for q, _ in mock_neo4j.fake_session.queries if "CREATE" in q]
     assert writes == []
+
+
+def test_sweep_writes_its_new_candidates_by_default(mock_reports_http, mock_neo4j):
+    """Auto-write on (the default): the report goes dry_run, is claimed with no
+    approver, and its "new" candidate reaches the graph."""
+    assert client.post("/sweep", json={"city": "Berlin"}).status_code == 202
+    patches = [c.kwargs["json"] for c in mock_reports_http.patch.call_args_list]
+    assert patches[0]["status"] == "dry_run"
+    assert patches[1]["status"] == "approved"
+    assert patches[1]["approved_by"] is None
+    assert patches[-1]["write_results"][0]["status"] == "created"
+    writes = [q for q, _ in mock_neo4j.fake_session.queries if "CREATE (e:Event" in q]
+    assert len(writes) == 1
 
 
 def test_sweep_worker_failure_marks_the_report_failed(mock_reports_http, monkeypatch):

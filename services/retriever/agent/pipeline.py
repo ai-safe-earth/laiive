@@ -8,7 +8,7 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from laiive_shared import EventCard, EventsResult, MessageDelta, Status
+from laiive_shared import Error, EventCard, EventsResult, MessageDelta, Status
 from laiive_shared.geocode import NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
 from laiive_shared.tracing import get_tracer, stage, start_child
@@ -104,7 +104,7 @@ class Pipeline:
         result: TurnResult | None = None,
         timezone: str | None = None,
         request_id: str = "",
-    ) -> Iterator[MessageDelta | EventsResult | Status]:
+    ) -> Iterator[MessageDelta | EventsResult | Status | Error]:
         """Stream one turn. Pass a TurnResult to collect side data as it runs.
 
         `timezone` is the asker's IANA zone; it decides what "today" means.
@@ -161,7 +161,7 @@ class Pipeline:
         location: dict | None,
         result: TurnResult,
         timezone: str | None,
-    ) -> Iterator[MessageDelta | EventsResult | Status]:
+    ) -> Iterator[MessageDelta | EventsResult | Status | Error]:
         """The turn itself. Every stage names `turn` as its parent explicitly —
         see the span-shape note in `laiive_shared.tracing`."""
         if settings.enable_moderation:
@@ -205,6 +205,7 @@ class Pipeline:
             if plans:
                 yield Status(state="searching")
                 seen: set = set()
+                unreachable = 0
                 for plan in plans:
                     with stage(
                         tracer, turn, "execute", {"laiive.plan_kind": str(plan.kind)}
@@ -225,11 +226,21 @@ class Pipeline:
                     if outcome.error:
                         result.errors.append(outcome.error)
                         logger.warning(f"Sub-query failed: {outcome.error}")
+                    unreachable += outcome.unavailable
                     for card in outcome.cards:
                         key = card.uid or (card.name, card.start_at)
                         if key not in seen:
                             seen.add(key)
                             result.cards.append(card)
+                # An unreachable graph is an outage, not an empty city: left to
+                # the composer it read as "a quiet spell, try another city"
+                # while Aura was paused. The client words it in the UI language.
+                if unreachable == len(plans) and not result.cards:
+                    yield Error(
+                        code="graph_unavailable",
+                        message="The events database cannot be reached.",
+                    )
+                    return
                 # Cards go out the moment results exist, before any prose.
                 verified_first(result.cards)
                 yield EventsResult(events=result.cards)

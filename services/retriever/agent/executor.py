@@ -16,6 +16,7 @@ from laiive_shared import EventCard
 from laiive_shared.geocode import CENTROID_COLLAPSE_M
 from laiive_shared.normalize import genre_family, norm
 from loguru import logger
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
 
 from config import settings
 
@@ -486,6 +487,9 @@ class Outcome:
     # How the rows were found, when that is not what the user literally asked
     # for. Reaches the composer so it does not overstate the match.
     note: str | None = None
+    # The graph could not be reached at all (Aura paused, DNS gone). Not the
+    # same as an error the composer can talk around, like a missing location.
+    unavailable: bool = False
 
 
 class Executor:
@@ -532,7 +536,10 @@ class Executor:
             return self._execute_llm_cypher(plan.constraints, timezone)
         except Exception as e:
             logger.error(f"Execution failed for {plan.kind}: {e}")
-            return Outcome(error=str(e))
+            return Outcome(
+                error=str(e),
+                unavailable=isinstance(e, (ServiceUnavailable, SessionExpired)),
+            )
 
     def _execute_named_place(self, c: Constraints) -> Outcome | None:
         """Second chance for a place that is not a City node.

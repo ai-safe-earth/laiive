@@ -1,8 +1,10 @@
 """Weekly per-city discovery sweep — one Prefect task per city (D17).
 
 Per-city tasks give per-city retries and run history; the markdown artifact
-is the human review surface. Sweeps stay dry-run — approving a report is a
-human action on POST /api/admin/search/reports/{id}/approve, never this flow.
+is the human review surface. The search service writes each sweep's "new"
+candidates itself when SEARCH_SWEEP_AUTO_WRITE is on (the default); with it
+off, approving stays a human action on
+POST /api/admin/search/reports/{id}/approve, never this flow.
 """
 
 import httpx

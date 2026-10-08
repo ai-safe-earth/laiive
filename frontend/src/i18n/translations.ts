@@ -27,6 +27,8 @@ export interface Translations {
     rateLimitedAnon: string; // markdown, links to /auth
     sessionExpired: string; // markdown, links to /auth
     genericError: string;
+    /** The events database is down (Aura paused): an outage, said as one. */
+    graphUnavailable: string;
     stop: string;
     send: string;
     feedbackUp: string;
@@ -280,16 +282,19 @@ export const translations: Record<Language, Translations> = {
       placeholder: "search your event here…",
       statusReading: "reading your question…",
       statusSearching: "searching for events…",
+      // Wide on purpose: a genre plus a narrow week matched nothing on the live
+      // graph (2026-10-08). Tied to cities that have events; revisit as they pass.
       examples: [
-        "rock concerts this weekend near me",
-        "concerts today near me",
-        "rock concerts this week in Torino",
+        "live music this weekend",
+        "concerts in Torino this month",
+        "what's on in Bergamo?",
       ],
       statusWriting: "writing…",
       rateLimited: "You are sending requests a little fast — give it a minute.",
       rateLimitedAnon: "That's the free quota for now. [Sign in →](/auth) for a higher limit.",
       sessionExpired: "Your session expired. [Sign in again →](/auth)",
       genericError: "Something went wrong.",
+      graphUnavailable: "I can't reach the events list right now. Try again in a few minutes.",
       stop: "Stop",
       send: "Send",
       feedbackUp: "Helpful",
@@ -546,15 +551,16 @@ export const translations: Record<Language, Translations> = {
       statusReading: "leyendo tu pregunta…",
       statusSearching: "buscando eventos…",
       examples: [
-        "conciertos de rock este fin de semana cerca de mí",
-        "conciertos hoy cerca de mí",
-        "conciertos de rock esta semana en Turín",
+        "música en directo este fin de semana",
+        "conciertos en Barcelona este mes",
+        "próximos conciertos en Madrid",
       ],
       statusWriting: "escribiendo…",
       rateLimited: "Estás enviando mensajes muy rápido — dale un minuto.",
       rateLimitedAnon: "Ese es el límite gratuito por ahora. [Inicia sesión →](/auth) para un límite mayor.",
       sessionExpired: "Tu sesión ha caducado. [Vuelve a iniciar sesión →](/auth)",
       genericError: "Algo ha ido mal.",
+      graphUnavailable: "Ahora mismo no puedo consultar los eventos. Prueba de nuevo en unos minutos.",
       stop: "Detener",
       send: "Enviar",
       feedbackUp: "Útil",
@@ -813,15 +819,16 @@ export const translations: Record<Language, Translations> = {
       statusReading: "leggo la tua domanda…",
       statusSearching: "cerco eventi…",
       examples: [
-        "concerti rock questo fine settimana vicino a me",
-        "concerti oggi vicino a me",
-        "concerti rock questa settimana a Torino",
+        "musica dal vivo questo fine settimana",
+        "concerti a Torino questo mese",
+        "cosa c'è a Bergamo?",
       ],
       statusWriting: "scrivo…",
       rateLimited: "Stai inviando richieste un po' troppo in fretta — aspetta un minuto.",
       rateLimitedAnon: "Questo è il limite gratuito per ora. [Accedi →](/auth) per un limite più alto.",
       sessionExpired: "La tua sessione è scaduta. [Accedi di nuovo →](/auth)",
       genericError: "Qualcosa è andato storto.",
+      graphUnavailable: "Al momento non riesco a consultare gli eventi. Riprova tra qualche minuto.",
       stop: "Interrompi",
       send: "Invia",
       feedbackUp: "Utile",
@@ -1080,15 +1087,16 @@ export const translations: Record<Language, Translations> = {
       statusReading: "llegint la teva pregunta…",
       statusSearching: "cercant esdeveniments…",
       examples: [
-        "concerts de rock aquest cap de setmana a prop meu",
-        "concerts avui a prop meu",
-        "concerts de rock aquesta setmana a Torí",
+        "música en directe aquest cap de setmana",
+        "què hi ha a Barcelona aquest mes?",
+        "propers concerts a Madrid",
       ],
       statusWriting: "escrivint…",
       rateLimited: "Estàs enviant missatges molt ràpid — espera un minut.",
       rateLimitedAnon: "Aquest és el límit gratuït per ara. [Inicia sessió →](/auth) per a un límit més alt.",
       sessionExpired: "La teva sessió ha caducat. [Torna a iniciar sessió →](/auth)",
       genericError: "Alguna cosa ha anat malament.",
+      graphUnavailable: "Ara mateix no puc consultar els esdeveniments. Torna-ho a provar d'aquí a uns minuts.",
       stop: "Atura",
       send: "Envia",
       feedbackUp: "Útil",
