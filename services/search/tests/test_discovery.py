@@ -60,6 +60,41 @@ def test_a_language_twin_page_is_read_once(mock_tavily):
     assert result.stats["pages_searched"] == 1
 
 
+def test_a_translated_page_is_read_in_the_local_language(mock_tavily, monkeypatch):
+    """Search found only /en/eventi: the sweep reads /eventi instead, so events
+    keep the Italian names the graph already holds."""
+    from agent import tavily
+
+    page = dict(mock_tavily.post.return_value.json.return_value["results"][0])
+    english = dict(page, url="https://www.visitbergamo.net/en/eventi")
+    mock_tavily.post.return_value = http_response(payload={"results": [english]})
+    asked = []
+
+    def extract(urls, depth="basic"):
+        asked.extend(urls)
+        return [
+            tavily.SearchHit(url=u, raw_content=page["raw_content"])
+            for u in urls
+            if u == "https://www.visitbergamo.net/eventi"
+        ]
+
+    monkeypatch.setattr(tavily, "extract", extract)
+    result = discovery.sweep_city("Berlin")
+    assert "https://www.visitbergamo.net/eventi" in asked
+    assert {c.source_url for c in result.candidates} == {
+        "https://www.visitbergamo.net/eventi"
+    }
+
+
+def test_local_page_leaves_the_sweep_language_and_plain_paths_alone():
+    assert (
+        discovery.local_page("https://x.net/en/eventi?p=2")
+        == "https://x.net/eventi?p=2"
+    )
+    assert discovery.local_page("https://x.net/it/eventi") is None
+    assert discovery.local_page("https://x.net/entertainment") is None
+
+
 def test_page_identity_only_drops_a_language_segment():
     same = discovery.page_identity
     assert same("https://www.x.net/en/eventi") == same("https://x.net/eventi/")
