@@ -17,7 +17,8 @@ A batch of small frontend changes the owner asked for on 2026-10-07, ahead of st
   to `frontend/public/brand/`. An earlier commit used the knockout favicon because a PNG-blind
   file search hid `mask-mark.png`.
 - `*.tsbuildinfo` is ignored in `frontend/.gitignore`; typecheck runs write them.
-- Committed as 89b1eb8 on `feat/remove-intro-video` (branched from `cleanup`).
+- Committed as 89b1eb8 on `feat/remove-intro-video` (branched from `cleanup`). Merged in
+  PR #129 and released in v0.7.0 (2026-10-08); laiive.com serves the new bundle.
 - No empty-state lips and no live headline text: neither exists in the app yet (owner: keep the
   grey LAIIVE). The `text` variant is ready for when one does.
 - The header saved icon goes live (owner's call), so it is fuchsia now, not grey.

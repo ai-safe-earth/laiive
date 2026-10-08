@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: merge PR #128 after supabase db push and pusher Fly secrets
+next: PR the local branch chore/one-fake-neo4j-session, now on top of develop
 ---
 # Evals and monitoring (program phase 3)
 
@@ -19,8 +19,10 @@ can tell whether a change helped.
   Routing suite dropped: `tests/test_router.py` covers it.
 
 ## Steps
-- [ ] Before deploy: `supabase db push` (table `push_records` missing live); pusher needs
+- [x] Before deploy: `supabase db push` (table `push_records` missing live); pusher needs
       `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` Fly secrets. Merge PR #128.
+      Done 2026-10-08: migration pushed, secrets set (digests match the retriever's),
+      all four services deployed, shipped in v0.7.0.
 - [ ] PR the local branch `chore/one-fake-neo4j-session` (`88d8fad`), stacked on #128.
 - [ ] Fix the 6 classifier gaps xfailed in `services/retriever/evals/README.md`. Worst two:
       "gigs near me" with no location, and "find me something". Both should ask, not

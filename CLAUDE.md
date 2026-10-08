@@ -22,6 +22,7 @@
 - Keep changes small and focused on the current plan step.
 - Ask before deleting files, adding dependencies, or changing the roadmap order.
 - Propose a plan before implementing. Explain tradeoffs when there is a real design choice.
+  Micro changes skip this (see "Micro changes").
 - Never `async def` around blocking work in anything that yields SSE frames.
 - A new module-level API client must be patched in `services/pusher/tests/conftest.py`.
 - Never read `.history/` or `docs/pm-log.jsonl`.
@@ -48,13 +49,23 @@
 - When a plan is finished: set `status: done` and move it to `docs/plans/done/`.
 - `/roadmap` refreshes the status section of `docs/ROADMAP.md`.
 
+## Micro changes
+- A micro change needs no plan file and no roadmap step: a fast debug, a copy or style tweak,
+  a one-spot fix. Do it straight away, then tell me what changed.
+- It is micro only if it is about 3 files and 40 lines or less, has no real design choice, and
+  touches no schema, protocol, auth, money, or Supabase/Aura writes. Otherwise it needs a plan.
+- Commit as usual; the body starts with `micro:` and says why. Tests still run before "done".
+- When I say "micro" or "quick", treat it as micro unless it breaks the limits above; then say so.
+
 ## Tracking files
 - The only tracking files are: this file, `docs/ROADMAP.md`, and `docs/plans/`.
 - Do not create handoff, status, summary, audit, or report files. Put that information in the plan or in "Decisions" below.
 
 ## Decisions
 - Budget $30-50/month all-in: Aura Free (auto-pauses), Supabase free, mini-first models.
-- Sweeps stay dry-run; a human approves. Ownership decides who may edit, never who may create.
+- Sweeps write their "new" candidates to the graph as soon as they finish (2026-10-08); the dedup
+  marks and the writer's probe guard against duplicates. `SEARCH_SWEEP_AUTO_WRITE=false` puts them
+  back to dry-run with human approve. Ownership decides who may edit, never who may create.
 - Chat-only, no crawlable pages yet. UI in en/es/it/ca; every string through `translations.ts`.
 - Cloudflare Pages: `develop.laiive.pages.dev` is a preview alias; production is not built from `develop` (checked 2026-09-29).
 - Tag `legacy-main-2026-08-19` is wrong (six commits short of the old main); owner to delete it.
