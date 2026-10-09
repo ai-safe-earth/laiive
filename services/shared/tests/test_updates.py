@@ -1,6 +1,6 @@
 """Owner edits (Phase E): update_event / update_venue / update_artist.
 
-PATCH semantics against the fake session from test_writer: only fields
+PATCH semantics against the shared fake session (laiive_shared.testing): only fields
 present change, explicit None clears, identity fields are untouchable, a
 moved dedup key re-probes excluding the node itself, and every bad input
 comes back as a typed result — never a raise, never junk in the graph.
@@ -10,8 +10,7 @@ import pytest
 
 from laiive_shared.geocode import GeocodeResult
 from laiive_shared.neo4j_writer import update_artist, update_event, update_venue
-
-from tests.test_writer import FakeResult, FakeSession
+from laiive_shared.testing import FakeResult, FakeSession
 
 EVENT_NODE = {
     "cur_name": "Jazz Night",

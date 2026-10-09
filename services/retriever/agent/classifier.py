@@ -18,7 +18,7 @@ from config import settings
 
 from .utils.llm_utils import get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v2"
+CLASSIFIER_PROMPT_VERSION = "v3"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
@@ -27,7 +27,7 @@ Today is {today} ({weekday}). The user's location is {location_note}.
 Read the conversation and the latest user message, then return ONE JSON object:
 
 {{
-  "query_type": "event_search" | "nearby" | "smalltalk" | "out_of_scope",
+  "query_type": "event_search" | "smalltalk" | "out_of_scope",
   "moment": "first_query" | "refinement" | "new_topic" | "ambiguous",
   "language": string,          // ISO 639-1 code of the LATEST user message
   "sub_queries": [Constraints, ...],
@@ -75,9 +75,13 @@ Rules:
   however terse the phrasing: "jazz in Madrid" is genre "jazz" + city "Madrid".
   Never drop it, and never leave it in `free_text` alone — `free_text` is for
   vibes that are not a genre ("intimate candle-lit", "something loud").
+- "free" / "gratis" / "gratuito" means price_max 0. Never drop it.
+- A message that is only a place name ("Granada") is a search in that place:
+  one sub_query with that city, moment as usual.
 - moment "ambiguous" + clarification: the search cannot run without ONE more
-  detail (e.g. no place and no location share). Phrase clarification as the
-  missing thing, not a full sentence to parrot.
+  detail (e.g. no place and no location share). "find me something" has no
+  place, no genre, no artist, no date: that is ambiguous, ask for the place.
+  Phrase clarification as the missing thing, not a full sentence to parrot.
 - smalltalk covers greetings/thanks/goodbyes; out_of_scope is anything not
   about live music events. Both need no sub_queries.
 - language: {language_rule} A follow-up in a new language switches it.
@@ -124,7 +128,9 @@ class Constraints(BaseModel):
 
 
 class Classification(BaseModel):
-    query_type: Literal["event_search", "nearby", "smalltalk", "out_of_scope"]
+    # No "nearby": route() reads near_me, so a separate type was a value
+    # nothing used. A model that still says it means an event search.
+    query_type: Literal["event_search", "smalltalk", "out_of_scope"]
     moment: Literal["first_query", "refinement", "new_topic", "ambiguous"]
     # Decided here so the composer is told the language instead of inferring it
     # from a result set full of Spanish venue names (laiive_shared.language).
@@ -132,10 +138,30 @@ class Classification(BaseModel):
     sub_queries: list[Constraints] = []
     clarification: Optional[str] = None
 
+    @field_validator("query_type", mode="before")
+    @classmethod
+    def _nearby_is_a_search(cls, v):
+        return "event_search" if v == "nearby" else v
+
     @field_validator("language", mode="before")
     @classmethod
     def _clean_language(cls, v):
         return normalize_language(v)
+
+
+def enforce(c: Classification, has_history: bool, has_location: bool) -> Classification:
+    """Rules that must always hold, so they are code and not prompt wording.
+
+    A first message cannot refine or change anything. A "near me" ask with no shared
+    location cannot run (route() drops it), so the turn asks where instead of
+    answering "nothing found".
+    """
+    if c.moment in ("refinement", "new_topic") and not has_history:
+        c.moment = "first_query"
+    if not has_location and any(q.near_me for q in c.sub_queries):
+        c.moment = "ambiguous"
+        c.clarification = c.clarification or "your city or your location"
+    return c
 
 
 FALLBACK = Classification(
@@ -197,7 +223,11 @@ class Classifier:
             )
             raw = response.choices[0].message.content
             try:
-                return Classification.model_validate_json(raw)
+                return enforce(
+                    Classification.model_validate_json(raw),
+                    has_history=bool(history),
+                    has_location=has_location,
+                )
             except ValidationError as e:
                 logger.warning(
                     f"Classifier output invalid (attempt {attempt + 1}): {e}"

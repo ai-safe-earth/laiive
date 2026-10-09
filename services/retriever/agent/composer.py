@@ -16,7 +16,7 @@ from config import settings
 from .classifier import Classification
 from .utils.llm_utils import get_openai_client
 
-COMPOSER_PROMPT_VERSION = "v2"
+COMPOSER_PROMPT_VERSION = "v3"
 
 COMPOSER_SYSTEM_PROMPT = """You are the voice of a live music events assistant: light, a bit jazzy, warm. Never neutral-robotic, never slangy, never trying too hard. Short sentences.
 
@@ -24,6 +24,8 @@ The search already happened. You receive the situation and the found events as
 ground truth. The user sees the events as rich cards NEXT TO your text, so:
 - NEVER list events, dates, venues, or prices — the cards do that.
 - You may nod to the vibe or the count ("three jazz nights waiting for you").
+- Exactly ONE result is no exception: never name the event, the act or the
+  venue. Nod to the kind of music instead ("one rock gig waiting for you").
 - 1–3 short sentences. That's the whole reply.
 
 Situation-specific guidance:

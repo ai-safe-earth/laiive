@@ -22,6 +22,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from laiive_shared.testing import FakeSession
 
 # The root .env carries a real INTERNAL_API_KEY and the middleware installs at
 # import time of agent.api — blank it before any test module imports the app.
@@ -217,66 +218,10 @@ def mock_geocoder():
         yield geocoder
 
 
-class FakeNeo4jResult:
-    def __init__(self, single=None, rows=None):
-        self._single = single
-        self._rows = rows or []
-
-    def single(self):
-        return self._single
-
-    def __iter__(self):
-        return iter(self._rows)
-
-
-class FakeNeo4jSession:
-    """Understands the writer's query sequence plus the read-only probes."""
-
-    def __init__(self, dedup_hit=None, vector_hit=None):
-        self.queries = []
-        self.dedup_hit = dedup_hit
-        self.vector_hit = vector_hit
-
-    def run(self, query, **params):
-        self.queries.append((query, params))
-        # Two probes ask this, and they are not the same query: the sweep's own
-        # advisory check (agent/graph.py) and the writer's dedup, which also
-        # reads owner_id to decide adoption.
-        if "RETURN e.uid AS uid, e.name AS name LIMIT 1" in query:
-            return FakeNeo4jResult(single=self.dedup_hit)
-        if "e.owner_id AS owner_id" in query:
-            return FakeNeo4jResult(single=self.dedup_hit)
-        if "db.index.vector.queryNodes" in query:
-            return FakeNeo4jResult(single=self.vector_hit)
-        if "AS artist_uids" in query:  # the write, creating or adopting
-            return FakeNeo4jResult(
-                single={
-                    "uid": params["event_uid"],
-                    "name": params["name"],
-                    "venue": params["venue"],
-                    "city": params["city"],
-                    "venue_uid": params["venue_uid"],
-                    # Mirrors the real RETURN: an artist that already existed
-                    # keeps its own uid, so the writer reads creation off the
-                    # overlap with the uids this write proposed.
-                    "artist_uids": [a["uid"] for a in params["artists"]],
-                }
-            )
-        if "RETURN 1" in query:
-            return FakeNeo4jResult(single={"1": 1})
-        return FakeNeo4jResult(rows=[])
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return None
-
-
 @pytest.fixture(autouse=True)
 def mock_neo4j():
     driver = MagicMock()
-    session = FakeNeo4jSession()
+    session = FakeSession()
     driver.session.return_value = session
     driver.fake_session = session
     with patch("agent.graph._driver", driver):

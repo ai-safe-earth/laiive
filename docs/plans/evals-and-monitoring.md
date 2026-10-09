@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: PR the local branch chore/one-fake-neo4j-session, now on top of develop
+next: the evals CLI is deferred to model-routing; nothing open here until then
 ---
 # Evals and monitoring (program phase 3)
 
@@ -23,11 +23,16 @@ can tell whether a change helped.
       `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` Fly secrets. Merge PR #128.
       Done 2026-10-08: migration pushed, secrets set (digests match the retriever's),
       all four services deployed, shipped in v0.7.0.
-- [ ] PR the local branch `chore/one-fake-neo4j-session` (`88d8fad`), stacked on #128.
-- [ ] Fix the 6 classifier gaps xfailed in `services/retriever/evals/README.md`. Worst two:
-      "gigs near me" with no location, and "find me something". Both should ask, not
-      answer "nothing found".
-- [ ] Composer names the event and act when there is one result (the prompt has no rule for it).
+- [x] PR the local branch `chore/one-fake-neo4j-session` (`88d8fad`), stacked on #128.
+      Rebased onto develop 2026-10-08 (now `9193382`, clean); shared 224, pusher 91,
+      search 142 pass.
+- [x] Fix the 6 classifier gaps xfailed in `services/retriever/evals/README.md`.
+      Prompt v3, 2026-10-08: live run 20 of 20 green. How each closed: README section.
+      Decision: rules that must always hold (no history means first_query; near me with no
+      location asks where) live in `classifier.enforce()`, not the prompt. `nearby` left the
+      query_type list, since the router reads `near_me` alone.
+- [x] Composer names the event and act when there is one result. Prompt v3, 2026-10-08:
+      one rule; live answer-quality suite 10 of 10, twice.
 - [ ] `python -m evals.run --models a,b` CLI: deferred to model-routing.
 
 ## Baselines (live graph, 2026-08-18)
