@@ -1044,25 +1044,25 @@ seconds but never caches a failure, so a recovered dependency is picked up on th
 the one that changes what can be known.</p>
 
 <ol>
-  <li><strong>Make the pusher adopt the gateway's <code>x-request-id</code>.</strong> Five lines,
+  <li><strong><span class="goodtag">The pusher did not adopt the gateway's <code>x-request-id</code> — done since this document.</span></strong> <code>services/pusher/agent/api.py</code>:241 now calls the shared <code>request_id_from(raw)</code>, the same contract as the retriever. Verified 2026-10-09; see <a href="eval-layer.html">eval-layer.html</a> §3. Original note: five lines,
   copied from <code>services/retriever/agent/api.py</code>:66–70, plus taking <code>raw: Request</code>
   in <code>chat_stream</code>. It costs nothing, it is independent of every other item here, and until
   it lands the <code>conversation_logs</code> rows already being written for <code>/api/push/chat</code>
   and <code>/api/publish</code> cannot be correlated with a single pusher log line. Do this first
   because everything else on the pusher side assumes it.</li>
 
-  <li><strong>Delete <code>GET /metrics</code> from the retriever</strong>
-  (<code>api.py</code>:498–504). It returns a constant, it is unreachable through the gateway, and its
+  <li><strong><span class="goodtag"><code>GET /metrics</code> in the retriever — deleted since this document.</span></strong>
+  A comment at <code>services/retriever/agent/api.py</code>:435 records why it went and points at <code>eval_records</code> and Phoenix instead. Verified 2026-10-09. Original note (<code>api.py</code>:498–504 at the time): It returns a constant, it is unreachable through the gateway, and its
   docstring points readers at a Langfuse dashboard that is off by default. An endpoint that lies about
   having metrics is worse than no endpoint — when real metrics arrive, this name will be wanted and
   will be occupied. One-line-ish deletion, no caller anywhere in the tree.</li>
 
-  <li><strong>Fix the <code>evals/__init__.py</code> docstring</strong> — it still says “Evaluation
+  <li><strong><span class="goodtag">The <code>evals/__init__.py</code> docstring — fixed since this document.</span></strong> It now says "datasets only, no framework". Verified 2026-10-09. Original note: it said “Evaluation
   framework for the retriever agent” over a package holding two JSON files. Carried over unresolved
   from the phase-2 doc's recommendation 5; noting it again because it is still true and still one
   line.</li>
 
-  <li><strong>Decide what the pusher's answer-side record <em>is</em>, before building it.</strong>
+  <li><strong><span class="goodtag">The pusher's answer-side record — decided and built since this document.</span></strong> Migration <code>20260922000027_push_records.sql</code> holds the write verdict per attempt, written by <code>services/pusher/agent/push_records.py</code>; the migration was pushed and the pusher's Supabase secrets set on 2026-10-08, shipped in v0.7.0 (<code>docs/plans/evals-and-monitoring.md</code>). The service-role key is now in the pusher, as this item warned. Verified 2026-10-09. Original note:
   This is the real gap (⑦) and it is a schema question, not a coding one. My proposal:
   <code>push_records(request_id, draft_json, writer_verdict, event_uid, dedup_key, near_matches,
   walk_cursor, latency_ms, errors)</code> — where <code>writer_verdict</code> is the one field that
@@ -1073,13 +1073,13 @@ the one that changes what can be known.</p>
   (§5.6). A scoped insert-only Postgres role would avoid that, and is the same mitigation already
   wanted for the other three.</li>
 
-  <li><strong>Give the integration tier a scheduled home.</strong> Still open from the phase-2 doc:
+  <li><strong><span class="goodtag">The integration tier got a scheduled home — done since this document.</span></strong> <code>.github/workflows/evals-weekly.yml</code>, Mondays 06:00 UTC, allowed to fail, exactly the shape proposed here. It has not run yet; the first run is expected 2026-10-12. Verified 2026-10-09; see <a href="eval-layer.html">eval-layer.html</a> §5. Original note: still open from the phase-2 doc:
   <code>ci.yml</code>:55 runs <code>-m "not integration"</code> correctly, and nothing runs the other
   11 assertions, so they will rot the way the corpus did. Cheapest version that is not a lie: a
   weekly GitHub Actions cron with the OpenAI key, allowed to fail without blocking. Not a nightly —
   nightly on a project with hand-triggered traffic is noise.</li>
 
-  <li><strong>Put a counter on the telemetry-failure branch.</strong> Both
+  <li><strong><span class="goodtag">A counter on the telemetry-failure branch — done for the Python writers since this document.</span></strong> <code>eval_records.writes_failed</code> and <code>push_records.writes_failed</code> are shown on each service's deep <code>/health</code> (retriever <code>api.py</code>:198, pusher <code>api.py</code>:223). The gateway's two <code>.catch()</code> branches still only log; see <a href="eval-layer.html">eval-layer.html</a> rec. 9. Verified 2026-10-09. Original note: both
   <code>eval_records.write</code> (④) and the gateway's <code>.catch()</code> swallow failures into a
   log line. That is the right availability trade and the wrong observability one: a rotated key
   silently empties the corpus while every dashboard stays green. The lazy version is a module-level
