@@ -67,9 +67,9 @@ class Settings(BaseSettings):
     llm_temperature_classifier: float = 0.0
 
     # Location settings
-    location_max_radius_km: float = 30.0
+    location_max_radius_km: float = 50.0
     location_min_events: int = 5
-    location_radius_steps: list[float] = [5.0, 10.0, 15.0, 20.0, 30.0]
+    location_radius_steps: list[float] = [5.0, 10.0, 15.0, 20.0, 30.0, 50.0]
     # A venue whose pin is only its city's centroid is "somewhere in this city",
     # not "here". It stays findable but sorts behind anything actually located,
     # by adding this to its sort key only — the distance_km on the card stays

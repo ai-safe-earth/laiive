@@ -1,7 +1,7 @@
 ---
 status: active
 step: retrieval
-next: step 2, widen around a named place (cap 50 km)
+next: step 3, a "Share my location" button when a turn needs it
 ---
 # Location and distance (feedback thread 2)
 
@@ -34,11 +34,20 @@ Nominatim turns the name into a point. Code does the distance search.
       2026-10-09: done. Four cases from the replay (English, Italian, a place answering
       "which city?", towns around a place); 24 of 24 green three runs in a row. The
       model skipped the default radius until the prompt showed two examples.
-- [ ] 2. Widen around a named place. Geocode the place (`parent` and `country_code` make
+- [x] 2. Widen around a named place. Geocode the place (`parent` and `country_code` make
       the Nominatim query, so "Montmartre, Paris" never lands in Quebec), then run the
       same radius steps as near-me around that point. When: always for "near X", and when
       "in X" finds fewer than 5 events. The composer is told the distance ("these are
       within 15 km of Bergamo"). Cases: Ponteranica for "near Bergamo".
+      2026-10-09: done in `executor._execute_around_place`. Live check (read-only): "near
+      Bergamo" in English and Italian, and "other towns near Bergamo?", now bring events in
+      Ranica and the reply names the town; "in Ponteranica" widens to Bergamo. Rock in
+      Torino this week stays empty up to 50 km: that one is supply.
+      Changes from the design: the centre of a city we hold is the graph's own City
+      point, not Nominatim's, because Nominatim answers "Bergamo" with the province (98 km
+      across, centred off the city). No `parent` field: the prompt already keeps the
+      parent in the place name ("Kreuzberg, Berlin"), which is what Nominatim is asked.
+      Near-me widening also goes up to 50 km now (same steps and cap).
 - [ ] 3. Ask for the location when it is needed. When a turn needs a location and has
       none, the stream sends `status` with state `needs_location` (the field is already
       a string: no protocol change). The chat shows a "Share my location" button under

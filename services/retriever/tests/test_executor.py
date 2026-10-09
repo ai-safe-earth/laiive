@@ -256,6 +256,9 @@ class TestGeocodePrecisionRanking:
             assert "CASE WHEN v.geocode_precision" not in cypher
 
 
+FIVE_ROWS = [{**STANDARD_ROW, "uid": f"e{i}"} for i in range(5)]
+
+
 class TestNamedPlaceFallback:
     """A named place that is not a City node: "techno in Kreuzberg".
 
@@ -282,7 +285,8 @@ class TestNamedPlaceFallback:
 
     def executor(self, rows, geocoder=None):
         neo4j = Mock()
-        neo4j.execute_read.side_effect = rows
+        # Any read past the scripted ones finds nothing (the widening steps).
+        neo4j.execute_read.side_effect = [*rows, *[[]] * 10]
         ex = Executor(neo4j, embed_fn=Mock(), query_builder=Mock(), geocoder=geocoder)
         return ex, neo4j
 
@@ -297,17 +301,17 @@ class TestNamedPlaceFallback:
         ex, neo4j = self.executor([[], [STANDARD_ROW]], geocoder)
         outcome = self.run(ex)
         assert [c.name for c in outcome.cards] == ["Klangfeld Nacht"]
-        geocoder.geocode.assert_called_once_with("Kreuzberg")
-        params = neo4j.execute_read.call_args[0][1]
+        geocoder.geocode.assert_called_with("Kreuzberg")  # the real one caches
+        params = neo4j.execute_read.call_args_list[1][0][1]  # the bbox read
         assert (params["south"], params["north"]) == (52.4823, 52.5170)
         assert (params["west"], params["east"]) == (13.3823, 13.4657)
 
     def test_a_city_that_has_events_never_geocodes(self):
         """The happy path must stay free — this is the whole design constraint."""
         geocoder = Mock()
-        ex, _ = self.executor([[STANDARD_ROW]], geocoder)
+        ex, _ = self.executor([FIVE_ROWS], geocoder)
         outcome = self.run(ex, city="Berlin")
-        assert len(outcome.cards) == 1
+        assert len(outcome.cards) == 5
         geocoder.geocode.assert_not_called()
 
     def test_other_constraints_survive_the_retry(self):
@@ -315,7 +319,7 @@ class TestNamedPlaceFallback:
         geocoder.geocode.return_value = self.KREUZBERG
         ex, neo4j = self.executor([[], [STANDARD_ROW]], geocoder)
         self.run(ex, genre="techno")
-        cypher, params = neo4j.execute_read.call_args[0]
+        cypher, params = neo4j.execute_read.call_args_list[1][0]
         assert params["genres"] == ["techno"]
         assert "c.name_norm = $city_norm" not in cypher  # the box replaced it
         assert "city_norm" not in params
@@ -327,14 +331,16 @@ class TestNamedPlaceFallback:
         ex, neo4j = self.executor([[]], geocoder)
         outcome = self.run(ex, city="Catalonia")
         assert outcome.cards == []
-        assert neo4j.execute_read.call_count == 1  # never retried
+        assert (
+            neo4j.execute_read.call_count == 2
+        )  # template + City lookup; never retried
 
     def test_a_place_with_no_box_is_refused(self):
         geocoder = Mock()
         geocoder.geocode.return_value = GeocodeResult(1.0, 2.0, "DE", "somewhere")
         ex, neo4j = self.executor([[]], geocoder)
         assert self.run(ex).cards == []
-        assert neo4j.execute_read.call_count == 1
+        assert neo4j.execute_read.call_count == 2  # template + City lookup
 
     def test_an_unresolvable_place_keeps_the_empty_answer(self):
         geocoder = Mock()
@@ -355,7 +361,7 @@ class TestNamedPlaceFallback:
     def test_without_a_geocoder_nothing_changes(self):
         ex, neo4j = self.executor([[]])
         assert self.run(ex).cards == []
-        assert neo4j.execute_read.call_count == 1
+        assert neo4j.execute_read.call_count == 2  # template + City lookup
 
 
 class TestBboxQuery:
@@ -537,3 +543,70 @@ class TestUidLookupQuery:
         assert "RETURN e.uid AS uid" in cypher
         assert "v.geocode_precision AS geocode_precision" in cypher
         assert "e.source_url AS source_url" in cypher
+
+
+class TestAroundAPlace:
+    """ "near Bergamo" and a thin "in Bergamo": widen around the place's point.
+
+    The second scripted read is the City-centre lookup; an empty one sends the
+    executor to the geocoder.
+    """
+
+    BERGAMO = GeocodeResult(
+        lat=45.6983,
+        lng=9.6773,
+        country_code="IT",
+        display_name="Bergamo, Lombardia, Italia",
+        bbox=(45.6680, 45.7317, 9.6247, 9.7230),
+    )
+
+    def executor(self, rows, place=BERGAMO):
+        neo4j = Mock()
+        neo4j.execute_read.side_effect = [*rows, *[[]] * 10]
+        geocoder = Mock()
+        geocoder.geocode.return_value = place
+        return Executor(neo4j, Mock(), Mock(), geocoder=geocoder), neo4j
+
+    def run(self, ex, **kwargs):
+        return ex.execute(
+            ExecutionPlan(PlanKind.TEMPLATE, Constraints(city="Bergamo", **kwargs))
+        )
+
+    def test_near_a_place_searches_the_circle_even_when_the_city_has_events(self):
+        ex, neo4j = self.executor([FIVE_ROWS, [], FIVE_ROWS])
+        outcome = self.run(ex, radius_km=30, genre="rock")
+        cypher, params = neo4j.execute_read.call_args[0]
+        assert params["radius_m"] == 30000 and params["lat"] == 45.6983
+        assert params["genres"] == ["rock"]
+        assert "city_norm" not in params  # the circle replaces the city
+        assert "30 km of 'Bergamo'" in outcome.note
+
+    def test_a_thin_city_widens_step_by_step_until_five(self):
+        ex, neo4j = self.executor([[STANDARD_ROW], [], [STANDARD_ROW], FIVE_ROWS])
+        outcome = self.run(ex)
+        assert len(outcome.cards) == 5
+        radii = [c[0][1]["radius_m"] for c in neo4j.execute_read.call_args_list[2:]]
+        assert radii == [5000, 10000]
+
+    def test_the_radius_is_capped_at_fifty_km(self):
+        ex, neo4j = self.executor([[], [], FIVE_ROWS])
+        self.run(ex, radius_km=200)
+        assert neo4j.execute_read.call_args[0][1]["radius_m"] == 50000
+
+    def test_widening_that_finds_no_more_keeps_the_city_answer(self):
+        ex, _ = self.executor([[STANDARD_ROW]])
+        outcome = self.run(ex)
+        assert len(outcome.cards) == 1 and outcome.note is None
+
+    def test_a_place_of_unknown_size_is_not_widened(self):
+        ex, neo4j = self.executor([[]], place=GeocodeResult(1.0, 2.0, "IT", "x"))
+        assert self.run(ex).cards == []
+        assert neo4j.execute_read.call_count == 2  # template, City lookup
+
+    def test_a_city_in_the_graph_is_widened_from_its_own_centre(self):
+        """Nominatim answers "Bergamo" with the province, centred off the city."""
+        centre = [{"lat": 45.6983, "lng": 9.6773}]
+        ex, neo4j = self.executor([[], centre, FIVE_ROWS], place=None)
+        assert len(self.run(ex).cards) == 5
+        params = neo4j.execute_read.call_args[0][1]
+        assert (params["lat"], params["lng"]) == (45.6983, 9.6773)
