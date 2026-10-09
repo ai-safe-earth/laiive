@@ -1,7 +1,7 @@
 ---
-status: todo
-step: evals
-next: owner approves the design, then step 1 (a named place is never "near me")
+status: active
+step: retrieval
+next: step 2, widen around a named place (cap 50 km)
 ---
 # Location and distance (feedback thread 2)
 
@@ -27,10 +27,13 @@ The model extracts names only, as structured fields:
 Nominatim turns the name into a point. Code does the distance search.
 
 ## Steps
-- [ ] 1. A named place is never "near me". Prompt: `near_me` only for the user's own
+- [x] 1. A named place is never "near me". Prompt: `near_me` only for the user's own
       position; "near X / around X / vicino a X" is the place X plus `radius_km`.
       `enforce()`: a sub-query that names a place drops `near_me`, so it never asks.
       Classifier cases from the 10 replayed turns. Prompt v4.
+      2026-10-09: done. Four cases from the replay (English, Italian, a place answering
+      "which city?", towns around a place); 24 of 24 green three runs in a row. The
+      model skipped the default radius until the prompt showed two examples.
 - [ ] 2. Widen around a named place. Geocode the place (`parent` and `country_code` make
       the Nominatim query, so "Montmartre, Paris" never lands in Quebec), then run the
       same radius steps as near-me around that point. When: always for "near X", and when
@@ -43,7 +46,9 @@ Nominatim turns the name into a point. Code does the distance search.
       the location. Denied: the reply already asks for a city. Translations in en/es/it/ca.
 - [ ] 4. Re-run the replay; the 31 turns should either answer or ask once, clearly.
 
-## Decisions to take
-- `radius_km` cap: 30 km today (`location_max_radius_km`), so "near Bergamo (50 km)"
-  is cut to 30. Raise to 50?
-- Widen "in X" when it finds fewer than 5 events, or only on "near X" asks?
+## Decisions
+- Owner, 2026-10-09: plan approved. Step `retrieval`, not `evals`. Location also touches
+  pusher extraction and venue/event places in the graph; for now it is solved in the
+  retriever only.
+- `radius_km` cap goes from 30 to 50 km (step 2).
+- "in X" also widens when it finds fewer than 5 events (step 2).

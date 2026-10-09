@@ -18,7 +18,7 @@ from config import settings
 
 from .utils.llm_utils import get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v3"
+CLASSIFIER_PROMPT_VERSION = "v4"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
@@ -46,7 +46,7 @@ Constraints object (every field optional, omit or null when not constrained):
   "date_from": "YYYY-MM-DDTHH:MM:SS",   // resolved from relative words using today's date
   "date_to": "YYYY-MM-DDTHH:MM:SS",
   "near_me": boolean,          // the user means their own position
-  "radius_km": number,
+  "radius_km": number,         // "near/around/vicino a/cerca de X": the distance given, else 30
   "free_text": string,         // fuzzy/vibe ask for semantic search, e.g. "intimate candle-lit jazz"
   "price_max": number,
   "needs_custom_cypher": boolean  // aggregations or asks the fields above cannot express
@@ -61,8 +61,12 @@ Rules:
   (e.g. "jazz tonight and anything by Klangfeld this month" → two).
 - "tonight" → date_from today 18:00, date_to tomorrow 06:00. "this weekend" →
   Friday 00:00 to Sunday 24:00. A bare month → the whole month. Never invent dates.
-- near_me is true only for "near me / nearby / around here" style asks. If the
-  user names a place, use city/venue instead.
+- near_me is true only when the user means their OWN position ("near me",
+  "nearby", "around here"). "near X", "around X", "towns near X", "X and its
+  province" name a place: city X, near_me false, radius_km the distance they
+  gave, else 30. "gigs near Bergamo" → city "Bergamo", radius_km 30;
+  "concerti vicino a Lecco" → city "Lecco", radius_km 30. A place named in this
+  turn replaces an earlier near_me and keeps the rest (genre, dates).
 - Cities carry their LOCAL name, never the exonym the user happened to use:
   "Barcellona"/"Barcelone" → "Barcelona", "Londres" → "London", "Múnich" →
   "München". The graph matches city names exactly, so an exonym finds nothing.
@@ -152,12 +156,17 @@ class Classification(BaseModel):
 def enforce(c: Classification, has_history: bool, has_location: bool) -> Classification:
     """Rules that must always hold, so they are code and not prompt wording.
 
-    A first message cannot refine or change anything. A "near me" ask with no shared
-    location cannot run (route() drops it), so the turn asks where instead of
-    answering "nothing found".
+    A first message cannot refine or change anything. A named place is never "near
+    me": "near Bergamo" searches around Bergamo, and asking for the user's location
+    instead was the biggest line in the 2026-10-09 feedback replay. A "near me" ask
+    with no shared location cannot run (route() drops it), so the turn asks where
+    instead of answering "nothing found".
     """
     if c.moment in ("refinement", "new_topic") and not has_history:
         c.moment = "first_query"
+    for q in c.sub_queries:
+        if q.city or q.venue:
+            q.near_me = False
     if not has_location and any(q.near_me for q in c.sub_queries):
         c.moment = "ambiguous"
         c.clarification = c.clarification or "your city or your location"

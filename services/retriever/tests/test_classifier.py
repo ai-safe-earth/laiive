@@ -81,6 +81,16 @@ class TestEnforce:
         c = enforce(c, has_history=False, has_location=False)
         assert c.moment == "ambiguous" and c.clarification
 
+    def test_a_named_place_is_never_near_me(self):
+        q = Constraints(city="Bergamo", near_me=True, radius_km=30)
+        c = enforce(
+            self._c(moment="refinement", sub_queries=[q]),
+            has_history=True,
+            has_location=False,
+        )
+        assert c.moment == "refinement" and not c.clarification
+        assert not c.sub_queries[0].near_me
+
     def test_near_me_with_a_location_runs(self):
         c = self._c(moment="first_query", sub_queries=[Constraints(near_me=True)])
         assert enforce(c, has_history=False, has_location=True).moment == "first_query"
