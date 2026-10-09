@@ -111,11 +111,10 @@ def test_every_case_names_a_situation_and_a_rule(case):
 
 
 def test_the_known_gap_is_counted_and_explained():
-    """One hole, with its sentence — pinned so xfailing a second case is a
-    decision taken here and not a quiet way to stay green."""
+    """None open since prompt v3 — pinned so xfailing a case is a decision
+    taken here and not a quiet way to stay green."""
     gaps = [case["id"] for case in CASES if case.get("known_gap")]
-    assert gaps == ["italian-question-italian-answer"], gaps
-    assert len(CASES[8]["known_gap"]) > 40
+    assert gaps == [], gaps
 
 
 def test_the_corpus_matches_the_live_prompt_version():

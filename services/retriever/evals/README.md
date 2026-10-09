@@ -112,7 +112,7 @@ string, so a paused Aura cannot break them.
 | safety | 6 cases: the four Cypher-guard verdicts and the two injection verdicts | `sf_007` — the moderation verdict, the only case of the seven that needs a live judgement |
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
 | classifier | the corpus itself: 20 cases, unique ids, every case asserts something, the prompt version matches, no open gaps | all 20 cases, one live classification each — 20 green since prompt v3 |
-| answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 10 cases, one live composition each (plus one language call) — 9 green, 1 xfailed |
+| answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 10 cases, one live composition each (plus one language call) — 10 green since prompt v3 |
 | retrieval | — | **`graph` tier, not `integration`:** 14 recall cases against the frozen graph, no OpenAI key, so CI holds them on every push |
 
 `should_not_contain` is the corpus's real gate, so it is asserted in both tiers rather
@@ -150,7 +150,7 @@ month", the model read it as the calendar month and dropped a gig two days out. 
 defensible reading, and a case about venue matching should not also be a case about what
 "next month" means — the question now says "in the next 30 days".
 
-## The one known gap in the answer-quality set (2026-09-22)
+## The one known gap in the answer-quality set (2026-09-22, closed in prompt v3)
 
 `italian-question-italian-answer` — the reply names the event and the act ("I Lupi suonano
 al Druso"), which the prompt forbids outright, because the cards say that next to the text.
@@ -160,6 +160,12 @@ the obvious suspect was wrong: **it is the single result, not the Italian.** Wit
 the reply leaked 3/3 in Italian and 1 in 2 in English; with three cards, English and
 Spanish held 2/2. The prompt's "NEVER list events" has no rule for the case where there is
 exactly one thing to not-list, and the model reaches for it to have something to say.
+
+**Closed 2026-10-08 (prompt v3)** with one rule: a single result is no exception, nod to
+the kind of music. The first wording's example, "one rock night", tripped the leak rule
+anyway: the fixture event is called "Notte Rock", so "una notte rock" matched its name.
+That is the literal rule's ceiling (a generic event name), so the example became "one rock
+gig". Probed 8 of 8 clean, then the live suite 10 of 10 twice.
 
 ## The six known gaps in the classifier set (2026-09-22, all closed in prompt v3)
 
