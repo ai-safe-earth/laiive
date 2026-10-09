@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The eval layer — laiive</title>
+<style>
+  /* --p0/--p1 are per-unit accent pairs; add --p2 (and .b2/.d2) the same way
+     for a third unit. A one-unit doc uses --p0 only and drops the legend. */
+  :root{
+    --bg:#faf9f7; --panel:#ffffff; --fg:#1c1c22; --muted:#6b6b76; --rule:#e3e1dc;
+    --code-bg:#f2f0ec; --code-fg:#2a2a30; --comment:#8b8b95;
+    --p0:#0e7490; --p0-bg:#e3f3f7; --p0-line:#0e7490;
+    --p1:#bd2a80; --p1-bg:#fbe6f2; --p1-line:#bd2a80;
+    --infra:#8f8c96; --good:#177245; --warn:#9a6a06;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#101014; --panel:#17171c; --fg:#e8e6e3; --muted:#9a97a0; --rule:#2b2b33;
+      --code-bg:#1c1c23; --code-fg:#d8d6d3; --comment:#7e7e8a;
+      --p0:#53c9dd; --p0-bg:#0d3540; --p0-line:#53c9dd;
+      --p1:#ff5cb8; --p1-bg:#3e1130; --p1-line:#ff5cb8;
+      --infra:#77747e; --good:#5fce8d; --warn:#e3b341;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.65 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  main{max-width:980px; margin:0 auto; padding:0 28px 90px}
+  header.doc{max-width:980px; margin:0 auto; padding:56px 28px 8px}
+  h1{font-size:30px; line-height:1.2; margin:0 0 6px}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 4px}
+  h2{font-size:22px; margin:60px 0 12px; padding-top:18px; border-top:1px solid var(--rule)}
+  h3{font-size:16.5px; margin:30px 0 8px}
+  p{margin:10px 0}
+  a{color:var(--p0); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    font:12.8px/1.55 ui-monospace,"Cascadia Code",Consolas,Menlo,monospace;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-fg); border:1px solid var(--rule);
+    border-radius:0 0 8px 8px; padding:14px 16px; overflow-x:auto; margin:0 0 18px;
+  }
+  pre code{background:none; padding:0; font-size:12.8px}
+  .file{
+    display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+    background:var(--panel); border:1px solid var(--rule); border-bottom:none;
+    border-radius:8px 8px 0 0; padding:7px 16px; margin-top:16px;
+    font:12px ui-monospace,Consolas,monospace; color:var(--muted);
+  }
+  .file b{color:var(--fg); font-weight:600}
+  .cm{color:var(--comment)}
+  .badge{
+    display:inline-block; font:700 10.5px/1 ui-monospace,Consolas,monospace;
+    padding:4px 7px; border-radius:99px; vertical-align:2px; letter-spacing:.05em;
+  }
+  .b0{background:var(--p0-bg); color:var(--p0)}
+  .b1{background:var(--p1-bg); color:var(--p1)}
+  .fig{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:18px 14px 8px; margin:20px 0 8px; overflow-x:auto;
+  }
+  .fig svg{display:block; margin:0 auto; min-width:720px}
+  .figcap{color:var(--muted); font-size:13px; margin:6px 4px 22px; text-align:center}
+  table{border-collapse:collapse; width:100%; margin:14px 0 20px; font-size:13.5px}
+  th,td{border:1px solid var(--rule); padding:7px 10px; text-align:left; vertical-align:top}
+  th{background:var(--code-bg); font-weight:600}
+  td code{font-size:12px}
+  ul,ol{padding-left:24px; margin:10px 0}
+  li{margin:5px 0}
+  .take{
+    background:var(--panel); border:1px solid var(--rule); border-left:4px solid var(--p0);
+    border-radius:8px; padding:12px 18px; margin:22px 0;
+  }
+  .take.t1{border-left-color:var(--p1)}
+  .take h4{margin:0 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+  .take ul{margin:6px 0 2px}
+  .dec b.num{
+    display:inline-block; min-width:20px; text-align:center; border-radius:99px;
+    font:700 11px/20px ui-monospace,Consolas,monospace; margin-right:6px;
+  }
+  .dec.d0 b.num{background:var(--p0-bg); color:var(--p0)}
+  .dec.d1 b.num{background:var(--p1-bg); color:var(--p1)}
+  nav.toc{
+    background:var(--panel); border:1px solid var(--rule); border-radius:10px;
+    padding:14px 22px; margin:22px 0 0; font-size:14px;
+  }
+  nav.toc ol{margin:6px 0; columns:2; column-gap:40px}
+  .warntag{color:var(--warn); font-weight:600}
+  .goodtag{color:var(--good); font-weight:600}
+  .svgt{font:12px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--fg)}
+  .svgs{font:10.5px -apple-system,"Segoe UI",Roboto,sans-serif; fill:var(--muted)}
+  .svgm{font:11px ui-monospace,Consolas,monospace; fill:var(--fg)}
+  .svgmd{font:10.5px ui-monospace,Consolas,monospace; fill:var(--muted)}
+</style>
+</head>
+<body>
+<header class="doc">
+  <h1>The eval layer — how laiive learns whether an answer was good</h1>
+  <p class="sub">laiive · branch <code>docs/explain-eval-layer</code> from <code>develop</code> @ <code>4ce3f77</code> · written 2026-10-09</p>
+  <p class="sub">Legend used throughout: <span class="badge b0">LIVE</span> production data: capture, tracing, the feedback read &nbsp;·&nbsp; <span class="badge b1">OFFLINE</span> written test cases run by pytest &nbsp;·&nbsp; grey = pre-existing infrastructure</p>
+  <nav class="toc">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#context">Why this exists</a></li>
+      <li><a href="#system">The system, and where the evals sit</a></li>
+      <li><a href="#capture">Capture: three tables, one key</a></li>
+      <li><a href="#tracing">Tracing: Phoenix, local only</a></li>
+      <li><a href="#suites">The offline suites</a></li>
+      <li><a href="#threads">Real-user feedback, read as threads</a></li>
+      <li><a href="#article">Against Anthropic's eval guide</a></li>
+      <li><a href="#next">What comes next + recommendations</a></li>
+    </ol>
+  </nav>
+</header>
+<main>
+
+<h2 id="context">1 · Why this exists</h2>
+
+<p>An "eval" is a check that says whether the system did its job. For laiive the job is one
+question: <em>what can I do tonight?</em> A good answer finds real gigs, in the right place and
+time, in the user's language.</p>
+
+<p>Three earlier docs each covered one build step. <a href="eval-phases-0-1.html">Eval phases 0–1</a>
+explained how answers and thumbs get saved. <a href="eval-phase-2.html">Eval phase 2</a> wired the
+first twelve test cases. <a href="evals-and-monitoring.html">Evals and monitoring</a> compared the
+retriever with the pusher. This doc does not repeat them. It shows the <strong>whole layer as it
+stands on 2026-10-09</strong>: what is captured, what is tested, what real users said, and where
+the gaps are.</p>
+
+<p>Two things changed since those docs. First, the offline suites grew from 12 cases to 56, and
+all of them pass. Second, on 2026-10-09 we read real-user feedback as a whole for the first time.
+Before that, a thumbs-down was a row nobody looked at. Now it lands in a named "thread" (a
+recurring line of failure) with a count that can be followed week to week.</p>
+
+<p>The first read gave a clear answer. The main problem is not wrong answers. It is
+<strong>empty answers</strong>: about 55% of the turns worth reading found no events.</p>
+
+<div class="take">
+  <h4>Key takeaways</h4>
+  <ul>
+    <li>Production writes three tables joined by one <code>request_id</code>; a script now reads them as threads.</li>
+    <li>56 written cases run in pytest; all green. A weekly job runs the ones that need a model.</li>
+    <li>The biggest real-user line is "no events found", not "wrong answer".</li>
+    <li>Prior docs are linked, not repeated. Recommendations they made that are now done are flipped to green in place.</li>
+  </ul>
+</div>
+
+<h2 id="system">2 · The system, and where the evals sit</h2>
+
+<p>Fig. 1 shows only the eval paths. Neo4j, OpenAI calls inside the turn, Redis, the pusher and
+the search service are left out: none of them is part of how a chat answer gets judged. (The
+pusher has its own <code>push_records</code> table; see
+<a href="evals-and-monitoring.html">evals and monitoring</a>.)</p>
+
+<div class="fig">
+<svg viewBox="0 0 960 580" role="img" aria-label="Eval paths: the SPA and gateway write request and label rows, the retriever writes answer rows, a local script reads all three, and pytest suites run in CI and weekly">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+    <marker id="ar1" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p1-line)"/></marker>
+  </defs>
+
+  <!-- SPA -->
+  <rect x="16" y="40" width="180" height="120" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="30" y="64" class="svgt" font-weight="600">Frontend SPA</text>
+  <text x="30" y="80" class="svgs">React · Cloudflare Pages</text>
+  <rect x="26" y="92" width="160" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="34" y="108" class="svgmd">Chat.tsx · sends history</text>
+  <rect x="26" y="122" width="160" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="34" y="138" class="svgm" fill="var(--p0)">thumbs up / down</text>
+
+  <!-- Gateway -->
+  <rect x="270" y="30" width="250" height="170" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="284" y="54" class="svgt" font-weight="600">Gateway :8000 · Fastify</text>
+  <text x="284" y="70" class="svgs">mints request.id = randomUUID()  ①</text>
+  <rect x="282" y="80" width="226" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="290" y="96" class="svgm" fill="var(--p0)">onResponse → conversation_logs</text>
+  <rect x="282" y="110" width="226" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="290" y="126" class="svgm" fill="var(--p0)">/api/chat/feedback → turn_feedback</text>
+  <rect x="282" y="140" width="226" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="290" y="156" class="svgmd">proxy + x-request-id → :8002</text>
+  <text x="284" y="186" class="svgs">logging.ts · feedback.ts · proxy.ts</text>
+
+  <!-- Retriever -->
+  <rect x="590" y="30" width="354" height="170" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="604" y="54" class="svgt" font-weight="600">Retriever :8002</text>
+  <text x="604" y="70" class="svgs">reads the graph, streams SSE</text>
+  <rect x="602" y="80" width="330" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="610" y="96" class="svgmd">moderate → classify → route → execute → compose</text>
+  <rect x="602" y="110" width="330" height="24" rx="6" fill="var(--p0-bg)"/>
+  <text x="610" y="126" class="svgm" fill="var(--p0)">finally: daemon thread → eval_records</text>
+  <rect x="602" y="140" width="330" height="24" rx="6" fill="var(--code-bg)"/>
+  <text x="610" y="156" class="svgmd">spans only if PHOENIX_ENABLED (off in prod) ③</text>
+  <text x="604" y="186" class="svgs">api.py · eval_records.py · pipeline.py</text>
+
+  <!-- Supabase -->
+  <rect x="270" y="250" width="410" height="128" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="284" y="274" class="svgt" font-weight="600">Supabase Postgres · service role only</text>
+  <rect x="282" y="284" width="386" height="22" rx="6" fill="var(--p0-bg)"/>
+  <text x="290" y="299" class="svgm" fill="var(--p0)">conversation_logs — the question (+ history)</text>
+  <rect x="282" y="310" width="386" height="22" rx="6" fill="var(--p0-bg)"/>
+  <text x="290" y="325" class="svgm" fill="var(--p0)">eval_records — the answer, cyphers, errors</text>
+  <rect x="282" y="336" width="386" height="22" rx="6" fill="var(--p0-bg)"/>
+  <text x="290" y="351" class="svgm" fill="var(--p0)">turn_feedback — the thumb + reason</text>
+  <text x="284" y="372" class="svgs">pg_cron: 90-day prune, thumbed-down turns kept ②</text>
+
+  <!-- Phoenix -->
+  <rect x="730" y="250" width="214" height="70" rx="10" fill="var(--panel)" stroke="var(--infra)" stroke-dasharray="5 4"/>
+  <text x="744" y="274" class="svgt" font-weight="600">Phoenix :6006</text>
+  <text x="744" y="291" class="svgs">make phoenix · laptop only</text>
+  <text x="744" y="307" class="svgs">no Phoenix Cloud (2026-10-09)</text>
+
+  <!-- Offline band -->
+  <rect x="16" y="420" width="928" height="146" rx="10" fill="none" stroke="var(--rule)"/>
+  <text x="30" y="440" class="svgs">offline — runs on a laptop or in GitHub Actions, never in the request path</text>
+
+  <rect x="30" y="452" width="290" height="100" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="44" y="474" class="svgt" font-weight="600">agent/scripts/feedback.py <tspan class="svgm" fill="var(--p0)">[LIVE]</tspan></text>
+  <text x="44" y="492" class="svgs">code labels ④ · one model call ⑤ · split ⑥</text>
+  <rect x="42" y="502" width="266" height="22" rx="6" fill="var(--p0-bg)"/>
+  <text x="50" y="517" class="svgm" fill="var(--p0)">evals/failure_modes.json ⑦</text>
+  <text x="44" y="542" class="svgs">thread names + counts, no user text</text>
+
+  <rect x="370" y="452" width="290" height="100" rx="10" fill="var(--panel)" stroke="var(--fg)"/>
+  <text x="384" y="474" class="svgt" font-weight="600">pytest suites <tspan class="svgm" fill="var(--p1)">[OFFLINE]</tspan></text>
+  <rect x="382" y="484" width="266" height="22" rx="6" fill="var(--p1-bg)"/>
+  <text x="390" y="499" class="svgm" fill="var(--p1)">classifier 20 · answer 10 · safety 7</text>
+  <rect x="382" y="510" width="266" height="22" rx="6" fill="var(--p1-bg)"/>
+  <text x="390" y="525" class="svgm" fill="var(--p1)">cypher 5 · retrieval 14 (frozen graph)</text>
+  <text x="384" y="545" class="svgs">evals/datasets/* · tests/test_*_cases.py</text>
+
+  <rect x="710" y="452" width="220" height="100" rx="10" fill="var(--panel)" stroke="var(--infra)"/>
+  <text x="724" y="474" class="svgt" font-weight="600">GitHub Actions</text>
+  <text x="724" y="494" class="svgmd">ci.yml — every push</text>
+  <text x="724" y="510" class="svgmd">  no-model + graph tiers</text>
+  <text x="724" y="530" class="svgmd">evals-weekly.yml — Mon 06:00</text>
+  <text x="724" y="546" class="svgmd">  model tier, never run yet</text>
+
+  <!-- arrows -->
+  <path d="M196 70 L270 70" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="200" y="62" class="svgs">POST chat</text>
+  <path d="M196 134 L282 122" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="200" y="150" class="svgs">{request_id, rating, reason}</text>
+  <path d="M520 152 L590 152" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="522" y="144" class="svgs">x-request-id ①</text>
+  <path d="M380 200 L380 250" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="388" y="230" class="svgs">request side + label</text>
+  <path d="M640 200 L640 250" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="560" y="230" class="svgs">answer side</text>
+  <path d="M840 200 L840 250" stroke="var(--infra)" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#ar)"/>
+  <text x="848" y="230" class="svgs">OTLP spans, local runs ③</text>
+  <path d="M320 378 L200 452" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#ar0)"/>
+  <text x="140" y="404" class="svgs">GET, service-role key, read only</text>
+  <path d="M320 470 L370 470" stroke="var(--p1-line)" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#ar1)"/>
+  <text x="324" y="464" class="svgs" fill="var(--p1)">step 4 ✕</text>
+  <path d="M660 502 L710 502" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+  <text x="664" y="494" class="svgs">runs</text>
+</svg>
+</div>
+<p class="figcap">Fig. 1 — Eval paths only. The dashed "step 4 ✕" arrow is the missing link: a real complaint does not yet become a test case. Phoenix is dashed because nothing in production sends to it. Circled numbers are the decisions argued in §3–§6.</p>
+
+<div class="take">
+  <h4>Key takeaways — the shape</h4>
+  <ul>
+    <li>Production side: two writers (gateway, retriever), three tables, one key.</li>
+    <li>Offline side: a reader (<code>feedback.py</code>) and a set of written cases. They are not yet connected.</li>
+    <li>Tracing exists in code but only runs on a laptop.</li>
+  </ul>
+</div>
+
+<h2 id="capture">3 · Capture: three tables, one key <span class="badge b0">LIVE</span></h2>
+
+<h3>3.1 · Goal</h3>
+
+<p>Save every chat turn so it can be read later, without ever slowing or breaking the turn. The
+full design is in <a href="eval-phases-0-1.html">eval phases 0–1</a>; this section is the short
+version plus what is true today.</p>
+
+<h3>3.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 360" role="img" aria-label="Sequence of one chat turn and its thumb, showing which service writes which table">
+  <defs>
+    <marker id="s_ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="s_ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+  </defs>
+  <text x="80" y="24" class="svgt" font-weight="600" text-anchor="middle">SPA</text>
+  <text x="330" y="24" class="svgt" font-weight="600" text-anchor="middle">Gateway</text>
+  <text x="580" y="24" class="svgt" font-weight="600" text-anchor="middle">Retriever</text>
+  <text x="840" y="24" class="svgt" font-weight="600" text-anchor="middle">Supabase</text>
+  <path d="M80 34 L80 350 M330 34 L330 350 M580 34 L580 350 M840 34 L840 350" stroke="var(--rule)" stroke-width="2"/>
+
+  <path d="M80 60 L330 60" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#s_ar)"/>
+  <text x="90" y="54" class="svgs">POST /api/chat/stream {messages, location}</text>
+  <text x="340" y="80" class="svgmd">genReqId() → request.id  ①</text>
+  <path d="M330 96 L580 96" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#s_ar)"/>
+  <text x="340" y="90" class="svgs">x-request-id: request.id</text>
+  <text x="590" y="116" class="svgmd">request_id_from(raw) · run the turn</text>
+  <path d="M580 134 L80 134" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#s_ar)"/>
+  <text x="300" y="128" class="svgs">SSE frames … done{request_id}</text>
+  <path d="M580 160 L840 160" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="590" y="154" class="svgs" fill="var(--p0)">finally: thread → INSERT eval_records</text>
+  <path d="M330 190 L840 190" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="340" y="184" class="svgs" fill="var(--p0)">onResponse → INSERT conversation_logs (route, status, payload)</text>
+
+  <path d="M80 236 L330 236" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="90" y="230" class="svgs" fill="var(--p0)">user clicks: {request_id, rating}</text>
+  <path d="M330 256 L840 256" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="340" y="250" class="svgs" fill="var(--p0)">INSERT turn_feedback (reason null) — not logged twice</text>
+  <path d="M80 290 L330 290" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="90" y="284" class="svgs" fill="var(--p0)">optional reason, ≤ 2000 chars</text>
+  <path d="M330 306 L840 306" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#s_ar0)"/>
+  <text x="340" y="300" class="svgs" fill="var(--p0)">second turn_feedback row, same request_id</text>
+  <text x="850" y="336" class="svgmd">04:45 / 04:50 UTC: prune ②</text>
+</svg>
+</div>
+<p class="figcap">Fig. 2 — One turn and its thumb. The id is born in the gateway and crosses to the retriever as a header. Every write is fire-and-forget: a failed insert costs a row, never the answer.</p>
+
+<h3>3.3 · How the data moves</h3>
+
+<div class="file"><span><b>services/gateway/src/logging.ts</b>:5–12 — which routes are logged</span><span class="badge b0">LIVE</span></div>
+<pre><code>const LOGGED_ROUTES = [
+  /^\/api\/chat(\/|$)/,
+  /^\/api\/push\/(chat|validate-event)(\/|$)/,
+  /^\/api\/publish(\/|$)/,
+];</code></pre>
+
+<p>This explains a puzzle from the feedback census in
+<code>docs/plans/real-user-feedback.md</code>: 421 <code>conversation_logs</code> rows against 133
+<code>eval_records</code>. The log table holds every logged route, including the pusher's chat and
+publish, plus turns from before 2026-08-26. Only the chat routes have an answer row. The feedback
+script filters to them (<code>CHAT_ROUTES</code>, <code>feedback.py</code>:29) and counts 328 chat turns.</p>
+
+<div class="file"><span><b>services/retriever/agent/api.py</b>:72–86 — the answer side, off the request thread</span><span class="badge b0">LIVE</span></div>
+<pre><code>def _write_eval_record(request_id: str, result: TurnResult, start: float) -> None:
+    <span class="cm">"""Fire-and-forget on a daemon thread: in the SSE path the finally: runs
+    before the done frame is yielded, so a blocking POST there would delay it.
+    ponytail: one unbounded thread per turn, fine at current volume ..."""</span>
+    threading.Thread(
+        target=eval_records.write,
+        args=(request_id, result, int((time.perf_counter() - start) * 1000)),
+        daemon=True,
+    ).start()</code></pre>
+
+<div class="file"><span><b>services/retriever/agent/eval_records.py</b>:41–70 — what one answer row holds (trimmed)</span><span class="badge b0">LIVE</span></div>
+<pre><code>json={
+    "request_id": request_id,
+    "final_text": result.text,
+    "card_uids": [card.uid for card in result.cards],
+    "cyphers": result.cyphers,
+    "query_type": c.query_type if c else None,
+    "moment": c.moment if c else None,
+    "row_count": len(result.cards),
+    "latency_ms": latency_ms,
+    "errors": result.errors,
+},
+...
+except Exception as e:
+    writes_failed += 1          <span class="cm"># shown on /health (api.py:198)</span></code></pre>
+
+<div class="file"><span><b>supabase/migrations/20260827000020_telemetry_retention.sql</b>:20–31 — the prune ②</span><span class="badge b0">LIVE</span></div>
+<pre><code>select cron.schedule(
+    'retention-conversation-logs',
+    '45 4 * * *',
+    $$
+  delete from public.conversation_logs c
+   where c.created_at &lt; now() - interval '90 days'
+     and not exists (
+       select 1 from public.turn_feedback f
+        where f.request_id = c.request_id and f.rating = 'down'
+     )
+    $$
+);   <span class="cm">-- the same job for eval_records at 04:50 (lines 33–44)</span></code></pre>
+
+<h3>3.4 · Decisions, and why</h3>
+<ul class="dec d0">
+  <li><b class="num">①</b><strong>One key, born in the gateway.</strong> The gateway mints <code>request.id</code> (<code>server.ts</code>:22) and every service adopts it (<code>request_id_from</code>). Rejected: a key per service, which made rows unjoinable. Cost: the join only works for services that read the header; both chat services do now.</li>
+  <li><b class="num">②</b><strong>90 days, except thumbs-down.</strong> A thumbs-down turn is the most useful row we have, so it is never pruned. Ups are pruned with everything else. Cost: kept rows grow forever; at human click volume that is a few rows a month (accepted in <a href="evals-and-monitoring.html">evals and monitoring</a> rec. 7). pg_cron (a scheduler inside Postgres) so no service has to be running for the prune to happen.</li>
+</ul>
+
+<h3>3.5 · For a scalable system</h3>
+<p>The ceiling is the one-thread-per-turn write (marked <code>ponytail:</code> in the code). A burst
+spawns a thread per turn, and a thread mid-write dies on shutdown. Upgrade: a bounded queue and a
+single writer. Not needed at nine users.</p>
+
+<h3>3.6 · Security</h3>
+<p>All three tables have row-level security on and no policies, so only the service-role key can
+read them. The gateway and the retriever hold that key. <code>conversation_logs.payload</code> holds
+the full message history the client sent, so it is personal data; the 90-day prune is its main
+protection.</p>
+
+<div class="take">
+  <h4>Key takeaways — capture</h4>
+  <ul>
+    <li>Question in <code>conversation_logs</code>, answer in <code>eval_records</code>, label in <code>turn_feedback</code>; join on <code>request_id</code>.</li>
+    <li>Answers exist only from 2026-08-26. Older answers are recovered from the next turn's history (§6).</li>
+    <li>A failed write is counted on <code>/health</code>, not hidden.</li>
+  </ul>
+</div>
+
+<h2 id="tracing">4 · Tracing: Phoenix, local only <span class="badge b0">LIVE</span></h2>
+
+<p>A trace is a timed tree of one turn: the turn, then each stage, then each OpenAI call inside a
+stage. laiive sends traces to Arize Phoenix, an open-source trace viewer, through OpenTelemetry
+(OTel, the standard format for traces).</p>
+
+<div class="file"><span><b>services/shared/laiive_shared/tracing.py</b>:48–83 — off unless asked for ③</span><span class="badge b0">LIVE</span></div>
+<pre><code>def setup_tracing(service: str, *, enabled: bool, endpoint: str, api_key: str = "") -> bool:
+    if not enabled:
+        return False
+    try:
+        from phoenix.otel import register
+        register(project_name=f"laiive-{service}", endpoint=_with_otlp_path(endpoint),
+                 batch=True, auto_instrument=True, ...)
+    except Exception as e:
+        logger.warning("Phoenix tracing off (%s): %s", type(e).__name__, e)
+        return False</code></pre>
+
+<p>The retriever opens one <code>turn</code> span per request (<code>pipeline.py</code>:116) carrying
+<code>laiive.request_id</code>, so a trace can be matched to its Supabase rows. Stages are children:
+<code>moderate</code>, <code>classify</code>, <code>route</code>, execute, <code>compose</code>
+(<code>pipeline.py</code>:168–264).</p>
+
+<h3>4.1 · Decisions, and why</h3>
+<ul class="dec d0">
+  <li><b class="num">③</b><strong>Production has no <code>PHOENIX_*</code> secrets, so tracing is off there.</strong> It runs only on a laptop: <code>make phoenix</code> (<code>Makefile</code>:23) starts the container, UI on port 6006. The owner decided on 2026-10-09 to keep it that way: no Phoenix Cloud. Why: the budget is $30–50 a month, and the feedback read needs only Supabase. What it costs: when a production turn goes wrong, there is no trace of it. The <code>eval_records</code> row (cyphers, errors, latency) is the only record. The old <code>LANGFUSE_*</code> secrets on Fly are left over from the previous tracer; the owner is removing them.</li>
+</ul>
+
+<div class="take">
+  <h4>Key takeaways — tracing</h4>
+  <ul>
+    <li>Code is ready; production does not use it, by choice.</li>
+    <li>For a production failure, read <code>eval_records</code>; reproduce locally with Phoenix on.</li>
+    <li><code>DEPLOY.md</code>:48–49 still lists <code>PHOENIX_*</code> as service secrets (rec. 3).</li>
+  </ul>
+</div>
+
+<h2 id="suites">5 · The offline suites <span class="badge b1">OFFLINE</span></h2>
+
+<h3>5.1 · Goal</h3>
+
+<p>Written cases with known right answers, so a prompt or code change can be checked before it
+ships. The full story of each set is in <code>services/retriever/evals/README.md</code>; this is the
+map.</p>
+
+<table>
+  <tr><th>suite</th><th>cases</th><th>grader</th><th>runs</th><th>status</th></tr>
+  <tr><td><b>classifier</b></td><td>20 — <code>datasets/classifier</code></td><td>code: field equality on <code>query_type</code>, <code>moment</code>, language, constraints</td><td>weekly (needs OpenAI)</td><td class="goodtag">20/20 live since 2026-10-08, prompt v3</td></tr>
+  <tr><td><b>cypher</b> (query generation)</td><td>5 — <code>datasets/query_generation</code></td><td>code: execute-and-compare — run the generated query on the frozen graph, compare event ids</td><td>weekly (OpenAI + throwaway Neo4j)</td><td class="goodtag">green; mutation guard also in CI</td></tr>
+  <tr><td><b>retrieval</b></td><td>10 + 4 vector — <code>datasets/retrieval</code></td><td>code: recall of expected events</td><td>every push (<code>graph</code> tier, <code>ci.yml</code>:106)</td><td class="goodtag">green</td></tr>
+  <tr><td><b>answer quality</b></td><td>10 — <code>datasets/answer_quality</code></td><td>code: sentence budget, no event listing, language</td><td>weekly (needs OpenAI)</td><td class="goodtag">10/10, composer prompt v3</td></tr>
+  <tr><td><b>safety</b></td><td>7 — <code>datasets/safety</code></td><td>code: guard verdicts; 1 moderation case live</td><td>6 every push, 1 weekly</td><td class="goodtag">green</td></tr>
+</table>
+
+<h3>5.2 · How the data moves</h3>
+
+<div class="file"><span><b>services/retriever/agent/classifier.py</b>:152–164 — rules that always hold live in code ⑧</span><span class="badge b1">OFFLINE</span></div>
+<pre><code>def enforce(c: Classification, has_history: bool, has_location: bool) -> Classification:
+    if c.moment in ("refinement", "new_topic") and not has_history:
+        c.moment = "first_query"
+    if not has_location and any(q.near_me for q in c.sub_queries):
+        c.moment = "ambiguous"
+        c.clarification = c.clarification or "your city or your location"
+    return c</code></pre>
+
+<div class="file"><span><b>services/retriever/tests/test_eval_cases.py</b>:236–273 — execute-and-compare ⑨</span><span class="badge b1">OFFLINE</span></div>
+<pre><code>@pytest.mark.integration
+@pytest.mark.graph
+def test_generated_cypher_returns_the_right_events(case, generated, frozen_graph):
+    client, uids = frozen_graph
+    rows = client.execute_read(generated[case["id"]])
+    got = {hint_of.get(row["uid"], row["uid"]) for row in rows}
+    wanted = set(case["expect"])
+    if case["match"] == "exact":
+        assert got == wanted, ...
+    else:
+        assert wanted &lt;= got, ...</code></pre>
+
+<div class="file"><span><b>services/retriever/tests/test_classifier_cases.py</b>:56–63 — the tripwire on prompt drift</span><span class="badge b1">OFFLINE</span></div>
+<pre><code>def test_the_corpus_matches_the_live_prompt_version():
+    assert CASES_FILE["prompt_version"] == CLASSIFIER_PROMPT_VERSION, ...</code></pre>
+
+<div class="file"><span><b>.github/workflows/evals-weekly.yml</b>:20–23 — the schedule ⑩</span><span class="badge b1">OFFLINE</span></div>
+<pre><code>on:
+  schedule:
+    - cron: "0 6 * * 1"   <span class="cm"># Monday 06:00 UTC, before the weekly corpus read</span>
+  workflow_dispatch:</code></pre>
+
+<h3>5.3 · Decisions, and why</h3>
+<ul class="dec d1">
+  <li><b class="num">⑧</b><strong>Always-true rules are code, not prompt words.</strong> A first message cannot be a "refinement"; "near me" without a location must ask where. Putting the first rule in the prompt flipped another case ("actually, what about Lisbon?") the wrong way. Code cannot drift. Cost: two places hold classifier behaviour.</li>
+  <li><b class="num">⑨</b><strong>Run the query, don't regex it.</strong> Regex over generated Cypher (the graph query language) went red on harmless rewording and green on a query that returned nothing. Running it on a frozen 18-event graph found two real bugs on its first run (README, 2026-09-23). Cost: needs a Neo4j container, so it is weekly, not on every push.</li>
+  <li><b class="num">⑩</b><strong>Weekly, allowed to fail.</strong> Model answers vary, so a red run means "go read", not "broken build" (<code>continue-on-error</code>). Rejected: nightly, which would be noise at this traffic. The workflow reached <code>main</code> only with v0.7.0, and GitHub runs schedules from the default branch, so it <strong>has never run</strong>. First run expected Monday 2026-10-12.</li>
+  <li><b class="num">⑪</b><strong>No model grader.</strong> Every check above is a rule. "1–3 short sentences" or "answer in Italian" does not need a model to judge, and a rule has no bad days. A model grader is deferred to where only it can judge (tone), and it must first be calibrated against the owner's own labels.</li>
+</ul>
+
+<h3>5.4 · For a scalable system</h3>
+<p>Each live case runs once. A model can pass a case today and fail it tomorrow with the same
+prompt; one run cannot tell those apart. The README records manual re-runs ("Three runs green",
+<code>README.md</code>:153) but nothing computes a rate. The frozen graph has no bad geocodes or
+duplicate venues, which the real graph does: green here means the code is right, not that
+production answers well.</p>
+
+<div class="take t1">
+  <h4>Key takeaways — the suites</h4>
+  <ul>
+    <li>56 cases, all code-graded, all green.</li>
+    <li>Each dataset carries a <code>prompt_version</code>; a prompt bump without re-reading the cases fails a test.</li>
+    <li>The weekly job is the only thing that runs the model tier, and it has not run yet.</li>
+    <li>None of the 56 cases came from a real user complaint.</li>
+  </ul>
+</div>
+
+<h2 id="threads">6 · Real-user feedback, read as threads <span class="badge b0">LIVE</span></h2>
+
+<h3>6.1 · Goal</h3>
+
+<p>Turn a pile of thumbs and failures into a short list of lines to fix. The owner asked for
+"threads, so I see the main lines, not single logs" (plan step 2,
+<code>docs/plans/real-user-feedback.md</code>). Run it from <code>services/retriever</code>:
+<code>uv run --no-sync python -m agent.scripts.feedback [--days 7] [--no-save]</code>.</p>
+
+<h3>6.2 · Data flow</h3>
+
+<div class="fig">
+<svg viewBox="0 0 960 420" role="img" aria-label="Sequence of one run of the feedback script: read Supabase, label in code, one model call, optional split, print locally, save names and counts">
+  <defs>
+    <marker id="t_ar" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--infra)"/></marker>
+    <marker id="t_ar0" markerWidth="9" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L9,4 L0,8 z" fill="var(--p0-line)"/></marker>
+  </defs>
+  <text x="80" y="24" class="svgt" font-weight="600" text-anchor="middle">Supabase</text>
+  <text x="330" y="24" class="svgt" font-weight="600" text-anchor="middle">feedback.py</text>
+  <text x="590" y="24" class="svgt" font-weight="600" text-anchor="middle">OpenAI</text>
+  <text x="760" y="24" class="svgt" font-weight="600" text-anchor="middle">terminal</text>
+  <text x="890" y="24" class="svgt" font-weight="600" text-anchor="middle">modes.json</text>
+  <path d="M80 34 L80 410 M330 34 L330 410 M590 34 L590 410 M760 34 L760 410 M890 34 L890 410" stroke="var(--rule)" stroke-width="2"/>
+
+  <path d="M80 60 L330 60" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#t_ar)"/>
+  <text x="90" y="54" class="svgs">3 × GET, pages of 1000, since --days</text>
+  <rect x="200" y="74" width="260" height="36" rx="6" fill="var(--code-bg)"/>
+  <text x="208" y="89" class="svgmd">build_turns: join on request_id;</text>
+  <text x="208" y="103" class="svgmd">no answer row → replied() from history</text>
+  <rect x="200" y="118" width="260" height="36" rx="6" fill="var(--p0-bg)"/>
+  <text x="208" y="133" class="svgm" fill="var(--p0)">signals(): graph-down, error,</text>
+  <text x="208" y="147" class="svgm" fill="var(--p0)">http-NNN, no-events  ④</text>
+  <rect x="200" y="162" width="260" height="22" rx="6" fill="var(--code-bg)"/>
+  <text x="208" y="177" class="svgmd">worth_reading · blank → counted only</text>
+
+  <path d="M330 206 L590 206" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#t_ar0)"/>
+  <text x="340" y="200" class="svgs" fill="var(--p0)">group(): turns + known names ⑤ (user text)</text>
+  <path d="M590 230 L330 230" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#t_ar0)"/>
+  <text x="340" y="246" class="svgs" fill="var(--p0)">{threads, turns: id → name}</text>
+  <rect x="200" y="256" width="260" height="22" rx="6" fill="var(--code-bg)"/>
+  <text x="208" y="271" class="svgmd">assign(): skipped ids → "unsorted"</text>
+
+  <path d="M330 296 L590 296" stroke="var(--p0-line)" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#t_ar0)"/>
+  <text x="340" y="290" class="svgs" fill="var(--p0)">split_big(): only if a failure thread is big ⑥</text>
+  <path d="M590 318 L330 318" stroke="var(--p0-line)" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#t_ar0)"/>
+  <text x="340" y="334" class="svgs" fill="var(--p0)">children → "parent/child"</text>
+
+  <path d="M330 360 L760 360" stroke="var(--infra)" stroke-width="2" fill="none" marker-end="url(#t_ar)"/>
+  <text x="400" y="354" class="svgs">report(): counts, trend, 3 sample questions — stays local</text>
+  <path d="M330 392 L890 392" stroke="var(--p0-line)" stroke-width="2" fill="none" marker-end="url(#t_ar0)"/>
+  <text x="400" y="386" class="svgs" fill="var(--p0)">remember(): name, kind, description, last_count, last_run ⑦</text>
+</svg>
+</div>
+<p class="figcap">Fig. 3 — One run. Solid arrows always happen; dashed ones only when a failure thread is too big. User text crosses only two arrows: to OpenAI (the same provider that answered the turn) and to the local terminal.</p>
+
+<h3>6.3 · How the data moves and transforms</h3>
+
+<div class="file"><span><b>services/retriever/agent/scripts/feedback.py</b>:101–112 — recovering answers from before capture</span><span class="badge b0">LIVE</span></div>
+<pre><code>def replied(messages: list[dict]) -> str | None:
+    <span class="cm">"""The answer as the next turn of the same chat resent it in its history.
+    Answers were captured only from 2026-08-26, and most thumbs are older.
+    ponytail: O(n^2) over chat turns; index by first message if it grows."""</span>
+    n = len(messages)
+    for _, later in chats:
+        if len(later) > n and later[:n] == messages:
+            if later[n].get("role") == "assistant":
+                return later[n].get("content")
+    return None</code></pre>
+
+<p>The client is stateless: each request resends the whole chat. So turn N+1's payload contains
+turn N's answer. If a later turn exists, the old answer is recovered. If the user never sent
+another message, it stays <code>answer-not-recorded</code>.</p>
+
+<div class="file"><span><b>services/retriever/agent/scripts/feedback.py</b>:139–161 — facts that need no model ④</span><span class="badge b0">LIVE</span></div>
+<pre><code>def signals(turn: dict) -> list[str]:
+    errors = " ".join(turn["errors"]).lower()
+    if "unavailable" in errors or "sessionexpired" in errors or "resolve" in errors:
+        out.append("graph-down")
+    elif turn["errors"]:
+        out.append("error")
+    if turn["status"] and turn["status"] >= 400:
+        out.append(f"http-{turn['status']}")
+    if turn["query_type"] == "event_search" and not turn["events"]:
+        out.append("no-events")
+    ...
+def worth_reading(turn: dict) -> bool:
+    return (bool(turn["rating"])
+            or any(s in signals(turn) for s in ("graph-down", "error", "no-events"))
+            or bool(turn["status"] and turn["status"] >= 400))</code></pre>
+
+<div class="file"><span><b>services/retriever/agent/scripts/feedback.py</b>:199–224 — splitting a symptom into causes ⑥</span><span class="badge b0">LIVE</span></div>
+<pre><code>def split_big(threads, turns, known, model):
+    <span class="cm">"""A failure thread holding over a quarter of the turns is a symptom, not a
+    line of work: one more call splits it by cause into "parent/child" threads."""</span>
+    for th in threads:
+        if th["kind"] != "failure" or len(th["ids"]) &lt; max(6, len(turns) / 4):
+            out.append(th)
+            continue
+        prefix = th["name"] + "/"
+        children = {k[len(prefix):]: v for k, v in known.items() if k.startswith(prefix)}
+        ...
+        for sub in group([turns[i] for i in th["ids"]], children, model, focus):
+            sub["name"] = prefix + sub["name"]</code></pre>
+
+<div class="file"><span><b>services/retriever/agent/scripts/feedback.py</b>:265–275 — what gets saved ⑦</span><span class="badge b0">LIVE</span></div>
+<pre><code>def remember(threads, known, run_at) -> dict:
+    <span class="cm">"""Thread names, descriptions and counts only: nothing a user typed."""</span>
+    for name in known:
+        known[name]["last_count"] = 0
+    for th in threads:
+        entry = known.setdefault(th["name"], {"kind": th["kind"], "description": th["description"]})
+        entry["last_count"] = len(th["ids"])
+        entry["last_run"] = run_at</code></pre>
+
+<p>The pure parts are pinned by <code>tests/test_feedback_script.py</code> (4 tests, no Supabase,
+no model): the join and the history recovery, the code labels, "every turn in exactly one thread",
+and "the saved file keeps counts, not user text".</p>
+
+<h3>6.4 · What the first run found (2026-10-09)</h3>
+
+<p>87 turns read: 36 thumbs-down, 10 thumbs-up, 41 failures nobody flagged. Another 21 requests
+carried no question at all (HTTP 401, 422, 429: login, validation and rate-limit refusals); they
+are counted, not sent to the model. Counts below are from <code>evals/failure_modes.json</code>.</p>
+
+<table>
+  <tr><th>thread</th><th>turns</th><th>what it means</th></tr>
+  <tr><td><code>no-events-found/…</code> (5 children)</td><td>50 (~55%)</td><td>search ran, found nothing. Children: Bergamo 18, near me 15, Torino 9, a date 5, a genre 3</td></tr>
+  <tr><td><code>missing-events</code></td><td>17</td><td>the user knows an event exists and we did not find it</td></tr>
+  <tr><td><code>context-lost</code></td><td>5</td><td>a follow-up forgot what the chat was about</td></tr>
+  <tr><td><code>incorrect-event-details</code></td><td>3</td><td>wrong name or time</td></tr>
+  <tr><td><code>duplicate-events</code></td><td>2</td><td>the same event shown twice</td></tr>
+  <tr><td><code>successful-event-query</code></td><td>10</td><td>the thumbs-up line</td></tr>
+</table>
+
+<p>Read plainly: two-thirds of the pain is "we have nothing to show". That points at coverage and
+retrieval (the <code>retrieval-accuracy</code> plan), not at the composer.</p>
+
+<h3>6.5 · Decisions, and why</h3>
+<ul class="dec d0">
+  <li><b class="num">④</b><strong>Hard facts are labelled in code.</strong> "The graph was down" or "HTTP 429" is a fact in the row; asking a model would add cost and a chance to be wrong. The model only does what code cannot: read the question and guess the cause.</li>
+  <li><b class="num">⑤</b><strong>One model call for the whole batch.</strong> All picked turns go in one request (composer model, about 2 cents, temperature 0, JSON output), with the saved thread names as a menu to reuse. Rejected: one call per turn, which costs more and cannot see that two turns share a cause. Cost: the batch must fit in one context window; at 87 turns it is far from the limit. Anything the model skips lands in <code>unsorted</code>, so no turn disappears silently.</li>
+  <li><b class="num">⑥</b><strong>Split big failure threads by cause.</strong> "No events" covered over half the turns, which is a symptom, not a fix. A thread at or above <code>max(6, turns/4)</code> gets a second call that splits it into <code>parent/child</code>. Cost: one extra call per big thread.</li>
+  <li><b class="num">⑦</b><strong>Save names and counts, never user text.</strong> <code>failure_modes.json</code> is committed, so it must hold nothing a user typed. The saved names come back next run, so a thread can be followed week to week ("+3 vs last run"). Known ceiling, from the plan: names drift between runs; step 3 (owner reads and prunes) settles them.</li>
+</ul>
+
+<h3>6.6 · For a scalable system</h3>
+<p><code>replied()</code> compares every turn with every other: O(n²), marked <code>ponytail:</code>,
+fine at 328 turns. <code>_get</code> pages 1000 rows at a time with no upper bound; with
+<code>--days</code> unset it reads all history. Both are fine for a weekly read of hundreds of
+rows.</p>
+
+<h3>6.7 · Security</h3>
+<ul>
+  <li>The script uses the service-role key and only sends GET requests. It cannot write to Supabase.</li>
+  <li>User questions, answers and reasons are sent to OpenAI for grouping. That is the same provider that already processed them during the turn, so no new party sees them. The module docstring says "user text never leaves this terminal" (<code>feedback.py</code>:10), which is not quite true (rec. 6).</li>
+  <li>User text is hostile input inside the grouping prompt: a reason could say "ignore your rules". The worst outcome is a wrong thread label in a local report. Accepted for a grouping script; not acceptable once a model grader scores answers (carried from <a href="eval-phases-0-1.html">phases 0–1</a> rec. 6).</li>
+  <li>Thread descriptions are written by the model and committed. The prompt tells it never to quote a user; nothing enforces it. The first run's descriptions are general (checked by reading the file).</li>
+</ul>
+
+<div class="take">
+  <h4>Key takeaways — the feedback read</h4>
+  <ul>
+    <li>87 turns became 10 named threads in one run, for about 2 cents.</li>
+    <li>Empty results dominate: ~55% of turns read.</li>
+    <li>The loop is open: a thread does not yet become a test case (plan step 4).</li>
+  </ul>
+</div>
+
+<h2 id="article">7 · Against Anthropic's eval guide</h2>
+
+<p>Anthropic's article <a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">"Demystifying evals for AI agents"</a>
+lists practices for testing AI systems. Here is how laiive stands against each. "pass@k" means
+"at least one of k tries passed"; "pass^k" means "all k tries passed". For a user-facing chat,
+pass^k is the one that matters: the user gets one try.</p>
+
+<table>
+  <tr><th>practice in the article</th><th>what laiive does</th><th>gap</th></tr>
+  <tr><td><b>Code-based graders</b>: fast, cheap, repeatable</td><td>All 56 cases. Field equality, rule checks, execute-and-compare, guard verdicts. <code>signals()</code> in the feedback read.</td><td class="goodtag">none</td></tr>
+  <tr><td><b>Model-based graders</b>, calibrated against humans</td><td>None. The one model call in <code>feedback.py</code> groups turns; it does not score them.</td><td class="warntag">no model grader yet — deferred until the owner's labels (plan step 3) exist to calibrate against</td></tr>
+  <tr><td><b>Human graders</b> as the gold standard</td><td>Real users: thumbs + typed reasons. The owner reads the thread report.</td><td class="warntag">step 3 (owner reads and names) not done yet</td></tr>
+  <tr><td><b>Start with 20–50 tasks from real failures</b></td><td>56 cases; many were found by running against the prompt (the six classifier gaps, the one-result leak).</td><td class="warntag">none came from a user complaint</td></tr>
+  <tr><td><b>Turn bug reports into cases</b></td><td>Planned: each confirmed failure becomes a case with <code>source: user</code> and its <code>request_id</code>.</td><td class="warntag">plan step 4, not built</td></tr>
+  <tr><td><b>Read transcripts regularly</b></td><td><code>feedback.py</code> prints sample questions per thread; <code>evals/queries.sql</code> for the SQL editor.</td><td class="warntag">run by hand; no weekly habit yet</td></tr>
+  <tr><td><b>Capability vs regression evals</b>; graduate one to the other</td><td>Known gaps were <code>xfail(strict=False)</code> (capability). When prompt v3 closed them they became plain passing cases (regression).</td><td class="goodtag">done in practice, not named</td></tr>
+  <tr><td><b>Non-determinism: pass@k and pass^k</b></td><td>Each live case runs once. Manual re-runs are noted in the README.</td><td class="warntag">pass^k not computed</td></tr>
+  <tr><td><b>Grade outcomes, not paths</b></td><td>Execute-and-compare replaced regex over Cypher.</td><td class="goodtag">none</td></tr>
+  <tr><td><b>Stable, isolated environment</b></td><td>Frozen graph in a throwaway Neo4j, frozen embeddings, dates as offsets, a fixed clock.</td><td class="goodtag">none</td></tr>
+  <tr><td><b>Production monitoring</b></td><td><code>eval_records</code> per turn, write-failure counters on <code>/health</code>.</td><td class="warntag">prod tracing off (owner's choice, §4)</td></tr>
+  <tr><td><b>A/B testing</b></td><td>None.</td><td>accepted — nine users cannot power a test</td></tr>
+  <tr><td><b>Eval-driven development</b></td><td>The classifier and composer v3 prompts were written against cases labelled first.</td><td class="goodtag">done</td></tr>
+  <tr><td><b>Keep evals maintained</b></td><td><code>prompt_version</code> tripwires in every model-facing set; weekly workflow.</td><td class="warntag">weekly workflow not run yet (first: 2026-10-12)</td></tr>
+</table>
+
+<div class="take">
+  <h4>Key takeaways — the comparison</h4>
+  <ul>
+    <li>Strong on code graders, stable fixtures, outcome grading.</li>
+    <li>Weak where real users meet the suites: complaints are not cases yet.</li>
+    <li>Five gaps, all known: model grader, complaint → case, pass^k, first weekly run, prod tracing.</li>
+  </ul>
+</div>
+
+<h2 id="next">8 · What comes next + recommendations</h2>
+
+<h3>8.1 · Status</h3>
+
+<table>
+  <tr><th>piece</th><th>what it is</th><th>status</th></tr>
+  <tr><td><b>capture</b></td><td>three tables, one key, 90-day prune</td><td class="goodtag">in production</td></tr>
+  <tr><td><b>tracing</b></td><td>Phoenix spans per stage</td><td>local only, by decision</td></tr>
+  <tr><td><b>offline suites</b></td><td>56 cases, five sets</td><td class="goodtag">all green</td></tr>
+  <tr><td><b>weekly model tier</b></td><td><code>evals-weekly.yml</code></td><td class="warntag">never run; first expected 2026-10-12</td></tr>
+  <tr><td><b>feedback step 1–2</b></td><td>census, thread script</td><td class="goodtag">done 2026-10-09</td></tr>
+  <tr><td><b>feedback step 3</b></td><td>owner reads the first report, settles thread names</td><td>next</td></tr>
+  <tr><td><b>feedback step 4</b></td><td>each confirmed failure → a case with <code>source: user</code></td><td>todo</td></tr>
+  <tr><td><b>feedback step 5</b></td><td>easier feedback if volume is low</td><td>todo, owner's call</td></tr>
+  <tr><td><b>model grader</b></td><td>tone, calibrated on owner labels</td><td>deferred (self-improvement step)</td></tr>
+</table>
+
+<h3>8.2 · Recommendations</h3>
+
+<ol>
+  <li><strong>Close the loop first: turn the top threads into cases (plan step 4).</strong> Start with <code>no-events-found/no-events-near-me</code> and <code>missing-events</code>: both can be retrieval cases on the frozen graph, so they run on every push for free. Each case names its <code>request_id</code>, so a fix is proven against the real complaint.</li>
+  <li><strong>Fix the stale eval README and weekly summary before Monday's first run.</strong> <code>evals/README.md</code>:18, :121 and :132–134 still describe <code>expected_patterns</code> as an xfailed regex; it was removed in corpus v3.0 (<code>test_eval_cases.py</code>:18). <code>evals-weekly.yml</code>:94–98 tells the reader about "seven <code>known_gap</code> cases"; <code>grep</code> finds none left in the datasets. The README's "Next" section (:238) also still calls execute-and-compare future work. A first weekly summary that describes things that no longer exist will teach the reader to skip it.</li>
+  <li><strong>Mark the <code>PHOENIX_*</code> rows in <code>DEPLOY.md</code>:48–49 as local only.</strong> They list Phoenix secrets for the retriever and pusher, but production has none, by the 2026-10-09 decision. Someone following the runbook would set them up, or think they are missing.</li>
+  <li><strong>Watch the first weekly run on 2026-10-12.</strong> Check that the <code>OPENAI_API_KEY</code> repo secret exists (the job fails loudly if not), that the Neo4j service starts, and that the summary is readable. If it does not appear, trigger it by hand (<code>workflow_dispatch</code>).</li>
+  <li><strong>Measure pass^k cheaply: run the model tier three times in the weekly job.</strong> A shell loop around the existing pytest call, no new dependency. Report a case as stable only if it passed all three. Cost: about 3× a run that already costs cents. Owner's call.</li>
+  <li><strong>Correct the <code>feedback.py</code> docstring</strong> (line 10). It says user text "never leaves this terminal"; it goes to OpenAI for grouping. Say so: "user text goes to OpenAI for grouping, the same provider as the chat, and nowhere else". One line.</li>
+  <li><strong>Rename city-named threads in step 3.</strong> <code>no-events-in-bergamo</code> and <code>no-events-in-torino</code> are places, not causes; the split prompt itself says "never a city name on its own". A cause would be "no coverage for a place we were asked about". The saved names steer next week's run, so fix them by hand once.</li>
+  <li><strong>When the model grader comes, fence user text in its prompt</strong> and calibrate it against the owner's step-3 labels before trusting a number from it. Carried from <a href="eval-phases-0-1.html">phases 0–1</a> rec. 6.</li>
+  <li><strong>Still open from earlier docs:</strong> <code>moderate()</code> fails open with only a log line (<a href="eval-phase-2.html">phase 2</a> rec. 4), and the gateway's two telemetry inserts still only log on failure (<code>logging.ts</code>:54, <code>feedback.ts</code>:45), while the Python writers now count failures on <code>/health</code>.</li>
+  <li><strong>Accepted, because — production tracing stays off.</strong> The budget is fixed, and <code>eval_records</code> holds the cyphers, errors and timings of every turn. Revisit only if a production failure cannot be reproduced locally.</li>
+</ol>
+
+<div class="take">
+  <h4>Key takeaways — what to do next</h4>
+  <ul>
+    <li>Rec. 1 is the one that changes quality: real complaints become cases.</li>
+    <li>Recs. 2–4 are small and time-bound: do them before Monday 2026-10-12.</li>
+    <li>Recs. 5 and 8 are the next eval capabilities, in that order.</li>
+  </ul>
+</div>
+
+<p class="sub" style="margin-top:48px">Sources: <code>services/retriever/agent/scripts/feedback.py</code>, <code>services/retriever/evals/{README.md,failure_modes.json}</code>, <code>services/retriever/tests/{test_feedback_script,test_eval_cases,test_classifier_cases}.py</code>, <code>services/retriever/agent/{api,eval_records,pipeline,classifier}.py</code>, <code>services/shared/laiive_shared/tracing.py</code>, <code>services/gateway/src/{logging,feedback}.ts</code>, <code>supabase/migrations/2026082{6000018,6000019,7000020,7000021}_*.sql</code>, <code>.github/workflows/{ci,evals-weekly}.yml</code>, <code>Makefile</code>, <code>DEPLOY.md</code>, <code>docs/plans/{real-user-feedback,evals-and-monitoring}.md</code>, Anthropic, "Demystifying evals for AI agents". Predecessors: <a href="eval-phases-0-1.html">eval-phases-0-1.html</a>, <a href="eval-phase-2.html">eval-phase-2.html</a>, <a href="evals-and-monitoring.html">evals-and-monitoring.html</a>. No Supabase data was queried for this doc; run counts are from the plan and <code>failure_modes.json</code>. Line numbers as of <code>develop</code> @ <code>4ce3f77</code>; every quoted file is committed at that revision with no uncommitted changes.</p>
+
+</main>
+</body>
+</html>
