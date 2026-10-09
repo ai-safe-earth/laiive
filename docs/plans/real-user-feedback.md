@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: write agent/scripts/feedback.py, the weekly read of the complaint queue
+next: owner reads the first thread report and settles the thread names (step 3)
 ---
 # Real-user feedback into fixes
 
@@ -29,9 +29,24 @@ say, not only from cases we wrote ourselves.
       Enough to read. Volume is not the problem yet; empty answers are.
       Note: 421 `conversation_logs` rows against 133 `eval_records`; the gap is not
       explained yet (other gateway routes, or turns before capture). Step 2 checks it.
-- [ ] 2. A weekly read script, `agent/scripts/feedback.py`: queries 1 and 2 of
-      `queries.sql` printed as one readable block per turn (question, what the classifier
-      understood, how many events, the answer, the reason). No SQL editor needed.
+- [x] 2. `agent/scripts/feedback.py`: the weekly read, grouped into threads (owner,
+      2026-10-09: "threads, so I see the main lines, not single logs"). Design:
+      - Turns read: every thumb, plus unflagged failures (no events, error, HTTP >= 400).
+        Base is `conversation_logs` (328 chat turns), answers from `eval_records` and,
+        before 2026-08-26 capture, from the next turn's resent history.
+      - Facts labelled in code (graph-down, error, http-NNN, no-events). One model call
+        (composer model, ~2 cents) labels each turn with a thread; any failure thread
+        over a quarter of the turns gets a second call that splits it by cause into
+        `parent/child` threads.
+      - Thread names, descriptions and counts are saved to `evals/failure_modes.json`
+        and reused next run, so each line can be followed week to week. No user text.
+      - First run: 87 turns read (36 down, 10 up, 41 unflagged). Biggest lines:
+        no events found (about 55%, split by place, near me, date, genre), events the
+        user knows exist but were not found (17), lost follow-up context (5), wrong
+        event details (3), duplicates (2). 21 requests carried no question (401/422/429).
+      - Known ceiling: names drift between runs (one run split "no events" by city,
+        another by date/genre/area). Reusing saved names should settle it; step 3
+        prunes the list by hand.
 - [ ] 3. Read the first batch together and name the failure modes (wrong city, empty when
       events exist, wrong language, invented details...). The list drives what gets fixed.
 - [ ] 4. Each confirmed failure becomes a case in the matching dataset (classifier,
@@ -41,6 +56,8 @@ say, not only from cases we wrote ourselves.
       logs the owner plans, then re-run step 1.
 
 ## Decisions
+- Phoenix stays local (owner, 2026-10-09): no Phoenix Cloud. The feedback read needs only
+  Supabase. The owner removes the unused `LANGFUSE_*` Fly secrets.
 - Reads only. Supabase writes are still handed to the owner as commands.
 - No judge model and no nightly job yet: that is the self-improvement step, and it needs
   the failure-mode list from step 3 first.
