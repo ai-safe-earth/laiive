@@ -1,62 +1,50 @@
 {
-  "context-lost": {
+  "conversation-issues": {
     "kind": "failure",
-    "description": "The system fails to maintain context in follow-up queries, leading to repeated or irrelevant results.",
-    "last_count": 5,
+    "description": "A follow-up loses the earlier context, repeats the same results, or is read as a new question.",
+    "last_count": 7,
     "last_run": "2026-10-09"
   },
-  "duplicate-events": {
+  "database-access": {
     "kind": "failure",
-    "description": "The system shows duplicate events, indicating a failure in deduplication.",
-    "last_count": 2,
+    "description": "The graph holds no or too few events for what was asked (place, dates, genre), or could not be reached.",
+    "last_count": 23,
     "last_run": "2026-10-09"
   },
-  "incorrect-event-details": {
+  "location-and-distance": {
     "kind": "failure",
-    "description": "The system provides incorrect details about events, such as wrong names or times.",
+    "description": "A place or near-me ask goes wrong: no location to search from, no widening around a named town or neighbourhood, or a radius that is too small.",
+    "last_count": 31,
+    "last_run": "2026-10-09"
+  },
+  "name-spelling": {
+    "kind": "failure",
+    "description": "A named artist, venue or event is not found because the name is spelled or written differently from the graph.",
     "last_count": 3,
     "last_run": "2026-10-09"
   },
-  "missing-events": {
+  "query-interpretation": {
     "kind": "failure",
-    "description": "The system fails to find events that are known to exist, possibly due to incorrect filtering or database issues.",
-    "last_count": 17,
-    "last_run": "2026-10-09"
-  },
-  "no-events-found/no-events-in-bergamo": {
-    "kind": "failure",
-    "description": "No events found in Bergamo or nearby, possibly due to limited coverage or a narrow search radius.",
-    "last_count": 18,
-    "last_run": "2026-10-09"
-  },
-  "no-events-found/no-events-in-torino": {
-    "kind": "failure",
-    "description": "No events found in Torino, possibly due to limited coverage or a narrow search radius.",
-    "last_count": 9,
-    "last_run": "2026-10-09"
-  },
-  "no-events-found/no-events-near-me": {
-    "kind": "failure",
-    "description": "No events found near the user's location, possibly due to a narrow search radius or limited coverage.",
-    "last_count": 15,
-    "last_run": "2026-10-09"
-  },
-  "no-events-found/no-events-specific-date": {
-    "kind": "failure",
-    "description": "No events found for a specific date or week, possibly due to limited coverage or a narrow search window.",
-    "last_count": 5,
-    "last_run": "2026-10-09"
-  },
-  "no-events-found/no-events-specific-genre": {
-    "kind": "failure",
-    "description": "No events found for a specific genre, possibly due to limited coverage or a narrow search window.",
+    "description": "The ask is misread (date window, genre, kind of request), or the answer only suggests other searches instead of answering.",
     "last_count": 3,
     "last_run": "2026-10-09"
   },
   "successful-event-query": {
     "kind": "success",
-    "description": "The system successfully finds and presents relevant events based on the user's query.",
+    "description": "The system finds and presents relevant events for the user's query.",
     "last_count": 10,
+    "last_run": "2026-10-09"
+  },
+  "unwanted-reply-text": {
+    "kind": "failure",
+    "description": "The reply's wording is unwanted: it names the events the cards already show, or its tone or length is off.",
+    "last_count": 1,
+    "last_run": "2026-10-09"
+  },
+  "wrong-event-data": {
+    "kind": "failure",
+    "description": "An event's details are wrong or duplicated: date, time, venue, name.",
+    "last_count": 9,
     "last_run": "2026-10-09"
   }
 }

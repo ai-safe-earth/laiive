@@ -7,8 +7,9 @@ nobody complained about (no events found, or an error). Hard facts are labelled
 in code; one LLM call then sorts the turns into named threads, reusing the
 names in evals/failure_modes.json so a thread can be followed week to week.
 
-Prints locally only: user text never leaves this terminal. The saved file holds
-thread names, descriptions and counts, nothing a user typed.
+Prints locally only. The grouping call sends questions and reasons to OpenAI, the
+same provider the chat already uses; nowhere else. The saved file holds thread
+names, descriptions and counts, nothing a user typed.
 
 Run: cd services/retriever && uv run --no-sync python -m agent.scripts.feedback [--days 7]
 """
