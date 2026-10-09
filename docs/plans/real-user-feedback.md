@@ -19,12 +19,12 @@ say, not only from cases we wrote ourselves.
 - Missing: nobody reads it on a schedule, and a complaint never becomes a test case.
 
 ## Steps
-- [ ] 1. Feedback census (read-only, like `agent/scripts/census.py`): turns, downs, ups,
+- [x] 1. Feedback census (read-only, like `agent/scripts/census.py`): turns, downs, ups,
       reasons, error turns and empty-answer turns since launch and in the last 7 days.
       Tells us if there is enough volume to read, or if getting feedback is the problem.
       2026-10-09, scratch script (becomes part of step 2): since 2026-08-26, 9 users,
       133 answered turns, 71 thumbs (61 down, 10 up), 24 downs with a typed reason.
-      58 of 115 searches (half) found 0 events. Last 7 days: 2 users, 35 turns, 17 of 34
+      57 of 115 searches (half) found 0 events. Last 7 days: 2 users, 35 turns, 17 of 34
       searches empty, 4 turns with errors (the Aura pause), 7 downs.
       Enough to read. Volume is not the problem yet; empty answers are.
       Note: 421 `conversation_logs` rows against 133 `eval_records`; the gap is not
