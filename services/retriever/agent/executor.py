@@ -517,9 +517,17 @@ class Executor:
             if plan.kind == PlanKind.TEMPLATE:
                 cypher, params = build_template_query(plan.constraints)
                 rows = self.neo4j.execute_read(cypher, params)
-                if not rows and (found := self._execute_named_place(plan.constraints)):
-                    return found
-                return Outcome(rows_to_cards(rows), cypher)
+                best = Outcome(rows_to_cards(rows), cypher)
+                if not rows:
+                    best = self._execute_named_place(plan.constraints) or best
+                # "near X" (radius_km set) always looks around X; "in X" only
+                # when X alone came back thin (owner, 2026-10-09).
+                c = plan.constraints
+                if c.radius_km or len(best.cards) < settings.location_min_events:
+                    around = self._execute_around_place(c)
+                    if around and (c.radius_km or len(around.cards) > len(best.cards)):
+                        return around
+                return best
 
             if plan.kind == PlanKind.NEARBY:
                 return self._execute_nearby(plan.constraints, location)
@@ -585,6 +593,56 @@ class Executor:
             note=(
                 f"{c.city!r} is not a city in the graph; these were found in the "
                 f"area around it, so some may be just outside it"
+            ),
+        )
+
+    def _execute_around_place(self, c: Constraints) -> Outcome | None:
+        """Widen around a named place: "near Bergamo" finds the gig in Ponteranica.
+
+        The point is the graph's own City centre when the place is a city we
+        hold, else Nominatim's; never the model's. Nominatim alone is not enough:
+        it answers "Bergamo" with the province, 98 km across, centred off the
+        city. The same radius steps as "near me" grow from the point until there
+        are enough events, and the place's own filter is dropped since the circle
+        replaces it. A region-sized place, or one with no extent to judge its size
+        by, is refused: 50 km around the middle of Lombardy is not "in Lombardy".
+        """
+        if not c.city:
+            return None
+        found = self.neo4j.execute_read(
+            "MATCH (c:City {name_norm: $city_norm}) WHERE c.location IS NOT NULL\n"
+            "RETURN c.location.latitude AS lat, c.location.longitude AS lng LIMIT 1",
+            {"city_norm": norm(c.city)},
+        )
+        if found:
+            lat, lng = found[0]["lat"], found[0]["lng"]
+        elif self.geocoder is None:
+            return None
+        else:
+            place = self.geocoder.geocode(c.city)
+            diagonal = place.bbox_diagonal_km() if place else None
+            if diagonal is None or diagonal > settings.named_place_max_diagonal_km:
+                return None
+            lat, lng = place.lat, place.lng
+        circle = c.model_copy(update={"city": None, "country_code": None})
+        cap = settings.location_max_radius_km
+        steps = (
+            [min(c.radius_km, cap)] if c.radius_km else settings.location_radius_steps
+        )
+        cypher, rows, radius_km = "", [], 0.0
+        for radius_km in steps:
+            cypher, params = build_nearby_query(circle, lat, lng, radius_km)
+            rows = self.neo4j.execute_read(cypher, params)
+            if len(rows) >= settings.location_min_events:
+                break
+        if not rows:
+            return None
+        return Outcome(
+            rows_to_cards(rows),
+            cypher,
+            note=(
+                f"searched within {radius_km:g} km of {c.city!r}, nearest first, so "
+                f"some events are in nearby towns: say so, and say which town"
             ),
         )
 
