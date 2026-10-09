@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: the evals CLI is deferred to model-routing; nothing open here until then
+next: real-user feedback comes first now, see docs/plans/real-user-feedback.md
 ---
 # Evals and monitoring (program phase 3)
 
