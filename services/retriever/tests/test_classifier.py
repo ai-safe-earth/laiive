@@ -4,7 +4,7 @@ resolution of "today", which is not the model's job and must not drift."""
 from datetime import datetime, timedelta, timezone as utc_timezone
 from unittest.mock import Mock
 
-from agent.classifier import Classifier, now_in
+from agent.classifier import Classification, Classifier, Constraints, enforce, now_in
 
 
 class TestNowIn:
@@ -64,3 +64,29 @@ class TestTodayInjection:
     def test_no_timezone_uses_utc(self):
         prompt = self._classify_with(None)
         assert f"Today is {datetime.now(utc_timezone.utc).date().isoformat()}" in prompt
+
+
+class TestEnforce:
+    def _c(self, **kwargs) -> Classification:
+        return Classification(query_type="event_search", **kwargs)
+
+    def test_a_first_message_is_never_a_refinement(self):
+        c = enforce(self._c(moment="refinement"), has_history=False, has_location=False)
+        assert c.moment == "first_query"
+        c = enforce(self._c(moment="refinement"), has_history=True, has_location=False)
+        assert c.moment == "refinement"
+
+    def test_near_me_without_a_location_asks_where(self):
+        c = self._c(moment="first_query", sub_queries=[Constraints(near_me=True)])
+        c = enforce(c, has_history=False, has_location=False)
+        assert c.moment == "ambiguous" and c.clarification
+
+    def test_near_me_with_a_location_runs(self):
+        c = self._c(moment="first_query", sub_queries=[Constraints(near_me=True)])
+        assert enforce(c, has_history=False, has_location=True).moment == "first_query"
+
+    def test_a_stray_nearby_type_is_a_search(self):
+        assert (
+            Classification(query_type="nearby", moment="first_query").query_type
+            == "event_search"
+        )

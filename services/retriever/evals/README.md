@@ -111,7 +111,7 @@ string, so a paused Aura cannot break them.
 |---|---|---|
 | safety | 6 cases: the four Cypher-guard verdicts and the two injection verdicts | `sf_007` — the moderation verdict, the only case of the seven that needs a live judgement |
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
-| classifier | the corpus itself: 20 cases, unique ids, every case asserts something, the prompt version matches, six gaps each explained | all 20 cases, one live classification each — 14 green, 6 xfailed |
+| classifier | the corpus itself: 20 cases, unique ids, every case asserts something, the prompt version matches, no open gaps | all 20 cases, one live classification each — 20 green since prompt v3 |
 | answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 10 cases, one live composition each (plus one language call) — 9 green, 1 xfailed |
 | retrieval | — | **`graph` tier, not `integration`:** 14 recall cases against the frozen graph, no OpenAI key, so CI holds them on every push |
 
@@ -161,7 +161,7 @@ the reply leaked 3/3 in Italian and 1 in 2 in English; with three cards, English
 Spanish held 2/2. The prompt's "NEVER list events" has no rule for the case where there is
 exactly one thing to not-list, and the model reaches for it to have something to say.
 
-## The six known gaps in the classifier set (2026-09-22)
+## The six known gaps in the classifier set (2026-09-22, all closed in prompt v3)
 
 Found by the first live run. Each case keeps its label and is `xfail(strict=False)`, so a
 weekly run reports a *regression* rather than re-reporting six holes somebody already
@@ -176,6 +176,15 @@ same commit. The two that cost a user an answer are the first two.
 | `free-gigs` | "free concerts" leaves `price_max` unset — the prompt never says free means `price_max: 0`, so paid gigs come back. |
 | `two-cities-one-message` | splits the two cities correctly, then calls the moment `refinement` on a message with no history. |
 | `near-me` | `query_type: "event_search"` where the label says `"nearby"`. Nothing in the prompt defines when `nearby` is the type and `route()` keys off `near_me` alone, so the value is unreachable vocabulary: either the prompt names it or the `Literal` loses it. |
+
+**How v3 closed them (2026-10-08).** The two rules that must always hold are code, in
+`classifier.enforce()`, not prompt wording: a message with no history is always
+`first_query` (it can neither refine nor change a topic), and `near_me` without a shared
+location is `ambiguous` with a clarification. The prompt gained three rules: "free" is
+`price_max: 0`, a bare place name is a search there, and "find me something" is ambiguous.
+`nearby` left the `Literal` (a stray one is read as `event_search`), and the `near-me`
+label followed. A first attempt that put the history rule in the prompt instead flipped
+"actually, what about Lisbon?" to `new_topic`; code was the steadier place for it.
 
 ## Two relabellings, 2026-08-28
 

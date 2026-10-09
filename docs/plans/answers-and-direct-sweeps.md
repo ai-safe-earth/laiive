@@ -1,7 +1,7 @@
 ---
 status: active
 step: supply
-next: merge the language-rule PR, deploy search, check the next sweep writes no English twins
+next: owner reads sweep logs; a sweep that surfaces visitbergamo.net/en/ confirms the swap
 ---
 # Answers when the graph is thin or down, and sweeps that write directly
 
@@ -40,7 +40,11 @@ gone), and the composer turned "graph unreachable" into "a quiet spell in Barcel
 - [x] 7. Language rule: a page with a foreign language segment (`/en/…`) is swapped for the
   site's own (`/…`) through Tavily extract, after the max_pages cut; a failed fetch keeps the
   original. Checked live: `/en/eventi` -> `/eventi`, 12,210 chars, Italian names.
-- [ ] Deploy search; next sweep should write no English twins.
+- [x] Deploy search; next sweep should write no English twins.
+  Report `34a473dd` (search v15): 91 candidates, 79 exists, 2 similar, 10 new; 9 written, no
+  English twins. But search did not surface visitbergamo.net this time, so the swap itself was
+  not exercised inside a sweep (only by the direct fetch check). Events 332 -> 341.
+  New junk shape: an event named after its venue ("ChorusLife Arena").
 
 ## Findings from the first direct sweep
 - ARCI portal events are national, but the writer geocoded them to their real cities (Padova,
