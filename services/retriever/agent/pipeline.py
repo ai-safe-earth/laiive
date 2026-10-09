@@ -67,6 +67,22 @@ def verified_first(cards: list[EventCard]) -> None:
     cards.sort(key=lambda card: card.source != "pro_submission")
 
 
+def many_results_note(count: int, capped: bool) -> str | None:
+    """Tell the composer it reads only the first page of a longer list.
+
+    The chat shows ten cards and a "show more" button for the rest; past two
+    pages the list is too long to browse, so the reply suggests narrowing it.
+    """
+    page = settings.max_results_limit
+    if count <= page:
+        return None
+    total = f"{count}+" if capped else str(count)
+    note = f"{total} events matched; you see the first {page}, the chat shows the rest on demand"
+    if count > 2 * page:
+        note += "; in one short sentence, suggest narrowing by genre, distance or price"
+    return note
+
+
 class Pipeline:
     def __init__(self, neo4j_client):
         self.client = get_openai_client()
@@ -206,6 +222,7 @@ class Pipeline:
                 yield Status(state="searching")
                 seen: set = set()
                 unreachable = 0
+                capped = False
                 for plan in plans:
                     with stage(
                         tracer, turn, "execute", {"laiive.plan_kind": str(plan.kind)}
@@ -227,6 +244,7 @@ class Pipeline:
                         result.errors.append(outcome.error)
                         logger.warning(f"Sub-query failed: {outcome.error}")
                     unreachable += outcome.unavailable
+                    capped |= len(outcome.cards) >= settings.fetch_results_limit
                     for card in outcome.cards:
                         key = card.uid or (card.name, card.start_at)
                         if key not in seen:
@@ -243,7 +261,9 @@ class Pipeline:
                     return
                 # Cards go out the moment results exist, before any prose.
                 verified_first(result.cards)
-                yield EventsResult(events=result.cards)
+                if (note := many_results_note(len(result.cards), capped)) is not None:
+                    result.notes.append(note)
+                yield EventsResult(events=result.cards, capped=capped)
 
         yield Status(state="composing")
         yield from self._compose(turn, user_message, history, result)

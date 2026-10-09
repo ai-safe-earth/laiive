@@ -35,6 +35,10 @@ export interface Translations {
     feedbackDown: string;
     feedbackReasonPlaceholder: string;
     feedbackThanks: string;
+    /** "Show 10 more (of 50+)": the next page of cards under an answer. */
+    showMore: (next: number, total: string) => string;
+    /** Under a list too long to browse: the count, and how to narrow it. */
+    manyResults: (total: string) => string;
   };
   auth: {
     signInTitle: string;
@@ -301,6 +305,9 @@ export const translations: Record<Language, Translations> = {
       feedbackDown: "Not helpful",
       feedbackReasonPlaceholder: "What went wrong? (optional)",
       feedbackThanks: "Thanks for the feedback",
+      showMore: (next, total) => `Show ${next} more (of ${total})`,
+      manyResults: (total) =>
+        `${total} events found. Narrow it down by genre, distance or price for a shorter list.`,
     },
     auth: {
       signInTitle: "sign in",
@@ -567,6 +574,9 @@ export const translations: Record<Language, Translations> = {
       feedbackDown: "No útil",
       feedbackReasonPlaceholder: "¿Qué ha fallado? (opcional)",
       feedbackThanks: "Gracias por tu opinión",
+      showMore: (next, total) => `Ver ${next} más (de ${total})`,
+      manyResults: (total) =>
+        `${total} eventos encontrados. Afina por género, distancia o precio para una lista más corta.`,
     },
     auth: {
       signInTitle: "inicia sesión",
@@ -835,6 +845,9 @@ export const translations: Record<Language, Translations> = {
       feedbackDown: "Non utile",
       feedbackReasonPlaceholder: "Cosa non andava? (facoltativo)",
       feedbackThanks: "Grazie per il feedback",
+      showMore: (next, total) => `Mostra altri ${next} (su ${total})`,
+      manyResults: (total) =>
+        `${total} eventi trovati. Restringi per genere, distanza o prezzo per una lista più corta.`,
     },
     auth: {
       signInTitle: "accedi",
@@ -1103,6 +1116,9 @@ export const translations: Record<Language, Translations> = {
       feedbackDown: "Poc útil",
       feedbackReasonPlaceholder: "Què ha fallat? (opcional)",
       feedbackThanks: "Gràcies pel feedback",
+      showMore: (next, total) => `Mostra ${next} més (de ${total})`,
+      manyResults: (total) =>
+        `${total} esdeveniments trobats. Afina per gènere, distància o preu per a una llista més curta.`,
     },
     auth: {
       signInTitle: "inicia sessió",

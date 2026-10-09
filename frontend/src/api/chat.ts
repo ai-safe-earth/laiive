@@ -7,6 +7,8 @@ export interface ChatMessage {
   content: string;
   /** Cards that arrived with this answer (assistant turns only). */
   events?: EventCard[];
+  /** The search hit its fetch limit: there are more than `events`. */
+  capped?: boolean;
   /** The gateway's x-request-id for the turn that produced this answer —
    * the join key for feedback (assistant turns only, set once done). */
   requestId?: string;
@@ -20,7 +22,7 @@ export interface UserLocation {
 
 export interface StreamHandlers {
   onStatus?: (state: string) => void;
-  onEvents?: (events: EventCard[]) => void;
+  onEvents?: (events: EventCard[], capped: boolean) => void;
   onDelta?: (text: string) => void;
   onError?: (message: string, code: string) => void;
 }
@@ -93,7 +95,7 @@ function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {
       handlers.onStatus?.(frame.data.state);
       break;
     case "events.result":
-      handlers.onEvents?.(frame.data.events);
+      handlers.onEvents?.(frame.data.events, frame.data.capped ?? false);
       break;
     case "message.delta":
       handlers.onDelta?.(frame.data.text);
