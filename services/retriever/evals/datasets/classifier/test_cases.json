@@ -1,6 +1,6 @@
 {
   "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
-  "prompt_version": "v3",
+  "prompt_version": "v4",
   "test_cases": [
     {
       "id": "tonight-in-madrid",
@@ -184,6 +184,58 @@
       "id": "empty-ask-needs-more",
       "message": "find me something",
       "expect": {"moment": "ambiguous", "clarification": "any"}
+    },
+    {
+      "id": "near-a-named-place",
+      "message": "concerts tomorrow near Bergamo",
+      "source": "user feedback 2026-10-09, location-and-distance",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo", "near_me": false, "radius_km": "any", "date_from": "tomorrow"}
+      }
+    },
+    {
+      "id": "near-a-named-place-italian",
+      "message": "concerti domani vicino a Bergamo",
+      "source": "user feedback 2026-10-09, location-and-distance",
+      "expect": {
+        "query_type": "event_search",
+        "language": "it",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo", "near_me": false, "radius_km": "any"}
+      }
+    },
+    {
+      "id": "near-me-answered-with-a-place",
+      "message": "in Bergamo?",
+      "source": "user feedback 2026-10-09, location-and-distance",
+      "history": [
+        {"role": "user", "content": "rock gigs near me this weekend"},
+        {"role": "assistant", "content": "Which city are you in?"}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "moment": "refinement",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo", "genre": "rock", "near_me": false}
+      }
+    },
+    {
+      "id": "towns-around-a-place",
+      "message": "other towns near Bergamo?",
+      "source": "user feedback 2026-10-09, location-and-distance",
+      "history": [
+        {"role": "user", "content": "concerts in Bergamo this week"},
+        {"role": "assistant", "content": "Two gigs in Bergamo this week."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "moment": "refinement",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo", "near_me": false, "radius_km": "any"}
+      }
     }
   ]
 }

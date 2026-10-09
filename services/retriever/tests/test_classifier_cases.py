@@ -67,7 +67,7 @@ def test_the_corpus_matches_the_live_prompt_version():
 
 def test_every_case_asserts_something():
     """A case with an empty `expect` passes by doing nothing."""
-    assert len(CASES) == 20
+    assert len(CASES) == 24
     ids = [case["id"] for case in CASES]
     assert len(set(ids)) == len(ids), "duplicate case id"
     for case in CASES:
