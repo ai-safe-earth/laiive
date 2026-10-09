@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: owner reads the first thread report and settles the thread names (step 3)
+next: location-and-distance plan first, then the still-failing turns become cases (step 4)
 ---
 # Real-user feedback into fixes
 
@@ -47,8 +47,26 @@ say, not only from cases we wrote ourselves.
       - Known ceiling: names drift between runs (one run split "no events" by city,
         another by date/genre/area). Reusing saved names should settle it; step 3
         prunes the list by hand.
-- [ ] 3. Read the first batch together and name the failure modes (wrong city, empty when
+- [x] 3. Read the first batch together and name the failure modes (wrong city, empty when
       events exist, wrong language, invented details...). The list drives what gets fixed.
+      2026-10-09: the owner named seven threads, saved in `evals/failure_modes.json`:
+      database-access, location-and-distance, name-spelling, conversation-issues,
+      query-interpretation, wrong-event-data, unwanted-reply-text (plus one success line).
+      Replay: all 87 turns re-asked against today's graph and the develop code (read-only,
+      dates move to today, so "finds events now" is a hint, not proof). Counts after a
+      hand check of the model's labels:
+      | thread | turns | still failing |
+      |---|---|---|
+      | location-and-distance | 31 | 31 |
+      | database-access | 23 | 6 (rock in Torino this week, DJ sets) |
+      | wrong-event-data | 9 | 4 |
+      | conversation-issues | 7 | 1 |
+      | query-interpretation | 3 | 0 |
+      | name-spelling | 3 | 1 (a venue written as one word) |
+      | unwanted-reply-text | 1 | 1 |
+      | success | 10 | - |
+      Location is the main line: 21 "near me" turns with no location, 10 named places read
+      as "near me" (a v3 regression, unreleased). Plan: `location-and-distance.md`.
 - [ ] 4. Each confirmed failure becomes a case in the matching dataset (classifier,
       answer quality, retrieval) with `source: user` and the `request_id`, so a fix is
       proven against the real complaint and stays fixed.
