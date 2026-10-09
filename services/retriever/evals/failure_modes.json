@@ -1,0 +1,62 @@
+{
+  "context-lost": {
+    "kind": "failure",
+    "description": "The system fails to maintain context in follow-up queries, leading to repeated or irrelevant results.",
+    "last_count": 5,
+    "last_run": "2026-10-09"
+  },
+  "duplicate-events": {
+    "kind": "failure",
+    "description": "The system shows duplicate events, indicating a failure in deduplication.",
+    "last_count": 2,
+    "last_run": "2026-10-09"
+  },
+  "incorrect-event-details": {
+    "kind": "failure",
+    "description": "The system provides incorrect details about events, such as wrong names or times.",
+    "last_count": 3,
+    "last_run": "2026-10-09"
+  },
+  "missing-events": {
+    "kind": "failure",
+    "description": "The system fails to find events that are known to exist, possibly due to incorrect filtering or database issues.",
+    "last_count": 17,
+    "last_run": "2026-10-09"
+  },
+  "no-events-found/no-events-in-bergamo": {
+    "kind": "failure",
+    "description": "No events found in Bergamo or nearby, possibly due to limited coverage or a narrow search radius.",
+    "last_count": 18,
+    "last_run": "2026-10-09"
+  },
+  "no-events-found/no-events-in-torino": {
+    "kind": "failure",
+    "description": "No events found in Torino, possibly due to limited coverage or a narrow search radius.",
+    "last_count": 9,
+    "last_run": "2026-10-09"
+  },
+  "no-events-found/no-events-near-me": {
+    "kind": "failure",
+    "description": "No events found near the user's location, possibly due to a narrow search radius or limited coverage.",
+    "last_count": 15,
+    "last_run": "2026-10-09"
+  },
+  "no-events-found/no-events-specific-date": {
+    "kind": "failure",
+    "description": "No events found for a specific date or week, possibly due to limited coverage or a narrow search window.",
+    "last_count": 5,
+    "last_run": "2026-10-09"
+  },
+  "no-events-found/no-events-specific-genre": {
+    "kind": "failure",
+    "description": "No events found for a specific genre, possibly due to limited coverage or a narrow search window.",
+    "last_count": 3,
+    "last_run": "2026-10-09"
+  },
+  "successful-event-query": {
+    "kind": "success",
+    "description": "The system successfully finds and presents relevant events based on the user's query.",
+    "last_count": 10,
+    "last_run": "2026-10-09"
+  }
+}

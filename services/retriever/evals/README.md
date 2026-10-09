@@ -91,6 +91,14 @@ Two other sets went with the ReAct orchestrator whose vocabulary they encoded
 (`expected_action: QUERY_DB | NEEDS_INFO`); the current pipeline speaks `query_type` and
 `moment` instead, so they would have had to be re-labelled rather than kept.
 
+## Real-user feedback, grouped into threads
+
+`python -m agent.scripts.feedback [--days 7] [--no-save]` reads every thumb and every
+unflagged failure from Supabase and groups them into threads (lines of failure or
+success), with counts and a trend against the last run. `failure_modes.json` holds the
+thread names, descriptions and counts so the names carry over between runs; it never
+holds user text. Plan: `docs/plans/real-user-feedback.md`.
+
 ## How to run them
 
 ```bash
