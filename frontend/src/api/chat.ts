@@ -9,6 +9,8 @@ export interface ChatMessage {
   events?: EventCard[];
   /** The search hit its fetch limit: there are more than `events`. */
   capped?: boolean;
+  /** The question needs the asker's position and none was shared. */
+  needsLocation?: boolean;
   /** The gateway's x-request-id for the turn that produced this answer —
    * the join key for feedback (assistant turns only, set once done). */
   requestId?: string;

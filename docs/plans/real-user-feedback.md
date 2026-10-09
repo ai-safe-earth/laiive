@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: location-and-distance plan first, then the still-failing turns become cases (step 4)
+next: the still-failing turns become cases (step 4); location is done
 ---
 # Real-user feedback into fixes
 
@@ -66,7 +66,7 @@ say, not only from cases we wrote ourselves.
       | unwanted-reply-text | 1 | 1 |
       | success | 10 | - |
       Location is the main line: 21 "near me" turns with no location, 10 named places read
-      as "near me" (a v3 regression, unreleased). Plan: `location-and-distance.md`.
+      as "near me" (a v3 regression, unreleased). Plan: `done/location-and-distance.md` (done 2026-10-09).
 - [ ] 4. Each confirmed failure becomes a case in the matching dataset (classifier,
       answer quality, retrieval) with `source: user` and the `request_id`, so a fix is
       proven against the real complaint and stays fixed.

@@ -213,6 +213,12 @@ class Pipeline:
                         ),
                     }
                 )
+            if not location and any(
+                q.near_me for q in result.classification.sub_queries
+            ):
+                # The reply asks for a city; the chat also offers a button that
+                # shares the browser's location and asks the same question again.
+                yield Status(state="needs_location")
             with stage(tracer, turn, "route") as span:
                 plans = route(result.classification, has_location=bool(location))
                 span.set_attribute(
