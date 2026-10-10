@@ -67,7 +67,7 @@ def test_the_corpus_matches_the_live_prompt_version():
 
 def test_every_case_asserts_something():
     """A case with an empty `expect` passes by doing nothing."""
-    assert len(CASES) == 26
+    assert len(CASES) == 30
     ids = [case["id"] for case in CASES]
     assert len(set(ids)) == len(ids), "duplicate case id"
     for case in CASES:
@@ -75,10 +75,15 @@ def test_every_case_asserts_something():
 
 
 def test_the_known_gaps_are_counted_and_explained():
-    """None open since prompt v3 (all six closed). Pinned so that xfailing a case
-    is a decision somebody makes here rather than a quiet way to go green."""
+    """Prompt v3 closed all six earlier gaps. Two opened 2026-10-10 from user
+    feedback: a follow-up loses the conversation's place. Pinned so that
+    xfailing a case is a decision somebody makes here rather than a quiet way to
+    go green."""
     gaps = [case["id"] for case in CASES if case.get("known_gap")]
-    assert len(gaps) == 0, gaps
+    assert gaps == [
+        "the-city-carries-through-other-concerts",
+        "a-named-show-keeps-the-place",
+    ], gaps
     for case in CASES:
         if "known_gap" in case:
             assert len(case["known_gap"]) > 40, case["id"]

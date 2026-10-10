@@ -18,3 +18,7 @@ No change ships without a recall or precision number from the evals step.
       cache by question shape.
 - [ ] Empty-result ladder: drop the weakest constraint, widen dates, widen radius; report each
       rung through `Outcome.note`.
+      Owner, 2026-10-10: when nothing matches, the reply says so plainly and suggests a
+      concrete way to widen, from what the ladder found ("no rock in Torino this week;
+      3 next week"). The replay's "rock in Torino" and "DJ in Bergamo" turns had no
+      entries in the graph; today's reply says "none" but suggests blindly.

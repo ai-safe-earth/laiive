@@ -260,6 +260,71 @@
         "sub_query_count": 1,
         "constraints": {"city": null, "date_from": "today"}
       }
+    },
+    {
+      "id": "the-venue-carries-over",
+      "message": "e a ottobre?",
+      "source": "user feedback 2026-10-09, wrong-event-data",
+      "request_id": "aeea0236-1ef3-4d80-8bfe-bfced05e258a",
+      "label_note": "Paraphrased. The venue was dropped from the follow-up, so the turn listed every event in the city.",
+      "history": [
+        {"role": "user", "content": "eventi alla ChorusLife Arena a settembre?"},
+        {"role": "assistant", "content": "A settembre la ChorusLife Arena ospita tre concerti."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "moment": "refinement",
+        "sub_query_count": 1,
+        "constraints": {"venue": "ChorusLife Arena"}
+      }
+    },
+    {
+      "id": "the-city-carries-through-other-concerts",
+      "message": "Other concerts?",
+      "source": "user feedback 2026-10-09, conversation-issues",
+      "request_id": "04d6d10d-012c-4a2d-9933-dd3076641709",
+      "label_note": "Paraphrased. The place was lost after two turns about nearby towns.",
+      "known_gap": "Open since the 2026-10-10 replay: after a 'nothing found' answer the follow-up drops the place. A prompt line passed 1 run in 3; the fix needs the previous turn's constraints, not wording.",
+      "history": [
+        {"role": "user", "content": "concerts near Bergamo?"},
+        {"role": "assistant", "content": "Nothing around Bergamo right now."},
+        {"role": "user", "content": "check nearby towns, yes"},
+        {"role": "assistant", "content": "Still nothing in the nearby towns."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo"}
+      }
+    },
+    {
+      "id": "a-named-show-keeps-the-place",
+      "message": "dov'è il concerto Candlelight?",
+      "source": "user feedback 2026-10-09, wrong-event-data",
+      "request_id": "ea52b812-3882-4e52-bc38-b844b5266cea",
+      "label_note": "Paraphrased. The conversation was about Bergamo; the turn lost the place and asked for a city.",
+      "known_gap": "Open since the 2026-10-10 replay: a named show with no place drops the conversation's city, and the turn asks where. Same root cause as the-city-carries-through-other-concerts.",
+      "history": [
+        {"role": "user", "content": "eventi alla ChorusLife Arena di Bergamo a ottobre?"},
+        {"role": "assistant", "content": "A ottobre la ChorusLife Arena di Bergamo ha diversi eventi."}
+      ],
+      "expect": {
+        "query_type": "event_search",
+        "sub_query_count": 1,
+        "constraints": {"city": "Bergamo"}
+      }
+    },
+    {
+      "id": "thanks-after-a-find-is-smalltalk",
+      "message": "perfetto!!",
+      "source": "user feedback 2026-10-09, unwanted-reply-text",
+      "request_id": "f01c36dc-381a-49ea-b3ae-e34720270a5d",
+      "label_note": "Paraphrased history. The old reply listed more concerts; the user only wanted the thanks acknowledged.",
+      "history": [
+        {"role": "user", "content": "un concerto di Rameau?"},
+        {"role": "assistant", "content": "C'è un concerto su Rameau a Torino."}
+      ],
+      "expect": {"query_type": "smalltalk", "sub_query_count": 0}
     }
   ]
 }
