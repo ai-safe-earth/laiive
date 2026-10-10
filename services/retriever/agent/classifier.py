@@ -18,11 +18,11 @@ from config import settings
 
 from .utils.llm_utils import get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v4"
+CLASSIFIER_PROMPT_VERSION = "v5"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
-Today is {today} ({weekday}). The user's location is {location_note}.
+Today is {today} ({weekday}), {time} on the user's clock. The user's location is {location_note}.
 
 Read the conversation and the latest user message, then return ONE JSON object:
 
@@ -59,6 +59,7 @@ Rules:
   the rest; a completely different request is moment "new_topic" and starts clean.
 - Split multi-intent asks into several sub_queries entries
   (e.g. "jazz tonight and anything by Klangfeld this month" → two).
+- "now" / "right now" → date_from the current time, date_to tomorrow 06:00.
 - "tonight" → date_from today 18:00, date_to tomorrow 06:00. "this weekend" →
   Friday 00:00 to Sunday 24:00. A bare month → the whole month. Never invent dates.
 - near_me is true only when the user means their OWN position ("near me",
@@ -160,13 +161,24 @@ def enforce(c: Classification, has_history: bool, has_location: bool) -> Classif
     me": "near Bergamo" searches around Bergamo, and asking for the user's location
     instead was the biggest line in the 2026-10-09 feedback replay. A "near me" ask
     with no shared location cannot run (route() drops it), so the turn asks where
-    instead of answering "nothing found".
+    instead of answering "nothing found". A search that says nothing about where
+    ("events today") needs the user's position just the same (owner, 2026-10-10):
+    it is near me. An artist, venue or country is a place; an aggregation
+    (needs_custom_cypher) is left alone.
     """
     if c.moment in ("refinement", "new_topic") and not has_history:
         c.moment = "first_query"
     for q in c.sub_queries:
         if q.city or q.venue:
             q.near_me = False
+        if (
+            c.query_type == "event_search"
+            and not has_location
+            and not (q.city or q.country_code or q.venue or q.artist)
+            and not q.needs_custom_cypher
+            and not q.is_empty()
+        ):
+            q.near_me = True
     if not has_location and any(q.near_me for q in c.sub_queries):
         c.moment = "ambiguous"
         c.clarification = c.clarification or "your city or your location"
@@ -214,6 +226,7 @@ class Classifier:
         system = CLASSIFIER_SYSTEM_PROMPT.format(
             today=now.date().isoformat(),
             weekday=now.strftime("%A"),
+            time=now.strftime("%H:%M"),
             location_note="known (they shared coordinates)"
             if has_location
             else "NOT available",

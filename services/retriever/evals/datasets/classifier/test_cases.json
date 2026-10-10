@@ -1,6 +1,6 @@
 {
   "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
-  "prompt_version": "v4",
+  "prompt_version": "v5",
   "test_cases": [
     {
       "id": "tonight-in-madrid",
@@ -235,6 +235,30 @@
         "moment": "refinement",
         "sub_query_count": 1,
         "constraints": {"city": "Bergamo", "near_me": false, "radius_km": "any"}
+      }
+    },
+    {
+      "id": "no-place-without-a-location",
+      "message": "any events today?",
+      "has_location": false,
+      "source": "owner rule 2026-10-10: place, day and hour",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "ambiguous",
+        "clarification": "any",
+        "constraints": {"near_me": true, "date_from": "today"}
+      }
+    },
+    {
+      "id": "no-place-with-a-location",
+      "message": "any events today?",
+      "has_location": true,
+      "source": "owner rule 2026-10-10: place, day and hour",
+      "expect": {
+        "query_type": "event_search",
+        "moment": "first_query",
+        "sub_query_count": 1,
+        "constraints": {"city": null, "date_from": "today"}
       }
     }
   ]

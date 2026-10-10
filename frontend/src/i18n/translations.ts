@@ -41,6 +41,7 @@ export interface Translations {
     manyResults: (total: string) => string;
     /** Under a reply that needed the asker's position and had none. */
     shareLocation: string;
+    offerLocation: string;
     /** The browser said no: blocked in settings, or the ask timed out. */
     locationDenied: string;
   };
@@ -313,6 +314,7 @@ export const translations: Record<Language, Translations> = {
       manyResults: (total) =>
         `${total} events found. Narrow it down by genre, distance or price for a shorter list.`,
       shareLocation: "Share my location",
+      offerLocation: "Share my location for events near you",
       locationDenied: "Your browser did not share the location. Type your city or town instead.",
     },
     auth: {
@@ -584,6 +586,7 @@ export const translations: Record<Language, Translations> = {
       manyResults: (total) =>
         `${total} eventos encontrados. Afina por género, distancia o precio para una lista más corta.`,
       shareLocation: "Compartir mi ubicación",
+      offerLocation: "Compartir mi ubicación para ver eventos cerca",
       locationDenied: "Tu navegador no compartió la ubicación. Escribe tu ciudad o pueblo.",
     },
     auth: {
@@ -857,6 +860,7 @@ export const translations: Record<Language, Translations> = {
       manyResults: (total) =>
         `${total} eventi trovati. Restringi per genere, distanza o prezzo per una lista più corta.`,
       shareLocation: "Condividi la mia posizione",
+      offerLocation: "Condividi la posizione per eventi vicino a te",
       locationDenied: "Il browser non ha condiviso la posizione. Scrivi la tua città o il tuo paese.",
     },
     auth: {
@@ -1130,6 +1134,7 @@ export const translations: Record<Language, Translations> = {
       manyResults: (total) =>
         `${total} esdeveniments trobats. Afina per gènere, distància o preu per a una llista més curta.`,
       shareLocation: "Comparteix la meva ubicació",
+      offerLocation: "Comparteix la ubicació per veure esdeveniments a prop",
       locationDenied: "El navegador no ha compartit la ubicació. Escriu la teva ciutat o poble.",
     },
     auth: {

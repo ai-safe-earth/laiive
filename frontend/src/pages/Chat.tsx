@@ -57,6 +57,11 @@ export default function Chat() {
     );
   }, []);
 
+  // Without a location, the first finished reply also offers to share it, once
+  // per session and never again, so it improves answers without nagging (owner,
+  // 2026-10-10). A reply that needs the location has its own button instead.
+  const offerAt = messages.findIndex((m) => m.role === "assistant" && m.requestId);
+
   const stop = () => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -310,6 +315,9 @@ export default function Chat() {
                         }}
                       />
                     )}
+                  {!message.needsLocation && !location && index === offerAt && (
+                    <ShareLocation label={t.chat.offerLocation} onShared={setLocation} />
+                  )}
                   {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
               ),
@@ -391,7 +399,13 @@ export function ResultCards({
  * asks the browser, and the same question goes again with the location. The
  * silent ask on page load is easy to miss or dismiss (owner, 2026-10-09).
  */
-export function ShareLocation({ onShared }: { onShared: (here: UserLocation) => void }) {
+export function ShareLocation({
+  onShared,
+  label,
+}: {
+  onShared: (here: UserLocation) => void;
+  label?: string;
+}) {
   const { t } = useTranslation();
   const [denied, setDenied] = useState(false);
   if (!navigator.geolocation) return null;
@@ -408,7 +422,7 @@ export function ShareLocation({ onShared }: { onShared: (here: UserLocation) => 
       onClick={ask}
       className="self-start rounded-full border border-secondary/50 px-4 py-1.5 text-sm text-foreground hover:bg-muted"
     >
-      {t.chat.shareLocation}
+      {label ?? t.chat.shareLocation}
     </button>
   );
 }

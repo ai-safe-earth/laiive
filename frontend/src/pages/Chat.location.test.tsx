@@ -28,6 +28,15 @@ describe("ShareLocation", () => {
     expect(onShared).toHaveBeenCalledWith({ latitude: 45.7, longitude: 9.67 });
   });
 
+  it("words the once-per-session offer as an offer", () => {
+    geolocation((ok) => ok({ coords: { latitude: 45.7, longitude: 9.67 } } as GeolocationPosition));
+    const onShared = vi.fn();
+    renderWith(<ShareLocation label={en.chat.offerLocation} onShared={onShared} />);
+
+    fireEvent.click(screen.getByRole("button", { name: en.chat.offerLocation }));
+    expect(onShared).toHaveBeenCalledOnce();
+  });
+
   it("says to type a city when the browser refuses", () => {
     geolocation((_, fail) => fail({ code: 1 } as GeolocationPositionError));
     const onShared = vi.fn();

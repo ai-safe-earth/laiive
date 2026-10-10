@@ -17,7 +17,12 @@ from opentelemetry.trace import use_span
 
 from config import settings
 
-from .classifier import CLASSIFIER_PROMPT_VERSION, Classification, Classifier
+from .classifier import (
+    CLASSIFIER_PROMPT_VERSION,
+    Classification,
+    Classifier,
+    now_in,
+)
 from .composer import COMPOSER_PROMPT_VERSION, Composer
 from .executor import Executor
 from .router import route
@@ -65,6 +70,19 @@ def verified_first(cards: list[EventCard]) -> None:
     leads with, so the sort is unconditional rather than skipped for NEARBY.
     """
     cards.sort(key=lambda card: card.source != "pro_submission")
+
+
+def known_context(location: dict | None, timezone: str | None) -> str:
+    """Place, day and hour, which the composer must always know (owner,
+    2026-10-10). Without it "do you have my location?" got a guess."""
+    now = now_in(timezone)
+    place = (
+        "shared"
+        if location
+        else "not shared; if asked, say so and suggest typing a town (the chat"
+        " offers a share button once, so never insist)"
+    )
+    return f"the user's clock: {now:%A %Y-%m-%d %H:%M}; their location is {place}"
 
 
 def many_results_note(count: int, capped: bool) -> str | None:
@@ -271,6 +289,7 @@ class Pipeline:
                     result.notes.append(note)
                 yield EventsResult(events=result.cards, capped=capped)
 
+        result.notes.append(known_context(location, timezone))
         yield Status(state="composing")
         yield from self._compose(turn, user_message, history, result)
 

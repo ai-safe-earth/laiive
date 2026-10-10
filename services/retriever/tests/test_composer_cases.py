@@ -1,4 +1,4 @@
-"""The answer-quality set — ten replies, checked by rule rather than by judge.
+"""The answer-quality set — eleven replies, checked by rule rather than by judge.
 
 The roadmap's `answer quality` suite (docs/roadmap/01-program.md §3) asked for a
 judge rubric at two calls per case. Most of that rubric turns out not to need
@@ -169,6 +169,11 @@ def test_composed_reply_case(case):
         invented = [name for name in DECOYS if name.lower() in text.lower()]
         if invented:
             wrong.append(f"invents: {invented}")
+
+    if "mentions_any" in expect and not any(
+        word in text.lower() for word in expect["mentions_any"]
+    ):
+        wrong.append(f"mentions none of {expect['mentions_any']}")
 
     # Last, because it is the one check that costs a second call. Skippable
     # per case: the detector reads a short English reply carrying "Malasana"
