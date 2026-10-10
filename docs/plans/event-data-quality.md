@@ -1,7 +1,7 @@
 ---
 status: todo
 step: supply
-next: owner picks the roadmap step, then step 1
+next: third in the owner's fix order (after follow-up-context, date ranges)
 ---
 # Event data quality: unknown times and event names
 
