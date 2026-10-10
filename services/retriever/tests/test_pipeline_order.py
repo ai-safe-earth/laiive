@@ -2,7 +2,7 @@
 
 from laiive_shared import EventCard
 
-from agent.pipeline import verified_first
+from agent.pipeline import many_results_note, verified_first
 
 
 def card(uid: str, source: str) -> EventCard:
@@ -35,3 +35,11 @@ def test_it_sorts_in_place():
     verified_first(cards)
     assert same is cards
     assert same[0].uid == "b"
+
+
+def test_a_long_list_is_counted_and_a_very_long_one_suggests_narrowing():
+    assert many_results_note(10, capped=False) is None
+    assert many_results_note(14, capped=False).startswith("14 events matched")
+    assert "narrowing" not in many_results_note(14, capped=False)
+    note = many_results_note(50, capped=True)
+    assert note.startswith("50+ events matched") and "genre, distance or price" in note

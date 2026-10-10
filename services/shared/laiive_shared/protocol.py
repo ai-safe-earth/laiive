@@ -38,6 +38,9 @@ class MessageDelta(BaseModel):
 class EventsResult(BaseModel):
     event: ClassVar[str] = "events.result"
     events: list[EventCard]
+    # A search hit its fetch limit: there are more than `events`, so the chat
+    # counts them as "50+" rather than as an exact number.
+    capped: bool = False
 
 
 class FormExtracted(BaseModel):

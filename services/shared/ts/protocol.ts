@@ -129,6 +129,8 @@ export interface MessageDelta {
 // event: events.result
 export interface EventsResult {
   events: EventCard[];
+  /** A search hit its fetch limit: there are more than `events` ("50+"). */
+  capped?: boolean;
 }
 
 // event: form.extracted

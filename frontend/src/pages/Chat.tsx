@@ -88,10 +88,11 @@ export default function Chat() {
     // arrive — cards land before the first token, per the protocol's ordering.
     let answer = "";
     let cards: EventCard[] = [];
+    let capped = false;
     let started = false;
 
     const upsert = () => {
-      const turn: ChatMessage = { role: "assistant", content: answer, events: cards };
+      const turn: ChatMessage = { role: "assistant", content: answer, events: cards, capped };
       setMessages((prev) => {
         if (!started) return prev;
         const last = prev[prev.length - 1];
@@ -107,10 +108,11 @@ export default function Chat() {
         signal: controller.signal,
         handlers: {
           onStatus: (state) => setStatus(statusLabel[state] ?? state),
-          onEvents: (events) => {
+          onEvents: (events, more) => {
             cards = events;
+            capped = more;
             started = true;
-            setMessages((prev) => [...prev, { role: "assistant", content: "", events }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: "", events, capped }]);
             setStatus(null);
           },
           onDelta: (chunk) => {
@@ -274,8 +276,10 @@ export default function Chat() {
                     />
                   )}
                   {message.events && message.events.length > 0 && (
-                    <div className="flex flex-col gap-2 border-l-2 border-secondary/50 pl-[11px]">
-                      {message.events.map((card) => (
+                    <ResultCards
+                      events={message.events}
+                      capped={Boolean(message.capped)}
+                      render={(card) => (
                         <EventCardView
                           key={card.uid}
                           card={card}
@@ -288,8 +292,8 @@ export default function Chat() {
                             user ? (uid, next) => toggleSaved.mutate({ uid, next }) : undefined
                           }
                         />
-                      ))}
-                    </div>
+                      )}
+                    />
                   )}
                   {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
@@ -323,6 +327,46 @@ export default function Chat() {
           }
         />
       </div>
+    </div>
+  );
+}
+
+/** Cards shown a page at a time; the retriever sends up to 50 at once. */
+const RESULTS_PAGE = 10;
+
+/**
+ * An answer's cards, ten first and the rest behind "show more". A list past two
+ * pages is too long to browse, so it says how many there are and suggests
+ * narrowing the search instead (owner, 2026-10-09).
+ */
+export function ResultCards({
+  events,
+  capped,
+  render,
+}: {
+  events: EventCard[];
+  capped: boolean;
+  render: (card: EventCard) => ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [shown, setShown] = useState(RESULTS_PAGE);
+  const left = events.length - shown;
+  const total = capped ? `${events.length}+` : String(events.length);
+  return (
+    <div className="flex flex-col gap-2 border-l-2 border-secondary/50 pl-[11px]">
+      {events.slice(0, shown).map(render)}
+      {events.length > 2 * RESULTS_PAGE && (
+        <p className="text-sm text-ink-dim">{t.chat.manyResults(total)}</p>
+      )}
+      {left > 0 && (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + RESULTS_PAGE)}
+          className="self-start rounded-full border border-secondary/50 px-4 py-1.5 text-sm text-foreground hover:bg-muted"
+        >
+          {t.chat.showMore(Math.min(left, RESULTS_PAGE), total)}
+        </button>
+      )}
     </div>
   );
 }

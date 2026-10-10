@@ -58,7 +58,10 @@ class Settings(BaseSettings):
     )
 
     # Query settings
-    max_results_limit: int = 10
+    max_results_limit: int = 10  # cards the composer reads and the chat shows first
+    # Rows a search fetches; the chat reveals them ten at a time ("show more").
+    # A search that hits it is reported as capped, so the count reads "50+".
+    fetch_results_limit: int = 50
     vector_k: int = 20
     vector_score_threshold: float = 0.70
 

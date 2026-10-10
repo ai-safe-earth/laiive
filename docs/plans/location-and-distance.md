@@ -48,6 +48,14 @@ Nominatim turns the name into a point. Code does the distance search.
       across, centred off the city). No `parent` field: the prompt already keeps the
       parent in the place name ("Kreuzberg, Berlin"), which is what Nominatim is asked.
       Near-me widening also goes up to 50 km now (same steps and cap).
+- [x] 2b. Show more results (owner, 2026-10-09, after step 2: nearest-first with a limit
+      of 10 crowded out the nearby towns). A search fetches up to 50 (`fetch_results_limit`);
+      the composer still reads the first 10. `events.result` gains `capped` (optional, both
+      sides of the protocol), so the count reads "50+". The chat shows 10 cards and a
+      "Show 10 more (of 50+)" button; past 20 it adds "N events found, narrow it down by
+      genre, distance or price", and the reply suggests the same. Chosen over server
+      paging: one request, no state to keep, and a turn is never re-run to page.
+      Live: "concerts in Bergamo this month" 50+ with the hint; "jazz in Bergamo" 12.
 - [ ] 3. Ask for the location when it is needed. When a turn needs a location and has
       none, the stream sends `status` with state `needs_location` (the field is already
       a string: no protocol change). The chat shows a "Share my location" button under

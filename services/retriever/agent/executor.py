@@ -119,7 +119,7 @@ def _constraint_clauses(c: Constraints) -> tuple[list[str], dict]:
 def build_template_query(c: Constraints) -> tuple[str, dict]:
     where, params = _constraint_clauses(c)
     where.insert(0, "e.status = 'scheduled'")
-    params["limit"] = settings.max_results_limit
+    params["limit"] = settings.fetch_results_limit
     cypher = (
         "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
         "WHERE "
@@ -149,7 +149,7 @@ def build_nearby_query(
         lng=lng,
         radius_m=radius_km * 1000,
         centroid_penalty_m=settings.location_centroid_penalty_km * 1000,
-        limit=settings.max_results_limit,
+        limit=settings.fetch_results_limit,
     )
     cypher = (
         "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
@@ -247,7 +247,7 @@ def build_bbox_query(
         west=west,
         east=east,
         centroid_collapse_m=CENTROID_COLLAPSE_M,
-        limit=settings.max_results_limit,
+        limit=settings.fetch_results_limit,
     )
     cypher = (
         "MATCH (e:Event)-[:HOSTED_AT]->(v:Venue)-[:LOCATED_IN]->(c:City)\n"
