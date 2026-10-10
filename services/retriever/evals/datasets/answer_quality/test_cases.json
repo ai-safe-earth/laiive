@@ -86,6 +86,16 @@
       "notes": ["searched a 2 km circle around Malasaña, not the neighbourhood itself"],
       "classification": {"query_type": "event_search", "moment": "first_query", "language": "en"},
       "expect": {"max_sentences": 3, "language": "en", "no_leakage": true}
+    },
+    {
+      "id": "do-you-have-my-location",
+      "message": "do you have my location?",
+      "source": "user feedback 2026-10-09, location-and-distance; owner rule 2026-10-10",
+      "label_note": "The classifier calls this out_of_scope. The pipeline's place-day-hour note is what lets the reply answer it truthfully instead of a generic out-of-scope line.",
+      "cards": [],
+      "notes": ["the user's clock: Saturday 2026-10-10 21:40; their location is not shared; if asked, say so and suggest typing a town (the chat offers a share button once, so never insist)"],
+      "classification": {"query_type": "out_of_scope", "moment": "first_query", "language": "en"},
+      "expect": {"max_sentences": 3, "language": "en", "mentions_any": ["town", "city"]}
     }
   ]
 }

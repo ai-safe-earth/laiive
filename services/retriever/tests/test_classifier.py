@@ -91,6 +91,28 @@ class TestEnforce:
         assert c.moment == "refinement" and not c.clarification
         assert not c.sub_queries[0].near_me
 
+    def test_a_search_with_no_place_needs_the_users_location(self):
+        q = Constraints(date_from="2026-10-10T00:00:00")
+        c = enforce(
+            self._c(moment="first_query", sub_queries=[q]),
+            has_history=False,
+            has_location=False,
+        )
+        assert c.moment == "ambiguous" and c.sub_queries[0].near_me
+
+    def test_an_artist_venue_or_country_is_a_place(self):
+        for q in (
+            Constraints(artist="Klangfeld"),
+            Constraints(venue="Druso"),
+            Constraints(country_code="ES", genre="jazz"),
+        ):
+            c = enforce(
+                self._c(moment="first_query", sub_queries=[q]),
+                has_history=False,
+                has_location=False,
+            )
+            assert c.moment == "first_query" and not c.sub_queries[0].near_me
+
     def test_near_me_with_a_location_runs(self):
         c = self._c(moment="first_query", sub_queries=[Constraints(near_me=True)])
         assert enforce(c, has_history=False, has_location=True).moment == "first_query"

@@ -3,7 +3,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
-import { sendFeedback, streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
+import {
+  rememberLocation,
+  sendFeedback,
+  storedLocation,
+  streamChat,
+  type ChatMessage,
+  type UserLocation,
+} from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { Composer } from "@/components/Composer";
@@ -32,7 +39,8 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [location, setLocation] = useState<UserLocation | null>(storedLocation);
+  const remember = (here: UserLocation) => setLocation(rememberLocation(here));
   const abortRef = useRef<AbortController | null>(null);
 
   // One query for every card on the page rather than one per card, which
@@ -47,15 +55,21 @@ export default function Chat() {
   }, [messages, status]);
 
   // Location is optional: "near me" queries need it, everything else does not,
-  // so a denied permission is not worth a toast.
+  // so a denied permission is not worth a toast. A live position replaces the
+  // one remembered from an earlier visit.
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => setLocation({ latitude: coords.latitude, longitude: coords.longitude }),
+      ({ coords }) => remember({ latitude: coords.latitude, longitude: coords.longitude }),
       () => undefined,
       { timeout: 8000 },
     );
   }, []);
+
+  // Without a location, the first finished reply also offers to share it, once
+  // per session and never again, so it improves answers without nagging (owner,
+  // 2026-10-10). A reply that needs the location has its own button instead.
+  const offerAt = messages.findIndex((m) => m.role === "assistant" && m.requestId);
 
   const stop = () => {
     abortRef.current?.abort();
@@ -305,11 +319,14 @@ export default function Chat() {
                     index === messages.length - 1 && (
                       <ShareLocation
                         onShared={(here) => {
-                          setLocation(here);
+                          remember(here);
                           void send(messages[index - 1]?.content, here);
                         }}
                       />
                     )}
+                  {!message.needsLocation && !location && index === offerAt && (
+                    <ShareLocation label={t.chat.offerLocation} onShared={remember} />
+                  )}
                   {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
               ),
@@ -391,7 +408,13 @@ export function ResultCards({
  * asks the browser, and the same question goes again with the location. The
  * silent ask on page load is easy to miss or dismiss (owner, 2026-10-09).
  */
-export function ShareLocation({ onShared }: { onShared: (here: UserLocation) => void }) {
+export function ShareLocation({
+  onShared,
+  label,
+}: {
+  onShared: (here: UserLocation) => void;
+  label?: string;
+}) {
   const { t } = useTranslation();
   const [denied, setDenied] = useState(false);
   if (!navigator.geolocation) return null;
@@ -408,7 +431,7 @@ export function ShareLocation({ onShared }: { onShared: (here: UserLocation) => 
       onClick={ask}
       className="self-start rounded-full border border-secondary/50 px-4 py-1.5 text-sm text-foreground hover:bg-muted"
     >
-      {t.chat.shareLocation}
+      {label ?? t.chat.shareLocation}
     </button>
   );
 }

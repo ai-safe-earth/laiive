@@ -2,7 +2,7 @@
 
 from laiive_shared import EventCard
 
-from agent.pipeline import many_results_note, verified_first
+from agent.pipeline import known_context, many_results_note, verified_first
 
 
 def card(uid: str, source: str) -> EventCard:
@@ -43,3 +43,9 @@ def test_a_long_list_is_counted_and_a_very_long_one_suggests_narrowing():
     assert "narrowing" not in many_results_note(14, capped=False)
     note = many_results_note(50, capped=True)
     assert note.startswith("50+ events matched") and "genre, distance or price" in note
+
+
+def test_the_composer_always_knows_place_day_and_hour():
+    shared = known_context({"latitude": 45.7, "longitude": 9.7}, "Europe/Rome")
+    assert "location is shared" in shared and ":" in shared
+    assert "not shared" in known_context(None, None)

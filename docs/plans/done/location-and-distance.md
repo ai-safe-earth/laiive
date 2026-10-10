@@ -1,7 +1,7 @@
 ---
 status: done
 step: retrieval
-next: none; follow-up below (the bot cannot say whether it has the location)
+next: none; the follow-up is done in done/place-day-hour.md
 ---
 # Location and distance (feedback thread 2)
 
@@ -76,6 +76,7 @@ Nominatim turns the name into a point. Code does the distance search.
 - The composer does not know whether a location was shared, so "do you have my
   location?" gets a generic answer. Telling it, and sending `needs_location` on that
   question too, would let it point at the button. Small; owner's call.
+- Done 2026-10-10 in `done/place-day-hour.md`.
 
 ## Decisions
 - Owner, 2026-10-09: plan approved. Step `retrieval`, not `evals`. Location also touches
