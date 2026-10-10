@@ -39,6 +39,10 @@ export interface Translations {
     showMore: (next: number, total: string) => string;
     /** Under a list too long to browse: the count, and how to narrow it. */
     manyResults: (total: string) => string;
+    /** Under a reply that needed the asker's position and had none. */
+    shareLocation: string;
+    /** The browser said no: blocked in settings, or the ask timed out. */
+    locationDenied: string;
   };
   auth: {
     signInTitle: string;
@@ -308,6 +312,8 @@ export const translations: Record<Language, Translations> = {
       showMore: (next, total) => `Show ${next} more (of ${total})`,
       manyResults: (total) =>
         `${total} events found. Narrow it down by genre, distance or price for a shorter list.`,
+      shareLocation: "Share my location",
+      locationDenied: "Your browser did not share the location. Type your city or town instead.",
     },
     auth: {
       signInTitle: "sign in",
@@ -577,6 +583,8 @@ export const translations: Record<Language, Translations> = {
       showMore: (next, total) => `Ver ${next} más (de ${total})`,
       manyResults: (total) =>
         `${total} eventos encontrados. Afina por género, distancia o precio para una lista más corta.`,
+      shareLocation: "Compartir mi ubicación",
+      locationDenied: "Tu navegador no compartió la ubicación. Escribe tu ciudad o pueblo.",
     },
     auth: {
       signInTitle: "inicia sesión",
@@ -848,6 +856,8 @@ export const translations: Record<Language, Translations> = {
       showMore: (next, total) => `Mostra altri ${next} (su ${total})`,
       manyResults: (total) =>
         `${total} eventi trovati. Restringi per genere, distanza o prezzo per una lista più corta.`,
+      shareLocation: "Condividi la mia posizione",
+      locationDenied: "Il browser non ha condiviso la posizione. Scrivi la tua città o il tuo paese.",
     },
     auth: {
       signInTitle: "accedi",
@@ -1119,6 +1129,8 @@ export const translations: Record<Language, Translations> = {
       showMore: (next, total) => `Mostra ${next} més (de ${total})`,
       manyResults: (total) =>
         `${total} esdeveniments trobats. Afina per gènere, distància o preu per a una llista més curta.`,
+      shareLocation: "Comparteix la meva ubicació",
+      locationDenied: "El navegador no ha compartit la ubicació. Escriu la teva ciutat o poble.",
     },
     auth: {
       signInTitle: "inicia sessió",

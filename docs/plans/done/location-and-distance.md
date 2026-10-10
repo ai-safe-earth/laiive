@@ -1,7 +1,7 @@
 ---
-status: active
+status: done
 step: retrieval
-next: step 3, a "Share my location" button when a turn needs it
+next: none; follow-up below (the bot cannot say whether it has the location)
 ---
 # Location and distance (feedback thread 2)
 
@@ -56,12 +56,26 @@ Nominatim turns the name into a point. Code does the distance search.
       genre, distance or price", and the reply suggests the same. Chosen over server
       paging: one request, no state to keep, and a turn is never re-run to page.
       Live: "concerts in Bergamo this month" 50+ with the hint; "jazz in Bergamo" 12.
-- [ ] 3. Ask for the location when it is needed. When a turn needs a location and has
+- [x] 3. Ask for the location when it is needed. When a turn needs a location and has
       none, the stream sends `status` with state `needs_location` (the field is already
       a string: no protocol change). The chat shows a "Share my location" button under
       the reply; a tap asks the browser and, if granted, re-sends the same question with
       the location. Denied: the reply already asks for a city. Translations in en/es/it/ca.
-- [ ] 4. Re-run the replay; the 31 turns should either answer or ask once, clearly.
+      2026-10-09: done. `pipeline` sends `needs_location` when a sub-query is near-me and
+      no location came; the chat shows `ShareLocation` under the last such reply, and a
+      grant re-sends the question with the position. A refusal says to type a town.
+- [x] 4. Re-run the replay; the 31 turns should either answer or ask once, clearly.
+      2026-10-09 (read-only, today's graph, the code of steps 1 to 3):
+      - 10 of 10 named places answer, with events in nearby towns (Ranica, Grassobbio,
+        Dalmine, Casnigo); before, all 10 asked "which city?".
+      - 19 of 21 near-me turns without a location ask once, with the button.
+      - 2 are not searches but questions about the location itself ("do you have my
+        location?"). The reply says it has none, but one of them is answered as off-topic.
+
+## Follow-up (not in this plan)
+- The composer does not know whether a location was shared, so "do you have my
+  location?" gets a generic answer. Telling it, and sending `needs_location` on that
+  question too, would let it point at the button. Small; owner's call.
 
 ## Decisions
 - Owner, 2026-10-09: plan approved. Step `retrieval`, not `evals`. Location also touches

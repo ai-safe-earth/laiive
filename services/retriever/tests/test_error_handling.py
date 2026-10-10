@@ -12,6 +12,7 @@ from agent.pipeline import Pipeline, TurnResult
 from agent.router import ExecutionPlan, PlanKind
 from agent.tools.query_builder import GeneratedQuery
 from agent.tools.safety_guard import SafetyGuardTool
+from laiive_shared import Status
 
 
 def make_response(content: str):
@@ -114,6 +115,34 @@ class TestPipelineErrors:
         frames = list(pipeline.run_turn("concerts in barcelona", result=TurnResult()))
         assert frames[-1].code == "graph_unavailable"
         pipeline.composer.compose_stream.assert_not_called()
+
+    def test_near_me_without_a_location_asks_the_chat_for_one(self):
+        pipeline = self._pipeline()
+        pipeline.classifier = Mock()
+        pipeline.classifier.classify.return_value = Classification(
+            query_type="event_search",
+            moment="ambiguous",
+            sub_queries=[Constraints(near_me=True)],
+            clarification="your city or your location",
+        )
+        pipeline.composer = Mock()
+        pipeline.composer.compose_stream.return_value = iter(["Which city?"])
+
+        states = [
+            f.state
+            for f in pipeline.run_turn("gigs near me", result=TurnResult())
+            if isinstance(f, Status)
+        ]
+        assert "needs_location" in states
+        with_location = pipeline.run_turn(
+            "gigs near me", location={"latitude": 45.7, "longitude": 9.7}
+        )
+        pipeline.executor = Mock()
+        pipeline.executor.execute.return_value = Outcome()
+        pipeline.composer.compose_stream.return_value = iter(["Here."])
+        assert not any(
+            isinstance(f, Status) and f.state == "needs_location" for f in with_location
+        )
 
     def test_driver_outage_marks_the_outcome_unavailable(self):
         neo4j = Mock()

@@ -69,7 +69,7 @@ export default function Chat() {
    * and then call this, because the state they wrote is not readable until
    * the next render.
    */
-  const send = async (preset?: string) => {
+  const send = async (preset?: string, here?: UserLocation) => {
     const text = (preset ?? input).trim();
     if (!text || isStreaming) return;
 
@@ -89,10 +89,11 @@ export default function Chat() {
     let answer = "";
     let cards: EventCard[] = [];
     let capped = false;
+    let needsLocation = false;
     let started = false;
 
     const upsert = () => {
-      const turn: ChatMessage = { role: "assistant", content: answer, events: cards, capped };
+      const turn: ChatMessage = { role: "assistant", content: answer, events: cards, capped, needsLocation };
       setMessages((prev) => {
         if (!started) return prev;
         const last = prev[prev.length - 1];
@@ -104,22 +105,25 @@ export default function Chat() {
 
     try {
       const requestId = await streamChat(history, {
-        location,
+        location: here ?? location,
         signal: controller.signal,
         handlers: {
-          onStatus: (state) => setStatus(statusLabel[state] ?? state),
+          onStatus: (state) => {
+            if (state === "needs_location") needsLocation = true;
+            else setStatus(statusLabel[state] ?? state);
+          },
           onEvents: (events, more) => {
             cards = events;
             capped = more;
             started = true;
-            setMessages((prev) => [...prev, { role: "assistant", content: "", events, capped }]);
+            setMessages((prev) => [...prev, { role: "assistant", content: "", events, capped, needsLocation }]);
             setStatus(null);
           },
           onDelta: (chunk) => {
             answer += chunk;
             if (!started) {
               started = true;
-              setMessages((prev) => [...prev, { role: "assistant", content: answer, events: [] }]);
+              setMessages((prev) => [...prev, { role: "assistant", content: answer, events: [], needsLocation }]);
               setStatus(null);
               return;
             }
@@ -295,6 +299,17 @@ export default function Chat() {
                       )}
                     />
                   )}
+                  {message.needsLocation &&
+                    message.requestId &&
+                    !location &&
+                    index === messages.length - 1 && (
+                      <ShareLocation
+                        onShared={(here) => {
+                          setLocation(here);
+                          void send(messages[index - 1]?.content, here);
+                        }}
+                      />
+                    )}
                   {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>
               ),
@@ -368,6 +383,33 @@ export function ResultCards({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Offered under a reply that needed the asker's position and had none: one tap
+ * asks the browser, and the same question goes again with the location. The
+ * silent ask on page load is easy to miss or dismiss (owner, 2026-10-09).
+ */
+export function ShareLocation({ onShared }: { onShared: (here: UserLocation) => void }) {
+  const { t } = useTranslation();
+  const [denied, setDenied] = useState(false);
+  if (!navigator.geolocation) return null;
+  if (denied) return <p className="text-sm text-ink-dim">{t.chat.locationDenied}</p>;
+  const ask = () =>
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => onShared({ latitude: coords.latitude, longitude: coords.longitude }),
+      () => setDenied(true),
+      { timeout: 8000 },
+    );
+  return (
+    <button
+      type="button"
+      onClick={ask}
+      className="self-start rounded-full border border-secondary/50 px-4 py-1.5 text-sm text-foreground hover:bg-muted"
+    >
+      {t.chat.shareLocation}
+    </button>
   );
 }
 
