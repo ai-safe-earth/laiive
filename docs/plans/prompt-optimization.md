@@ -1,7 +1,7 @@
 ---
 status: todo
-step: unknown
-next: owner picks the roadmap step
+step: self-improvement
+next: needs the owner's OK to add the dspy dependency
 ---
 # Prompt optimisation with DSPy
 

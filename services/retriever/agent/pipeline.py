@@ -252,7 +252,7 @@ class Pipeline:
                             mode="json",
                             exclude_none=True,
                             exclude_defaults=True,
-                            exclude={"query_text", "needs_custom_cypher"},
+                            exclude={"query_text", "needs_custom_cypher", "when"},
                         )
                         for q in result.classification.sub_queries
                     ]

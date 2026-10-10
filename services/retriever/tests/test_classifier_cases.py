@@ -15,8 +15,9 @@ nothing here touches the graph.
 """
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -72,7 +73,7 @@ def test_the_corpus_matches_the_live_prompt_version():
 
 def test_every_case_asserts_something():
     """A case with an empty `expect` passes by doing nothing."""
-    assert len(CASES) == 30
+    assert len(CASES) == 36
     ids = [case["id"] for case in CASES]
     assert len(set(ids)) == len(ids), "duplicate case id"
     for case in CASES:
@@ -123,6 +124,9 @@ def test_classifier_case(case):
         has_location=case.get("has_location", False),
         timezone=TIMEZONE,
         previous=previous_searches(case.get("previous")),
+        now=datetime.fromisoformat(case["now"]).replace(tzinfo=ZoneInfo(TIMEZONE))
+        if "now" in case
+        else None,
     )
 
     # Collected rather than asserted one at a time: a case that gets the city

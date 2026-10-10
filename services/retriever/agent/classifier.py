@@ -8,7 +8,7 @@ refinement `merge_previous` keeps whatever this turn left out, so refinements
 """
 
 import json
-from datetime import datetime, timezone as utc_timezone
+from datetime import datetime, timedelta, timezone as utc_timezone
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -20,7 +20,7 @@ from config import settings
 
 from .utils.llm_utils import get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v6"
+CLASSIFIER_PROMPT_VERSION = "v7"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
@@ -47,8 +47,8 @@ Constraints object (every field optional, omit or null when not constrained):
   "artist": string,
   "venue": string,
   "venue_type": "club" | "bar" | "concert_hall" | "arena" | "festival_site" | "open_air" | "other",
-  "date_from": "YYYY-MM-DDTHH:MM:SS",   // resolved from relative words using today's date
-  "date_to": "YYYY-MM-DDTHH:MM:SS",
+  "time_words": string,        // FIRST copy the user's time words verbatim, e.g. "next friday night"
+  "when": string,              // THEN name them (see the rule below); never compute a date
   "near_me": boolean,          // the user means their own position
   "radius_km": number,         // "near/around/vicino a/cerca de X": the distance given, else 30
   "free_text": string,         // fuzzy/vibe ask for semantic search, e.g. "intimate candle-lit jazz"
@@ -67,9 +67,16 @@ Rules:
   kept from the previous search; to drop something, name it in `cleared`.
 - Split multi-intent asks into several sub_queries entries
   (e.g. "jazz tonight and anything by Klangfeld this month" → two).
-- "now" / "right now" → date_from the current time, date_to tomorrow 06:00.
-- "tonight" → date_from today 18:00, date_to tomorrow 06:00. "this weekend" →
-  Friday 00:00 to Sunday 24:00. A bare month → the whole month. Never invent dates.
+- `when` names the time; code turns it into dates, so never do calendar maths.
+  Use exactly one of: "now", "tonight", "today", "tomorrow", "this_weekend",
+  "next_weekend", "this_week", "next_week", "this_month", "next_month", a
+  weekday ("friday"), a date "YYYY-MM-DD", a month "YYYY-MM", or a range of any
+  two of these joined by ".." ("tomorrow..sunday", "2026-12-20..2026-12-31").
+  "este finde" / "questo weekend" → "this_weekend"; "giovedì" → "thursday";
+  "between friday and monday" → "friday..monday". Translate each time word
+  in `time_words` to its name, word for word; write "YYYY-MM-DD" only when the
+  user typed a calendar date ("on the 24th", "24 ottobre"). Code does all the
+  calendar maths. No time word → no `when`. Never invent one.
 - near_me is true only when the user means their OWN position ("near me",
   "nearby", "around here"). "near X", "around X", "towns near X", "X and its
   province" name a place: city X, near_me false, radius_km the distance they
@@ -111,6 +118,8 @@ class Constraints(BaseModel):
     artist: Optional[str] = None
     venue: Optional[str] = None
     venue_type: Optional[str] = None
+    # Named by the model, turned into date_from/date_to by resolve_when().
+    when: Optional[str] = None
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     near_me: bool = False
@@ -205,6 +214,112 @@ def previous_searches(raw: list[dict] | None) -> list[Constraints]:
         except ValidationError:
             continue
     return out
+
+
+WEEKDAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
+# A night out ends at 06:00 the next morning, so a 01:00 DJ set is "tonight".
+NIGHT_END = 6
+
+
+def _span(start: datetime, last_day: datetime) -> tuple[datetime, datetime]:
+    """From `start` to 06:00 after `last_day`. The executor's end is exclusive."""
+    end = last_day.replace(hour=NIGHT_END, minute=0, second=0, microsecond=0)
+    return start, end + timedelta(days=1)
+
+
+def _month_start(d: datetime, months_ahead: int = 0) -> datetime:
+    month = d.month - 1 + months_ahead
+    return d.replace(
+        year=d.year + month // 12,
+        month=month % 12 + 1,
+        day=1,
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+
+
+def _resolve(when: str, now: datetime) -> tuple[datetime, datetime] | None:
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Before 06:00 the night before is still going: "tonight" at 01:00 is now.
+    night = today - timedelta(days=1) if now.hour < NIGHT_END else today
+    days_to_friday = (4 - today.weekday()) % 7
+    # Friday to Sunday; asked during the weekend, it starts today.
+    friday = today if today.weekday() >= 4 else today + timedelta(days=days_to_friday)
+    monday = today + timedelta(days=7 - today.weekday())
+    if when == "now":
+        return _span(now.replace(second=0, microsecond=0), night)
+    if when == "tonight":
+        return _span(
+            max(now, night.replace(hour=18)).replace(second=0, microsecond=0), night
+        )
+    if when == "today":
+        return _span(today, today)
+    if when == "tomorrow":
+        return _span(today + timedelta(days=1), today + timedelta(days=1))
+    if when == "this_weekend":
+        return _span(friday, monday - timedelta(days=1))
+    if when == "next_weekend":
+        next_friday = monday + timedelta(days=4)
+        return _span(next_friday, next_friday + timedelta(days=2))
+    if when == "this_week":
+        return _span(today, monday - timedelta(days=1))
+    if when == "next_week":
+        return _span(monday, monday + timedelta(days=6))
+    if when == "this_month":
+        return _span(today, _month_start(today, 1) - timedelta(days=1))
+    if when == "next_month":
+        return _span(_month_start(today, 1), _month_start(today, 2) - timedelta(days=1))
+    if when in WEEKDAYS:
+        day = today + timedelta(days=(WEEKDAYS.index(when) - today.weekday()) % 7)
+        return _span(day, day)
+    try:
+        day = datetime.strptime(when, "%Y-%m-%d").replace(tzinfo=now.tzinfo)
+        return _span(day, day)
+    except ValueError:
+        pass
+    try:
+        first = datetime.strptime(when, "%Y-%m").replace(tzinfo=now.tzinfo)
+    except ValueError:
+        return None
+    return _span(max(first, today), _month_start(first, 1) - timedelta(days=1))
+
+
+def resolve_when(when: str, now: datetime) -> tuple[str, str] | None:
+    """A named time ("this_weekend", "friday..sunday") as dates on the user's clock.
+
+    The model names the interval and this does the calendar maths (owner,
+    2026-10-10): "this weekend" asked on a Saturday once came back as
+    Wednesday to Friday. None for a name this does not know.
+    """
+    when = when.strip().lower().replace(" ", "_")
+    first, _, last = when.partition("..")
+    a = _resolve(first, now)
+    b = _resolve(last, now) if last else a
+    if a is None or b is None:
+        return None
+    return a[0].strftime("%Y-%m-%dT%H:%M:%S"), b[1].strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def resolve_dates(c: "Classification", now: datetime) -> "Classification":
+    """Fill each sub-query's dates from its `when`; an unknown name keeps the model's."""
+    for q in c.sub_queries:
+        if q.when:
+            dates = resolve_when(q.when, now)
+            if dates:
+                q.date_from, q.date_to = dates
+            else:
+                logger.warning(f"Unknown when {q.when!r}; keeping the model's dates")
+    return c
 
 
 def merge_previous(c: Classification, previous: list[Constraints]) -> Classification:
@@ -307,9 +422,11 @@ class Classifier:
         has_location: bool = False,
         timezone: str | None = None,
         previous: list[Constraints] | None = None,
+        now: datetime | None = None,
     ) -> Classification:
-        """`previous` is the last turn's searches, carried by the chat."""
-        now = now_in(timezone)
+        """`previous` is the last turn's searches, carried by the chat; `now`
+        pins the clock for the eval cases."""
+        now = now or now_in(timezone)
         system = CLASSIFIER_SYSTEM_PROMPT.format(
             today=now.date().isoformat(),
             weekday=now.strftime("%A"),
@@ -343,7 +460,8 @@ class Classifier:
             try:
                 return enforce(
                     merge_previous(
-                        Classification.model_validate_json(raw), previous or []
+                        resolve_dates(Classification.model_validate_json(raw), now),
+                        previous or [],
                     ),
                     has_history=bool(history),
                     has_location=has_location,
