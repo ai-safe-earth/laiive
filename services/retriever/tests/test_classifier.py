@@ -3,6 +3,7 @@ resolution of "today", which is not the model's job and must not drift."""
 
 from datetime import datetime, timedelta, timezone as utc_timezone
 from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 from agent.classifier import (
     Classification,
@@ -12,6 +13,7 @@ from agent.classifier import (
     merge_previous,
     now_in,
     previous_searches,
+    resolve_when,
 )
 
 
@@ -72,6 +74,128 @@ class TestTodayInjection:
     def test_no_timezone_uses_utc(self):
         prompt = self._classify_with(None)
         assert f"Today is {datetime.now(utc_timezone.utc).date().isoformat()}" in prompt
+
+
+class TestResolveWhen:
+    """Each name asked on each day of one week, Monday 5 to Sunday 11 October
+    2026. Ends are exclusive and a night runs to 06:00."""
+
+    def _at(self, day, hour=15):
+        return datetime(2026, 10, day, hour, 0, tzinfo=ZoneInfo("Europe/Madrid"))
+
+    def test_this_weekend_on_every_day_of_the_week(self):
+        expected = {
+            5: "2026-10-09",  # Monday → the coming Friday
+            8: "2026-10-09",
+            9: "2026-10-09",  # Friday → today
+            10: "2026-10-10",  # Saturday → today (the feedback bug)
+            11: "2026-10-11",  # Sunday → today only
+        }
+        for day, start in expected.items():
+            assert resolve_when("this_weekend", self._at(day)) == (
+                f"{start}T00:00:00",
+                "2026-10-12T06:00:00",
+            ), day
+
+    def test_next_weekend_is_always_the_one_after_this(self):
+        for day in (5, 10, 11):
+            assert resolve_when("next_weekend", self._at(day)) == (
+                "2026-10-16T00:00:00",
+                "2026-10-19T06:00:00",
+            ), day
+
+    def test_the_night_runs_to_six_and_one_am_is_still_tonight(self):
+        assert resolve_when("tonight", self._at(10)) == (
+            "2026-10-10T18:00:00",
+            "2026-10-11T06:00:00",
+        )
+        assert resolve_when("tonight", self._at(10, 20)) == (
+            "2026-10-10T20:00:00",
+            "2026-10-11T06:00:00",
+        )
+        assert resolve_when("tonight", self._at(11, 1)) == (
+            "2026-10-11T01:00:00",
+            "2026-10-11T06:00:00",
+        )
+        assert resolve_when("now", self._at(10, 22)) == (
+            "2026-10-10T22:00:00",
+            "2026-10-11T06:00:00",
+        )
+
+    def test_days_weeks_and_months(self):
+        now = self._at(10)
+        assert resolve_when("today", now) == (
+            "2026-10-10T00:00:00",
+            "2026-10-11T06:00:00",
+        )
+        assert resolve_when("tomorrow", now) == (
+            "2026-10-11T00:00:00",
+            "2026-10-12T06:00:00",
+        )
+        assert resolve_when("this_week", now) == (
+            "2026-10-10T00:00:00",
+            "2026-10-12T06:00:00",
+        )
+        assert resolve_when("next_week", now) == (
+            "2026-10-12T00:00:00",
+            "2026-10-19T06:00:00",
+        )
+        assert resolve_when("this_month", now) == (
+            "2026-10-10T00:00:00",
+            "2026-11-01T06:00:00",
+        )
+        assert resolve_when("next_month", now) == (
+            "2026-11-01T00:00:00",
+            "2026-12-01T06:00:00",
+        )
+        assert resolve_when("next_month", self._at(10).replace(month=12)) == (
+            "2027-01-01T00:00:00",
+            "2027-02-01T06:00:00",
+        )
+
+    def test_a_weekday_is_the_next_one_today_included(self):
+        now = self._at(10)  # Saturday
+        assert resolve_when("saturday", now)[0] == "2026-10-10T00:00:00"
+        assert resolve_when("Friday", now)[0] == "2026-10-16T00:00:00"
+        assert resolve_when("thursday", now)[0] == "2026-10-15T00:00:00"
+
+    def test_dates_months_and_ranges(self):
+        now = self._at(10)
+        assert resolve_when("2026-10-24", now) == (
+            "2026-10-24T00:00:00",
+            "2026-10-25T06:00:00",
+        )
+        assert resolve_when("2026-12", now) == (
+            "2026-12-01T00:00:00",
+            "2027-01-01T06:00:00",
+        )
+        # The current month starts today, not on the 1st.
+        assert resolve_when("2026-10", now)[0] == "2026-10-10T00:00:00"
+        assert resolve_when("tomorrow..thursday", now) == (
+            "2026-10-11T00:00:00",
+            "2026-10-16T06:00:00",
+        )
+
+    def test_an_unknown_name_resolves_to_nothing(self):
+        for junk in ("someday", "", "2026-13-01", "soon..friday"):
+            assert resolve_when(junk, self._at(10)) is None, junk
+
+    def test_the_classifier_writes_the_dates_from_when(self):
+        client = Mock()
+        client.chat.completions.create.return_value = Mock(
+            choices=[
+                Mock(
+                    message=Mock(
+                        content='{"query_type": "event_search", "moment": "first_query",'
+                        ' "sub_queries": [{"city": "Bergamo", "when": "this_weekend",'
+                        ' "date_from": "2026-10-07T00:00:00"}]}'
+                    )
+                )
+            ]
+        )
+        c = Classifier(client).classify("this weekend in Bergamo", now=self._at(10))
+        assert c.sub_queries[0].date_from == "2026-10-10T00:00:00"
+        assert c.sub_queries[0].date_to == "2026-10-12T06:00:00"
 
 
 class TestEnforce:

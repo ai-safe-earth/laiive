@@ -1,6 +1,6 @@
 {
-  "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
-  "prompt_version": "v6",
+  "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date. A case with 'now' runs on that fixed Madrid clock, so its dates are exact.",
+  "prompt_version": "v7",
   "test_cases": [
     {
       "id": "tonight-in-madrid",
@@ -326,6 +326,61 @@
         {"role": "assistant", "content": "C'è un concerto su Rameau a Torino."}
       ],
       "expect": {"query_type": "smalltalk", "sub_query_count": 0}
+    },
+    {
+      "id": "this-weekend-asked-on-a-saturday",
+      "message": "anything on this weekend in Bergamo?",
+      "source": "user feedback 2026-10-09, wrong weekend on a Saturday",
+      "now": "2026-10-10T15:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"city": "Bergamo", "date_from": "2026-10-10T00:00:00", "date_to": "2026-10-12T06:00:00"}
+      }
+    },
+    {
+      "id": "this-weekend-asked-on-a-wednesday",
+      "message": "concerti questo weekend a Milano",
+      "now": "2026-10-07T11:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"city": "Milano", "date_from": "2026-10-09T00:00:00", "date_to": "2026-10-12T06:00:00"}
+      }
+    },
+    {
+      "id": "this-weekend-asked-on-a-sunday",
+      "message": "qué hay este finde en Sevilla?",
+      "now": "2026-10-11T12:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"city": "Sevilla", "date_from": "2026-10-11T00:00:00", "date_to": "2026-10-12T06:00:00"}
+      }
+    },
+    {
+      "id": "a-weekday-is-the-next-one",
+      "message": "jazz on thursday in Madrid",
+      "now": "2026-10-10T15:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"genre": "jazz", "date_from": "2026-10-15T00:00:00", "date_to": "2026-10-16T06:00:00"}
+      }
+    },
+    {
+      "id": "from-tomorrow-until-sunday",
+      "message": "gigs in Torino from tomorrow until sunday",
+      "now": "2026-10-07T11:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"city": "Torino", "date_from": "2026-10-08T00:00:00", "date_to": "2026-10-12T06:00:00"}
+      }
+    },
+    {
+      "id": "next-month-crosses-the-year",
+      "message": "techno in Berlin next month",
+      "now": "2026-12-10T15:00:00",
+      "expect": {
+        "query_type": "event_search",
+        "constraints": {"genre": "techno", "date_from": "2027-01-01T00:00:00", "date_to": "2027-02-01T06:00:00"}
+      }
     }
   ]
 }

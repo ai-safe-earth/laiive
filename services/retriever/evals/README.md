@@ -18,16 +18,17 @@ harness to invoke: the twelve cases are loaded by pytest, from
   `agent/tools/query_builder.py`, with `expected_patterns` (regex, case-insensitive) and
   `should_not_contain` (literal substrings).
 
-- `datasets/classifier/test_cases.json` — twenty messages for `agent/classifier.py`, the
+- `datasets/classifier/test_cases.json` — 36 messages for `agent/classifier.py`, the
   roadmap's `classifier` suite. Each carries an `expect` block asserting `query_type`,
   `moment`, `language`, how many sub-queries the ask splits into, and constraint fields
   against *any* sub-query. Four values do the work: a string is an equality
   (case-insensitive), `null` is "this field stays empty", `"any"` is "this field is
   filled", and `today`/`tomorrow` are dates on the Europe/Madrid clock every case runs on.
+  A case with `now` runs on that fixed clock instead, so its dates are exact strings.
 
   **The labels are what a reader of the message would expect, not a transcript of what the
-  model answers.** Six cases are therefore red, each carrying a `known_gap` sentence and
-  xfailed — see below. Two labels were corrected after the first live run instead, and say
+  model answers.** A case the model fails carries a `known_gap` sentence and is xfailed —
+  see below; none is open since prompt v6. Two labels were corrected after the first live run instead, and say
   so in a `label_note`: `refinement` rather than `new_topic` for "actually, what about
   Lisbon next month?" (the prompt's own rule: replace the city, keep the rest), and
   `out_of_scope` rather than `smalltalk` for "what can you do?" (the prompt scopes
@@ -119,7 +120,7 @@ string, so a paused Aura cannot break them.
 |---|---|---|
 | safety | 6 cases: the four Cypher-guard verdicts and the two injection verdicts | `sf_007` — the moderation verdict, the only case of the seven that needs a live judgement |
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
-| classifier | the corpus itself: 30 cases, unique ids, every case asserts something, the prompt version matches, no open gaps | all 30 cases, one live classification each; prompt v4 adds four from user feedback (a named place is never "near me"); v5 adds two: a search with no place needs the user's location; then four from the 2026-10-10 feedback replay; v6 closes the two where a follow-up lost the place, by carrying the previous search |
+| classifier | the corpus itself: 36 cases, unique ids, every case asserts something, the prompt version matches, no open gaps | all 36 cases, one live classification each; prompt v4 adds four from user feedback (a named place is never "near me"); v5 adds two: a search with no place needs the user's location; then four from the 2026-10-10 feedback replay; v6 closes the two where a follow-up lost the place, by carrying the previous search; v7 adds six on a fixed clock: the model names the time ("this_weekend") and code computes the dates |
 | answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 12 cases, one live composition each (plus one language call) — 10 green since prompt v3 |
 | retrieval | — | **`graph` tier, not `integration`:** 14 recall cases against the frozen graph, no OpenAI key, so CI holds them on every push |
 
