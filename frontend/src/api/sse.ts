@@ -4,6 +4,7 @@ import type {
   EventsResult,
   FormExtracted,
   MessageDelta,
+  SearchContext,
   SSEEventName,
   Status,
   WalkState,
@@ -24,6 +25,7 @@ export type ProtocolFrame =
   | { event: "events.result"; data: EventsResult }
   | { event: "form.extracted"; data: FormExtracted }
   | { event: "walk.state"; data: WalkState }
+  | { event: "search.context"; data: SearchContext }
   | { event: "status"; data: Status }
   | { event: "error"; data: ProtocolError }
   | { event: "done"; data: Done };
@@ -33,6 +35,7 @@ const KNOWN: ReadonlySet<string> = new Set<SSEEventName>([
   "events.result",
   "form.extracted",
   "walk.state",
+  "search.context",
   "status",
   "error",
   "done",

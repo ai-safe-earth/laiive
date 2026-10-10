@@ -45,8 +45,10 @@ class FakePipeline:
         result=None,
         timezone=None,
         request_id="",
+        previous=None,
     ):
         self.seen_timezone = timezone
+        self.seen_previous = previous
         self.seen_request_id = request_id
         result.classification = Classification(
             query_type="event_search", moment=self.moment
@@ -187,6 +189,18 @@ class TestChatStreamV2:
         ).text
         assert "event: error" in body
         assert "event: done" in body  # stream still terminates cleanly
+
+    def test_the_previous_search_reaches_the_pipeline(self, client):
+        pipeline = FakePipeline()
+        api_module._pipeline = pipeline
+        client.post(
+            "/chat/stream",
+            json={
+                "messages": [{"role": "user", "content": "and next month?"}],
+                "previous": [{"city": "Bergamo"}],
+            },
+        )
+        assert pipeline.seen_previous == [{"city": "Bergamo"}]
 
 
 class TestTranscribe:

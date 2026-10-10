@@ -8,7 +8,14 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from laiive_shared import Error, EventCard, EventsResult, MessageDelta, Status
+from laiive_shared import (
+    Error,
+    EventCard,
+    EventsResult,
+    MessageDelta,
+    SearchContext,
+    Status,
+)
 from laiive_shared.geocode import NominatimGeocoder
 from laiive_shared.geocode_store import RedisGeocodeStore
 from laiive_shared.tracing import get_tracer, stage, start_child
@@ -22,6 +29,7 @@ from .classifier import (
     Classification,
     Classifier,
     now_in,
+    previous_searches,
 )
 from .composer import COMPOSER_PROMPT_VERSION, Composer
 from .executor import Executor
@@ -138,12 +146,14 @@ class Pipeline:
         result: TurnResult | None = None,
         timezone: str | None = None,
         request_id: str = "",
-    ) -> Iterator[MessageDelta | EventsResult | Status | Error]:
+        previous: list[dict] | None = None,
+    ) -> Iterator[MessageDelta | EventsResult | SearchContext | Status | Error]:
         """Stream one turn. Pass a TurnResult to collect side data as it runs.
 
         `timezone` is the asker's IANA zone; it decides what "today" means.
         `request_id` is the gateway's, and is what joins this turn's trace to
         its `eval_records` row and to the gateway's own log line.
+        `previous` is the last answer's search.context, sent back by the chat.
         """
         result = result if result is not None else TurnResult()
 
@@ -168,7 +178,7 @@ class Pipeline:
         )
         try:
             yield from self._traced_turn(
-                turn, user_message, history, location, result, timezone
+                turn, user_message, history, location, result, timezone, previous
             )
         except Exception as e:
             turn.record_exception(e)
@@ -195,7 +205,8 @@ class Pipeline:
         location: dict | None,
         result: TurnResult,
         timezone: str | None,
-    ) -> Iterator[MessageDelta | EventsResult | Status | Error]:
+        previous: list[dict] | None = None,
+    ) -> Iterator[MessageDelta | EventsResult | SearchContext | Status | Error]:
         """The turn itself. Every stage names `turn` as its parent explicitly —
         see the span-shape note in `laiive_shared.tracing`."""
         if settings.enable_moderation:
@@ -216,6 +227,7 @@ class Pipeline:
                     history,
                     has_location=bool(location),
                     timezone=timezone,
+                    previous=previous_searches(previous),
                 )
                 span.set_attributes(
                     {
@@ -230,6 +242,20 @@ class Pipeline:
                             ensure_ascii=False,
                         ),
                     }
+                )
+            if result.classification.sub_queries:
+                # Sent back with the next message, so a follow-up keeps what it
+                # does not change (classifier.merge_previous).
+                yield SearchContext(
+                    searches=[
+                        q.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                            exclude_defaults=True,
+                            exclude={"query_text", "needs_custom_cypher"},
+                        )
+                        for q in result.classification.sub_queries
+                    ]
                 )
             if not location and any(
                 q.near_me for q in result.classification.sub_queries

@@ -20,7 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from agent.classifier import CLASSIFIER_PROMPT_VERSION, Classifier, now_in
+from agent.classifier import (
+    CLASSIFIER_PROMPT_VERSION,
+    Classifier,
+    now_in,
+    previous_searches,
+)
 from agent.utils.llm_utils import get_openai_client
 
 # Every case is read on this clock, so "tonight" and "tomorrow" are a fixed
@@ -75,15 +80,12 @@ def test_every_case_asserts_something():
 
 
 def test_the_known_gaps_are_counted_and_explained():
-    """Prompt v3 closed all six earlier gaps. Two opened 2026-10-10 from user
-    feedback: a follow-up loses the conversation's place. Pinned so that
-    xfailing a case is a decision somebody makes here rather than a quiet way to
-    go green."""
+    """None open: prompt v3 closed the first six, and v6 (the previous search,
+    carried by the chat) closed the two from the 2026-10-10 feedback. Pinned so
+    that xfailing a case is a decision somebody makes here rather than a quiet
+    way to go green."""
     gaps = [case["id"] for case in CASES if case.get("known_gap")]
-    assert gaps == [
-        "the-city-carries-through-other-concerts",
-        "a-named-show-keeps-the-place",
-    ], gaps
+    assert gaps == [], gaps
     for case in CASES:
         if "known_gap" in case:
             assert len(case["known_gap"]) > 40, case["id"]
@@ -120,6 +122,7 @@ def test_classifier_case(case):
         case.get("history"),
         has_location=case.get("has_location", False),
         timezone=TIMEZONE,
+        previous=previous_searches(case.get("previous")),
     )
 
     # Collected rather than asserted one at a time: a case that gets the city

@@ -18,11 +18,18 @@ never enters a walk: it is one `form.extracted` with index 0 of 1.
 
     event: walk.state      data: {"drafts": [EventDraft…], "missing": [[]…], "cursor": 0, "total": 5}
 
+A search turn sends its search details the same way: `search.context` carries
+what was searched (city, venue, genre, dates…), the chat keeps it on that answer
+and sends it back as `previous` with the next message, so a follow-up keeps
+what it did not change.
+
+    event: search.context  data: {"searches": [{"city": "Bergamo", "genre": "jazz"}]}
+
 Emit frames with `sse_frame(payload)`; the event name comes from the payload
 type, so a frame can never carry the wrong name.
 """
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -68,6 +75,13 @@ class WalkState(BaseModel):
     total: int
 
 
+class SearchContext(BaseModel):
+    event: ClassVar[str] = "search.context"
+    # The classifier's constraints, one per sub-query. Loosely typed here: the
+    # retriever owns their shape and re-validates them when they come back.
+    searches: list[dict[str, Any]]
+
+
 class Status(BaseModel):
     event: ClassVar[str] = "status"
     state: str  # e.g. classifying | searching | composing | extracting | writing
@@ -84,7 +98,16 @@ class Done(BaseModel):
     request_id: str
 
 
-Frame = MessageDelta | EventsResult | FormExtracted | WalkState | Status | Error | Done
+Frame = (
+    MessageDelta
+    | EventsResult
+    | FormExtracted
+    | WalkState
+    | SearchContext
+    | Status
+    | Error
+    | Done
+)
 
 
 def sse_frame(payload: Frame) -> str:

@@ -11,6 +11,9 @@ export interface ChatMessage {
   capped?: boolean;
   /** The question needs the asker's position and none was shared. */
   needsLocation?: boolean;
+  /** What this answer searched for, sent back with the next question so a
+   * follow-up keeps what it does not change (assistant turns only). */
+  context?: Record<string, unknown>[];
   /** The gateway's x-request-id for the turn that produced this answer —
    * the join key for feedback (assistant turns only, set once done). */
   requestId?: string;
@@ -25,6 +28,7 @@ export interface UserLocation {
 export interface StreamHandlers {
   onStatus?: (state: string) => void;
   onEvents?: (events: EventCard[], capped: boolean) => void;
+  onContext?: (searches: Record<string, unknown>[]) => void;
   onDelta?: (text: string) => void;
   onError?: (message: string, code: string) => void;
 }
@@ -64,6 +68,9 @@ export async function streamChat(
       // server's. Sent every turn because it is free and a laptop crossing a
       // border between turns is exactly the case that would otherwise be wrong.
       timezone: browserTimezone(),
+      // The latest search, so "and next month?" keeps the town. A thank-you in
+      // between has no search of its own and does not reset it.
+      previous: [...messages].reverse().find((m) => m.role === "assistant" && m.context)?.context ?? null,
     }),
   });
 
@@ -98,6 +105,9 @@ function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {
       break;
     case "events.result":
       handlers.onEvents?.(frame.data.events, frame.data.capped ?? false);
+      break;
+    case "search.context":
+      handlers.onContext?.(frame.data.searches);
       break;
     case "message.delta":
       handlers.onDelta?.(frame.data.text);

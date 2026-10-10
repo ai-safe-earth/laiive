@@ -1,6 +1,6 @@
 {
   "notes": "Golden set for agent/classifier.py. Labels are what a reader of the message would expect, not a transcript of what the model currently answers - a case the model fails is a finding, not a broken test. Every case runs with timezone Europe/Madrid, so 'today' and 'tomorrow' are that clock's. Values: a string asserts equality (case-insensitive), null asserts the field is empty, 'any' asserts it is filled, 'today'/'tomorrow' assert that date.",
-  "prompt_version": "v5",
+  "prompt_version": "v6",
   "test_cases": [
     {
       "id": "tonight-in-madrid",
@@ -267,6 +267,7 @@
       "source": "user feedback 2026-10-09, wrong-event-data",
       "request_id": "aeea0236-1ef3-4d80-8bfe-bfced05e258a",
       "label_note": "Paraphrased. The venue was dropped from the follow-up, so the turn listed every event in the city.",
+      "previous": [{"city": "Bergamo", "venue": "ChorusLife Arena", "date_from": "2026-09-01T00:00:00", "date_to": "2026-09-30T23:59:59"}],
       "history": [
         {"role": "user", "content": "eventi alla ChorusLife Arena a settembre?"},
         {"role": "assistant", "content": "A settembre la ChorusLife Arena ospita tre concerti."}
@@ -283,8 +284,8 @@
       "message": "Other concerts?",
       "source": "user feedback 2026-10-09, conversation-issues",
       "request_id": "04d6d10d-012c-4a2d-9933-dd3076641709",
-      "label_note": "Paraphrased. The place was lost after two turns about nearby towns.",
-      "known_gap": "Open since the 2026-10-10 replay: after a 'nothing found' answer the follow-up drops the place. A prompt line passed 1 run in 3; the fix needs the previous turn's constraints, not wording.",
+      "label_note": "Paraphrased. The place was lost after two turns about nearby towns. Open gap on prompt v5; v6 gets the previous search from the chat and keeps what the follow-up leaves out.",
+      "previous": [{"city": "Bergamo", "radius_km": 30}],
       "history": [
         {"role": "user", "content": "concerts near Bergamo?"},
         {"role": "assistant", "content": "Nothing around Bergamo right now."},
@@ -302,8 +303,8 @@
       "message": "dov'è il concerto Candlelight?",
       "source": "user feedback 2026-10-09, wrong-event-data",
       "request_id": "ea52b812-3882-4e52-bc38-b844b5266cea",
-      "label_note": "Paraphrased. The conversation was about Bergamo; the turn lost the place and asked for a city.",
-      "known_gap": "Open since the 2026-10-10 replay: a named show with no place drops the conversation's city, and the turn asks where. Same root cause as the-city-carries-through-other-concerts.",
+      "label_note": "Paraphrased. The conversation was about Bergamo; the turn lost the place and asked for a city. Open gap on prompt v5, closed by the previous search in v6.",
+      "previous": [{"city": "Bergamo", "venue": "ChorusLife Arena", "date_from": "2026-10-01T00:00:00", "date_to": "2026-10-31T23:59:59"}],
       "history": [
         {"role": "user", "content": "eventi alla ChorusLife Arena di Bergamo a ottobre?"},
         {"role": "assistant", "content": "A ottobre la ChorusLife Arena di Bergamo ha diversi eventi."}

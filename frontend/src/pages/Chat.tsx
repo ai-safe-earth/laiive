@@ -104,10 +104,18 @@ export default function Chat() {
     let cards: EventCard[] = [];
     let capped = false;
     let needsLocation = false;
+    let context: Record<string, unknown>[] | undefined;
     let started = false;
 
     const upsert = () => {
-      const turn: ChatMessage = { role: "assistant", content: answer, events: cards, capped, needsLocation };
+      const turn: ChatMessage = {
+        role: "assistant",
+        content: answer,
+        events: cards,
+        capped,
+        needsLocation,
+        context,
+      };
       setMessages((prev) => {
         if (!started) return prev;
         const last = prev[prev.length - 1];
@@ -126,18 +134,27 @@ export default function Chat() {
             if (state === "needs_location") needsLocation = true;
             else setStatus(statusLabel[state] ?? state);
           },
+          onContext: (searches) => {
+            context = searches;
+          },
           onEvents: (events, more) => {
             cards = events;
             capped = more;
             started = true;
-            setMessages((prev) => [...prev, { role: "assistant", content: "", events, capped, needsLocation }]);
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: "", events, capped, needsLocation, context },
+            ]);
             setStatus(null);
           },
           onDelta: (chunk) => {
             answer += chunk;
             if (!started) {
               started = true;
-              setMessages((prev) => [...prev, { role: "assistant", content: answer, events: [], needsLocation }]);
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: answer, events: [], needsLocation, context },
+              ]);
               setStatus(null);
               return;
             }

@@ -148,6 +148,9 @@ class ChatRequestSSE(BaseModel):
     # because a client that sends none is not broken -- it falls back to UTC,
     # which is what every client did before this existed.
     timezone: Optional[str] = None
+    # The last answer's search.context, sent back by the chat. Client input:
+    # the classifier keeps only known fields, with capped strings.
+    previous: Optional[List[dict]] = None
 
 
 def _history_dicts(messages: Optional[List[Message]]) -> list[dict] | None:
@@ -379,7 +382,14 @@ async def chat_stream(request: ChatRequestSSE, raw: Request):
     location = _location_dict(request.location)
 
     return StreamingResponse(
-        _generate(request_id, user_message, history, location, request.timezone),
+        _generate(
+            request_id,
+            user_message,
+            history,
+            location,
+            request.timezone,
+            request.previous,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -396,6 +406,7 @@ def _generate(
     history: list[dict] | None,
     location: dict | None,
     timezone: str | None = None,
+    previous: list[dict] | None = None,
 ):
     """Named-event frames from the shared protocol.
 
@@ -415,6 +426,7 @@ def _generate(
             result=result,
             timezone=timezone,
             request_id=request_id,
+            previous=previous,
         ):
             yield sse_frame(payload)
     except Exception as e:
