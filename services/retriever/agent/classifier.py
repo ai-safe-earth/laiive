@@ -2,10 +2,12 @@
 
 Emits the query type, the conversational moment, and the FULL resolved
 constraint state (previous constraints ± this turn's changes), split into
-atomic sub-queries. Re-emitting the whole state every turn is how refinements
+atomic sub-queries. The chat sends the previous turn's searches back, and on a
+refinement `merge_previous` keeps whatever this turn left out, so refinements
 ("cheaper", "what about Berlin instead?") work without server-side sessions.
 """
 
+import json
 from datetime import datetime, timezone as utc_timezone
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -18,11 +20,12 @@ from config import settings
 
 from .utils.llm_utils import get_openai_client
 
-CLASSIFIER_PROMPT_VERSION = "v5"
+CLASSIFIER_PROMPT_VERSION = "v6"
 
 CLASSIFIER_SYSTEM_PROMPT = """You are the query classifier of a live music events assistant backed by a graph database.
 
 Today is {today} ({weekday}), {time} on the user's clock. The user's location is {location_note}.
+The previous search in this conversation was: {previous}.
 
 Read the conversation and the latest user message, then return ONE JSON object:
 
@@ -31,6 +34,7 @@ Read the conversation and the latest user message, then return ONE JSON object:
   "moment": "first_query" | "refinement" | "new_topic" | "ambiguous",
   "language": string,          // ISO 639-1 code of the LATEST user message
   "sub_queries": [Constraints, ...],
+  "cleared": [string, ...],    // constraint names this turn REMOVES ("any genre" → ["genre"])
   "clarification": string or null
 }}
 
@@ -57,6 +61,10 @@ Rules:
   conversation so far, then apply this turn's additions/changes/removals.
   "cheaper" edits price_max; "what about Berlin?" replaces the city and keeps
   the rest; a completely different request is moment "new_topic" and starts clean.
+- A follow-up that does not start a different request is a "refinement" of the
+  previous search, even after "nothing found" and even when it only names a
+  show or asks for "other" events. On a refinement, anything you leave out is
+  kept from the previous search; to drop something, name it in `cleared`.
 - Split multi-intent asks into several sub_queries entries
   (e.g. "jazz tonight and anything by Klangfeld this month" → two).
 - "now" / "right now" → date_from the current time, date_to tomorrow 06:00.
@@ -87,6 +95,8 @@ Rules:
   detail (e.g. no place and no location share). "find me something" has no
   place, no genre, no artist, no date: that is ambiguous, ask for the place.
   Phrase clarification as the missing thing, not a full sentence to parrot.
+  An ambiguous search still fills sub_queries with what WAS said (dates, genre,
+  artist), so it can run as soon as the missing detail arrives.
 - smalltalk covers greetings/thanks/goodbyes; out_of_scope is anything not
   about live music events. Both need no sub_queries.
 - language: {language_rule} A follow-up in a new language switches it.
@@ -141,6 +151,8 @@ class Classification(BaseModel):
     # from a result set full of Spanish venue names (laiive_shared.language).
     language: str = DEFAULT_LANGUAGE
     sub_queries: list[Constraints] = []
+    # Constraint names this turn removes, so the merge does not put them back.
+    cleared: list[str] = []
     clarification: Optional[str] = None
 
     @field_validator("query_type", mode="before")
@@ -152,6 +164,70 @@ class Classification(BaseModel):
     @classmethod
     def _clean_language(cls, v):
         return normalize_language(v)
+
+
+# Kept from the previous search on a refinement. Each group carries over whole
+# or not at all: "and in Torino?" after a venue in Bergamo must not keep the
+# venue, and a new "from" date must not pair with the old "to".
+CARRIED_GROUPS = [
+    ("city", "country_code", "venue", "near_me"),
+    ("radius_km",),
+    ("date_from", "date_to"),
+    ("genre",),
+    ("artist",),
+    ("venue_type",),
+    ("free_text",),
+    ("price_max",),
+]
+# Client-carried text is capped before it reaches a prompt or a query.
+PREVIOUS_TEXT_MAX = 80
+
+
+def previous_searches(raw: list[dict] | None) -> list[Constraints]:
+    """The previous turn's searches as the chat sent them back.
+
+    Hostile input: the chat is ours, but the request is anyone's. Only the
+    carried fields survive, as validated Constraints with short strings; never
+    `needs_custom_cypher` or `query_text`, which steer the LLM-written query.
+    """
+    keep = {name for group in CARRIED_GROUPS for name in group}
+    out = []
+    for item in (raw or [])[:5]:
+        if not isinstance(item, dict):
+            continue
+        fields = {
+            k: v[:PREVIOUS_TEXT_MAX] if isinstance(v, str) else v
+            for k, v in item.items()
+            if k in keep
+        }
+        try:
+            out.append(Constraints(**fields))
+        except ValidationError:
+            continue
+    return out
+
+
+def merge_previous(c: Classification, previous: list[Constraints]) -> Classification:
+    """On a refinement, what this turn left out comes from the previous search.
+
+    The model only has to say what changed (owner, 2026-10-10): re-reading the
+    chat to restate the whole search lost the town after a "nothing found"
+    reply in one run out of two.
+    """
+    if c.moment != "refinement" or not previous:
+        return c
+    if c.query_type == "event_search" and not c.sub_queries:
+        c.sub_queries = [Constraints()]
+    for i, q in enumerate(c.sub_queries):
+        before = previous[min(i, len(previous) - 1)]
+        for group in CARRIED_GROUPS:
+            if any(name in c.cleared for name in group):
+                continue
+            if any(getattr(q, name) not in (None, False) for name in group):
+                continue
+            for name in group:
+                setattr(q, name, getattr(before, name))
+    return c
 
 
 def enforce(c: Classification, has_history: bool, has_location: bool) -> Classification:
@@ -168,6 +244,15 @@ def enforce(c: Classification, has_history: bool, has_location: bool) -> Classif
     """
     if c.moment in ("refinement", "new_topic") and not has_history:
         c.moment = "first_query"
+    if (
+        c.query_type == "event_search"
+        and c.moment == "ambiguous"
+        and not has_location
+        and not c.sub_queries
+    ):
+        # A search the model could not fill in ("any events today?" came back
+        # empty one run in three) still has no place: ask, with the button.
+        c.sub_queries = [Constraints(near_me=True)]
     for q in c.sub_queries:
         if q.city or q.venue:
             q.near_me = False
@@ -221,7 +306,9 @@ class Classifier:
         history: list[dict] | None = None,
         has_location: bool = False,
         timezone: str | None = None,
+        previous: list[Constraints] | None = None,
     ) -> Classification:
+        """`previous` is the last turn's searches, carried by the chat."""
         now = now_in(timezone)
         system = CLASSIFIER_SYSTEM_PROMPT.format(
             today=now.date().isoformat(),
@@ -231,6 +318,15 @@ class Classifier:
             if has_location
             else "NOT available",
             language_rule=DETECTION_RULE,
+            previous=json.dumps(
+                [
+                    q.model_dump(exclude_none=True, exclude_defaults=True)
+                    for q in previous
+                ],
+                ensure_ascii=False,
+            )
+            if previous
+            else "none",
         )
         messages = [{"role": "system", "content": system}]
         messages.extend(history or [])
@@ -246,7 +342,9 @@ class Classifier:
             raw = response.choices[0].message.content
             try:
                 return enforce(
-                    Classification.model_validate_json(raw),
+                    merge_previous(
+                        Classification.model_validate_json(raw), previous or []
+                    ),
                     has_history=bool(history),
                     has_location=has_location,
                 )

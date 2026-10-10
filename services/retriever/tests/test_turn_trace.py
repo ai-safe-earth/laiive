@@ -25,7 +25,9 @@ from laiive_shared.protocol import EventsResult, MessageDelta
 
 
 class FakeClassifier:
-    def classify(self, message, history, has_location=False, timezone=None):
+    def classify(
+        self, message, history, has_location=False, timezone=None, previous=None
+    ):
         return Classification(
             query_type="event_search",
             moment="first_query",

@@ -119,7 +119,7 @@ string, so a paused Aura cannot break them.
 |---|---|---|
 | safety | 6 cases: the four Cypher-guard verdicts and the two injection verdicts | `sf_007` — the moderation verdict, the only case of the seven that needs a live judgement |
 | query generation | a generated mutation is refused and never reaches the driver | `should_not_contain` against the real generation, and `expected_patterns` (xfailed) |
-| classifier | the corpus itself: 30 cases, unique ids, every case asserts something, the prompt version matches, the two open gaps are named | all 30 cases, one live classification each; prompt v4 adds four from user feedback (a named place is never "near me"); v5 adds two: a search with no place needs the user's location; then four from the 2026-10-10 feedback replay, two of them open gaps (a follow-up loses the place) |
+| classifier | the corpus itself: 30 cases, unique ids, every case asserts something, the prompt version matches, no open gaps | all 30 cases, one live classification each; prompt v4 adds four from user feedback (a named place is never "near me"); v5 adds two: a search with no place needs the user's location; then four from the 2026-10-10 feedback replay; v6 closes the two where a follow-up lost the place, by carrying the previous search |
 | answer quality | every case names a situation, a sentence budget and a language; the fixtures resolve; the prompt version matches | all 12 cases, one live composition each (plus one language call) — 10 green since prompt v3 |
 | retrieval | — | **`graph` tier, not `integration`:** 14 recall cases against the frozen graph, no OpenAI key, so CI holds them on every push |
 

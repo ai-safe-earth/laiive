@@ -1,7 +1,7 @@
 ---
 status: todo
 step: retrieval
-next: owner approves the design, then step 1
+next: after follow-up-context (owner's order)
 ---
 # Date ranges resolved in code
 
@@ -30,3 +30,11 @@ time-interval function, called as a tool, does the work.
 - [ ] 2. Classifier prompt: emit `when`; `enforce()` fills the dates from it.
 - [ ] 3. Dataset: cases pinned to a fixed clock (the harness gets a `now`), so
       "this weekend on a Saturday" is testable.
+
+## Decisions
+- Owner, 2026-10-10: use a real tool call if it is more reliable; if not, add a
+  short step-by-step reasoning to the prompt. So step 3 measures both on the
+  fixed-clock cases: (a) the `when` field resolved in code, (b) a tool call to
+  the same function. Keep the more reliable one. If the model still names the
+  wrong interval, add the reasoning step.
+- Prompt optimisation with DSPy is its own plan: `prompt-optimization.md`.

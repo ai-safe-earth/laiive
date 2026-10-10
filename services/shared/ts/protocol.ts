@@ -10,6 +10,7 @@ export const SSE_EVENTS = [
   "events.result",
   "form.extracted",
   "walk.state",
+  "search.context",
   "status",
   "error",
   "done",
@@ -158,6 +159,14 @@ export interface WalkState {
   missing: string[][];
   cursor: number;
   total: number;
+}
+
+// event: search.context
+// What a search turn searched for. The chat keeps it on that answer and sends
+// it back as `previous` with the next message, so a follow-up keeps what it
+// did not change. The retriever owns the fields and re-validates them.
+export interface SearchContext {
+  searches: Record<string, unknown>[];
 }
 
 // event: status

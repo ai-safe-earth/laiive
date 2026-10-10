@@ -12,7 +12,7 @@ from agent.pipeline import Pipeline, TurnResult
 from agent.router import ExecutionPlan, PlanKind
 from agent.tools.query_builder import GeneratedQuery
 from agent.tools.safety_guard import SafetyGuardTool
-from laiive_shared import Status
+from laiive_shared import SearchContext, Status
 
 
 def make_response(content: str):
@@ -143,6 +143,23 @@ class TestPipelineErrors:
         assert not any(
             isinstance(f, Status) and f.state == "needs_location" for f in with_location
         )
+
+    def test_a_search_sends_its_context_back_to_the_chat(self):
+        pipeline = self._pipeline()
+        pipeline.classifier = Mock()
+        pipeline.classifier.classify.return_value = Classification(
+            query_type="event_search",
+            moment="first_query",
+            sub_queries=[Constraints(city="Bergamo", genre="jazz", query_text="jazz")],
+        )
+        pipeline.executor = Mock()
+        pipeline.executor.execute.return_value = Outcome()
+        pipeline.composer = Mock()
+        pipeline.composer.compose_stream.return_value = iter(["None."])
+
+        frames = list(pipeline.run_turn("jazz in bergamo", result=TurnResult()))
+        context = [f for f in frames if isinstance(f, SearchContext)]
+        assert context[0].searches == [{"city": "Bergamo", "genre": "jazz"}]
 
     def test_driver_outage_marks_the_outcome_unavailable(self):
         neo4j = Mock()
