@@ -3,7 +3,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
-import { sendFeedback, streamChat, type ChatMessage, type UserLocation } from "@/api/chat";
+import {
+  rememberLocation,
+  sendFeedback,
+  storedLocation,
+  streamChat,
+  type ChatMessage,
+  type UserLocation,
+} from "@/api/chat";
 import { transcribe as transcribeRecording } from "@/api/ingest";
 import { useSavedUids, useToggleSaved } from "@/api/savedEvents";
 import { Composer } from "@/components/Composer";
@@ -32,7 +39,8 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [location, setLocation] = useState<UserLocation | null>(storedLocation);
+  const remember = (here: UserLocation) => setLocation(rememberLocation(here));
   const abortRef = useRef<AbortController | null>(null);
 
   // One query for every card on the page rather than one per card, which
@@ -47,11 +55,12 @@ export default function Chat() {
   }, [messages, status]);
 
   // Location is optional: "near me" queries need it, everything else does not,
-  // so a denied permission is not worth a toast.
+  // so a denied permission is not worth a toast. A live position replaces the
+  // one remembered from an earlier visit.
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => setLocation({ latitude: coords.latitude, longitude: coords.longitude }),
+      ({ coords }) => remember({ latitude: coords.latitude, longitude: coords.longitude }),
       () => undefined,
       { timeout: 8000 },
     );
@@ -310,13 +319,13 @@ export default function Chat() {
                     index === messages.length - 1 && (
                       <ShareLocation
                         onShared={(here) => {
-                          setLocation(here);
+                          remember(here);
                           void send(messages[index - 1]?.content, here);
                         }}
                       />
                     )}
                   {!message.needsLocation && !location && index === offerAt && (
-                    <ShareLocation label={t.chat.offerLocation} onShared={setLocation} />
+                    <ShareLocation label={t.chat.offerLocation} onShared={remember} />
                   )}
                   {message.requestId && <TurnFeedback requestId={message.requestId} />}
                 </div>

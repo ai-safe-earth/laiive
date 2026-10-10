@@ -111,3 +111,35 @@ function dispatch(frame: ProtocolFrame, handlers: StreamHandlers): void {
       break;
   }
 }
+
+const LOCATION_KEY = "laiive-location";
+
+/**
+ * The last shared position outlives the visit, so the next one starts knowing
+ * where the user is (owner, 2026-10-10). A live position or a new share replaces
+ * it. Kept to three decimals (about 100 m): enough for a km search, less exact
+ * than the device's fix.
+ */
+export function rememberLocation({ latitude, longitude }: UserLocation): UserLocation {
+  const here = {
+    latitude: Math.round(latitude * 1000) / 1000,
+    longitude: Math.round(longitude * 1000) / 1000,
+  };
+  try {
+    localStorage.setItem(LOCATION_KEY, JSON.stringify(here));
+  } catch {
+    // Private mode or blocked storage: the location still holds for this visit.
+  }
+  return here;
+}
+
+export function storedLocation(): UserLocation | null {
+  try {
+    const here = JSON.parse(localStorage.getItem(LOCATION_KEY) ?? "null");
+    return typeof here?.latitude === "number" && typeof here?.longitude === "number"
+      ? here
+      : null;
+  } catch {
+    return null;
+  }
+}

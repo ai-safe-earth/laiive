@@ -60,7 +60,11 @@ the agent must know three things on every turn: place, day and hour.
 - Owner, 2026-10-10: beyond searches, offer location access once per session,
   without insisting. Chosen shape: the chat decides, not the model. The model
   is told "never insist"; the button shows once, on the first finished reply.
-  "Session" is the open chat page: a reload offers again. Rejected: a server
-  flag, because the server keeps no session.
+  "Session" is the open chat page: a reload offers again (owner confirmed).
+  Rejected: a server flag, because the server keeps no session.
+- Owner, 2026-10-10: the location itself outlives the session. The browser
+  keeps the last one (`laiive-location`, rounded to about 100 m); a live
+  device position or a new share replaces it. A place typed in a question
+  wins for that question only, as before.
 - The place-day-hour line rides in the composer's retrieval notes, so it is
   also in the trace for every turn.
