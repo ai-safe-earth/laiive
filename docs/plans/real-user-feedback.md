@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: the still-failing turns become cases (step 4); location is done
+next: owner orders the fixes listed under step 4; step 5 if volume drops
 ---
 # Real-user feedback into fixes
 
@@ -67,9 +67,32 @@ say, not only from cases we wrote ourselves.
       | success | 10 | - |
       Location is the main line: 21 "near me" turns with no location, 10 named places read
       as "near me" (a v3 regression, unreleased). Plan: `done/location-and-distance.md` (done 2026-10-09).
-- [ ] 4. Each confirmed failure becomes a case in the matching dataset (classifier,
+- [x] 4. Each confirmed failure becomes a case in the matching dataset (classifier,
       answer quality, retrieval) with `source: user` and the `request_id`, so a fix is
       proven against the real complaint and stays fixed.
+      2026-10-10: the 46 non-location turns re-asked against the code with #144-#146
+      (read-only). Messages in the cases are paraphrased; the `request_id` leads back.
+      - Fixed now: query-interpretation (3 of 3), unwanted-reply-text, most
+        conversation-issues ("and Torino?", "next month?", "this month?").
+      - New cases: classifier 4 (venue carries over, thanks is smalltalk; two open
+        gaps: a follow-up after "nothing found" loses the place, and a named show
+        with no place asks for a city). Answer quality 1 (a thank-you is not met
+        with more concerts).
+      - A prompt line for the open gap passed only 1 run in 3, so it was not kept.
+        The fix needs the previous turn's constraints, not wording.
+      - Not cases, because the fix is elsewhere (owner to order):
+        - Data: duplicate events (same show, two uids), times saved as 00:00 when the
+          page gave none, event names made of artist + venue. Pusher and `dedup.md`.
+        - Data: one venue twice ("Chorus Life Arena" and "ChorusLife Arena"), and the
+          venue match is space-sensitive, so each spelling finds half. A retrieval
+          fix (match without spaces) needs a frozen-graph case, which needs Neo4j.
+        - Coverage: rock in Torino this week and DJ sets in Bergamo still find
+          nothing; unclear if the events are missing or tagged under another genre.
+        - "Other concerts?" after a list returns the same list; there is no "not
+          these" filter. The show-more button covers part of it.
+        - "This weekend" asked on a Saturday resolved to Wednesday-Friday once.
+          The dataset cannot pin dates other than today and tomorrow.
+        - Cards show no genre, so a mixed "jazz and rock" list cannot be told apart.
 - [ ] 5. If volume is too low: make giving feedback easier (owner's call), and add the
       logs the owner plans, then re-run step 1.
 

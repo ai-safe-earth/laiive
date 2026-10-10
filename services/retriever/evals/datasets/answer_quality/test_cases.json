@@ -96,6 +96,20 @@
       "notes": ["the user's clock: Saturday 2026-10-10 21:40; their location is not shared; if asked, say so and suggest typing a town (the chat offers a share button once, so never insist)"],
       "classification": {"query_type": "out_of_scope", "moment": "first_query", "language": "en"},
       "expect": {"max_sentences": 3, "language": "en", "mentions_any": ["town", "city"]}
+    },
+    {
+      "id": "thanks-gets-thanks-not-more-concerts",
+      "message": "perfetto!!",
+      "source": "user feedback 2026-10-09, unwanted-reply-text",
+      "request_id": "f01c36dc-381a-49ea-b3ae-e34720270a5d",
+      "label_note": "Paraphrased history. The old reply listed more concerts after a thank-you; the user only wanted it acknowledged.",
+      "history": [
+        {"role": "user", "content": "un concerto di Rameau?"},
+        {"role": "assistant", "content": "C'è un concerto su Rameau a Torino."}
+      ],
+      "cards": [],
+      "classification": {"query_type": "smalltalk", "moment": "first_query", "language": "it"},
+      "expect": {"max_sentences": 3, "questions_max": 0, "language": "it", "invents_nothing": true}
     }
   ]
 }

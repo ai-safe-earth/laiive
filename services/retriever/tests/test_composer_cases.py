@@ -1,4 +1,4 @@
-"""The answer-quality set — eleven replies, checked by rule rather than by judge.
+"""The answer-quality set — twelve replies, checked by rule rather than by judge.
 
 The roadmap's `answer quality` suite (docs/roadmap/01-program.md §3) asked for a
 judge rubric at two calls per case. Most of that rubric turns out not to need
