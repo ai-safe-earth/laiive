@@ -1,7 +1,7 @@
 ---
 status: active
 step: evals
-next: owner orders the fixes listed under step 4; step 5 if volume drops
+next: fixes moved to their own plans (follow-up-context, event-data-quality, genres, date-ranges-in-code, dedup, retrieval-accuracy)
 ---
 # Real-user feedback into fixes
 
